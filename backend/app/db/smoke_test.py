@@ -12,6 +12,15 @@ from app.db.session import SessionLocal, engine
 from app.db.settings import get_bool_setting, get_str_setting, set_app_setting
 from app.db.utils import available_quantity, display_part_title, normalize_location_name, slugify
 from app.models import Part
+from app.services.auth import (
+    authenticate_user,
+    create_first_user,
+    create_session,
+    get_user_by_session_token,
+    hash_session_token,
+    is_setup_complete,
+    logout_session,
+)
 
 
 EXPECTED_PART_TYPES = 34
@@ -287,6 +296,170 @@ def check_phase3_auth_foundation() -> None:
     ok("Phase 3 auth foundation works")
 
 
+
+def check_phase3_auth_service() -> None:
+    username = "smoke_auth_service_user"
+    password = "correct horse battery staple"
+
+    with db_session() as db:
+        try:
+            db.execute(text("delete from sessions where user_id in (select id from users where username = :username)"), {"username": username})
+            db.execute(text("delete from users where username = :username"), {"username": username})
+            db.flush()
+
+            setup_before = is_setup_complete(db)
+            user = create_first_user(db, username=f"  {username.upper()}  ", password=password, commit=False)
+            db.flush()
+
+            if user.username != username:
+                fail(f"create_first_user did not normalize username: {user.username!r}")
+            if setup_before and user.id is None:
+                fail("create_first_user did not create a user while existing setup state is allowed for smoke isolation")
+
+            if authenticate_user(db, username=username, password="wrong password") is not None:
+                fail("authenticate_user accepted the wrong password")
+
+            authenticated = authenticate_user(db, username=username.upper(), password=password)
+            if authenticated is None or authenticated.id != user.id:
+                fail("authenticate_user rejected the correct password")
+
+            session_token = create_session(db, user=user, user_agent="smoke-test", ip_address="127.0.0.1", commit=False)
+            db.flush()
+
+            if not session_token.token:
+                fail("create_session returned an empty token")
+            if session_token.session.token_hash == session_token.token:
+                fail("create_session stored the plain token instead of a hash")
+            if session_token.session.token_hash != hash_session_token(session_token.token):
+                fail("create_session stored an unexpected token hash")
+
+            session_user = get_user_by_session_token(db, session_token.token)
+            if session_user is None or session_user.id != user.id:
+                fail("get_user_by_session_token did not resolve the active session")
+
+            if not logout_session(db, session_token.token, commit=False):
+                fail("logout_session did not revoke the active session")
+            db.flush()
+
+            if get_user_by_session_token(db, session_token.token) is not None:
+                fail("get_user_by_session_token accepted a revoked session")
+
+            db.rollback()
+        except Exception:
+            db.rollback()
+            raise
+
+    ok("Phase 3 auth service works")
+
+
+def check_phase3_auth_api_routes() -> None:
+    from app.main import app as fastapi_app
+
+    # Newer FastAPI versions can keep internal _IncludedRouter objects in
+    # app.routes, and those objects do not expose .path. The OpenAPI schema is
+    # the stable public view of registered HTTP paths, so use that for the
+    # smoke test.
+    paths = set(fastapi_app.openapi().get("paths", {}).keys())
+    expected = {
+        "/api/auth/setup-status",
+        "/api/auth/setup",
+        "/api/auth/login",
+        "/api/auth/me",
+        "/api/auth/logout",
+    }
+    missing = sorted(expected - paths)
+    if missing:
+        fail(f"Missing auth API routes: {missing}")
+
+    ok("Phase 3 auth API routes are registered")
+
+
+def check_phase3_auth_api_flow() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.services.auth import create_user, get_user_count
+
+    username = "smoke_auth_api_user"
+    password = "correct horse battery staple"
+
+    def cleanup_user() -> None:
+        with db_session() as db:
+            db.execute(
+                text("delete from sessions where user_id in (select id from users where username = :username)"),
+                {"username": username},
+            )
+            db.execute(text("delete from users where username = :username"), {"username": username})
+            db.commit()
+
+    cleanup_user()
+
+    client = TestClient(fastapi_app)
+
+    try:
+        setup_status = client.get("/api/auth/setup-status")
+        if setup_status.status_code != 200:
+            fail(f"GET /api/auth/setup-status returned {setup_status.status_code}")
+        if "setup_complete" not in setup_status.json():
+            fail("GET /api/auth/setup-status response is missing setup_complete")
+
+        with db_session() as db:
+            users_before = get_user_count(db)
+
+        if users_before == 0:
+            setup_response = client.post(
+                "/api/auth/setup",
+                json={"username": f"  {username.upper()}  ", "password": password},
+            )
+            if setup_response.status_code != 201:
+                fail(f"POST /api/auth/setup returned {setup_response.status_code}: {setup_response.text}")
+            setup_json = setup_response.json()
+            if setup_json.get("username") != username:
+                fail(f"POST /api/auth/setup did not normalize username: {setup_json}")
+            if not setup_json.get("token"):
+                fail("POST /api/auth/setup did not return a session token")
+        else:
+            setup_response = client.post(
+                "/api/auth/setup",
+                json={"username": "another_setup_user", "password": password},
+            )
+            if setup_response.status_code != 409:
+                fail(f"POST /api/auth/setup should reject setup after users exist, got {setup_response.status_code}")
+
+            with db_session() as db:
+                create_user(db, username=username, password=password, commit=True)
+
+        bad_login = client.post("/api/auth/login", json={"username": username, "password": "wrong password"})
+        if bad_login.status_code != 401:
+            fail(f"POST /api/auth/login accepted the wrong password: {bad_login.status_code}")
+
+        login_response = client.post("/api/auth/login", json={"username": username.upper(), "password": password})
+        if login_response.status_code != 200:
+            fail(f"POST /api/auth/login returned {login_response.status_code}: {login_response.text}")
+        token = login_response.json().get("token")
+        if not token:
+            fail("POST /api/auth/login did not return a token")
+
+        me_response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        if me_response.status_code != 200:
+            fail(f"GET /api/auth/me returned {me_response.status_code}: {me_response.text}")
+        if me_response.json().get("username") != username:
+            fail(f"GET /api/auth/me returned the wrong user: {me_response.json()}")
+
+        logout_response = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
+        if logout_response.status_code != 200:
+            fail(f"POST /api/auth/logout returned {logout_response.status_code}: {logout_response.text}")
+        if logout_response.json().get("ok") is not True:
+            fail(f"POST /api/auth/logout did not confirm revocation: {logout_response.json()}")
+
+        revoked_me_response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        if revoked_me_response.status_code != 401:
+            fail(f"GET /api/auth/me accepted a revoked session: {revoked_me_response.status_code}")
+    finally:
+        cleanup_user()
+
+    ok("Phase 3 auth API flow works")
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -297,12 +470,15 @@ def main() -> None:
         check_valid_part_insert_rolls_back,
         check_backend_db_helpers,
         check_phase3_auth_foundation,
+        check_phase3_auth_service,
+        check_phase3_auth_api_routes,
+        check_phase3_auth_api_flow,
     ]
 
     for check in checks:
         check()
 
-    print("[PASS] Phase 3 auth foundation smoke test completed")
+    print("[PASS] Phase 3 auth service smoke test completed")
 
 
 if __name__ == "__main__":
