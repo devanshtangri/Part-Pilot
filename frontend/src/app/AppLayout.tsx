@@ -17,7 +17,7 @@ export function AppLayout() {
         <div className="brand">
           <div className="brand-mark">P</div>
           <div>
-            <strong>PartPilot</strong>
+            <strong>Part Pilot</strong>
             <span>Inventory OS</span>
           </div>
         </div>

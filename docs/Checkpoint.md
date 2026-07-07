@@ -1,13 +1,13 @@
-# PartPilot Checkpoint
+# Part Pilot Checkpoint
 
 Generated: 2026-07-07  
-Purpose: Master checklist and project memory for PartPilot. This file tracks every locked decision, V1 task, later feature, design polish item, and implementation concern discussed so far.
+Purpose: Master checklist and project memory for Part Pilot. This file tracks every locked decision, V1 task, later feature, design polish item, and implementation concern discussed so far.
 
 ---
 
 ## 0. Project Snapshot
 
-- Project name: PartPilot
+- Project name: Part Pilot
 - Product type: Self-hosted electronics inventory manager
 - Core differentiator: MCP integration for AI-aware inventory use
 - Primary users: Hobbyists, makers, small labs, repair shops
@@ -22,7 +22,7 @@ Purpose: Master checklist and project memory for PartPilot. This file tracks eve
 
 ### 1.1 Name
 
-- [x] Use **PartPilot** as the project name.
+- [x] Use **Part Pilot** as the project name.
 
 ### 1.2 Product Purpose
 
@@ -921,7 +921,7 @@ Milestone 1 success criteria:
 - [x] V1 product specification created.
 - [x] Checkpoint file created.
 - [x] Create implementation roadmap.
-- [ ] Create database schema.
+- [x] Create database schema.
 - [ ] Create API design.
 - [ ] Create UI screen-by-screen plan.
 - [ ] Create MCP tool contract.
@@ -945,7 +945,7 @@ Milestone 1 success criteria:
 
 ## 30. Current Best Product Summary
 
-PartPilot is a Docker-first, self-hosted electronics inventory manager with a premium responsive web UI and MCP integration. It tracks components, modules, electromechanical parts, and mechanical hardware with searchable part numbers, names, tags, custom fields, locations, quantities, prices, reservations, projects, low-stock warnings, out-of-stock handling, structured audit history, and full app backups. Its main differentiator is allowing AI assistants to search inventory, understand what parts are available, reserve parts, and consume stock after confirmation.
+Part Pilot is a Docker-first, self-hosted electronics inventory manager with a premium responsive web UI and MCP integration. It tracks components, modules, electromechanical parts, and mechanical hardware with searchable part numbers, names, tags, custom fields, locations, quantities, prices, reservations, projects, low-stock warnings, out-of-stock handling, structured audit history, and full app backups. Its main differentiator is allowing AI assistants to search inventory, understand what parts are available, reserve parts, and consume stock after confirmation.
 
 
 
@@ -985,4 +985,20 @@ Phase boundary note:
 - [x] Normal self-hosted same-origin Docker use should not require users to manually edit CORS origins when changing the public host port.
 - [x] CORS configuration is mainly for development or separated frontend/backend deployments.
 - [x] Port changes are deployment-level changes and require recreating/restarting the Docker container.
+
+## Implementation Session Log — Phase 2 Database Foundation
+
+- [x] Phase 2 database foundation started.
+- [x] Added SQLAlchemy models for the initial V1 database tables.
+- [x] Added first Alembic migration: `0001_database_foundation`.
+- [x] Added idempotent built-in part type seeding through `python -m app.db.seed`.
+- [x] Initial schema uses integer primary keys, UTC timestamps, SQLite-compatible checks, and JSON columns for flexible metadata/snapshots.
+- [x] Quantity foundation stores total/on-hand and reserved quantities; available quantity remains computed as `total_quantity - reserved_quantity`.
+- [x] Part validation begins at the database layer with a name-or-part-number check and a unique part number constraint.
+
+## Implementation Session Log — Product Name Spacing
+
+- [x] Product display name changed from `PartPilot` to `Part Pilot`.
+- [x] User-facing UI/documentation should use `Part Pilot`.
+- [x] Internal identifiers may continue using `partpilot` and `PARTPILOT_*` because spaces are unsuitable for package names, module names, database filenames, environment variable prefixes, and Docker identifiers.
 

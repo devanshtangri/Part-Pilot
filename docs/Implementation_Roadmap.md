@@ -1,14 +1,14 @@
-# PartPilot Implementation Roadmap
+# Part Pilot Implementation Roadmap
 
 Generated: 2026-07-07  
-Project: PartPilot  
-Purpose: Practical build order for taking PartPilot from empty repository to working V1 prototype, then polished V1 release.
+Project: Part Pilot  
+Purpose: Practical build order for taking Part Pilot from empty repository to working V1 prototype, then polished V1 release.
 
 ---
 
 ## 0. Roadmap Philosophy
 
-PartPilot should be built in small, testable loops.
+Part Pilot should be built in small, testable loops.
 
 The first successful prototype is:
 
@@ -84,7 +84,7 @@ partpilot/
   data/
     .gitkeep
   docs/
-    PartPilot_V1_Product_Specification.md
+    Part Pilot_V1_Product_Specification.md
     Checkpoint.md
     Implementation_Roadmap.md
 ```
@@ -189,7 +189,7 @@ Goal: Create the core database model before UI complexity.
 
 ## 4. Phase 3 — First-run Setup and Authentication
 
-Goal: Make PartPilot a single-user protected app.
+Goal: Make Part Pilot a single-user protected app.
 
 ### First-run setup flow
 
@@ -227,7 +227,7 @@ Goal: Make PartPilot a single-user protected app.
 
 ## 5. Phase 4 — Part Types and Custom Fields
 
-Goal: Build the system that makes PartPilot electronics-aware.
+Goal: Build the system that makes Part Pilot electronics-aware.
 
 ### Built-in part types
 
@@ -452,7 +452,7 @@ New part through restock flow:
 
 ## 9. Phase 8 — Search
 
-Goal: Make search the main interaction of PartPilot.
+Goal: Make search the main interaction of Part Pilot.
 
 ### Search targets
 
@@ -824,7 +824,7 @@ Only when enabled:
 
 ### Completion criteria
 
-- [ ] AI can search PartPilot inventory.
+- [ ] AI can search Part Pilot inventory.
 - [ ] AI can reserve parts when enabled.
 - [ ] AI can consume parts when enabled.
 - [ ] All MCP actions appear in audit history.
@@ -833,7 +833,7 @@ Only when enabled:
 
 ## 18. Phase 17 — Dashboard Polish
 
-Goal: Make PartPilot feel premium and useful.
+Goal: Make Part Pilot feel premium and useful.
 
 ### Dashboard widgets
 
@@ -1012,7 +1012,7 @@ Reason: prove the inventory foundation before adding complexity.
 
 Always keep these project memory files updated:
 
-- `PartPilot_V1_Product_Specification.md`
+- `Part Pilot_V1_Product_Specification.md`
 - `Checkpoint.md`
 - `Implementation_Roadmap.md`
 

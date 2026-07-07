@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = Field(default="PartPilot", alias="PARTPILOT_APP_NAME")
+    app_name: str = Field(default="Part Pilot", alias="PARTPILOT_APP_NAME")
     env: str = Field(default="development", alias="PARTPILOT_ENV")
 
     host_port: int = Field(default=7890, alias="PARTPILOT_HOST_PORT")

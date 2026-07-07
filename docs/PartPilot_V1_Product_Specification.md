@@ -1,7 +1,7 @@
-# PartPilot V1 Product Specification
+# Part Pilot V1 Product Specification
 
 Generated: 2026-07-07  
-Project: PartPilot  
+Project: Part Pilot  
 Owner/Initiator: Devansh  
 Stage: Pre-implementation product specification
 
@@ -11,23 +11,23 @@ Stage: Pre-implementation product specification
 
 ### 1.1 Name
 
-**PartPilot**
+**Part Pilot**
 
 The name is locked for now. It fits the product because the app is not only an inventory database; it is intended to guide users and AI assistants through part discovery, reservations, and project preparation.
 
 ### 1.2 One-line Description
 
-PartPilot is a self-hosted electronics inventory manager for makers, hobbyists, small labs, and repair shops, with MCP integration so AI assistants can understand, reserve, and consume available parts.
+Part Pilot is a self-hosted electronics inventory manager for makers, hobbyists, small labs, and repair shops, with MCP integration so AI assistants can understand, reserve, and consume available parts.
 
 ### 1.3 Core Product Promise
 
-PartPilot helps users know exactly what parts they have, where those parts are, how many are available, what is reserved, and how much inventory/project stock is worth.
+Part Pilot helps users know exactly what parts they have, where those parts are, how many are available, what is reserved, and how much inventory/project stock is worth.
 
 ### 1.4 Core Problem
 
 The initiating real-world problem: the user ordered a buck converter for a project, later discovering that two identical buck converters had already been purchased earlier and were already available in storage.
 
-PartPilot exists to prevent this by giving the user a searchable, trustworthy source of truth for available parts.
+Part Pilot exists to prevent this by giving the user a searchable, trustworthy source of truth for available parts.
 
 ### 1.5 Unique Selling Point
 
@@ -44,7 +44,7 @@ The main USP is the **MCP integration**. AI assistants should be able to query t
 
 ## 2. Target Users
 
-PartPilot is intended for:
+Part Pilot is intended for:
 
 - Hobbyists
 - Makers
@@ -102,7 +102,7 @@ The first-class deployment target is:
 
 ### 4.2 Deployment Philosophy
 
-PartPilot should run as a self-hosted service. The web app, backend API, database, and MCP integration should all operate as part of the service.
+Part Pilot should run as a self-hosted service. The web app, backend API, database, and MCP integration should all operate as part of the service.
 
 ### 4.3 Recommended V1 Runtime Shape
 
@@ -189,7 +189,7 @@ V1 should require login even though it is single-user.
 
 ### 6.2 Account Creation
 
-On first launch, PartPilot should show an onboarding/setup flow.
+On first launch, Part Pilot should show an onboarding/setup flow.
 
 Initial setup should collect:
 
@@ -215,7 +215,7 @@ No multi-user permissions in V1.
 
 ### 7.1 Visual Style
 
-PartPilot should feel:
+Part Pilot should feel:
 
 - Modern
 - Premium
@@ -450,7 +450,7 @@ Implementation detail: this should be optional and user-controlled, not automati
 
 ### 10.1 Important Distinction
 
-PartPilot must separate:
+Part Pilot must separate:
 
 1. Creating a part definition
 2. Adding stock to an existing part
@@ -1258,7 +1258,7 @@ Examples:
 
 V1 includes:
 
-- Project name: PartPilot
+- Project name: Part Pilot
 - Docker Compose deployment
 - React + Vite + TypeScript frontend
 - FastAPI backend

@@ -1,4 +1,4 @@
-# PartPilot
+# Part Pilot
 
 Self-hosted electronics inventory manager for makers, hobbyists, small labs, and repair shops.
 
