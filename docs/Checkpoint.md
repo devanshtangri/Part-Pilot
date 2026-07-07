@@ -1002,3 +1002,11 @@ Phase boundary note:
 - [x] User-facing UI/documentation should use `Part Pilot`.
 - [x] Internal identifiers may continue using `partpilot` and `PARTPILOT_*` because spaces are unsuitable for package names, module names, database filenames, environment variable prefixes, and Docker identifiers.
 
+## Implementation Session Log — Phase 2 Schema Hardening
+
+- [x] Added Phase 2 schema-hardening migration `0002_schema_hardening`.
+- [x] Added database indexes for common inventory/search/history access patterns.
+- [x] Enabled SQLite foreign-key enforcement for runtime database connections.
+- [x] Added SQLAlchemy model-level constraints for non-negative prices, quantities, status values, and audit/backup integrity.
+- [x] Kept this step inside Phase 2 only: no API, UI, auth, MCP, or inventory workflows added.
+
