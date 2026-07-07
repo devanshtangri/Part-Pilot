@@ -1,0 +1,15 @@
+services:
+  partpilot:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: partpilot
+    env_file:
+      - .env
+    environment:
+      PARTPILOT_DATABASE_URL: sqlite:////data/partpilot.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
