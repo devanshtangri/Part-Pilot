@@ -91,7 +91,3 @@ Health:
 ```text
 http://localhost:8000/health
 ```
-
-## Next step
-
-After Phase 1 runs successfully, move to Phase 2: database foundation.
