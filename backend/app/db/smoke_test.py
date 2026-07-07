@@ -6,6 +6,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import exc, text
 
+from app.core.security import hash_password, verify_password
 from app.db.constants import FIELD_TYPES, MOVEMENT_TYPES, PROJECT_STATUSES, RESERVATION_STATUSES
 from app.db.session import SessionLocal, engine
 from app.db.settings import get_bool_setting, get_str_setting, set_app_setting
@@ -232,6 +233,60 @@ def check_backend_db_helpers() -> None:
     ok("Backend DB utilities work")
 
 
+
+def check_phase3_auth_foundation() -> None:
+    password_hash = hash_password("partpilot-smoke-password")
+
+    if password_hash == "partpilot-smoke-password":
+        fail("Password hashing returned the plain password")
+
+    if not verify_password("partpilot-smoke-password", password_hash):
+        fail("Password verification rejected the correct password")
+
+    if verify_password("wrong-password", password_hash):
+        fail("Password verification accepted the wrong password")
+
+    with db_session() as db:
+        user_columns = {
+            row[1]
+            for row in db.execute(text("PRAGMA table_info(users)")).fetchall()
+        }
+        session_columns = {
+            row[1]
+            for row in db.execute(text("PRAGMA table_info(sessions)")).fetchall()
+        }
+
+        required_user_columns = {
+            "id",
+            "username",
+            "password_hash",
+            "is_active",
+            "last_login_at",
+            "created_at",
+            "updated_at",
+        }
+        required_session_columns = {
+            "id",
+            "user_id",
+            "token_hash",
+            "expires_at",
+            "revoked_at",
+            "created_at",
+            "updated_at",
+        }
+
+        missing_user_columns = required_user_columns - user_columns
+        missing_session_columns = required_session_columns - session_columns
+
+        if missing_user_columns:
+            fail(f"users table is missing auth columns: {sorted(missing_user_columns)}")
+
+        if missing_session_columns:
+            fail(f"sessions table is missing auth columns: {sorted(missing_session_columns)}")
+
+    ok("Phase 3 auth foundation works")
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -241,12 +296,13 @@ def main() -> None:
         check_invalid_part_rejected,
         check_valid_part_insert_rolls_back,
         check_backend_db_helpers,
+        check_phase3_auth_foundation,
     ]
 
     for check in checks:
         check()
 
-    print("[PASS] Phase 2 database smoke test completed")
+    print("[PASS] Phase 3 auth foundation smoke test completed")
 
 
 if __name__ == "__main__":
