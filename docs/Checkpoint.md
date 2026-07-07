@@ -319,21 +319,21 @@ Mechanical:
 
 ### 8.3 Example MOSFET Template
 
-- [ ] Channel type dropdown: N-channel/P-channel
-- [ ] Max voltage unit value
-- [ ] Max current unit value
-- [ ] RDS(on) unit value
-- [ ] Gate threshold voltage unit value
-- [ ] Logic-level boolean
-- [ ] Package field
+- [x] Channel type dropdown: N-channel/P-channel
+- [x] Max voltage unit value
+- [x] Max current unit value
+- [x] RDS(on) unit value
+- [x] Gate threshold voltage unit value
+- [x] Logic-level boolean
+- [x] Package field
 
 ### 8.4 Example Mechanical Hardware Template
 
-- [ ] Size
-- [ ] Length
-- [ ] Thread type
-- [ ] Material
-- [ ] Head type
+- [x] Size
+- [x] Length
+- [x] Thread type
+- [x] Material
+- [x] Head type
 - [ ] Quantity
 - [ ] Location
 
@@ -442,7 +442,7 @@ Search should cover:
 
 - [x] Integer quantities only.
 - [ ] Decimal quantities — later.
-- [ ] Length/weight/volume quantities — later.
+- [x] Length/weight/volume quantities — later.
 
 ### 13.2 Quantity Fields
 
@@ -1044,3 +1044,20 @@ Phase boundary note:
 - Added typed constants for field types, movement types, sources, project statuses, reservation statuses, audit actor types, and backup statuses.
 - Added app setting get/set helpers with bool/string convenience accessors.
 - Extended the Phase 2 smoke test to validate these helpers.
+
+---
+
+## Implementation Session Log — Phase 2 Complete
+
+- Phase 2 database foundation is complete and committed.
+- Added and verified migrations through Alembic head `0002_schema_hardening`.
+- Added 34 built-in part types.
+- Added 153 built-in template fields.
+- Added 17 default app settings.
+- Added backend database constants, settings helpers, and utility helpers.
+- Added database smoke test with checks for connectivity, foreign keys, migration head, seed data, constraints, rollback safety, and backend helpers.
+- Phase 3 should start next with first-run setup and authentication.
+- Before Phase 3 begins, verify local state with `git status --short`, `git log --oneline -8`, and `docker compose exec -T partpilot python -m app.db.smoke_test`.
+
+---
+

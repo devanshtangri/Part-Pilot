@@ -142,48 +142,77 @@ Goal: Create the core database model before UI complexity.
 
 ### Initial tables
 
-- [ ] `app_settings`
-- [ ] `users`
-- [ ] `sessions`
-- [ ] `part_types`
-- [ ] `part_type_fields`
-- [ ] `parts`
-- [ ] `part_field_values`
-- [ ] `tags`
-- [ ] `part_tags`
-- [ ] `aliases`
-- [ ] `locations`
-- [ ] `stock_movements`
-- [ ] `projects`
-- [ ] `project_items`
-- [ ] `reservations`
-- [ ] `reservation_items`
-- [ ] `audit_log`
-- [ ] `backups`
+- [x] `app_settings`
+- [x] `users`
+- [x] `sessions`
+- [x] `part_types`
+- [x] `part_type_fields`
+- [x] `parts`
+- [x] `part_field_values`
+- [x] `tags`
+- [x] `part_tags`
+- [x] `aliases`
+- [x] `locations`
+- [x] `stock_movements`
+- [x] `projects`
+- [x] `project_items`
+- [x] `reservations`
+- [x] `reservation_items`
+- [x] `audit_log`
+- [x] `backups`
 
 ### Migration tasks
 
-- [ ] Create first Alembic migration.
-- [ ] Ensure SQLite database is created under `/data/partpilot.db`.
-- [ ] Add timestamp fields consistently.
-- [ ] Add soft references or snapshots for audit events.
+- [x] Create first Alembic migration.
+- [x] Ensure SQLite database is created under `/data/partpilot.db`.
+- [x] Add timestamp fields consistently.
+- [x] Add soft references or snapshots for audit events.
 
 ### Data rules
 
-- [ ] Part number is optional.
-- [ ] Name is optional.
-- [ ] At least one of name or part number is required.
-- [ ] Quantity is required.
-- [ ] Location is optional.
-- [ ] Price is optional.
-- [ ] Currency is configured during first-run setup.
-- [ ] Duplicate part numbers are blocked if part number is provided.
+- [x] Part number is optional.
+- [x] Name is optional.
+- [x] At least one of name or part number is required.
+- [x] Quantity is required.
+- [x] Location is optional.
+- [x] Price is optional.
+- [x] Currency is configured during first-run setup.
+- [x] Duplicate part numbers are blocked if part number is provided.
 
 ### Completion criteria
 
-- [ ] Database migrates cleanly.
-- [ ] Empty database can be initialized.
-- [ ] Built-in part types can be seeded.
+- [x] Database migrates cleanly.
+- [x] Empty database can be initialized.
+- [x] Built-in part types can be seeded.
+
+---
+
+## 3.1 Phase 2 Completion Notes
+
+Phase 2 was completed as a database-only foundation before starting API/UI complexity.
+
+Completed implementation additions:
+- SQLAlchemy models for all V1 foundation tables.
+- Alembic migration `0001_database_foundation`.
+- Alembic migration `0002_schema_hardening`.
+- SQLite foreign key enforcement.
+- Built-in part type seed data.
+- Built-in template field seed data.
+- Default app setting seed data.
+- Backend database utilities/constants/settings helpers.
+- Database smoke test covering migration, seed data, constraints, rollback safety, and helper behavior.
+
+Final Phase 2 smoke test command:
+
+```bash
+docker compose exec -T partpilot python -m app.db.smoke_test
+```
+
+Expected final line:
+
+```text
+[PASS] Phase 2 database smoke test completed
+```
 
 ---
 
@@ -321,7 +350,7 @@ Goal: Create the first real inventory entry.
 
 ### Location behavior
 
-- [ ] Location is optional.
+- [x] Location is optional.
 - [ ] New typed location is saved as reusable location.
 - [ ] Existing locations appear in dropdown/autocomplete.
 
