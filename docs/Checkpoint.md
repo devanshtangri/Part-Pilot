@@ -1036,3 +1036,11 @@ Phase boundary note:
 - Added backend database smoke test command: `python -m app.db.smoke_test`.
 - Smoke test verifies database connectivity, Alembic head state, built-in part types, template fields, default app settings, SQLite foreign key enforcement, invalid part rejection, and valid sample part rollback.
 - This remains Phase 2 database validation only; no API, UI, authentication, or inventory workflow behavior was added.
+
+## Implementation Session Log — Phase 2.6 Backend DB Utilities
+
+- Added reusable backend DB utilities before API development.
+- Added text cleanup, lookup normalization, slug generation, location normalization, part display title, and available quantity helpers.
+- Added typed constants for field types, movement types, sources, project statuses, reservation statuses, audit actor types, and backup statuses.
+- Added app setting get/set helpers with bool/string convenience accessors.
+- Extended the Phase 2 smoke test to validate these helpers.

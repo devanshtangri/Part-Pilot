@@ -102,3 +102,11 @@ docker compose exec -T partpilot python -m app.db.smoke_test
 
 The test checks database connectivity, Alembic head state, seed data, SQLite foreign key enforcement, invalid part rejection, and valid sample part rollback.
 
+
+### Backend DB utilities
+
+Phase 2 includes reusable database helper modules used by later API/service layers:
+
+- `app.db.utils` for normalization, slugs, part display titles, and quantity helpers.
+- `app.db.settings` for database-backed app setting reads/writes.
+- `app.db.constants` for shared database vocabulary such as movement and reservation statuses.

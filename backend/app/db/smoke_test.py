@@ -6,7 +6,10 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import exc, text
 
+from app.db.constants import FIELD_TYPES, MOVEMENT_TYPES, PROJECT_STATUSES, RESERVATION_STATUSES
 from app.db.session import SessionLocal, engine
+from app.db.settings import get_bool_setting, get_str_setting, set_app_setting
+from app.db.utils import available_quantity, display_part_title, normalize_location_name, slugify
 from app.models import Part
 
 
@@ -111,7 +114,6 @@ def check_seed_data() -> None:
 
 def check_invalid_part_rejected() -> None:
     with db_session() as db:
-        db.begin()
         try:
             first_type_id = db.execute(text("select id from part_types order by id limit 1")).scalar()
             if first_type_id is None:
@@ -141,7 +143,6 @@ def check_invalid_part_rejected() -> None:
 
 def check_valid_part_insert_rolls_back() -> None:
     with db_session() as db:
-        transaction = db.begin()
         try:
             mosfet_type_id = db.execute(
                 text("select id from part_types where name = 'MOSFET'")
@@ -168,7 +169,7 @@ def check_valid_part_insert_rolls_back() -> None:
             if inserted != 8:
                 fail(f"Valid sample part inserted but available quantity calculation was unexpected: {inserted!r}")
 
-            transaction.rollback()
+            db.rollback()
 
             remaining = db.execute(
                 text("select count(*) from parts where part_number = 'SMOKE-TEST-IRFZ44N'")
@@ -176,11 +177,59 @@ def check_valid_part_insert_rolls_back() -> None:
             if remaining != 0:
                 fail("Smoke test sample part was not rolled back")
         except Exception:
-            if transaction.is_active:
-                transaction.rollback()
+            db.rollback()
             raise
 
     ok("Valid sample part can be inserted and rolled back")
+
+
+def check_backend_db_helpers() -> None:
+    if display_part_title(" IRFZ44N ", "MOSFET") != "IRFZ44N":
+        fail("display_part_title did not prefer part_number")
+
+    if display_part_title(None, " MOSFET ") != "MOSFET":
+        fail("display_part_title did not fall back to name")
+
+    if available_quantity(10, 2) != 8:
+        fail("available_quantity returned unexpected result")
+
+    if normalize_location_name("  Drawer   A1  ") != "drawer a1":
+        fail("normalize_location_name returned unexpected result")
+
+    if slugify("RGB LED") != "rgb-led":
+        fail("slugify returned unexpected result")
+
+    required_field_types = {"text", "number", "boolean", "dropdown", "url", "unit_value"}
+    if not required_field_types.issubset(FIELD_TYPES):
+        fail("FIELD_TYPES is missing expected values")
+
+    if "consume" not in MOVEMENT_TYPES:
+        fail("MOVEMENT_TYPES is missing consume")
+
+    if "active" not in PROJECT_STATUSES or "active" not in RESERVATION_STATUSES:
+        fail("Status constants are missing active")
+
+    with db_session() as db:
+        app_name = get_str_setting(db, "app.display_name")
+        if app_name != "Part Pilot":
+            fail(f"get_str_setting returned unexpected app.display_name: {app_name!r}")
+
+        setup_done = get_bool_setting(db, "setup.completed", True)
+        if setup_done is not False:
+            fail(f"get_bool_setting returned unexpected setup.completed: {setup_done!r}")
+
+        try:
+            set_app_setting(db, "smoke.test.setting", {"ok": True}, text_value="temporary", commit=False)
+            db.flush()
+
+            db.execute(text("delete from app_settings where key = 'smoke.test.setting'"))
+            db.flush()
+            db.rollback()
+        except Exception:
+            db.rollback()
+            raise
+
+    ok("Backend DB utilities work")
 
 
 def main() -> None:
@@ -191,6 +240,7 @@ def main() -> None:
         check_seed_data,
         check_invalid_part_rejected,
         check_valid_part_insert_rolls_back,
+        check_backend_db_helpers,
     ]
 
     for check in checks:
