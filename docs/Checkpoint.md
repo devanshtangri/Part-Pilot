@@ -1016,3 +1016,18 @@ Phase boundary note:
 - [x] Seed logic is idempotent and skips existing `part_type_fields` by `part_type_id + field_key`.
 - [x] No UI, API, auth, MCP, reservation, or project behavior was added in this step.
 - [x] This remains within Phase 2 database foundation work.
+
+## Implementation Session Log — Phase 2.4 Default App Settings
+
+- [x] Seed default app settings into `app_settings`.
+- [x] Default display name is `Part Pilot`.
+- [x] Default theme is dark.
+- [x] Out-of-stock search section is enabled by default.
+- [x] Missing-price warning is enabled by default.
+- [x] Default backup path is `/data/backups`.
+- [x] Default backup frequency is daily.
+- [x] MCP is disabled by default.
+- [x] MCP read tools are enabled by default once MCP is enabled.
+- [x] MCP write tools are disabled by default.
+- [x] First-run setup remains incomplete by default until Phase 3 setup flow creates the first user and required settings.
+

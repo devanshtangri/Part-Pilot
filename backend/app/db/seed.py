@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.models import PartType, PartTypeField
+from app.models import AppSetting, PartType, PartTypeField
 
 
 BUILTIN_PART_TYPES = [
@@ -45,6 +45,27 @@ BUILTIN_PART_TYPES = [
     "Sensor",
     "Custom",
 ]
+
+
+DEFAULT_APP_SETTINGS: dict[str, dict[str, object]] = {
+    "setup.completed": {"value_json": False, "value_text": None},
+    "app.display_name": {"value_json": "Part Pilot", "value_text": "Part Pilot"},
+    "appearance.theme": {"value_json": "dark", "value_text": "dark"},
+    "appearance.light_theme_available": {"value_json": True, "value_text": None},
+    "currency.default": {"value_json": None, "value_text": None},
+    "timezone.default": {"value_json": None, "value_text": None},
+    "search.show_out_of_stock_section": {"value_json": True, "value_text": None},
+    "price.warn_when_missing": {"value_json": True, "value_text": None},
+    "reservations.expiry.mode": {"value_json": "none", "value_text": "none"},
+    "reservations.expiry.default_days": {"value_json": None, "value_text": None},
+    "backups.enabled": {"value_json": True, "value_text": None},
+    "backups.frequency": {"value_json": "daily", "value_text": "daily"},
+    "backups.path": {"value_json": "/data/backups", "value_text": "/data/backups"},
+    "backups.retention_count": {"value_json": 14, "value_text": None},
+    "mcp.enabled": {"value_json": False, "value_text": None},
+    "mcp.read_tools_enabled": {"value_json": True, "value_text": None},
+    "mcp.write_tools_enabled": {"value_json": False, "value_text": None},
+}
 
 
 def field(
@@ -367,13 +388,37 @@ def seed_builtin_template_fields(db: Session) -> int:
     return created
 
 
+def seed_default_app_settings(db: Session) -> int:
+    created = 0
+
+    existing_keys = {row.key for row in db.query(AppSetting.key).all()}
+
+    for key, values in DEFAULT_APP_SETTINGS.items():
+        if key in existing_keys:
+            continue
+
+        db.add(
+            AppSetting(
+                key=key,
+                value_json=values.get("value_json"),
+                value_text=values.get("value_text"),
+            )
+        )
+        created += 1
+
+    db.commit()
+    return created
+
+
 def main() -> None:
     db = SessionLocal()
     try:
         created_types = seed_builtin_part_types(db)
         created_fields = seed_builtin_template_fields(db)
+        created_settings = seed_default_app_settings(db)
         print(f"Seeded built-in part types. Created: {created_types}")
         print(f"Seeded built-in template fields. Created: {created_fields}")
+        print(f"Seeded default app settings. Created: {created_settings}")
     finally:
         db.close()
 
