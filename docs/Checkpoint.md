@@ -976,3 +976,13 @@ Decision changes:
 Phase boundary note:
 
 - Authentication, first-run setup, parts tables, inventory APIs, search, projects, reservations, backups, and MCP remain intentionally unimplemented because they are outside Phase 1.
+
+## Implementation Session Log — Configurable Docker Ports
+
+- [x] Docker host/public port is configurable through `.env` using `PARTPILOT_HOST_PORT`.
+- [x] Container/app port is configurable through `.env` using `PARTPILOT_CONTAINER_PORT`.
+- [x] Default mapping is `7890:8000`.
+- [x] Normal self-hosted same-origin Docker use should not require users to manually edit CORS origins when changing the public host port.
+- [x] CORS configuration is mainly for development or separated frontend/backend deployments.
+- [x] Port changes are deployment-level changes and require recreating/restarting the Docker container.
+

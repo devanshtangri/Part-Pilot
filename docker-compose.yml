@@ -9,7 +9,7 @@ services:
     environment:
       PARTPILOT_DATABASE_URL: sqlite:////data/partpilot.db
     ports:
-      - "8000:8000"
+      - "${PARTPILOT_HOST_PORT:-7890}:${PARTPILOT_CONTAINER_PORT:-8000}"
     volumes:
       - ./data:/data
     restart: unless-stopped
