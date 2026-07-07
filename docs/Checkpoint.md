@@ -1010,3 +1010,9 @@ Phase boundary note:
 - [x] Added SQLAlchemy model-level constraints for non-negative prices, quantities, status values, and audit/backup integrity.
 - [x] Kept this step inside Phase 2 only: no API, UI, auth, MCP, or inventory workflows added.
 
+## Implementation Session Log — Phase 2.3 Built-in Template Fields
+
+- [x] Added default built-in custom field templates for electronics and mechanical part types.
+- [x] Seed logic is idempotent and skips existing `part_type_fields` by `part_type_id + field_key`.
+- [x] No UI, API, auth, MCP, reservation, or project behavior was added in this step.
+- [x] This remains within Phase 2 database foundation work.

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.models import PartType
+from app.models import PartType, PartTypeField
 
 
 BUILTIN_PART_TYPES = [
@@ -46,6 +47,250 @@ BUILTIN_PART_TYPES = [
 ]
 
 
+def field(
+    key: str,
+    label: str,
+    field_type: str,
+    *,
+    required: bool = False,
+    unit: str | None = None,
+    options: list[str] | dict[str, Any] | None = None,
+    help_text: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "field_key": key,
+        "label": label,
+        "field_type": field_type,
+        "is_required": required,
+        "default_unit": unit,
+        "options_json": options,
+        "help_text": help_text,
+    }
+
+
+BUILTIN_TEMPLATE_FIELDS: dict[str, list[dict[str, Any]]] = {
+    "Resistor": [
+        field("resistance", "Resistance", "unit_value", unit="Ω"),
+        field("tolerance", "Tolerance", "unit_value", unit="%"),
+        field("power_rating", "Power rating", "unit_value", unit="W"),
+        field("package", "Package / size", "text"),
+        field("temperature_coefficient", "Temperature coefficient", "unit_value", unit="ppm/°C"),
+    ],
+    "Potentiometer": [
+        field("resistance", "Resistance", "unit_value", unit="Ω"),
+        field("taper", "Taper", "dropdown", options=["Linear", "Logarithmic", "Audio", "Other"]),
+        field("power_rating", "Power rating", "unit_value", unit="W"),
+        field("mounting_type", "Mounting type", "dropdown", options=["Panel", "PCB", "Trimmer", "Other"]),
+        field("package", "Package / size", "text"),
+    ],
+    "Capacitor": [
+        field("capacitance", "Capacitance", "unit_value", unit="uF"),
+        field("voltage_rating", "Voltage rating", "unit_value", unit="V"),
+        field("tolerance", "Tolerance", "unit_value", unit="%"),
+        field("capacitor_type", "Capacitor type", "dropdown", options=["Ceramic", "Electrolytic", "Tantalum", "Film", "Supercapacitor", "Other"]),
+        field("package", "Package / size", "text"),
+        field("polarity", "Polarized", "boolean"),
+    ],
+    "Inductor": [
+        field("inductance", "Inductance", "unit_value", unit="uH"),
+        field("current_rating", "Current rating", "unit_value", unit="A"),
+        field("dc_resistance", "DC resistance", "unit_value", unit="Ω"),
+        field("package", "Package / size", "text"),
+    ],
+    "Diode": [
+        field("forward_voltage", "Forward voltage", "unit_value", unit="V"),
+        field("max_current", "Maximum current", "unit_value", unit="A"),
+        field("reverse_voltage", "Reverse voltage", "unit_value", unit="V"),
+        field("package", "Package", "text"),
+    ],
+    "Zener Diode": [
+        field("zener_voltage", "Zener voltage", "unit_value", unit="V"),
+        field("power_rating", "Power rating", "unit_value", unit="W"),
+        field("tolerance", "Tolerance", "unit_value", unit="%"),
+        field("package", "Package", "text"),
+    ],
+    "Schottky Diode": [
+        field("forward_voltage", "Forward voltage", "unit_value", unit="V"),
+        field("max_current", "Maximum current", "unit_value", unit="A"),
+        field("reverse_voltage", "Reverse voltage", "unit_value", unit="V"),
+        field("package", "Package", "text"),
+    ],
+    "LED": [
+        field("color", "Color", "dropdown", options=["Red", "Green", "Blue", "White", "Warm White", "Yellow", "Orange", "RGB", "Other"]),
+        field("forward_voltage", "Forward voltage", "unit_value", unit="V"),
+        field("forward_current", "Forward current", "unit_value", unit="mA"),
+        field("size", "Size", "text"),
+        field("lens_type", "Lens type", "dropdown", options=["Clear", "Diffused", "Water clear", "Other"]),
+    ],
+    "RGB LED": [
+        field("led_type", "RGB LED type", "dropdown", options=["Common Anode", "Common Cathode", "Addressable", "Other"]),
+        field("package", "Package / size", "text"),
+        field("forward_voltage_red", "Red forward voltage", "unit_value", unit="V"),
+        field("forward_voltage_green", "Green forward voltage", "unit_value", unit="V"),
+        field("forward_voltage_blue", "Blue forward voltage", "unit_value", unit="V"),
+    ],
+    "Optocoupler": [
+        field("channels", "Channels", "number"),
+        field("input_forward_voltage", "Input forward voltage", "unit_value", unit="V"),
+        field("output_type", "Output type", "dropdown", options=["Phototransistor", "Triac", "Logic", "MOSFET", "Other"]),
+        field("isolation_voltage", "Isolation voltage", "unit_value", unit="V"),
+        field("package", "Package", "text"),
+    ],
+    "NPN Transistor": [
+        field("max_voltage", "Maximum voltage", "unit_value", unit="V"),
+        field("max_current", "Maximum current", "unit_value", unit="A"),
+        field("gain_hfe", "Gain / hFE", "number"),
+        field("package", "Package", "text"),
+    ],
+    "PNP Transistor": [
+        field("max_voltage", "Maximum voltage", "unit_value", unit="V"),
+        field("max_current", "Maximum current", "unit_value", unit="A"),
+        field("gain_hfe", "Gain / hFE", "number"),
+        field("package", "Package", "text"),
+    ],
+    "MOSFET": [
+        field("channel_type", "Channel type", "dropdown", options=["N-channel", "P-channel"]),
+        field("max_voltage", "Maximum voltage", "unit_value", unit="V"),
+        field("max_current", "Maximum current", "unit_value", unit="A"),
+        field("rds_on", "RDS(on)", "unit_value", unit="Ω"),
+        field("gate_threshold_voltage", "Gate threshold voltage", "unit_value", unit="V"),
+        field("logic_level", "Logic-level gate", "boolean"),
+        field("package", "Package", "text"),
+    ],
+    "Voltage Regulator": [
+        field("regulator_type", "Regulator type", "dropdown", options=["Linear", "Buck", "Boost", "Buck-Boost", "LDO", "Other"]),
+        field("output_voltage", "Output voltage", "unit_value", unit="V"),
+        field("max_current", "Maximum current", "unit_value", unit="A"),
+        field("input_voltage_range", "Input voltage range", "text"),
+        field("package", "Package", "text"),
+    ],
+    "IC": [
+        field("function", "Function", "text"),
+        field("package", "Package", "text"),
+        field("pin_count", "Pin count", "number"),
+        field("supply_voltage", "Supply voltage", "text"),
+        field("interface", "Interface", "text"),
+    ],
+    "Microcontroller": [
+        field("architecture", "Architecture", "text"),
+        field("flash", "Flash", "unit_value", unit="KB"),
+        field("ram", "RAM", "unit_value", unit="KB"),
+        field("gpio_count", "GPIO count", "number"),
+        field("supply_voltage", "Supply voltage", "text"),
+        field("package", "Package / board", "text"),
+    ],
+    "Relay": [
+        field("coil_voltage", "Coil voltage", "unit_value", unit="V"),
+        field("contact_rating", "Contact rating", "text"),
+        field("contact_form", "Contact form", "dropdown", options=["SPST", "SPDT", "DPST", "DPDT", "Other"]),
+        field("mounting_type", "Mounting type", "dropdown", options=["PCB", "Panel", "DIN rail", "Other"]),
+    ],
+    "Motor": [
+        field("motor_type", "Motor type", "dropdown", options=["DC", "BLDC", "AC", "Gear motor", "Other"]),
+        field("voltage", "Voltage", "unit_value", unit="V"),
+        field("current", "Current", "unit_value", unit="A"),
+        field("rpm", "RPM", "number"),
+        field("shaft_size", "Shaft size", "unit_value", unit="mm"),
+    ],
+    "Servo Motor": [
+        field("voltage", "Voltage", "unit_value", unit="V"),
+        field("torque", "Torque", "text"),
+        field("rotation_range", "Rotation range", "text"),
+        field("gear_type", "Gear type", "dropdown", options=["Plastic", "Metal", "Other"]),
+    ],
+    "Stepper Motor": [
+        field("step_angle", "Step angle", "unit_value", unit="°"),
+        field("rated_voltage", "Rated voltage", "unit_value", unit="V"),
+        field("rated_current", "Rated current", "unit_value", unit="A"),
+        field("phase_count", "Phase count", "number"),
+        field("shaft_size", "Shaft size", "unit_value", unit="mm"),
+    ],
+    "Solenoid": [
+        field("voltage", "Voltage", "unit_value", unit="V"),
+        field("current", "Current", "unit_value", unit="A"),
+        field("stroke_length", "Stroke length", "unit_value", unit="mm"),
+        field("type", "Type", "dropdown", options=["Push", "Pull", "Push-Pull", "Valve", "Other"]),
+    ],
+    "Buzzer": [
+        field("buzzer_type", "Buzzer type", "dropdown", options=["Active", "Passive", "Piezo", "Magnetic", "Other"]),
+        field("voltage", "Voltage", "unit_value", unit="V"),
+        field("frequency", "Frequency", "unit_value", unit="Hz"),
+        field("mounting_type", "Mounting type", "text"),
+    ],
+    "Speaker": [
+        field("impedance", "Impedance", "unit_value", unit="Ω"),
+        field("power_rating", "Power rating", "unit_value", unit="W"),
+        field("diameter", "Diameter", "unit_value", unit="mm"),
+        field("connector_type", "Connector type", "text"),
+    ],
+    "Push Button": [
+        field("button_type", "Button type", "dropdown", options=["Momentary", "Latching", "Tactile", "Other"]),
+        field("contact_type", "Contact type", "dropdown", options=["NO", "NC", "NO+NC", "Other"]),
+        field("mounting_type", "Mounting type", "dropdown", options=["PCB", "Panel", "Breadboard", "Other"]),
+        field("cap_color", "Cap color", "text"),
+    ],
+    "Switch": [
+        field("switch_type", "Switch type", "dropdown", options=["Toggle", "Slide", "Rocker", "DIP", "Limit", "Other"]),
+        field("contact_form", "Contact form", "dropdown", options=["SPST", "SPDT", "DPST", "DPDT", "Other"]),
+        field("current_rating", "Current rating", "unit_value", unit="A"),
+        field("voltage_rating", "Voltage rating", "unit_value", unit="V"),
+    ],
+    "Rotary Encoder": [
+        field("encoder_type", "Encoder type", "dropdown", options=["Incremental", "Absolute", "Other"]),
+        field("pulses_per_revolution", "Pulses per revolution", "number"),
+        field("has_push_button", "Has push button", "boolean"),
+        field("mounting_type", "Mounting type", "text"),
+    ],
+    "Connector": [
+        field("connector_type", "Connector type", "text"),
+        field("pin_count", "Pin count", "number"),
+        field("pitch", "Pitch", "unit_value", unit="mm"),
+        field("gender", "Gender", "dropdown", options=["Male", "Female", "Other"]),
+        field("mounting_type", "Mounting type", "dropdown", options=["Through-hole", "SMD", "Panel", "Cable", "Other"]),
+    ],
+    "Pin Header": [
+        field("pin_count", "Pin count", "number"),
+        field("rows", "Rows", "number"),
+        field("pitch", "Pitch", "unit_value", unit="mm"),
+        field("gender", "Gender", "dropdown", options=["Male", "Female"]),
+        field("angle", "Angle", "dropdown", options=["Straight", "Right-angle"]),
+    ],
+    "Terminal Block": [
+        field("positions", "Positions", "number"),
+        field("pitch", "Pitch", "unit_value", unit="mm"),
+        field("current_rating", "Current rating", "unit_value", unit="A"),
+        field("wire_size", "Wire size", "text"),
+    ],
+    "Fuse": [
+        field("current_rating", "Current rating", "unit_value", unit="A"),
+        field("voltage_rating", "Voltage rating", "unit_value", unit="V"),
+        field("fuse_type", "Fuse type", "dropdown", options=["Fast-blow", "Slow-blow", "Resettable", "Other"]),
+        field("package", "Package / size", "text"),
+    ],
+    "Mechanical Hardware": [
+        field("size", "Size", "text"),
+        field("length", "Length", "unit_value", unit="mm"),
+        field("thread_type", "Thread type", "text"),
+        field("material", "Material", "text"),
+        field("head_type", "Head type", "text"),
+    ],
+    "Module": [
+        field("module_function", "Module function", "text"),
+        field("input_voltage", "Input voltage", "text"),
+        field("output_voltage", "Output voltage", "text"),
+        field("interface", "Interface", "text"),
+        field("board_size", "Board size", "text"),
+    ],
+    "Sensor": [
+        field("sensor_type", "Sensor type", "text"),
+        field("measured_quantity", "Measured quantity", "text"),
+        field("interface", "Interface", "dropdown", options=["Analog", "Digital", "I2C", "SPI", "UART", "1-Wire", "Other"]),
+        field("supply_voltage", "Supply voltage", "text"),
+        field("package", "Package / module", "text"),
+    ],
+}
+
+
 def slugify(value: str) -> str:
     value = value.strip().lower()
     value = re.sub(r"[^a-z0-9]+", "-", value)
@@ -79,11 +324,56 @@ def seed_builtin_part_types(db: Session) -> int:
     return created
 
 
+def seed_builtin_template_fields(db: Session) -> int:
+    created = 0
+
+    part_types = {
+        part_type.name: part_type
+        for part_type in db.query(PartType).filter(PartType.is_builtin.is_(True)).all()
+    }
+
+    for part_type_name, fields in BUILTIN_TEMPLATE_FIELDS.items():
+        part_type = part_types.get(part_type_name)
+        if part_type is None:
+            continue
+
+        existing_field_keys = {
+            row.field_key
+            for row in db.query(PartTypeField.field_key)
+            .filter(PartTypeField.part_type_id == part_type.id)
+            .all()
+        }
+
+        for sort_order, field_def in enumerate(fields, start=10):
+            if field_def["field_key"] in existing_field_keys:
+                continue
+
+            db.add(
+                PartTypeField(
+                    part_type_id=part_type.id,
+                    field_key=field_def["field_key"],
+                    label=field_def["label"],
+                    field_type=field_def["field_type"],
+                    is_required=field_def["is_required"],
+                    sort_order=sort_order * 10,
+                    options_json=field_def["options_json"],
+                    default_unit=field_def["default_unit"],
+                    help_text=field_def["help_text"],
+                )
+            )
+            created += 1
+
+    db.commit()
+    return created
+
+
 def main() -> None:
     db = SessionLocal()
     try:
-        created = seed_builtin_part_types(db)
-        print(f"Seeded built-in part types. Created: {created}")
+        created_types = seed_builtin_part_types(db)
+        created_fields = seed_builtin_template_fields(db)
+        print(f"Seeded built-in part types. Created: {created_types}")
+        print(f"Seeded built-in template fields. Created: {created_fields}")
     finally:
         db.close()
 
