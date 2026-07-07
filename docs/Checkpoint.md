@@ -1031,3 +1031,8 @@ Phase boundary note:
 - [x] MCP write tools are disabled by default.
 - [x] First-run setup remains incomplete by default until Phase 3 setup flow creates the first user and required settings.
 
+## Implementation Session Log — Phase 2 Database Smoke Tests
+
+- Added backend database smoke test command: `python -m app.db.smoke_test`.
+- Smoke test verifies database connectivity, Alembic head state, built-in part types, template fields, default app settings, SQLite foreign key enforcement, invalid part rejection, and valid sample part rollback.
+- This remains Phase 2 database validation only; no API, UI, authentication, or inventory workflow behavior was added.

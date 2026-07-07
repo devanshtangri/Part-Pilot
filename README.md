@@ -91,3 +91,14 @@ Health:
 ```text
 http://localhost:8000/health
 ```
+
+## Database smoke test
+
+Run the Phase 2 database smoke test inside the container after migrations and seed data are applied:
+
+```bash
+docker compose exec -T partpilot python -m app.db.smoke_test
+```
+
+The test checks database connectivity, Alembic head state, seed data, SQLite foreign key enforcement, invalid part rejection, and valid sample part rollback.
+
