@@ -57,6 +57,9 @@ a {
 }
 
 .sidebar {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
   border-right: 1px solid var(--panel-border);
   background: var(--sidebar);
   padding: 20px 14px;
@@ -129,14 +132,22 @@ a {
 }
 
 .sidebar-account {
-  margin-top: 16px;
-  padding: 12px 10px;
+  min-width: 0;
+  margin-top: auto;
+  padding: 16px 10px 0;
   border-top: 1px solid var(--panel-border);
+}
+
+.sidebar-account-details {
+  min-width: 0;
 }
 
 .sidebar-account-name,
 .sidebar-account-username {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-account-name {
@@ -471,6 +482,8 @@ kbd {
 
   .sidebar-account {
     min-width: 210px;
+    margin-top: 12px;
+    padding-top: 12px;
   }
 
   .main-panel {

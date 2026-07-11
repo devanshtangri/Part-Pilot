@@ -40,12 +40,16 @@ export function AppLayout() {
         </nav>
 
         <div className="sidebar-account">
-          <div>
-            <strong>{user?.display_name ?? "Local user"}</strong>
-            <span>@{user?.username ?? "user"}</span>
+          <div className="sidebar-account-details">
+            <strong className="sidebar-account-name">
+              {user?.display_name ?? "Local user"}
+            </strong>
+            <span className="sidebar-account-username">
+              @{user?.username ?? "user"}
+            </span>
           </div>
-          <button type="button" onClick={logout}>
-            Logout
+          <button className="sidebar-logout" type="button" onClick={logout}>
+            Log out
           </button>
         </div>
       </aside>
