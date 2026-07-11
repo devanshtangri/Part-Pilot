@@ -384,6 +384,8 @@ def check_phase3_auth_api_routes() -> None:
     expected = {
         "/api/auth/setup-status",
         "/api/auth/setup",
+        "/api/auth/complete-setup",
+        "/api/auth/debug/reset-database",
         "/api/auth/login",
         "/api/auth/me",
         "/api/auth/logout",
@@ -399,13 +401,39 @@ def check_phase3_auth_api_flow() -> None:
     from fastapi.testclient import TestClient
 
     from app.main import app as fastapi_app
+    from app.models import AppSetting
     from app.services.auth import create_user, get_user_count
 
     username = "smoke_auth_api_user"
     display_name = "Smoke Auth API User"
     password = "correct horse battery staple"
+    default_currency = "INR"
+    timezone_name = "Asia/Kolkata"
+    setting_keys = (
+        "setup.completed",
+        "currency.default",
+        "timezone.default",
+    )
 
-    def cleanup_user() -> None:
+    def snapshot_settings() -> dict[str, tuple[object, str | None] | None]:
+        with db_session() as db:
+            snapshot: dict[str, tuple[object, str | None] | None] = {}
+            for key in setting_keys:
+                row = (
+                    db.query(AppSetting)
+                    .filter(AppSetting.key == key)
+                    .one_or_none()
+                )
+                snapshot[key] = (
+                    None
+                    if row is None
+                    else (row.value_json, row.value_text)
+                )
+            return snapshot
+
+    original_settings = snapshot_settings()
+
+    def cleanup() -> None:
         with db_session() as db:
             db.execute(
                 text(
@@ -419,9 +447,34 @@ def check_phase3_auth_api_flow() -> None:
                 text("delete from users where username = :username"),
                 {"username": username},
             )
+
+            for key, original in original_settings.items():
+                row = (
+                    db.query(AppSetting)
+                    .filter(AppSetting.key == key)
+                    .one_or_none()
+                )
+
+                if original is None:
+                    if row is not None:
+                        db.delete(row)
+                    continue
+
+                if row is None:
+                    row = AppSetting(
+                        key=key,
+                        value_json=original[0],
+                        value_text=original[1],
+                    )
+                    db.add(row)
+                else:
+                    row.value_json = original[0]
+                    row.value_text = original[1]
+
             db.commit()
 
-    cleanup_user()
+    cleanup()
+    original_settings = snapshot_settings()
     client = TestClient(fastapi_app)
 
     try:
@@ -433,11 +486,17 @@ def check_phase3_auth_api_flow() -> None:
             )
 
         setup_status_json = setup_status.json()
-        if "setup_complete" not in setup_status_json:
-            fail(
-                "GET /api/auth/setup-status response is missing "
-                "setup_complete"
-            )
+        for key in (
+            "setup_complete",
+            "account_exists",
+            "default_currency",
+            "timezone",
+        ):
+            if key not in setup_status_json:
+                fail(
+                    "GET /api/auth/setup-status response is missing "
+                    f"{key}"
+                )
 
         with db_session() as db:
             users_before = get_user_count(db)
@@ -449,8 +508,11 @@ def check_phase3_auth_api_flow() -> None:
                     "username": username,
                     "display_name": display_name,
                     "password": password,
+                    "default_currency": default_currency,
+                    "timezone": timezone_name,
                 },
             )
+
             if setup_response.status_code != 201:
                 fail(
                     "POST /api/auth/setup returned "
@@ -459,6 +521,7 @@ def check_phase3_auth_api_flow() -> None:
                 )
 
             setup_json = setup_response.json()
+            token = setup_json.get("token")
 
             if setup_json.get("username") != username:
                 fail(
@@ -472,7 +535,7 @@ def check_phase3_auth_api_flow() -> None:
                     f"{setup_json}"
                 )
 
-            if not setup_json.get("token"):
+            if not token:
                 fail(
                     "POST /api/auth/setup did not return a session token"
                 )
@@ -483,6 +546,8 @@ def check_phase3_auth_api_flow() -> None:
                     "username": "another_setup_user",
                     "display_name": "Another Setup User",
                     "password": password,
+                    "default_currency": default_currency,
+                    "timezone": timezone_name,
                 },
             )
 
@@ -501,12 +566,16 @@ def check_phase3_auth_api_flow() -> None:
                     commit=True,
                 )
 
+            token = None
+
         bad_username_response = client.post(
             "/api/auth/setup",
             json={
                 "username": "bad username",
                 "display_name": display_name,
                 "password": password,
+                "default_currency": default_currency,
+                "timezone": timezone_name,
             },
         )
 
@@ -554,6 +623,41 @@ def check_phase3_auth_api_flow() -> None:
             fail(
                 "POST /api/auth/login returned the wrong display name: "
                 f"{login_json}"
+            )
+
+        complete_response = client.post(
+            "/api/auth/complete-setup",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "default_currency": default_currency,
+                "timezone": timezone_name,
+            },
+        )
+
+        if complete_response.status_code != 200:
+            fail(
+                "POST /api/auth/complete-setup returned "
+                f"{complete_response.status_code}: "
+                f"{complete_response.text}"
+            )
+
+        complete_json = complete_response.json()
+        if complete_json.get("setup_complete") is not True:
+            fail(
+                "POST /api/auth/complete-setup did not mark setup complete: "
+                f"{complete_json}"
+            )
+
+        if complete_json.get("default_currency") != default_currency:
+            fail(
+                "POST /api/auth/complete-setup returned the wrong currency: "
+                f"{complete_json}"
+            )
+
+        if complete_json.get("timezone") != timezone_name:
+            fail(
+                "POST /api/auth/complete-setup returned the wrong timezone: "
+                f"{complete_json}"
             )
 
         me_response = client.get(
@@ -609,9 +713,11 @@ def check_phase3_auth_api_flow() -> None:
                 f"{revoked_me_response.status_code}"
             )
     finally:
-        cleanup_user()
+        cleanup()
 
-    ok("Phase 3 auth API flow works")
+    ok("Phase 3 auth and application setup API flow works")
+
+
 
 
 def main() -> None:

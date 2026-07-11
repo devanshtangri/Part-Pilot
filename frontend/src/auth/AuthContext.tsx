@@ -10,21 +10,33 @@ import {
 
 import {
   AUTH_TOKEN_STORAGE_KEY,
+  completeApplicationSetup,
   getCurrentUser,
   getSetupStatus,
   loginUser,
   logoutUser,
   setupFirstUser
 } from "../services/authClient";
-import type { AuthTokenResponse, AuthUser, LoginRequest, SetupRequest } from "../types/auth";
+import type {
+  AuthTokenResponse,
+  AuthUser,
+  LoginRequest,
+  SetupPreferencesRequest,
+  SetupRequest,
+  SetupStatusResponse
+} from "../types/auth";
 
 interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
+  accountExists: boolean | null;
   setupComplete: boolean | null;
+  defaultCurrency: string | null;
+  timezone: string | null;
   isBooting: boolean;
   authError: string | null;
   setup: (payload: SetupRequest) => Promise<void>;
+  completeSetup: (payload: SetupPreferencesRequest) => Promise<void>;
   login: (payload: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
   clearAuthError: () => void;
@@ -33,22 +45,32 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 function authUserFromTokenResponse(response: AuthTokenResponse): AuthUser {
-  const displayName = response.display_name;
-
   return {
     id: 0,
     username: response.username,
-    display_name: displayName,
+    display_name: response.display_name,
     is_active: true
   };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY));
+  const [token, setToken] = useState<string | null>(() =>
+    localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+  );
+  const [accountExists, setAccountExists] = useState<boolean | null>(null);
   const [setupComplete, setSetupComplete] = useState<boolean | null>(null);
+  const [defaultCurrency, setDefaultCurrency] = useState<string | null>(null);
+  const [timezone, setTimezone] = useState<string | null>(null);
   const [isBooting, setIsBooting] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  const applySetupStatus = useCallback((status: SetupStatusResponse) => {
+    setAccountExists(status.account_exists);
+    setSetupComplete(status.setup_complete);
+    setDefaultCurrency(status.default_currency);
+    setTimezone(status.timezone);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,18 +83,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        setSetupComplete(status.setup_complete);
+        applySetupStatus(status);
 
         const storedToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-        if (status.setup_complete && storedToken) {
+        if (status.account_exists && storedToken) {
           try {
             const currentUser = await getCurrentUser(storedToken);
+
             if (!cancelled) {
               setToken(storedToken);
               setUser(currentUser);
             }
           } catch {
             localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+
             if (!cancelled) {
               setToken(null);
               setUser(null);
@@ -81,7 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error) {
         if (!cancelled) {
-          setAuthError(error instanceof Error ? error.message : "Unable to reach the auth service");
+          setAuthError(
+            error instanceof Error
+              ? error.message
+              : "Unable to reach the auth service"
+          );
         }
       } finally {
         if (!cancelled) {
@@ -95,13 +123,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applySetupStatus]);
 
   const persistAuth = useCallback((response: AuthTokenResponse) => {
     localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, response.token);
     setToken(response.token);
     setUser(authUserFromTokenResponse(response));
-    setSetupComplete(true);
   }, []);
 
   const setup = useCallback(
@@ -109,8 +136,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthError(null);
       const response = await setupFirstUser(payload);
       persistAuth(response);
+      setAccountExists(true);
+      setSetupComplete(true);
+      setDefaultCurrency(payload.defaultCurrency.trim().toUpperCase());
+      setTimezone(payload.timezone.trim());
     },
     [persistAuth]
+  );
+
+  const completeSetup = useCallback(
+    async (payload: SetupPreferencesRequest) => {
+      if (!token) {
+        throw new Error("Sign in before completing setup");
+      }
+
+      setAuthError(null);
+      const status = await completeApplicationSetup(token, payload);
+      applySetupStatus(status);
+    },
+    [applySetupStatus, token]
   );
 
   const login = useCallback(
@@ -118,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthError(null);
       const response = await loginUser(payload);
       persistAuth(response);
+      setAccountExists(true);
     },
     [persistAuth]
   );
@@ -146,15 +191,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       token,
+      accountExists,
       setupComplete,
+      defaultCurrency,
+      timezone,
       isBooting,
       authError,
       setup,
+      completeSetup,
       login,
       logout,
       clearAuthError
     }),
-    [authError, clearAuthError, isBooting, login, logout, setup, setupComplete, token, user]
+    [
+      accountExists,
+      authError,
+      clearAuthError,
+      completeSetup,
+      defaultCurrency,
+      isBooting,
+      login,
+      logout,
+      setup,
+      setupComplete,
+      timezone,
+      token,
+      user
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

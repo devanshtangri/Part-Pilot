@@ -8,6 +8,7 @@ services:
       - .env
     environment:
       PARTPILOT_DATABASE_URL: sqlite:////data/partpilot.db
+      PARTPILOT_ENABLE_DEBUG_RESET: "${PARTPILOT_ENABLE_DEBUG_RESET:-true}"
     ports:
       - "${PARTPILOT_HOST_PORT:-7890}:${PARTPILOT_CONTAINER_PORT:-8000}"
     volumes:

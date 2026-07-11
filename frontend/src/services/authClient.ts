@@ -2,7 +2,9 @@ import type {
   ApiAuthTokenResponse,
   AuthTokenResponse,
   AuthUser,
+  DebugResetResponse,
   LoginRequest,
+  SetupPreferencesRequest,
   SetupRequest,
   SetupStatusResponse
 } from "../types/auth";
@@ -18,7 +20,7 @@ async function parseAuthError(response: Response): Promise<string> {
       return body.detail;
     }
   } catch {
-    // Fall through to generic message.
+    // Fall through to the generic message.
   }
 
   return `Request failed with status ${response.status}`;
@@ -32,6 +34,13 @@ function mapTokenResponse(response: ApiAuthTokenResponse): AuthTokenResponse {
   };
 }
 
+function setupPreferencesBody(payload: SetupPreferencesRequest) {
+  return {
+    default_currency: payload.defaultCurrency.trim().toUpperCase(),
+    timezone: payload.timezone.trim()
+  };
+}
+
 export async function getSetupStatus(): Promise<SetupStatusResponse> {
   const response = await fetch(`${API_BASE_URL}/auth/setup-status`);
 
@@ -42,7 +51,9 @@ export async function getSetupStatus(): Promise<SetupStatusResponse> {
   return response.json();
 }
 
-export async function setupFirstUser(payload: SetupRequest): Promise<AuthTokenResponse> {
+export async function setupFirstUser(
+  payload: SetupRequest
+): Promise<AuthTokenResponse> {
   const response = await fetch(`${API_BASE_URL}/auth/setup`, {
     method: "POST",
     headers: {
@@ -51,7 +62,8 @@ export async function setupFirstUser(payload: SetupRequest): Promise<AuthTokenRe
     body: JSON.stringify({
       display_name: payload.displayName,
       username: payload.username,
-      password: payload.password
+      password: payload.password,
+      ...setupPreferencesBody(payload)
     })
   });
 
@@ -62,7 +74,29 @@ export async function setupFirstUser(payload: SetupRequest): Promise<AuthTokenRe
   return mapTokenResponse(await response.json());
 }
 
-export async function loginUser(payload: LoginRequest): Promise<AuthTokenResponse> {
+export async function completeApplicationSetup(
+  token: string,
+  payload: SetupPreferencesRequest
+): Promise<SetupStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/complete-setup`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(setupPreferencesBody(payload))
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function loginUser(
+  payload: LoginRequest
+): Promise<AuthTokenResponse> {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: {
@@ -104,3 +138,27 @@ export async function logoutUser(token: string): Promise<void> {
     throw new Error(await parseAuthError(response));
   }
 }
+
+export async function resetApplicationDatabase(
+  token: string,
+  confirmation: string
+): Promise<DebugResetResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/auth/debug/reset-database`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ confirmation })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
