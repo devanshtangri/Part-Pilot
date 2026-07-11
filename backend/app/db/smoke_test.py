@@ -16,6 +16,7 @@ from app.services.auth import (
     authenticate_user,
     create_first_user,
     create_session,
+    create_user,
     get_user_by_session_token,
     hash_session_token,
     is_setup_complete,
@@ -24,6 +25,7 @@ from app.services.auth import (
 
 
 EXPECTED_PART_TYPES = 34
+EXPECTED_AUTH_SCHEMA_HEAD = "0003_user_display_name"
 MIN_TEMPLATE_FIELDS = 140
 EXPECTED_SETTINGS = {
     "setup.completed",
@@ -268,6 +270,7 @@ def check_phase3_auth_foundation() -> None:
         required_user_columns = {
             "id",
             "username",
+            "display_name",
             "password_hash",
             "is_active",
             "last_login_at",
@@ -300,21 +303,39 @@ def check_phase3_auth_foundation() -> None:
 def check_phase3_auth_service() -> None:
     username = "smoke_auth_service_user"
     password = "correct horse battery staple"
+    display_name = "Smoke Auth Service User"
 
     with db_session() as db:
         try:
-            db.execute(text("delete from sessions where user_id in (select id from users where username = :username)"), {"username": username})
+            db.execute(
+                text("delete from sessions where user_id in (select id from users where username = :username)"),
+                {"username": username},
+            )
             db.execute(text("delete from users where username = :username"), {"username": username})
             db.flush()
 
-            setup_before = is_setup_complete(db)
-            user = create_first_user(db, username=f"  {username.upper()}  ", password=password, commit=False)
+            if is_setup_complete(db):
+                user = create_user(
+                    db,
+                    username=f"  {username.upper()}  ",
+                    display_name=display_name,
+                    password=password,
+                    commit=False,
+                )
+            else:
+                user = create_first_user(
+                    db,
+                    username=f"  {username.upper()}  ",
+                    display_name=display_name,
+                    password=password,
+                    commit=False,
+                )
             db.flush()
 
             if user.username != username:
-                fail(f"create_first_user did not normalize username: {user.username!r}")
-            if setup_before and user.id is None:
-                fail("create_first_user did not create a user while existing setup state is allowed for smoke isolation")
+                fail(f"auth service did not normalize username: {user.username!r}")
+            if user.display_name != display_name:
+                fail(f"auth service did not store display name: {user.display_name!r}")
 
             if authenticate_user(db, username=username, password="wrong password") is not None:
                 fail("authenticate_user accepted the wrong password")
@@ -381,27 +402,42 @@ def check_phase3_auth_api_flow() -> None:
     from app.services.auth import create_user, get_user_count
 
     username = "smoke_auth_api_user"
+    display_name = "Smoke Auth API User"
     password = "correct horse battery staple"
 
     def cleanup_user() -> None:
         with db_session() as db:
             db.execute(
-                text("delete from sessions where user_id in (select id from users where username = :username)"),
+                text(
+                    "delete from sessions "
+                    "where user_id in "
+                    "(select id from users where username = :username)"
+                ),
                 {"username": username},
             )
-            db.execute(text("delete from users where username = :username"), {"username": username})
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
             db.commit()
 
     cleanup_user()
-
     client = TestClient(fastapi_app)
 
     try:
         setup_status = client.get("/api/auth/setup-status")
         if setup_status.status_code != 200:
-            fail(f"GET /api/auth/setup-status returned {setup_status.status_code}")
-        if "setup_complete" not in setup_status.json():
-            fail("GET /api/auth/setup-status response is missing setup_complete")
+            fail(
+                "GET /api/auth/setup-status returned "
+                f"{setup_status.status_code}"
+            )
+
+        setup_status_json = setup_status.json()
+        if "setup_complete" not in setup_status_json:
+            fail(
+                "GET /api/auth/setup-status response is missing "
+                "setup_complete"
+            )
 
         with db_session() as db:
             users_before = get_user_count(db)
@@ -409,56 +445,174 @@ def check_phase3_auth_api_flow() -> None:
         if users_before == 0:
             setup_response = client.post(
                 "/api/auth/setup",
-                json={"username": f"  {username.upper()}  ", "password": password},
+                json={
+                    "username": username,
+                    "display_name": display_name,
+                    "password": password,
+                },
             )
             if setup_response.status_code != 201:
-                fail(f"POST /api/auth/setup returned {setup_response.status_code}: {setup_response.text}")
+                fail(
+                    "POST /api/auth/setup returned "
+                    f"{setup_response.status_code}: "
+                    f"{setup_response.text}"
+                )
+
             setup_json = setup_response.json()
+
             if setup_json.get("username") != username:
-                fail(f"POST /api/auth/setup did not normalize username: {setup_json}")
+                fail(
+                    "POST /api/auth/setup returned the wrong username: "
+                    f"{setup_json}"
+                )
+
+            if setup_json.get("display_name") != display_name:
+                fail(
+                    "POST /api/auth/setup returned the wrong display name: "
+                    f"{setup_json}"
+                )
+
             if not setup_json.get("token"):
-                fail("POST /api/auth/setup did not return a session token")
+                fail(
+                    "POST /api/auth/setup did not return a session token"
+                )
         else:
             setup_response = client.post(
                 "/api/auth/setup",
-                json={"username": "another_setup_user", "password": password},
+                json={
+                    "username": "another_setup_user",
+                    "display_name": "Another Setup User",
+                    "password": password,
+                },
             )
+
             if setup_response.status_code != 409:
-                fail(f"POST /api/auth/setup should reject setup after users exist, got {setup_response.status_code}")
+                fail(
+                    "POST /api/auth/setup should reject setup after "
+                    f"users exist, got {setup_response.status_code}"
+                )
 
             with db_session() as db:
-                create_user(db, username=username, password=password, commit=True)
+                create_user(
+                    db,
+                    username=username,
+                    display_name=display_name,
+                    password=password,
+                    commit=True,
+                )
 
-        bad_login = client.post("/api/auth/login", json={"username": username, "password": "wrong password"})
+        bad_username_response = client.post(
+            "/api/auth/setup",
+            json={
+                "username": "bad username",
+                "display_name": display_name,
+                "password": password,
+            },
+        )
+
+        if bad_username_response.status_code not in (409, 422):
+            fail(
+                "POST /api/auth/setup should reject invalid usernames, "
+                f"got {bad_username_response.status_code}"
+            )
+
+        bad_login = client.post(
+            "/api/auth/login",
+            json={
+                "username": username,
+                "password": "wrong password",
+            },
+        )
+
         if bad_login.status_code != 401:
-            fail(f"POST /api/auth/login accepted the wrong password: {bad_login.status_code}")
+            fail(
+                "POST /api/auth/login accepted the wrong password: "
+                f"{bad_login.status_code}"
+            )
 
-        login_response = client.post("/api/auth/login", json={"username": username.upper(), "password": password})
+        login_response = client.post(
+            "/api/auth/login",
+            json={
+                "username": username,
+                "password": password,
+            },
+        )
+
         if login_response.status_code != 200:
-            fail(f"POST /api/auth/login returned {login_response.status_code}: {login_response.text}")
-        token = login_response.json().get("token")
+            fail(
+                "POST /api/auth/login returned "
+                f"{login_response.status_code}: {login_response.text}"
+            )
+
+        login_json = login_response.json()
+        token = login_json.get("token")
+
         if not token:
             fail("POST /api/auth/login did not return a token")
 
-        me_response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        if login_json.get("display_name") != display_name:
+            fail(
+                "POST /api/auth/login returned the wrong display name: "
+                f"{login_json}"
+            )
+
+        me_response = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
         if me_response.status_code != 200:
-            fail(f"GET /api/auth/me returned {me_response.status_code}: {me_response.text}")
-        if me_response.json().get("username") != username:
-            fail(f"GET /api/auth/me returned the wrong user: {me_response.json()}")
+            fail(
+                "GET /api/auth/me returned "
+                f"{me_response.status_code}: {me_response.text}"
+            )
 
-        logout_response = client.post("/api/auth/logout", headers={"Authorization": f"Bearer {token}"})
+        me_json = me_response.json()
+
+        if me_json.get("username") != username:
+            fail(
+                "GET /api/auth/me returned the wrong username: "
+                f"{me_json}"
+            )
+
+        if me_json.get("display_name") != display_name:
+            fail(
+                "GET /api/auth/me returned the wrong display name: "
+                f"{me_json}"
+            )
+
+        logout_response = client.post(
+            "/api/auth/logout",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
         if logout_response.status_code != 200:
-            fail(f"POST /api/auth/logout returned {logout_response.status_code}: {logout_response.text}")
-        if logout_response.json().get("ok") is not True:
-            fail(f"POST /api/auth/logout did not confirm revocation: {logout_response.json()}")
+            fail(
+                "POST /api/auth/logout returned "
+                f"{logout_response.status_code}: {logout_response.text}"
+            )
 
-        revoked_me_response = client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        if logout_response.json().get("ok") is not True:
+            fail(
+                "POST /api/auth/logout did not confirm revocation: "
+                f"{logout_response.json()}"
+            )
+
+        revoked_me_response = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
         if revoked_me_response.status_code != 401:
-            fail(f"GET /api/auth/me accepted a revoked session: {revoked_me_response.status_code}")
+            fail(
+                "GET /api/auth/me accepted a revoked session: "
+                f"{revoked_me_response.status_code}"
+            )
     finally:
         cleanup_user()
 
     ok("Phase 3 auth API flow works")
+
 
 def main() -> None:
     checks = [

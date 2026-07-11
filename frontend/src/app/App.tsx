@@ -1,11 +1,31 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "./AppLayout";
+import { AuthProvider, useAuth } from "../auth/AuthContext";
+import { AuthScreen } from "../pages/AuthScreen";
 import { Dashboard } from "../pages/Dashboard";
 import { Inventory } from "../pages/Inventory";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
 
-export function App() {
+function AppRoutes() {
+  const { user, setupComplete, isBooting } = useAuth();
+
+  if (isBooting) {
+    return (
+      <main className="auth-shell auth-shell-loading">
+        <section className="auth-form-card">
+          <div className="brand-mark">P</div>
+          <p className="eyebrow">Starting Part Pilot</p>
+          <h2>Checking local session...</h2>
+        </section>
+      </main>
+    );
+  }
+
+  if (!user || setupComplete === false) {
+    return <AuthScreen />;
+  }
+
   return (
     <Routes>
       <Route element={<AppLayout />}>
@@ -20,5 +40,13 @@ export function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }

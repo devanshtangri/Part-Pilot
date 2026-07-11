@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -12,6 +13,7 @@ from app.core.security import hash_password, verify_password
 from app.models import User, UserSession
 
 DEFAULT_SESSION_DAYS = 30
+USERNAME_PATTERN = re.compile(r"^[a-z0-9._]+$")
 
 
 @dataclass(frozen=True)
@@ -22,7 +24,6 @@ class SessionToken:
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
-
 
 
 def _to_naive_utc(value: datetime | None) -> datetime | None:
@@ -37,10 +38,22 @@ def _to_naive_utc(value: datetime | None) -> datetime | None:
 def _naive_utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+
 def normalize_username(username: str) -> str:
     normalized = username.strip().lower()
     if not normalized:
         raise ValueError("Username cannot be empty")
+    if not USERNAME_PATTERN.fullmatch(normalized):
+        raise ValueError("Username can only contain lowercase letters, numbers, period, and underscore")
+    return normalized
+
+
+def normalize_display_name(display_name: str | None, fallback_username: str) -> str:
+    normalized = (display_name or "").strip()
+    if not normalized:
+        normalized = fallback_username
+    if len(normalized) > 160:
+        raise ValueError("Display name must be 160 characters or fewer")
     return normalized
 
 
@@ -62,18 +75,32 @@ def is_setup_complete(db: Session) -> bool:
     return get_user_count(db) > 0
 
 
+def has_any_user(db: Session) -> bool:
+    return db.query(User.id).first() is not None
+
+
 def get_user_by_username(db: Session, username: str) -> User | None:
     normalized = normalize_username(username)
     return db.execute(select(User).where(User.username == normalized)).scalar_one_or_none()
 
 
-def create_user(db: Session, *, username: str, password: str, commit: bool = True) -> User:
-    normalized = normalize_username(username)
-    if get_user_by_username(db, normalized) is not None:
+def create_user(
+    db: Session,
+    *,
+    username: str,
+    password: str,
+    display_name: str | None = None,
+    commit: bool = True,
+) -> User:
+    normalized_username = normalize_username(username)
+    normalized_display_name = normalize_display_name(display_name, normalized_username)
+
+    if get_user_by_username(db, normalized_username) is not None:
         raise ValueError("Username already exists")
 
     user = User(
-        username=normalized,
+        username=normalized_username,
+        display_name=normalized_display_name,
         password_hash=hash_password(password),
         is_active=True,
     )
@@ -85,18 +112,36 @@ def create_user(db: Session, *, username: str, password: str, commit: bool = Tru
     return user
 
 
-def create_first_user(db: Session, *, username: str, password: str, commit: bool = True) -> User:
+def create_first_user(
+    db: Session,
+    *,
+    username: str,
+    password: str,
+    display_name: str | None = None,
+    commit: bool = True,
+) -> User:
     if is_setup_complete(db):
         raise ValueError("Setup is already complete")
-    return create_user(db, username=username, password=password, commit=commit)
+    return create_user(
+        db,
+        username=username,
+        password=password,
+        display_name=display_name,
+        commit=commit,
+    )
 
 
 def authenticate_user(db: Session, *, username: str, password: str) -> User | None:
-    user = get_user_by_username(db, username)
+    try:
+        user = get_user_by_username(db, username)
+    except ValueError:
+        return None
+
     if user is None or not user.is_active:
         return None
     if not verify_password(password, user.password_hash):
         return None
+
     user.last_login_at = _naive_utc_now()
     db.flush()
     return user
@@ -141,6 +186,7 @@ def is_session_active(session: UserSession) -> bool:
     revoked_at = _to_naive_utc(session.revoked_at)
     return revoked_at is None and expires_at is not None and expires_at > _naive_utc_now()
 
+
 def get_user_by_session_token(db: Session, token: str) -> User | None:
     session = get_session_by_token(db, token)
     if session is None or not is_session_active(session):
@@ -169,8 +215,3 @@ def logout_session(db: Session, token: str, *, commit: bool = True) -> bool:
 
 def revoke_session(db: Session, token: str, *, commit: bool = True) -> bool:
     return logout_session(db, token, commit=commit)
-
-
-def has_any_user(db: Session) -> bool:
-    return db.query(User.id).first() is not None
-

@@ -1,5 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 
+import { useAuth } from "../auth/AuthContext";
+
 const navItems = [
   { label: "Dashboard", path: "/" },
   { label: "Inventory", path: "/inventory" },
@@ -11,6 +13,8 @@ const navItems = [
 ];
 
 export function AppLayout() {
+  const { user, logout } = useAuth();
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -34,6 +38,16 @@ export function AppLayout() {
             </NavLink>
           ))}
         </nav>
+
+        <div className="sidebar-account">
+          <div>
+            <strong>{user?.display_name ?? "Local user"}</strong>
+            <span>@{user?.username ?? "user"}</span>
+          </div>
+          <button type="button" onClick={logout}>
+            Logout
+          </button>
+        </div>
       </aside>
 
       <main className="main-panel">

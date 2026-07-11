@@ -52,7 +52,13 @@ def setup_status(db: Session = Depends(get_db)) -> SetupStatusResponse:
 @router.post("/setup", response_model=AuthTokenResponse, status_code=status.HTTP_201_CREATED)
 def setup(payload: SetupRequest, db: Session = Depends(get_db)) -> AuthTokenResponse:
     try:
-        user = create_first_user(db, username=payload.username, password=payload.password, commit=False)
+        user = create_first_user(
+            db,
+            username=payload.username,
+            display_name=payload.display_name,
+            password=payload.password,
+            commit=False,
+        )
         session_token = create_session(db, user=user, commit=False)
         db.commit()
         db.refresh(user)
@@ -62,7 +68,11 @@ def setup(payload: SetupRequest, db: Session = Depends(get_db)) -> AuthTokenResp
     except Exception:
         db.rollback()
         raise
-    return AuthTokenResponse(token=session_token.token, username=user.username)
+    return AuthTokenResponse(
+        token=session_token.token,
+        username=user.username,
+        display_name=user.display_name,
+    )
 
 
 @router.post("/login", response_model=AuthTokenResponse)
@@ -72,7 +82,11 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthTokenResp
         db.rollback()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
     session_token = create_session(db, user=user, commit=True)
-    return AuthTokenResponse(token=session_token.token, username=user.username)
+    return AuthTokenResponse(
+        token=session_token.token,
+        username=user.username,
+        display_name=user.display_name,
+    )
 
 
 @router.get("/me", response_model=CurrentUserResponse)
@@ -80,6 +94,7 @@ def me(current_user=Depends(get_current_user)) -> CurrentUserResponse:
     return CurrentUserResponse(
         id=current_user.id,
         username=current_user.username,
+        display_name=current_user.display_name,
         is_active=current_user.is_active,
     )
 
