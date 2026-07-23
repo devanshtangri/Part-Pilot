@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 from contextlib import contextmanager
 
 from alembic.config import Config
@@ -23,6 +25,13 @@ from app.services.auth import (
     logout_session,
 )
 
+
+
+from app.schemas.part_types import (
+    PartTypeCreateRequest,
+    PartTypeFieldCreateRequest,
+)
+from app.services.part_types import create_custom_part_type
 
 EXPECTED_PART_TYPES = 34
 EXPECTED_AUTH_SCHEMA_HEAD = "0003_user_display_name"
@@ -97,7 +106,7 @@ def check_alembic_at_head() -> None:
 
 def check_seed_data() -> None:
     with db_session() as db:
-        part_type_count = db.execute(text("select count(*) from part_types")).scalar()
+        part_type_count = db.execute(text("select count(*) from part_types where is_builtin = 1")).scalar()
         field_count = db.execute(text("select count(*) from part_type_fields")).scalar()
         settings_count = db.execute(text("select count(*) from app_settings")).scalar()
 
@@ -730,10 +739,21 @@ def check_phase4_part_types_service() -> None:
     with db_session() as db:
         collection = list_part_types(db)
 
-    if collection.total != EXPECTED_PART_TYPES:
+    # PATCH 070: custom part types are valid service results
+    if collection.total != (
+        collection.builtin_count + collection.custom_count
+    ):
         fail(
-            "Part type service returned the wrong number of types: "
-            f"{collection.total}"
+            "Part type service returned inconsistent collection counts: "
+            f"total={collection.total}, "
+            f"built_in={collection.builtin_count}, "
+            f"custom={collection.custom_count}"
+        )
+    if len(collection.part_types) != collection.total:
+        fail(
+            "Part type service returned a list length that does not match "
+            f"its total: list={len(collection.part_types)}, "
+            f"total={collection.total}"
         )
 
     if collection.builtin_count != EXPECTED_PART_TYPES:
@@ -828,15 +848,41 @@ def check_phase4_part_types_api() -> None:
             )
 
         payload = response.json()
-        if payload.get("total") != EXPECTED_PART_TYPES:
+        # PATCH 070: custom part types are valid API results
+        total = payload.get("total")
+        builtin_count = payload.get("builtin_count")
+        custom_count = payload.get("custom_count")
+
+        if builtin_count != EXPECTED_PART_TYPES:
             fail(
-                "GET /api/part-types returned the wrong total: "
+                "GET /api/part-types returned the wrong built-in count: "
+                f"{payload}"
+            )
+        if not isinstance(total, int):
+            fail(
+                "GET /api/part-types returned a non-integer total: "
+                f"{payload}"
+            )
+        if not isinstance(custom_count, int):
+            fail(
+                "GET /api/part-types returned a non-integer custom count: "
+                f"{payload}"
+            )
+        if total != builtin_count + custom_count:
+            fail(
+                "GET /api/part-types returned inconsistent collection counts: "
                 f"{payload}"
             )
 
         part_types = payload.get("part_types")
         if not isinstance(part_types, list) or not part_types:
             fail("GET /api/part-types returned no part types")
+        # PATCH 070: API list length matches total
+        if len(part_types) != total:
+            fail(
+                "GET /api/part-types returned a list length that does not "
+                f"match its total: list={len(part_types)}, total={total}"
+            )
 
         mosfet = next(
             (
@@ -873,6 +919,349 @@ def check_phase4_part_types_api() -> None:
 
     ok("Phase 4 part type API is protected and returns templates")
 
+
+
+def check_custom_part_type_creation() -> None:
+    suffix = uuid4().hex[:10]
+    name = f"Smoke Custom Type {suffix}"
+
+    with db_session() as db:
+        payload = PartTypeCreateRequest(
+            name=name,
+            description="Temporary smoke-test template",
+            fields=[
+                PartTypeFieldCreateRequest(
+                    field_key="manufacturer",
+                    label="Manufacturer",
+                    field_type="text",
+                    is_required=True,
+                ),
+                PartTypeFieldCreateRequest(
+                    field_key="mounting_style",
+                    label="Mounting style",
+                    field_type="dropdown",
+                    options=["Through-hole", "Surface mount"],
+                ),
+            ],
+        )
+
+        created = create_custom_part_type(
+            db,
+            payload,
+            actor_user_id=None,
+            commit=False,
+        )
+
+        if created.is_builtin:
+            fail("Created custom part type was marked built-in")
+        if created.field_count != 2:
+            fail(
+                "Created custom part type returned an unexpected field count: "
+                f"{created.field_count}"
+            )
+        if [field.sort_order for field in created.fields] != [0, 1]:
+            fail("Created custom part type did not preserve field order")
+        if created.fields[1].options != ["Through-hole", "Surface mount"]:
+            fail("Created dropdown options were not persisted correctly")
+
+        stored_count = db.execute(
+            text("select count(*) from part_types where id = :id"),
+            {"id": created.id},
+        ).scalar()
+        stored_field_count = db.execute(
+            text(
+                "select count(*) from part_type_fields "
+                "where part_type_id = :part_type_id"
+            ),
+            {"part_type_id": created.id},
+        ).scalar()
+
+        if stored_count != 1 or stored_field_count != 2:
+            fail("Custom part type transaction did not write expected rows")
+
+        created_slug = created.slug
+        db.rollback()
+
+        remaining = db.execute(
+            text("select count(*) from part_types where slug = :slug"),
+            {"slug": created_slug},
+        ).scalar()
+        if remaining != 0:
+            fail("Custom part type smoke-test rows were not rolled back")
+
+    ok("Custom part types can be created with validated ordered fields")
+
+# PATCH 079: custom part type update API smoke test
+def check_custom_part_type_update_api() -> None:
+    # PATCH 080: schema-compatible options payloads
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_part_type_update_user"
+    password = "part-type-update-smoke-password"
+    custom_name = "Smoke Editable Board"
+    updated_name = "Smoke Editable Controller Board"
+    custom_type_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if custom_type_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part_type' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": custom_type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_type_fields "
+                        "where part_type_id = :part_type_id"
+                    ),
+                    {"part_type_id": custom_type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_types where id = :part_type_id"
+                    ),
+                    {"part_type_id": custom_type_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Part Type Update Smoke User",
+                password=password,
+                commit=True,
+            )
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        create_response = client.post(
+            "/api/part-types",
+            headers=headers,
+            json={
+                "name": custom_name,
+                "description": "Temporary editable smoke template",
+                "fields": [
+                    {
+                        "field_key": "chipset",
+                        "label": "Chipset",
+                        "field_type": "text",
+                        "is_required": True,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": "Primary controller or chipset",
+                    }
+                ],
+            },
+        )
+        if create_response.status_code != 201:
+            fail(
+                "POST /api/part-types for update smoke test returned "
+                f"{create_response.status_code}: "
+                f"{create_response.text}"
+            )
+
+        created = create_response.json()
+        custom_type_id = created.get("id")
+        if not isinstance(custom_type_id, int):
+            fail(
+                "POST /api/part-types did not return a custom type ID."
+            )
+
+        created_fields = created.get("fields")
+        if (
+            not isinstance(created_fields, list)
+            or len(created_fields) != 1
+            or not isinstance(created_fields[0].get("id"), int)
+        ):
+            fail(
+                "POST /api/part-types did not return the created field ID."
+            )
+
+        original_field_id = created_fields[0]["id"]
+        original_version = created.get("template_version")
+
+        update_response = client.put(
+            f"/api/part-types/{custom_type_id}",
+            headers=headers,
+            json={
+                "name": updated_name,
+                "description": "Updated temporary smoke template",
+                "fields": [
+                    {
+                        "id": original_field_id,
+                        "field_key": "controller_chip",
+                        "label": "Controller chip",
+                        "field_type": "text",
+                        "is_required": True,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": "Main processor or controller",
+                    },
+                    {
+                        "id": None,
+                        "field_key": "logic_voltage",
+                        "label": "Logic voltage",
+                        "field_type": "unit_value",
+                        "is_required": False,
+                        "options": [],
+                        "default_unit": "V",
+                        "help_text": "Nominal I/O voltage",
+                    },
+                ],
+            },
+        )
+        if update_response.status_code != 200:
+            fail(
+                "PUT /api/part-types/{id} returned "
+                f"{update_response.status_code}: "
+                f"{update_response.text}"
+            )
+
+        updated = update_response.json()
+        if updated.get("name") != updated_name:
+            fail(
+                "PUT /api/part-types/{id} returned the wrong name: "
+                f"{updated}"
+            )
+        if updated.get("field_count") != 2:
+            fail(
+                "PUT /api/part-types/{id} returned the wrong field count: "
+                f"{updated}"
+            )
+        if (
+            not isinstance(original_version, int)
+            or updated.get("template_version") != original_version + 1
+        ):
+            fail(
+                "PUT /api/part-types/{id} did not increment the "
+                f"template version: {updated}"
+            )
+
+        updated_fields = updated.get("fields")
+        if not isinstance(updated_fields, list):
+            fail(
+                "PUT /api/part-types/{id} returned invalid fields."
+            )
+
+        controller_field = next(
+            (
+                item
+                for item in updated_fields
+                if item.get("field_key") == "controller_chip"
+            ),
+            None,
+        )
+        if (
+            controller_field is None
+            or controller_field.get("id") != original_field_id
+        ):
+            fail(
+                "PUT /api/part-types/{id} did not preserve the "
+                "existing field ID."
+            )
+
+        logic_field = next(
+            (
+                item
+                for item in updated_fields
+                if item.get("field_key") == "logic_voltage"
+            ),
+            None,
+        )
+        if (
+            logic_field is None
+            or logic_field.get("default_unit") != "V"
+        ):
+            fail(
+                "PUT /api/part-types/{id} did not create the new "
+                "unit-aware field correctly."
+            )
+
+        with db_session() as db:
+            builtin_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_builtin = 1 order by id limit 1"
+                )
+            ).scalar()
+
+        builtin_response = client.put(
+            f"/api/part-types/{builtin_id}",
+            headers=headers,
+            json={
+                "name": "Should Not Update",
+                "description": None,
+                "fields": [
+                    {
+                        "id": None,
+                        "field_key": "blocked",
+                        "label": "Blocked",
+                        "field_type": "text",
+                        "is_required": False,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": None,
+                    }
+                ],
+            },
+        )
+        if builtin_response.status_code != 403:
+            fail(
+                "PUT /api/part-types/{id} should reject built-in "
+                f"types with 403, got {builtin_response.status_code}."
+            )
+
+        with db_session() as db:
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = 'part_type.updated' "
+                    "and entity_id = :entity_id"
+                ),
+                {"entity_id": custom_type_id},
+            ).scalar()
+
+        if audit_count != 1:
+            fail(
+                "Custom part type update did not create exactly one "
+                f"audit event: {audit_count!r}"
+            )
+
+    finally:
+        cleanup()
+
+    ok("Custom part types can be edited with protected ordered fields")
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -888,12 +1277,14 @@ def main() -> None:
         check_phase3_auth_api_flow,
         check_phase4_part_types_service,
         check_phase4_part_types_api,
+        check_custom_part_type_creation,
+        check_custom_part_type_update_api,
     ]
 
     for check in checks:
         check()
 
-    print("[PASS] Phase 4 part types read-only foundation smoke test completed")
+    print("[PASS] Phase 4 part type management smoke test completed")
 
 
 if __name__ == "__main__":

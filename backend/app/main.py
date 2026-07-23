@@ -4,6 +4,35 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+# PATCH 073: exception-aware SPA frontend fallback
+class SPAStaticFiles(StaticFiles):
+    # Serve index.html for browser routes while preserving backend and
+    # missing-file 404 responses.
+    async def get_response(self, path: str, scope: dict):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404:
+                raise
+
+            normalized_path = path.lstrip("/")
+
+            if (
+                normalized_path == "api"
+                or normalized_path.startswith("api/")
+            ):
+                raise
+
+            if Path(normalized_path).suffix:
+                raise
+
+            if scope.get("method") not in {"GET", "HEAD"}:
+                raise
+
+            return await super().get_response("index.html", scope)
+
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
 from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
 from app.api.routes.part_types import router as part_types_router
@@ -37,6 +66,6 @@ frontend_dist = Path("/app/frontend_dist")
 if frontend_dist.exists():
     app.mount(
         "/",
-        StaticFiles(directory=frontend_dist, html=True),
+        SPAStaticFiles(directory=frontend_dist, html=True),
         name="frontend",
     )

@@ -1073,3 +1073,14 @@ When a decision changes, update all affected files.
 - [x] Replace the squeezed mobile sidebar with a top bar and navigation drawer.
 - [x] Reduce shared card, typography, and page spacing for information-dense mobile use.
 - [ ] Continue with custom part type creation and template editing.
+
+
+### Phase 4 custom part type creation checkpoint
+
+- [x] Create custom part types.
+- [x] Build custom template fields during creation.
+- [x] Validate field keys and dropdown options.
+- [x] Reorder fields before creation.
+- [x] Show a live template preview.
+- [ ] Edit existing custom part types.
+- [ ] Delete custom part types with usage safeguards.

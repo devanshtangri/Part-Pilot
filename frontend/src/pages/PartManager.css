@@ -1,0 +1,655 @@
+/* Patch 075 — isolated Part Manager layout */
+
+.part-manager-page {
+  --part-manager-polish-v075: 1;
+  width: 100% !important;
+  max-width: 1560px !important;
+  margin: 0 auto !important;
+  gap: 12px !important;
+}
+
+/* Header */
+
+.part-manager-page .part-manager-header {
+  display: grid !important;
+  width: 100% !important;
+  max-width: none !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 24px !important;
+  align-items: end !important;
+}
+
+.part-manager-page .part-manager-header > div:first-child {
+  min-width: 0;
+  max-width: 760px;
+}
+
+.part-manager-page .part-manager-header-actions {
+  display: flex !important;
+  width: auto !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  align-items: center !important;
+  align-self: end !important;
+  margin: 0 !important;
+}
+
+/* Hide the redundant idle Template manager badge from older markup. */
+.part-manager-page .part-manager-header-actions > .status-pill {
+  display: none !important;
+}
+
+.part-manager-page .part-manager-mode-label {
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.part-manager-page .part-manager-create-button {
+  width: auto !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  padding: 7px 12px !important;
+  white-space: nowrap;
+}
+
+/* Summary cards */
+
+.part-manager-page .part-manager-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 9px !important;
+}
+
+.part-manager-page .part-manager-stats .card {
+  display: grid !important;
+  min-height: 0 !important;
+  gap: 4px !important;
+  padding: 11px 13px !important;
+}
+
+.part-manager-page .part-manager-stats .card > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.part-manager-page .part-manager-stats .card > strong {
+  margin: 0 !important;
+  font-size: 1.2rem !important;
+  line-height: 1.15 !important;
+}
+
+/* Search and filters */
+
+.part-manager-page .search-card,
+.part-manager-page .part-manager-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(360px, 1fr) auto !important;
+  gap: 14px !important;
+  align-items: end !important;
+  padding: 12px 14px !important;
+}
+
+.part-manager-page .search-card > label,
+.part-manager-page .part-manager-search {
+  display: grid !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 760px !important;
+  gap: 6px !important;
+}
+
+.part-manager-page .search-card > label > span,
+.part-manager-page .part-manager-search > span {
+  display: block !important;
+  color: var(--muted) !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+}
+
+.part-manager-page .search-card input[type="search"],
+.part-manager-page .part-manager-search input {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 38px !important;
+  margin: 0 !important;
+  padding: 0 11px !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: #0e1520 !important;
+  color: var(--text) !important;
+  font: inherit !important;
+  font-size: 0.83rem !important;
+  appearance: none !important;
+}
+
+.part-manager-page .search-card input[type="search"]::placeholder,
+.part-manager-page .part-manager-search input::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+.part-manager-page .search-card input[type="search"]:focus,
+.part-manager-page .part-manager-search input:focus {
+  border-color: rgba(45, 212, 163, 0.76) !important;
+  box-shadow: 0 0 0 3px rgba(45, 212, 163, 0.1) !important;
+}
+
+.part-manager-page .filter-tabs {
+  display: inline-grid !important;
+  grid-auto-flow: column !important;
+  align-self: end !important;
+  padding: 3px !important;
+}
+
+.part-manager-page .filter-tabs button {
+  min-height: 31px !important;
+  padding: 5px 10px !important;
+}
+
+/* Master/detail browser */
+
+.part-manager-page .part-manager-layout {
+  display: grid !important;
+  width: 100% !important;
+  height: clamp(430px, 58vh, 620px) !important;
+  min-height: 0 !important;
+  max-height: 620px !important;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) !important;
+  overflow: hidden !important;
+}
+
+.part-manager-page .part-manager-layout.is-compact {
+  height: auto !important;
+  min-height: 300px !important;
+  max-height: none !important;
+}
+
+.part-manager-page .part-manager-layout.is-compact .part-type-list,
+.part-manager-page .part-manager-layout.is-compact .part-type-detail {
+  min-height: 300px !important;
+}
+
+.part-manager-page .part-type-list {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+.part-manager-page .part-type-list-heading {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2 !important;
+}
+
+.part-manager-page .part-type-item {
+  gap: 12px !important;
+}
+
+.part-manager-page .part-type-item > span:first-child {
+  min-width: 0 !important;
+}
+
+.part-manager-page .part-type-item strong {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .part-type-item em,
+.part-manager-page .part-type-origin,
+.part-manager-page .type-origin {
+  flex: 0 0 auto !important;
+  padding: 3px 6px !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 999px !important;
+  color: var(--muted) !important;
+  font-size: 0.66rem !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .part-type-item.active em,
+.part-manager-page .part-type-item.active .part-type-origin,
+.part-manager-page .part-type-item.active .type-origin {
+  border-color: rgba(45, 212, 163, 0.32) !important;
+  color: #99f6e4 !important;
+}
+
+.part-manager-page .part-type-detail {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding: 18px !important;
+}
+
+.part-manager-page .part-type-detail-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 20px !important;
+  align-items: start !important;
+  padding-bottom: 15px !important;
+}
+
+.part-manager-page .part-type-detail-header > div {
+  min-width: 0 !important;
+}
+
+/* Neutralize the old circular status-pill dimensions. */
+
+.part-manager-page .template-version-pill,
+.part-manager-page .part-type-detail-header > .status-pill {
+  display: inline-flex !important;
+  width: max-content !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  aspect-ratio: auto !important;
+  justify-content: center !important;
+  align-items: center !important;
+  align-self: start !important;
+  padding: 5px 8px !important;
+  border: 1px solid rgba(45, 212, 163, 0.34) !important;
+  border-radius: 999px !important;
+  background: rgba(45, 212, 163, 0.09) !important;
+  color: var(--accent) !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+/* Template fields */
+
+.part-manager-page .template-field-heading {
+  padding: 14px 0 10px !important;
+}
+
+.part-manager-page .template-field-list {
+  gap: 7px !important;
+}
+
+.part-manager-page .template-field-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(135px, 180px) !important;
+  gap: 20px !important;
+  align-items: center !important;
+  padding: 11px 12px !important;
+}
+
+.part-manager-page .template-field-copy {
+  display: grid !important;
+  min-width: 0 !important;
+  grid-template-columns: minmax(150px, 230px) minmax(0, 1fr) !important;
+  column-gap: 16px !important;
+  row-gap: 5px !important;
+  align-items: baseline !important;
+}
+
+.part-manager-page .template-field-copy > div,
+.part-manager-page .template-field-copy > strong {
+  grid-column: 1 !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+.part-manager-page .template-field-copy > div {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 7px !important;
+  align-items: center !important;
+}
+
+.part-manager-page .template-field-copy code {
+  display: block !important;
+  grid-column: 2 !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  color: #94a3b8 !important;
+  font-size: 0.71rem !important;
+  line-height: 1.35 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .template-field-copy p {
+  grid-column: 1 / -1 !important;
+  margin: 0 !important;
+}
+
+.part-manager-page .template-field-meta {
+  min-width: 0 !important;
+  text-align: right !important;
+}
+
+.part-manager-page .template-field-meta span,
+.part-manager-page .template-field-meta small {
+  overflow-wrap: anywhere !important;
+}
+
+@media (max-width: 980px) {
+  .part-manager-page .part-manager-layout {
+    grid-template-columns: minmax(230px, 285px) minmax(0, 1fr) !important;
+  }
+
+  .part-manager-page .template-field-copy {
+    grid-template-columns: 1fr !important;
+    gap: 4px !important;
+  }
+
+  .part-manager-page .template-field-copy code,
+  .part-manager-page .template-field-copy p {
+    grid-column: 1 !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .part-manager-page .part-manager-header {
+    align-items: start !important;
+  }
+
+  .part-manager-page .search-card,
+  .part-manager-page .part-manager-toolbar {
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch !important;
+  }
+
+  .part-manager-page .search-card > label,
+  .part-manager-page .part-manager-search {
+    max-width: none !important;
+  }
+
+  .part-manager-page .filter-tabs {
+    width: 100% !important;
+    grid-auto-flow: unset !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .part-manager-page .part-manager-layout,
+  .part-manager-page .part-manager-layout.is-compact {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  .part-manager-page .part-type-list,
+  .part-manager-page .part-manager-layout.is-compact .part-type-list {
+    min-height: 0 !important;
+    max-height: 270px !important;
+  }
+
+  .part-manager-page .part-type-detail,
+  .part-manager-page .part-manager-layout.is-compact .part-type-detail {
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .part-manager-page .part-manager-header {
+    grid-template-columns: 1fr !important;
+    gap: 11px !important;
+  }
+
+  .part-manager-page .part-manager-header-actions {
+    width: 100% !important;
+    justify-content: stretch !important;
+  }
+
+  .part-manager-page .part-manager-mode-label {
+    display: none !important;
+  }
+
+  .part-manager-page .part-manager-create-button {
+    width: 100% !important;
+  }
+
+  .part-manager-page .part-manager-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .part-manager-page .part-type-detail-header {
+    grid-template-columns: 1fr !important;
+    gap: 9px !important;
+  }
+
+  .part-manager-page .template-version-pill,
+  .part-manager-page .part-type-detail-header > .status-pill {
+    justify-self: start !important;
+  }
+
+  .part-manager-page .template-field-row {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+
+  .part-manager-page .template-field-copy {
+    grid-template-columns: 1fr !important;
+  }
+
+  .part-manager-page .template-field-meta {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 5px 8px !important;
+    align-items: baseline !important;
+    text-align: left !important;
+  }
+}
+
+/* PATCH 078: PART TYPE CREATOR MODAL */
+
+.part-manager-page {
+  --part-manager-modal-v078: 1;
+}
+
+.creator-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  overflow: auto;
+  background: rgba(3, 7, 13, 0.82);
+  backdrop-filter: blur(4px);
+  animation: creator-modal-backdrop-in 130ms ease-out;
+}
+
+.part-manager-page .creator-modal {
+  width: min(1180px, 100%);
+  max-width: none;
+  max-height: calc(100vh - 36px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border-color: #334155;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(148, 163, 184, 0.05);
+  animation: creator-modal-panel-in 150ms ease-out;
+}
+
+.part-manager-page .creator-modal > form {
+  display: grid;
+  max-height: calc(100vh - 36px);
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.part-manager-page .creator-modal .creator-heading {
+  position: relative;
+  z-index: 2;
+  align-items: center;
+  background: #111a27;
+}
+
+.part-manager-page .creator-modal .creator-heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.part-manager-page .creator-modal .creator-field-count {
+  padding: 5px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.part-manager-page .creator-modal .creator-modal-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: #0d1520;
+  color: #cbd5e1;
+  font-size: 1.18rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.part-manager-page .creator-modal .creator-modal-close:hover {
+  border-color: #526079;
+  background: #1a2534;
+  color: #ffffff;
+}
+
+.part-manager-page .creator-modal .creator-modal-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.part-manager-page .creator-modal .creator-grid {
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.part-manager-page .creator-modal .creator-editor {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.part-manager-page .creator-modal .creator-preview {
+  position: relative;
+  top: auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.part-manager-page .creator-modal .creator-preview-card {
+  position: sticky;
+  top: 0;
+}
+
+.part-manager-page .creator-modal .creator-actions {
+  position: relative;
+  z-index: 2;
+  background: #0c131e;
+  box-shadow: 0 -10px 24px rgba(3, 7, 13, 0.18);
+}
+
+@keyframes creator-modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes creator-modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.992);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 1080px) {
+  .part-manager-page .creator-modal {
+    width: min(820px, 100%);
+  }
+
+  .part-manager-page .creator-modal .creator-grid {
+    display: block;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .part-manager-page .creator-modal .creator-editor,
+  .part-manager-page .creator-modal .creator-preview {
+    overflow: visible;
+  }
+
+  .part-manager-page .creator-modal .creator-preview-card {
+    position: static;
+  }
+}
+
+@media (max-width: 620px) {
+  .creator-modal-backdrop {
+    place-items: stretch;
+    padding: 0;
+  }
+
+  .part-manager-page .creator-modal {
+    width: 100%;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border-width: 0;
+    border-radius: 0;
+  }
+
+  .part-manager-page .creator-modal > form {
+    max-height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .part-manager-page .creator-modal .creator-heading {
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .part-manager-page .creator-modal .creator-heading-actions {
+    margin-left: auto;
+  }
+
+  .part-manager-page .creator-modal .creator-field-count {
+    display: none;
+  }
+
+  .part-manager-page .creator-modal .creator-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .part-manager-page .creator-modal .creator-actions button {
+    width: 100%;
+  }
+}
+
+/* END PATCH 078 */
