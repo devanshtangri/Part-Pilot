@@ -1064,3 +1064,12 @@ Always keep these project memory files updated:
 - `Implementation_Roadmap.md`
 
 When a decision changes, update all affected files.
+
+
+### Phase 4 responsive shell checkpoint
+
+- [x] Stabilize the shared desktop/mobile application shell before adding editor workflows.
+- [x] Expand desktop page width.
+- [x] Replace the squeezed mobile sidebar with a top bar and navigation drawer.
+- [x] Reduce shared card, typography, and page spacing for information-dense mobile use.
+- [ ] Continue with custom part type creation and template editing.

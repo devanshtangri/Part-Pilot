@@ -1081,3 +1081,12 @@ Phase boundary note:
 
 ---
 
+
+## Implementation Session Log — Patch 066 Responsive Application Shell
+
+- [x] Desktop content width expanded so information-heavy pages can use available space.
+- [x] Mobile permanent sidebar replaced with a sticky top app bar and hamburger-triggered drawer.
+- [x] Drawer closes through navigation, backdrop, close button, route change, and Escape.
+- [x] Mobile account details and logout action are compact.
+- [x] Shared page, card, typography, Part Manager, and Settings spacing is denser.
+- [x] Part Manager remains read-only; no Phase 4 data behavior changed.
