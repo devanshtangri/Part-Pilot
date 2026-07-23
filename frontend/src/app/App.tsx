@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "../auth/AuthContext";
 import { AuthScreen } from "../pages/AuthScreen";
 import { Dashboard } from "../pages/Dashboard";
 import { Inventory } from "../pages/Inventory";
+import { PartManager } from "../pages/PartManager";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
 import { SetupPreferencesScreen } from "../pages/SetupPreferencesScreen";
 import { Settings } from "../pages/Settings";
@@ -56,10 +57,7 @@ function AppRoutes() {
           path="/history"
           element={<PlaceholderPage title="History" />}
         />
-        <Route
-          path="/part-manager"
-          element={<PlaceholderPage title="Part Manager" />}
-        />
+        <Route path="/part-manager" element={<PartManager />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
 

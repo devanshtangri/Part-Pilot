@@ -226,9 +226,12 @@ def check_backend_db_helpers() -> None:
         if app_name != "Part Pilot":
             fail(f"get_str_setting returned unexpected app.display_name: {app_name!r}")
 
-        setup_done = get_bool_setting(db, "setup.completed", True)
-        if setup_done is not False:
-            fail(f"get_bool_setting returned unexpected setup.completed: {setup_done!r}")
+        setup_done = get_bool_setting(db, "setup.completed", False)
+        if not isinstance(setup_done, bool):
+            fail(
+                "get_bool_setting did not return a boolean for "
+                f"setup.completed: {setup_done!r}"
+            )
 
         try:
             set_app_setting(db, "smoke.test.setting", {"ok": True}, text_value="temporary", commit=False)
@@ -720,6 +723,156 @@ def check_phase3_auth_api_flow() -> None:
 
 
 
+
+def check_phase4_part_types_service() -> None:
+    from app.services.part_types import list_part_types
+
+    with db_session() as db:
+        collection = list_part_types(db)
+
+    if collection.total != EXPECTED_PART_TYPES:
+        fail(
+            "Part type service returned the wrong number of types: "
+            f"{collection.total}"
+        )
+
+    if collection.builtin_count != EXPECTED_PART_TYPES:
+        fail(
+            "Expected every seeded type to be built-in at this stage, got "
+            f"{collection.builtin_count}"
+        )
+
+    if collection.total_fields < MIN_TEMPLATE_FIELDS:
+        fail(
+            "Part type service returned too few template fields: "
+            f"{collection.total_fields}"
+        )
+
+    mosfet = next(
+        (item for item in collection.part_types if item.name == "MOSFET"),
+        None,
+    )
+    if mosfet is None:
+        fail("Part type service did not return MOSFET")
+
+    mosfet_keys = {field.field_key for field in mosfet.fields}
+    required = {
+        "channel_type",
+        "max_voltage",
+        "max_current",
+        "rds_on",
+        "logic_level",
+        "package",
+    }
+    missing = required - mosfet_keys
+    if missing:
+        fail(f"MOSFET template is missing fields: {sorted(missing)}")
+
+    ok("Phase 4 part type service returns seeded templates")
+
+
+def check_phase4_part_types_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_part_types_api_user"
+    password = "part-types-smoke-password"
+
+    def cleanup() -> None:
+        with db_session() as db:
+            db.execute(
+                text(
+                    "delete from sessions "
+                    "where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.get("/api/part-types")
+        if unauthenticated.status_code != 401:
+            fail(
+                "GET /api/part-types should require authentication, got "
+                f"{unauthenticated.status_code}"
+            )
+
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Part Types Smoke User",
+                password=password,
+                commit=True,
+            )
+            session_token = create_session(db, user=user, commit=True)
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+        response = client.get("/api/part-types", headers=headers)
+
+        if response.status_code != 200:
+            fail(
+                "GET /api/part-types returned "
+                f"{response.status_code}: {response.text}"
+            )
+
+        payload = response.json()
+        if payload.get("total") != EXPECTED_PART_TYPES:
+            fail(
+                "GET /api/part-types returned the wrong total: "
+                f"{payload}"
+            )
+
+        part_types = payload.get("part_types")
+        if not isinstance(part_types, list) or not part_types:
+            fail("GET /api/part-types returned no part types")
+
+        mosfet = next(
+            (
+                item
+                for item in part_types
+                if item.get("name") == "MOSFET"
+            ),
+            None,
+        )
+        if mosfet is None:
+            fail("GET /api/part-types did not return MOSFET")
+
+        detail = client.get(
+            f"/api/part-types/{mosfet['id']}",
+            headers=headers,
+        )
+        if detail.status_code != 200:
+            fail(
+                "GET /api/part-types/{id} returned "
+                f"{detail.status_code}: {detail.text}"
+            )
+
+        missing = client.get(
+            "/api/part-types/999999999",
+            headers=headers,
+        )
+        if missing.status_code != 404:
+            fail(
+                "GET /api/part-types/{id} should return 404 for a missing "
+                f"type, got {missing.status_code}"
+            )
+    finally:
+        cleanup()
+
+    ok("Phase 4 part type API is protected and returns templates")
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -733,12 +886,14 @@ def main() -> None:
         check_phase3_auth_service,
         check_phase3_auth_api_routes,
         check_phase3_auth_api_flow,
+        check_phase4_part_types_service,
+        check_phase4_part_types_api,
     ]
 
     for check in checks:
         check()
 
-    print("[PASS] Phase 3 auth service smoke test completed")
+    print("[PASS] Phase 4 part types read-only foundation smoke test completed")
 
 
 if __name__ == "__main__":

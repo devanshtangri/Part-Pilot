@@ -222,35 +222,46 @@ Goal: Make Part Pilot a single-user protected app.
 
 ### First-run setup flow
 
-- [ ] Detect whether setup has been completed.
-- [ ] If not completed, show setup screen.
-- [ ] Collect username.
-- [ ] Collect password.
-- [ ] Collect default currency.
-- [ ] Collect timezone.
-- [ ] Optionally collect theme preference.
-- [ ] Create first user.
-- [ ] Save app settings.
-- [ ] Mark setup complete.
+- [x] Detect whether setup has been completed.
+- [x] If not completed, show setup screen.
+- [x] Collect username.
+- [x] Collect password.
+- [x] Collect default currency.
+- [x] Collect timezone.
+- [ ] Optionally collect theme preference — deferred to Settings polish later in V1.
+- [x] Create first user.
+- [x] Save app settings.
+- [x] Mark setup complete.
 
 ### Authentication tasks
 
-- [ ] Password hashing.
-- [ ] Login endpoint.
-- [ ] Logout endpoint.
-- [ ] Session token creation.
-- [ ] Session token expiry.
-- [ ] Auth dependency for protected routes.
-- [ ] Frontend login page.
-- [ ] Frontend session persistence.
-- [ ] Auto-redirect unauthenticated users to login.
+- [x] Password hashing.
+- [x] Login endpoint.
+- [x] Logout endpoint.
+- [x] Session token creation.
+- [x] Session token expiry.
+- [x] Auth dependency for protected routes.
+- [x] Frontend login page.
+- [x] Frontend session persistence.
+- [x] Auto-redirect unauthenticated users to login.
 
 ### Completion criteria
 
-- [ ] Fresh install opens setup page.
-- [ ] Setup creates account and settings.
-- [ ] User can log in and out.
-- [ ] Protected pages require login.
+- [x] Fresh install opens setup page.
+- [x] Setup creates account and settings.
+- [x] User can log in and out.
+- [x] Protected pages require login.
+
+
+### Phase 3 completion notes
+
+- First-run setup creates the single owner account.
+- Currency and timezone are selected from detected dropdown values and persisted in `app_settings`.
+- Timezones display their current GMT offset.
+- Passwords are hashed and sessions are stored as hashed bearer tokens with expiry.
+- Protected frontend routes restore valid sessions and redirect unauthenticated users to login.
+- A temporary development-only database reset tool is available from Settings while `PARTPILOT_ENABLE_DEBUG_RESET` is enabled.
+- Theme selection remains deferred to later Settings polish and does not block Phase 3 completion.
 
 ---
 
@@ -262,57 +273,64 @@ Goal: Build the system that makes Part Pilot electronics-aware.
 
 Seed these V1 types:
 
-- [ ] Resistor
-- [ ] Potentiometer
-- [ ] Capacitor
-- [ ] Inductor
-- [ ] Diode
-- [ ] Zener Diode
-- [ ] Schottky Diode
-- [ ] LED
-- [ ] RGB LED
-- [ ] Optocoupler
-- [ ] NPN Transistor
-- [ ] PNP Transistor
-- [ ] MOSFET
-- [ ] Voltage Regulator
-- [ ] IC
-- [ ] Microcontroller
-- [ ] Relay
-- [ ] Motor
-- [ ] Servo Motor
-- [ ] Stepper Motor
-- [ ] Solenoid
-- [ ] Buzzer
-- [ ] Speaker
-- [ ] Push Button
-- [ ] Switch
-- [ ] Rotary Encoder
-- [ ] Connector
-- [ ] Pin Header
-- [ ] Terminal Block
-- [ ] Fuse
-- [ ] Mechanical Hardware
+- [x] Resistor
+- [x] Potentiometer
+- [x] Capacitor
+- [x] Inductor
+- [x] Diode
+- [x] Zener Diode
+- [x] Schottky Diode
+- [x] LED
+- [x] RGB LED
+- [x] Optocoupler
+- [x] NPN Transistor
+- [x] PNP Transistor
+- [x] MOSFET
+- [x] Voltage Regulator
+- [x] IC
+- [x] Microcontroller
+- [x] Relay
+- [x] Motor
+- [x] Servo Motor
+- [x] Stepper Motor
+- [x] Solenoid
+- [x] Buzzer
+- [x] Speaker
+- [x] Push Button
+- [x] Switch
+- [x] Rotary Encoder
+- [x] Connector
+- [x] Pin Header
+- [x] Terminal Block
+- [x] Fuse
+- [x] Mechanical Hardware
 
 ### Custom field types
 
 Support:
 
-- [ ] Text
-- [ ] Number
-- [ ] Boolean yes/no
-- [ ] Dropdown
-- [ ] URL
-- [ ] Unit-aware value
+- [x] Text
+- [x] Number
+- [x] Boolean yes/no
+- [x] Dropdown
+- [x] URL
+- [x] Unit-aware value
 
 ### Part Manager page
 
-- [ ] List built-in and custom part types.
+- [x] List built-in and custom part types.
 - [ ] Create custom type.
 - [ ] Edit custom type.
 - [ ] Edit built-in type template.
 - [ ] Restore built-in templates to defaults.
 - [ ] Add/remove/reorder fields.
+
+
+### Phase 4 progress notes
+
+- Read-only authenticated API now exposes every seeded part type and ordered template field.
+- Part Manager now lists, searches, filters, and inspects built-in/custom type templates.
+- Creation, editing, restoration, and field reordering remain for the next Phase 4 batches.
 
 ### Completion criteria
 

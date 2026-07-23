@@ -632,3 +632,366 @@ kbd {
   opacity: 0.42;
 }
 
+/* Phase 4 Part Manager */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.part-manager-page {
+  max-width: 1320px;
+}
+
+.part-manager-header {
+  display: flex;
+  max-width: none;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.status-pill,
+.type-origin,
+.required-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.status-pill {
+  padding: 7px 10px;
+  border: 1px solid rgba(45, 212, 163, 0.26);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+}
+
+.part-manager-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.part-manager-stats .card strong {
+  font-size: 1.45rem;
+}
+
+.part-manager-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.part-manager-search {
+  flex: 1;
+}
+
+.part-manager-search input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+}
+
+.part-manager-search input:focus {
+  border-color: rgba(45, 212, 163, 0.78);
+  box-shadow: 0 0 0 3px rgba(45, 212, 163, 0.1);
+}
+
+.filter-tabs {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel);
+}
+
+.filter-tabs button {
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.filter-tabs button.active {
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+.part-manager-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.72fr) minmax(0, 1.8fr);
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.part-type-list {
+  overflow-y: auto;
+  border-right: 1px solid var(--panel-border);
+  background: var(--sidebar);
+}
+
+.part-type-list-heading {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  padding: 15px 14px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--sidebar);
+}
+
+.part-type-list-heading span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.part-type-item {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid rgba(39, 50, 71, 0.7);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.part-type-item:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.part-type-item.active {
+  background: var(--accent-soft);
+}
+
+.part-type-item > span:first-child {
+  min-width: 0;
+}
+
+.part-type-item strong,
+.part-type-item small {
+  display: block;
+}
+
+.part-type-item strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.part-type-item small {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.type-origin {
+  padding: 4px 7px;
+  border: 1px solid var(--panel-border);
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.type-origin.builtin {
+  border-color: rgba(45, 212, 163, 0.22);
+  background: rgba(45, 212, 163, 0.08);
+  color: var(--accent);
+}
+
+.type-origin.custom {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.part-type-detail {
+  min-width: 0;
+  padding: 22px;
+}
+
+.part-type-detail-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.detail-title-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.part-type-detail-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.template-version {
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.template-field-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  padding: 18px 0 12px;
+}
+
+.template-field-heading strong,
+.template-field-heading span {
+  display: block;
+}
+
+.template-field-heading div > span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.template-field-heading > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.template-field-list {
+  display: grid;
+  gap: 8px;
+}
+
+.template-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.34fr);
+  gap: 18px;
+  align-items: center;
+  padding: 13px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel-soft);
+}
+
+.template-field-copy > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.template-field-copy code {
+  display: inline-block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.template-field-copy p {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.required-badge {
+  padding: 3px 6px;
+  background: rgba(255, 123, 123, 0.1);
+  color: var(--danger);
+  font-size: 0.62rem;
+}
+
+.template-field-meta {
+  text-align: right;
+}
+
+.template-field-meta span,
+.template-field-meta small {
+  display: block;
+}
+
+.template-field-meta span {
+  font-weight: 700;
+}
+
+.template-field-meta small {
+  margin-top: 5px;
+  color: var(--muted);
+}
+
+.part-type-list-empty {
+  padding: 22px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 920px) {
+  .part-manager-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .part-manager-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .part-type-list {
+    max-height: 300px;
+    border-right: 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
+}
+
+@media (max-width: 620px) {
+  .part-manager-header,
+  .part-manager-toolbar,
+  .part-type-detail-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .status-pill {
+    align-self: flex-start;
+  }
+
+  .filter-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .part-manager-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .part-type-detail {
+    padding: 16px;
+  }
+
+  .template-field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .template-field-meta {
+    text-align: left;
+  }
+}
+

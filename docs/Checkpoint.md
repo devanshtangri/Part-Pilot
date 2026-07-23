@@ -842,7 +842,7 @@ API groups likely needed:
 - [ ] Reservations API
 - [ ] Search API
 - [ ] History/Audit API
-- [ ] Settings API
+- [x] Settings API
 - [ ] Backup/Restore API
 - [ ] MCP API/tool layer
 
@@ -852,8 +852,8 @@ API groups likely needed:
 
 Screens likely needed:
 
-- [ ] First-run setup
-- [ ] Login
+- [x] First-run setup
+- [x] Login
 - [ ] Dashboard
 - [ ] Search dialog
 - [ ] Inventory list/table
@@ -867,7 +867,7 @@ Screens likely needed:
 - [ ] Reservations page
 - [ ] Consume parts flow
 - [ ] History page
-- [ ] Part Manager
+- [x] Part Manager
 - [ ] Settings
 - [ ] Backup/restore settings
 - [ ] MCP settings
@@ -897,9 +897,9 @@ Screens likely needed:
 
 Milestone 1 success criteria:
 
-- [ ] App runs in Docker.
-- [ ] User completes first setup.
-- [ ] User logs in.
+- [x] App runs in Docker.
+- [x] User completes first setup.
+- [x] User logs in.
 - [ ] User creates IRFZ44N.
 - [ ] User sets type MOSFET.
 - [ ] User sets quantity.
@@ -1058,6 +1058,26 @@ Phase boundary note:
 - Added database smoke test with checks for connectivity, foreign keys, migration head, seed data, constraints, rollback safety, and backend helpers.
 - Phase 3 should start next with first-run setup and authentication.
 - Before Phase 3 begins, verify local state with `git status --short`, `git log --oneline -8`, and `docker compose exec -T partpilot python -m app.db.smoke_test`.
+
+---
+
+## Implementation Session Log — Phase 3 Complete
+
+- [x] First-run setup detects fresh and partially configured installations.
+- [x] Owner account creation, password hashing, login, logout, session persistence, session expiry, and protected routes are implemented.
+- [x] Default currency and timezone are persisted during setup.
+- [x] Currency and timezone use selection controls; timezone labels include the current GMT offset.
+- [x] Existing installations missing regional settings receive a finish-setup screen.
+- [x] Responsive authentication/setup UI was reviewed and polished.
+- [x] Temporary development database reset tooling was added for repeated first-run testing.
+
+## Implementation Session Log — Phase 4 Read-only Part Type Foundation
+
+- [x] Added authenticated read-only part type API endpoints.
+- [x] Added a real Part Manager page replacing the placeholder.
+- [x] Part Manager displays totals, search, built-in/custom filters, template versions, ordered fields, field types, units, options, and required status.
+- [x] Extended smoke testing for the Phase 4 service and protected API.
+- [ ] Custom type creation and template editing remain for the next Phase 4 batches.
 
 ---
 
