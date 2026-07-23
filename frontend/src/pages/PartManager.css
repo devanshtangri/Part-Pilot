@@ -653,3 +653,151 @@
 }
 
 /* END PATCH 078 */
+
+/* PATCH 085: CUSTOM PART TYPE EDIT UI */
+
+.part-manager-page {
+  --part-manager-edit-v085: 1;
+}
+
+.part-manager-page .part-type-detail-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.part-manager-page .part-type-edit-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid #3a475b;
+  border-radius: 7px;
+  background: #141e2c;
+  color: #dbe7f5;
+  font-size: 0.76rem;
+  font-weight: 750;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.part-manager-page .part-type-edit-button:hover {
+  border-color: #60718d;
+  background: #1b293a;
+  color: #ffffff;
+}
+
+.part-manager-page .part-type-edit-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.part-manager-page .creator-modal.is-editing {
+  border-color: #3b526c;
+}
+
+.part-manager-page .creator-modal.is-editing .creator-heading {
+  background: #121e2c;
+}
+
+@media (max-width: 620px) {
+  .part-manager-page .part-type-detail-header {
+    grid-template-columns: 1fr !important;
+  }
+
+  .part-manager-page .part-type-detail-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .part-manager-page .part-type-edit-button {
+    flex: 1 1 auto;
+  }
+}
+
+/* END PATCH 085 */
+
+/* PATCH 086: PINNED MODAL ACTION BAR */
+
+.part-manager-page {
+  --part-manager-modal-actions-v086: 1;
+}
+
+.part-manager-page .creator-modal {
+  height: calc(100dvh - 36px);
+  max-height: calc(100dvh - 36px);
+}
+
+.part-manager-page .creator-modal > form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.part-manager-page .creator-modal .creator-heading,
+.part-manager-page .creator-modal .creator-error,
+.part-manager-page .creator-modal .creator-actions {
+  flex: 0 0 auto;
+}
+
+.part-manager-page .creator-modal .creator-grid {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.part-manager-page .creator-modal .creator-editor,
+.part-manager-page .creator-modal .creator-preview {
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.part-manager-page .creator-modal .creator-actions {
+  position: relative;
+  bottom: auto;
+  z-index: 20;
+  min-height: 58px;
+  margin-top: auto;
+  border-top: 1px solid var(--panel-border);
+  background: #0c131e;
+  box-shadow: 0 -12px 28px rgba(3, 7, 13, 0.32);
+}
+
+@media (max-width: 1080px) {
+  .part-manager-page .creator-modal .creator-grid {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .part-manager-page .creator-modal .creator-editor,
+  .part-manager-page .creator-modal .creator-preview {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 620px) {
+  .part-manager-page .creator-modal {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .part-manager-page .creator-modal > form {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .part-manager-page .creator-modal .creator-actions {
+    min-height: 64px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+/* END PATCH 086 */

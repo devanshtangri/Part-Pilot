@@ -1,25 +1,33 @@
 // PATCH 067: custom part type creation workspace
-import { useEffect, useMemo, useState } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState } from "react";
+import type {
+  ChangeEvent,
+  FormEvent } from "react";
 
 import { useAuth } from "../auth/AuthContext";
 import "./PartManager.css";
 import {
   createPartType,
-  getPartTypes
-} from "../services/partTypesClient";
+  getPartTypes,
+  updatePartType,
+  } from "../services/partTypesClient";
 import type {
   CreatePartTypeFieldPayload,
   CreatePartTypePayload,
   PartType,
   PartTypeCollection,
   PartTypeField,
-  PartTypeFieldKind
+  PartTypeFieldKind,
+  UpdatePartTypePayload,
 } from "../types/partTypes";
 
 type FilterMode = "all" | "builtin" | "custom";
 
 interface EditableField extends CreatePartTypeFieldPayload {
+  id: number | null;
   client_id: string;
   options_text: string;
 }
@@ -50,6 +58,7 @@ let fieldSequence = 0;
 function createEditableField(): EditableField {
   fieldSequence += 1;
   return {
+    id: null,
     client_id: `field-${Date.now()}-${fieldSequence}`,
     field_key: "",
     label: "",
@@ -163,6 +172,7 @@ export function PartManager() {
   const [error, setError] = useState<string | null>(null);
 
   const [isCreating, setIsCreating] = useState(false);
+  const [editingTypeId, setEditingTypeId] = useState<number | null>(null);
   const [typeName, setTypeName] = useState("");
   const [typeDescription, setTypeDescription] = useState("");
   const [editableFields, setEditableFields] = useState<EditableField[]>([]);
@@ -247,6 +257,7 @@ export function PartManager() {
     collection?.part_types.find((item) => item.id === selectedId) ?? null;
 
   function openCreator() {
+    setEditingTypeId(null);
     setTypeName("");
     setTypeDescription("");
     setEditableFields([createEditableField()]);
@@ -254,11 +265,49 @@ export function PartManager() {
     setIsCreating(true);
   }
 
-  function closeCreator() {
+    // PATCH 085: custom part type edit workflow
+  function openEditor(partType: PartType) {
+    if (partType.is_builtin) {
+      return;
+    }
+
+    setEditingTypeId(partType.id);
+    setTypeName(partType.name);
+    setTypeDescription(partType.description ?? "");
+    setEditableFields(
+      partType.fields.map((field) => {
+        const options = Array.isArray(field.options)
+          ? field.options.filter(
+              (option): option is string => typeof option === "string"
+            )
+          : [];
+
+        fieldSequence += 1;
+
+        return {
+          id: field.id,
+          client_id: `field-${Date.now()}-${fieldSequence}`,
+          field_key: field.field_key,
+          label: field.label,
+          field_type: field.field_type,
+          is_required: field.is_required,
+          options,
+          options_text: options.join("\n"),
+          default_unit: field.default_unit,
+          help_text: field.help_text
+        };
+      })
+    );
+    setCreatorError(null);
+    setIsCreating(true);
+  }
+
+function closeCreator() {
     if (isSaving) {
       return;
     }
     setIsCreating(false);
+    setEditingTypeId(null);
     setCreatorError(null);
   }
 
@@ -273,6 +322,7 @@ export function PartManager() {
         function handleCreatorKeyDown(event: KeyboardEvent) {
           if (event.key === "Escape" && !isSaving) {
             setIsCreating(false);
+        setEditingTypeId(null);
             setCreatorError(null);
           }
         }
@@ -384,6 +434,18 @@ export function PartManager() {
     };
   }
 
+  function buildUpdatePayload(): UpdatePartTypePayload {
+    const createPayload = buildPayload();
+
+    return {
+      ...createPayload,
+      fields: createPayload.fields.map((field, index) => ({
+        ...field,
+        id: editableFields[index]?.id ?? null
+      }))
+    };
+  }
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const issues = validateCreator();
@@ -399,18 +461,28 @@ export function PartManager() {
     setIsSaving(true);
     setCreatorError(null);
     try {
-      const created = await createPartType(token, buildPayload());
+      const saved =
+        editingTypeId === null
+          ? await createPartType(token, buildPayload())
+          : await updatePartType(
+              token,
+              editingTypeId,
+              buildUpdatePayload()
+            );
       const refreshed = await getPartTypes(token);
       setCollection(refreshed);
-      setSelectedId(created.id);
+      setSelectedId(saved.id);
       setFilter("custom");
       setQuery("");
-      setIsCreating(false);
+      setEditingTypeId(null);
+    setIsCreating(false);
     } catch (caught) {
       setCreatorError(
         caught instanceof Error
           ? caught.message
-          : "Unable to create the custom part type"
+          : (editingTypeId === null
+            ? "Unable to create the custom part type"
+            : "Unable to update the custom part type")
       );
     } finally {
       setIsSaving(false);
@@ -430,7 +502,11 @@ export function PartManager() {
         </div>
         <div className="part-manager-header-actions">
           <span className="status-pill">
-            {isCreating ? "Creating custom type" : "Template manager"}
+            {isCreating
+              ? editingTypeId === null
+                ? "Creating custom type"
+                : "Editing custom type"
+              : "Template manager"}
           </span>
           <button
             className="part-manager-create-button"
@@ -475,7 +551,9 @@ export function PartManager() {
               }}
             >
               <section
-                className="part-type-creator creator-modal card"
+                className={`part-type-creator creator-modal card${
+              editingTypeId === null ? "" : " is-editing"
+            }`}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="create-part-type-title"
@@ -484,10 +562,15 @@ export function PartManager() {
             <div className="creator-heading">
               <div>
                 <p className="eyebrow">Custom template</p>
-                <h2 id="create-part-type-title">Create part type</h2>
+                <h2 id="create-part-type-title">
+                  {editingTypeId === null
+                    ? "Create part type"
+                    : "Edit part type"}
+                </h2>
                 <p>
-                  Define the reusable fields that will appear whenever this
-                  type of part is added later.
+                  {editingTypeId === null
+                    ? "Define the reusable fields that will appear whenever this type of part is added later."
+                    : "Update this custom template. Existing field identities are preserved when possible."}
                 </p>
               </div>
               <div className="creator-heading-actions">
@@ -754,7 +837,13 @@ export function PartManager() {
                 type="submit"
                 disabled={isSaving}
               >
-                {isSaving ? "Creating…" : "Create custom type"}
+                {isSaving
+                ? editingTypeId === null
+                  ? "Creating…"
+                  : "Saving…"
+                : editingTypeId === null
+                  ? "Create custom type"
+                  : "Save changes"}
               </button>
             </footer>
           </form>
@@ -851,9 +940,20 @@ export function PartManager() {
                         `Template slug: ${selectedType.slug}`}
                     </p>
                   </div>
-                  <span className="status-pill">
-                    Template v{selectedType.template_version}
-                  </span>
+                  <div className="part-type-detail-actions">
+                    {!selectedType.is_builtin ? (
+                      <button
+                        className="part-type-edit-button"
+                        type="button"
+                        onClick={() => openEditor(selectedType)}
+                      >
+                        Edit custom type
+                      </button>
+                    ) : null}
+                    <span className="status-pill">
+                      Template v{selectedType.template_version}
+                    </span>
+                  </div>
                 </header>
 
                 <div className="template-field-heading">

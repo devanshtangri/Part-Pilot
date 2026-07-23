@@ -1084,3 +1084,11 @@ When a decision changes, update all affected files.
 - [x] Show a live template preview.
 - [ ] Edit existing custom part types.
 - [ ] Delete custom part types with usage safeguards.
+
+
+### Phase 4 custom part type editing checkpoint
+
+- [x] Edit existing custom part types.
+- [x] Preserve field IDs while editing and reordering.
+- [x] Reuse the focused modal for create and edit workflows.
+- [ ] Delete custom part types with usage safeguards.

@@ -53,3 +53,15 @@ export interface CreatePartTypePayload {
   description: string | null;
   fields: CreatePartTypeFieldPayload[];
 }
+
+// PATCH 085: custom part type update payloads
+export interface UpdatePartTypeFieldPayload
+  extends CreatePartTypeFieldPayload {
+  id: number | null;
+}
+
+export interface UpdatePartTypePayload {
+  name: string;
+  description: string | null;
+  fields: UpdatePartTypeFieldPayload[];
+}

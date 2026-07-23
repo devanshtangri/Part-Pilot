@@ -1,7 +1,8 @@
 import type {
   CreatePartTypePayload,
   PartType,
-  PartTypeCollection
+  PartTypeCollection,
+  UpdatePartTypePayload,
 } from "../types/partTypes";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -66,6 +67,18 @@ export function createPartType(
 ): Promise<PartType> {
   return requestJson<PartType>("/part-types", token, {
     method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+// PATCH 085: custom part type update client
+export function updatePartType(
+  token: string,
+  partTypeId: number,
+  payload: UpdatePartTypePayload
+): Promise<PartType> {
+  return requestJson<PartType>(`/part-types/${partTypeId}`, token, {
+    method: "PUT",
     body: JSON.stringify(payload)
   });
 }

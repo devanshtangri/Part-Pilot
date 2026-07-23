@@ -1102,3 +1102,13 @@ Phase boundary note:
 - [x] Added field add/remove/reorder controls during creation.
 - [x] Updated smoke coverage to create and roll back a temporary custom type.
 - [x] Updated seed smoke validation to count built-in types only, allowing real custom types to exist.
+
+
+## Implementation Session Log — Patch 085 Custom Part Type Editing UI
+
+- [x] Added frontend PUT support for custom part-type updates.
+- [x] Added an Edit custom type action for custom templates only.
+- [x] Reused the focused modal for create and edit workflows.
+- [x] Loaded persisted field IDs, order, options, units, and help text.
+- [x] Added edit-aware modal title, guidance, header state, and save state.
+- [x] Refreshed the selected template and version after successful updates.
