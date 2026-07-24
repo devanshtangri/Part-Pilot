@@ -1123,3 +1123,37 @@ Phase boundary note:
 - [x] Recorded deletion audit events with the full prior template snapshot.
 - [x] Added a typed-name confirmation dialog and API error feedback.
 - [x] Added deletion API smoke coverage.
+
+
+## Implementation Session Log — Patch 093 Inventory Part Creation Backend
+
+- [x] Added authenticated inventory part creation.
+- [x] Added dynamic typed values based on the selected part type.
+- [x] Validated required, dropdown, URL, numeric, boolean, and unit-aware fields.
+- [x] Added base identifiers, quantity, unit price, purchase link, notes, and low-stock settings.
+- [x] Added inventory list and detail endpoints.
+- [x] Added part-created audit events.
+- [x] Added full API smoke coverage with rollback cleanup.
+
+
+## Implementation Session Log — Patch 094 Dynamic Add Part Modal
+
+- [x] Added the Part Manager Add Part entry action.
+- [x] Defaulted the form to the currently selected part type.
+- [x] Rendered text, number, boolean, dropdown, URL, and unit-aware template controls.
+- [x] Added base identifiers, quantity, unit price, purchase link, notes, and low-stock settings.
+- [x] Added client-side validation and backend error feedback.
+- [x] Added a viewport-constrained modal with a permanently visible action bar.
+- [x] Added a successful-created-part confirmation state.
+
+
+## Implementation Session Log — Patch 095 Manufacturer Catalogue
+
+- [x] Added manufacturers as reusable first-class records.
+- [x] Seeded common electronics manufacturers.
+- [x] Added user-created manufacturers with normalized duplicate protection.
+- [x] Linked inventory parts to manufacturers.
+- [x] Backfilled compatible legacy manufacturer template values.
+- [x] Added an inline manufacturer creator to Add Part.
+- [x] Kept templates with a manufacturer field backward-compatible without showing a duplicate control.
+- [x] Replaced the oversized success screen with a compact inventory receipt.

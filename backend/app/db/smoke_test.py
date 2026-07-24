@@ -34,7 +34,7 @@ from app.schemas.part_types import (
 from app.services.part_types import create_custom_part_type
 
 EXPECTED_PART_TYPES = 34
-EXPECTED_AUTH_SCHEMA_HEAD = "0003_user_display_name"
+EXPECTED_AUTH_SCHEMA_HEAD = "0004_manufacturers"
 MIN_TEMPLATE_FIELDS = 140
 EXPECTED_SETTINGS = {
     "setup.completed",
@@ -1491,6 +1491,544 @@ def check_custom_part_type_delete_api() -> None:
         "Custom part types delete safely with inventory usage safeguards"
     )
 
+# PATCH 093: inventory part creation API smoke test
+def check_inventory_part_creation_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_inventory_part_user"
+    password = "inventory-part-smoke-password"
+    custom_type_id: int | None = None
+    created_part_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if created_part_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": created_part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": created_part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from parts where id = :part_id"
+                    ),
+                    {"part_id": created_part_id},
+                )
+
+            if custom_type_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part_type' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": custom_type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_type_fields "
+                        "where part_type_id = :part_type_id"
+                    ),
+                    {"part_type_id": custom_type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_types "
+                        "where id = :part_type_id"
+                    ),
+                    {"part_type_id": custom_type_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text(
+                    "delete from users where username = :username"
+                ),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Inventory Part Smoke User",
+                password=password,
+                commit=True,
+            )
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        protected_response = client.get("/api/parts")
+        if protected_response.status_code not in {401, 403}:
+            fail(
+                "GET /api/parts should require authentication, got "
+                f"{protected_response.status_code}."
+            )
+
+        type_response = client.post(
+            "/api/part-types",
+            headers=headers,
+            json={
+                "name": "Smoke Inventory Device",
+                "description": "Temporary dynamic field test",
+                "fields": [
+                    {
+                        "field_key": "manufacturer",
+                        "label": "Manufacturer",
+                        "field_type": "text",
+                        "is_required": True,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": None,
+                    },
+                    {
+                        "field_key": "logic_voltage",
+                        "label": "Logic voltage",
+                        "field_type": "unit_value",
+                        "is_required": True,
+                        "options": [],
+                        "default_unit": "V",
+                        "help_text": None,
+                    },
+                    {
+                        "field_key": "interface",
+                        "label": "Interface",
+                        "field_type": "dropdown",
+                        "is_required": False,
+                        "options": ["I2C", "SPI", "UART"],
+                        "default_unit": None,
+                        "help_text": None,
+                    },
+                    {
+                        "field_key": "rohs",
+                        "label": "RoHS compliant",
+                        "field_type": "boolean",
+                        "is_required": False,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": None,
+                    },
+                ],
+            },
+        )
+        if type_response.status_code != 201:
+            fail(
+                "Inventory smoke part type creation returned "
+                f"{type_response.status_code}: {type_response.text}"
+            )
+
+        part_type = type_response.json()
+        custom_type_id = part_type.get("id")
+        fields = {
+            field["field_key"]: field
+            for field in part_type.get("fields", [])
+        }
+
+        if (
+            not isinstance(custom_type_id, int)
+            or set(fields) != {
+                "manufacturer",
+                "logic_voltage",
+                "interface",
+                "rohs",
+            }
+        ):
+            fail(
+                "Inventory smoke part type returned unexpected fields."
+            )
+
+        missing_required = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                "part_type_id": custom_type_id,
+                "name": "Incomplete smoke part",
+                "total_quantity": 2,
+                "field_values": [],
+            },
+        )
+        if missing_required.status_code != 422:
+            fail(
+                "POST /api/parts should reject missing required "
+                f"fields with 422, got {missing_required.status_code}: "
+                f"{missing_required.text}"
+            )
+
+        invalid_dropdown = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                "part_type_id": custom_type_id,
+                "name": "Invalid dropdown smoke part",
+                "total_quantity": 2,
+                "field_values": [
+                    {
+                        "field_id": fields["manufacturer"]["id"],
+                        "value_text": "Smoke Labs",
+                    },
+                    {
+                        "field_id": fields["logic_voltage"]["id"],
+                        "value_number": "3.3",
+                        "unit": "V",
+                    },
+                    {
+                        "field_id": fields["interface"]["id"],
+                        "value_text": "CAN",
+                    },
+                ],
+            },
+        )
+        if invalid_dropdown.status_code != 422:
+            fail(
+                "POST /api/parts should reject an invalid dropdown "
+                f"with 422, got {invalid_dropdown.status_code}: "
+                f"{invalid_dropdown.text}"
+            )
+
+        create_response = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                "part_type_id": custom_type_id,
+                "part_number": "SMOKE-INV-093",
+                "name": "Smoke inventory device",
+                "description": "Temporary persisted inventory record",
+                "package": "Module",
+                "notes": "Created by Patch 093 smoke coverage",
+                "total_quantity": 7,
+                "unit_price": "42.5000",
+                "purchase_link": "https://example.com/smoke-part",
+                "low_stock_enabled": True,
+                "low_stock_threshold": 2,
+                "field_values": [
+                    {
+                        "field_id": fields["manufacturer"]["id"],
+                        "value_text": "Smoke Labs",
+                    },
+                    {
+                        "field_id": fields["logic_voltage"]["id"],
+                        "value_number": "3.3",
+                        "unit": "V",
+                    },
+                    {
+                        "field_id": fields["interface"]["id"],
+                        "value_text": "I2C",
+                    },
+                    {
+                        "field_id": fields["rohs"]["id"],
+                        "value_bool": False,
+                    },
+                ],
+            },
+        )
+        if create_response.status_code != 201:
+            fail(
+                "POST /api/parts returned "
+                f"{create_response.status_code}: "
+                f"{create_response.text}"
+            )
+
+        created = create_response.json()
+        created_part_id = created.get("id")
+        if not isinstance(created_part_id, int):
+            fail("POST /api/parts did not return a part ID.")
+
+        if (
+            created.get("total_quantity") != 7
+            or created.get("available_quantity") != 7
+            or created.get("part_type_id") != custom_type_id
+            or len(created.get("field_values", [])) != 4
+        ):
+            fail(
+                "POST /api/parts returned an unexpected payload: "
+                f"{created}"
+            )
+
+        detail_response = client.get(
+            f"/api/parts/{created_part_id}",
+            headers=headers,
+        )
+        if detail_response.status_code != 200:
+            fail(
+                "GET /api/parts/{id} returned "
+                f"{detail_response.status_code}: "
+                f"{detail_response.text}"
+            )
+
+        list_response = client.get(
+            f"/api/parts?part_type_id={custom_type_id}",
+            headers=headers,
+        )
+        if list_response.status_code != 200:
+            fail(
+                "GET /api/parts returned "
+                f"{list_response.status_code}: "
+                f"{list_response.text}"
+            )
+
+        collection = list_response.json()
+        if (
+            collection.get("total") != 1
+            or collection.get("parts", [{}])[0].get("id")
+            != created_part_id
+        ):
+            fail(
+                "GET /api/parts did not return the created part."
+            )
+
+        duplicate_response = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                "part_type_id": custom_type_id,
+                "part_number": "SMOKE-INV-093",
+                "name": "Duplicate smoke part",
+                "total_quantity": 1,
+                "field_values": [
+                    {
+                        "field_id": fields["manufacturer"]["id"],
+                        "value_text": "Smoke Labs",
+                    },
+                    {
+                        "field_id": fields["logic_voltage"]["id"],
+                        "value_number": "5",
+                    },
+                ],
+            },
+        )
+        if duplicate_response.status_code != 409:
+            fail(
+                "POST /api/parts should reject duplicate part "
+                f"numbers with 409, got "
+                f"{duplicate_response.status_code}."
+            )
+
+        with db_session() as db:
+            value_count = db.execute(
+                text(
+                    "select count(*) from part_field_values "
+                    "where part_id = :part_id"
+                ),
+                {"part_id": created_part_id},
+            ).scalar()
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = 'part.created' "
+                    "and entity_id = :entity_id"
+                ),
+                {"entity_id": created_part_id},
+            ).scalar()
+
+        if value_count != 4:
+            fail(
+                "Created part did not persist all typed field values: "
+                f"{value_count!r}"
+            )
+        if audit_count != 1:
+            fail(
+                "Created part did not create exactly one audit event: "
+                f"{audit_count!r}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Inventory parts can be created with validated dynamic fields"
+    )
+
+# PATCH 095: manufacturer catalogue API smoke test
+def check_manufacturer_catalogue_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_manufacturer_catalogue_user"
+    password = "manufacturer-catalogue-smoke-password"
+    custom_name = "Smoke Components Incorporated"
+    custom_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if custom_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'manufacturer' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": custom_id},
+                )
+                db.execute(
+                    text(
+                        "delete from manufacturers "
+                        "where id = :manufacturer_id"
+                    ),
+                    {"manufacturer_id": custom_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text(
+                    "delete from users where username = :username"
+                ),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.get("/api/manufacturers")
+        if unauthenticated.status_code not in {401, 403}:
+            fail(
+                "GET /api/manufacturers should require "
+                f"authentication, got {unauthenticated.status_code}."
+            )
+
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Manufacturer Catalogue Smoke User",
+                password=password,
+                commit=True,
+            )
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        list_response = client.get(
+            "/api/manufacturers",
+            headers=headers,
+        )
+        if list_response.status_code != 200:
+            fail(
+                "GET /api/manufacturers returned "
+                f"{list_response.status_code}: "
+                f"{list_response.text}"
+            )
+
+        payload = list_response.json()
+        names = {
+            item.get("name")
+            for item in payload.get("manufacturers", [])
+        }
+        expected = {
+            "Espressif Systems",
+            "Arduino",
+            "NXP Semiconductors",
+            "STMicroelectronics",
+        }
+        if not expected.issubset(names):
+            fail(
+                "Manufacturer catalogue is missing seeded names: "
+                f"{sorted(expected - names)}"
+            )
+
+        create_response = client.post(
+            "/api/manufacturers",
+            headers=headers,
+            json={"name": custom_name},
+        )
+        if create_response.status_code != 201:
+            fail(
+                "POST /api/manufacturers returned "
+                f"{create_response.status_code}: "
+                f"{create_response.text}"
+            )
+
+        created = create_response.json()
+        custom_id = created.get("id")
+        if (
+            not isinstance(custom_id, int)
+            or created.get("name") != custom_name
+            or created.get("is_builtin") is not False
+        ):
+            fail(
+                "POST /api/manufacturers returned an unexpected "
+                f"payload: {created}"
+            )
+
+        duplicate_response = client.post(
+            "/api/manufacturers",
+            headers=headers,
+            json={"name": f"  {custom_name.lower()}  "},
+        )
+        if duplicate_response.status_code != 409:
+            fail(
+                "POST /api/manufacturers should reject a normalized "
+                f"duplicate with 409, got "
+                f"{duplicate_response.status_code}."
+            )
+
+        with db_session() as db:
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = 'manufacturer.created' "
+                    "and entity_id = :entity_id"
+                ),
+                {"entity_id": custom_id},
+            ).scalar()
+
+        if audit_count != 1:
+            fail(
+                "Manufacturer creation did not create exactly one "
+                f"audit event: {audit_count!r}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Reusable manufacturer catalogue is seeded and extensible"
+    )
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -1509,6 +2047,8 @@ def main() -> None:
         check_custom_part_type_creation,
         check_custom_part_type_update_api,
         check_custom_part_type_delete_api,
+        check_inventory_part_creation_api,
+        check_manufacturer_catalogue_api,
     ]
 
     for check in checks:

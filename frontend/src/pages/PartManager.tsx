@@ -9,6 +9,8 @@ import type {
 
 import { useAuth } from "../auth/AuthContext";
 import "./PartManager.css";
+// PATCH 094: dynamic inventory Add Part modal
+import { AddPartModal } from "../components/AddPartModal";
 import {
   createPartType,
   getPartTypes,
@@ -26,6 +28,9 @@ import type {
 } from "../types/partTypes";
 
 type FilterMode = "all" | "builtin" | "custom";
+
+// PATCH 106: editor-only semantic field preset
+type EditorFieldKind = PartTypeFieldKind | "manufacturer";
 
 interface EditableField extends CreatePartTypeFieldPayload {
   id: number | null;
@@ -47,6 +52,19 @@ const FIELD_TYPES: Array<{
     value: "unit_value",
     label: "Unit-aware value",
     description: "Value with a default unit"
+  }
+];
+
+const EDITOR_FIELD_TYPES: Array<{
+  value: EditorFieldKind;
+  label: string;
+  description: string;
+}> = [
+  ...FIELD_TYPES,
+  {
+    value: "manufacturer",
+    label: "Manufacturer",
+    description: "Reusable catalogue with inline creation"
   }
 ];
 
@@ -79,6 +97,28 @@ function fieldKeyFromLabel(label: string): string {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "")
     .replace(/^[^a-z]+/, "");
+}
+
+// PATCH 106: Manufacturer remains text + reserved key in storage
+function normalizeEditorFieldKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function isManufacturerEditorField(field: {
+  field_key: string;
+}): boolean {
+  const key = normalizeEditorFieldKey(field.field_key);
+  return key === "manufacturer" || key === "manufacturer_name";
+}
+
+function editorFieldKind(field: EditableField): EditorFieldKind {
+  return isManufacturerEditorField(field)
+    ? "manufacturer"
+    : field.field_type;
 }
 
 function parseOptions(value: string): string[] {
@@ -115,6 +155,14 @@ function fieldSummary(field: PartTypeField): string {
 
 function previewInput(field: EditableField) {
   const placeholder = field.help_text?.trim() || field.label || "Field preview";
+
+  if (isManufacturerEditorField(field)) {
+    return (
+      <select disabled defaultValue="">
+        <option value="">Select or add a manufacturer</option>
+      </select>
+    );
+  }
 
   if (field.field_type === "boolean") {
     return (
@@ -185,6 +233,8 @@ export function PartManager() {
   const [deleteError, setDeleteError] =
     useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // PATCH 094: Add Part modal state
+  const [isAddingPart, setIsAddingPart] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -365,6 +415,34 @@ function closeCreator() {
     );
   }
 
+  // PATCH 106: convert the semantic preset to the existing storage contract
+  function updateEditorFieldKind(
+    field: EditableField,
+    nextKind: EditorFieldKind
+  ) {
+    if (nextKind === "manufacturer") {
+      const patch: Partial<EditableField> = {
+        field_type: "text",
+        field_key: "manufacturer",
+        options: [],
+        options_text: "",
+        default_unit: null
+      };
+      if (!field.label.trim()) {
+        patch.label = "Manufacturer";
+      }
+      updateField(field.client_id, patch);
+      return;
+    }
+
+    updateField(field.client_id, {
+      field_type: nextKind,
+      field_key: isManufacturerEditorField(field)
+        ? ""
+        : field.field_key
+    });
+  }
+
   function moveField(index: number, direction: -1 | 1) {
     setEditableFields((current) => {
       const destination = index + direction;
@@ -415,6 +493,15 @@ function closeCreator() {
         issues.push(`Dropdown field ${position} needs at least 2 options.`);
       }
     });
+
+    const manufacturerFieldCount = editableFields.filter(
+      isManufacturerEditorField
+    ).length;
+    if (manufacturerFieldCount > 1) {
+      issues.push(
+        "A part type can contain only one Manufacturer field."
+      );
+    }
 
     return issues;
   }
@@ -578,7 +665,10 @@ function closeCreator() {
   }
 
   return (
-    <div className="page-stack part-manager-page">
+    <div
+      className="page-stack part-manager-page"
+      data-manufacturer-preset-version="part-manager-manufacturer-preset-v106"
+    >
       <header className="page-header part-manager-header">
         <div>
           <p className="eyebrow">Phase 4</p>
@@ -596,6 +686,32 @@ function closeCreator() {
                 : "Editing custom type"
               : "Template manager"}
           </span>
+          <button
+
+            className="part-manager-add-part-button"
+
+            type="button"
+
+            onClick={() => setIsAddingPart(true)}
+
+            disabled={
+
+              !token
+
+              || !collection
+
+              || isLoading
+
+              || isCreating
+
+            }
+
+          >
+
+            Add part
+
+          </button>
+
           <button
             className="part-manager-create-button"
             type="button"
@@ -626,6 +742,16 @@ function closeCreator() {
             <strong>{collection.total_fields}</strong>
           </article>
         </section>
+      ) : null}
+
+      {/* PATCH 094: Add Part modal mount */}
+      {isAddingPart && collection && token ? (
+        <AddPartModal
+          token={token}
+          partTypes={collection.part_types}
+          initialPartTypeId={selectedType?.id ?? null}
+          onClose={() => setIsAddingPart(false)}
+        />
       ) : null}
 
       {isCreating ? (
@@ -802,20 +928,27 @@ function closeCreator() {
                             }
                             placeholder="chipset"
                             maxLength={120}
+                            disabled={isManufacturerEditorField(field)}
+                            title={
+                              isManufacturerEditorField(field)
+                                ? "Manufacturer uses the reusable catalogue key"
+                                : undefined
+                            }
                             spellCheck={false}
                           />
                         </label>
                         <label>
                           <span>Field type</span>
                           <select
-                            value={field.field_type}
+                            value={editorFieldKind(field)}
                             onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-                              updateField(field.client_id, {
-                                field_type: event.target.value as PartTypeFieldKind
-                              })
+                              updateEditorFieldKind(
+                                field,
+                                event.target.value as EditorFieldKind
+                              )
                             }
                           >
-                            {FIELD_TYPES.map((type) => (
+                            {EDITOR_FIELD_TYPES.map((type) => (
                               <option key={type.value} value={type.value}>
                                 {type.label} — {type.description}
                               </option>
@@ -1174,7 +1307,11 @@ function closeCreator() {
                           {field.help_text ? <p>{field.help_text}</p> : null}
                         </div>
                         <div className="template-field-meta">
-                          <span>{fieldTypeLabel(field.field_type)}</span>
+                          <span>
+                          {isManufacturerEditorField(field)
+                            ? "Manufacturer"
+                            : fieldTypeLabel(field.field_type)}
+                        </span>
                           {fieldSummary(field) ? (
                             <small>{fieldSummary(field)}</small>
                           ) : null}

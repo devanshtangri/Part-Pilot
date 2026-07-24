@@ -1142,3 +1142,57 @@
 }
 
 /* END PATCH 091 */
+
+/* PATCH 094: ADD PART ENTRY ACTION */
+
+.part-manager-page {
+  --part-manager-add-part-v094: 1;
+}
+
+.part-manager-page .part-manager-add-part-button {
+  appearance: none;
+  width: auto;
+  min-height: 36px;
+  margin: 0;
+  padding: 7px 12px;
+  border: 1px solid rgba(45, 212, 191, 0.44);
+  border-radius: 7px;
+  background: rgba(13, 148, 136, 0.2);
+  color: #ccfbf1;
+  box-shadow: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 780;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.part-manager-page
+  .part-manager-add-part-button:hover:not(:disabled) {
+  border-color: rgba(94, 234, 212, 0.72);
+  background: rgba(13, 148, 136, 0.34);
+  color: #ffffff;
+}
+
+.part-manager-page .part-manager-add-part-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.part-manager-page .part-manager-add-part-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+@media (max-width: 620px) {
+  .part-manager-page .part-manager-header-actions {
+    flex-wrap: wrap;
+  }
+
+  .part-manager-page .part-manager-add-part-button,
+  .part-manager-page .part-manager-create-button {
+    flex: 1 1 140px;
+  }
+}
+
+/* END PATCH 094 */

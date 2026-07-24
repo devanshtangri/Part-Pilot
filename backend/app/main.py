@@ -36,6 +36,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
 from app.api.routes.part_types import router as part_types_router
+# PATCH 093: inventory part routes
+from app.api.routes.parts import router as parts_router
+# PATCH 095: manufacturer catalogue routes
+from app.api.routes.manufacturers import router as manufacturers_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -61,6 +65,10 @@ app.include_router(auth_router, prefix="/api")
 
 # Phase 4 part type and template field routes.
 app.include_router(part_types_router, prefix="/api")
+# PATCH 093: inventory part API
+app.include_router(parts_router, prefix="/api")
+# PATCH 095: manufacturer catalogue API
+app.include_router(manufacturers_router, prefix="/api")
 
 frontend_dist = Path("/app/frontend_dist")
 if frontend_dist.exists():

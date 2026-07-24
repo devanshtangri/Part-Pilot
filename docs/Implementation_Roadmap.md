@@ -1101,3 +1101,34 @@ When a decision changes, update all affected files.
 - [x] Block deletion when inventory parts still use the type.
 - [x] Require typed-name confirmation in the UI.
 - [x] Record audit logs for successful deletion.
+
+
+### Phase 4 inventory creation backend checkpoint
+
+- [x] Create inventory parts from an active part type.
+- [x] Persist typed template field values.
+- [x] Validate required fields and template ownership.
+- [x] Reject duplicate part numbers.
+- [x] Read individual parts and filtered part collections.
+- [ ] Add the dynamic Add Part modal to Part Manager.
+
+
+### Phase 4 dynamic Add Part UI checkpoint
+
+- [x] Add inventory parts from Part Manager.
+- [x] Select a part type and render its dynamic fields.
+- [x] Validate base and required template fields.
+- [x] Preserve modal actions when the form overflows.
+- [x] Submit to the authenticated inventory API.
+- [ ] Add inventory browsing, searching, and part detail views.
+
+
+### Phase 4 manufacturer catalogue checkpoint
+
+- [x] Store manufacturers independently from part templates.
+- [x] Reuse existing manufacturers across inventory records.
+- [x] Create new manufacturers from the Add Part workflow.
+- [x] Seed common electronics brands.
+- [x] Backfill legacy manufacturer field values when possible.
+- [x] Show manufacturer in the compact Part Added confirmation.
+- [ ] Add manufacturer administration and merge tools.

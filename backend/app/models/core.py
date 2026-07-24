@@ -120,6 +120,34 @@ class Location(Base, TimestampMixin):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+# PATCH 095: reusable manufacturer catalogue
+class Manufacturer(Base, TimestampMixin):
+    __tablename__ = "manufacturers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(
+        String(180),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    normalized_name: Mapped[str] = mapped_column(
+        String(220),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    is_builtin: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
 class Part(Base, TimestampMixin):
     __tablename__ = "parts"
     __table_args__ = (
@@ -150,6 +178,12 @@ class Part(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     part_type_id: Mapped[int] = mapped_column(ForeignKey("part_types.id", ondelete="RESTRICT"), nullable=False, index=True)
     location_id: Mapped[int | None] = mapped_column(ForeignKey("locations.id", ondelete="SET NULL"), nullable=True, index=True)
+    # PATCH 095: part manufacturer relationship
+    manufacturer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("manufacturers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     part_number: Mapped[str | None] = mapped_column(String(160), nullable=True)
     name: Mapped[str | None] = mapped_column(String(220), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
