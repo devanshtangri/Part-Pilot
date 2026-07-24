@@ -1112,3 +1112,14 @@ Phase boundary note:
 - [x] Loaded persisted field IDs, order, options, units, and help text.
 - [x] Added edit-aware modal title, guidance, header state, and save state.
 - [x] Refreshed the selected template and version after successful updates.
+
+
+## Implementation Session Log — Patch 089 Safe Custom Part Type Deletion
+
+- [x] Added protected deletion for custom part types.
+- [x] Kept all built-in templates undeletable.
+- [x] Blocked deletion while any inventory part references the type.
+- [x] Cascaded deletion to unused custom template fields.
+- [x] Recorded deletion audit events with the full prior template snapshot.
+- [x] Added a typed-name confirmation dialog and API error feedback.
+- [x] Added deletion API smoke coverage.

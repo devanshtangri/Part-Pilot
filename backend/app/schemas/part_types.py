@@ -176,3 +176,9 @@ class PartTypeCollectionResponse(BaseModel):
     custom_count: int
     total_fields: int
     part_types: list[PartTypeResponse]
+
+# PATCH 089: custom part type delete response
+class PartTypeDeleteResponse(BaseModel):
+    id: int
+    name: str
+    deleted: bool = True

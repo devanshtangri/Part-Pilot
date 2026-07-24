@@ -3,6 +3,7 @@ import type {
   PartType,
   PartTypeCollection,
   UpdatePartTypePayload,
+  DeletePartTypeResponse,
 } from "../types/partTypes";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -81,4 +82,18 @@ export function updatePartType(
     method: "PUT",
     body: JSON.stringify(payload)
   });
+}
+
+// PATCH 089: custom part type delete client
+export function deletePartType(
+  token: string,
+  partTypeId: number
+): Promise<DeletePartTypeResponse> {
+  return requestJson<DeletePartTypeResponse>(
+    `/part-types/${partTypeId}`,
+    token,
+    {
+      method: "DELETE"
+    }
+  );
 }

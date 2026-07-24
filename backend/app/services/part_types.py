@@ -29,6 +29,10 @@ from app.models import (
 from app.schemas.part_types import (
     PartTypeUpdateRequest as ManagementPartTypeUpdateRequest,
 )
+from app.models import Part as DeleteManagementPart
+from app.schemas.part_types import (
+    PartTypeDeleteResponse as DeleteManagementPartTypeDeleteResponse,
+)
 
 
 def _field_response(field: PartTypeField) -> PartTypeFieldResponse:
@@ -605,3 +609,117 @@ def update_custom_part_type(
             "Part type disappeared after update."
         )
     return result
+
+# PATCH 089: safe custom part type deletion service
+class PartTypeDeleteNotFoundError(LookupError):
+    pass
+
+
+class PartTypeDeleteForbiddenError(PermissionError):
+    pass
+
+
+class PartTypeDeleteConflictError(ValueError):
+    pass
+
+
+def delete_custom_part_type(
+    db: Session,
+    part_type_id: int,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> DeleteManagementPartTypeDeleteResponse:
+    part_type = db.get(ManagementPartType, part_type_id)
+
+    if part_type is None:
+        raise PartTypeDeleteNotFoundError("Part type not found.")
+
+    if part_type.is_builtin:
+        raise PartTypeDeleteForbiddenError(
+            "Built-in part types cannot be deleted."
+        )
+
+    part_count = int(
+        db.execute(
+            management_select(func.count(DeleteManagementPart.id)).where(
+                DeleteManagementPart.part_type_id == part_type_id
+            )
+        ).scalar_one()
+    )
+
+    if part_count > 0:
+        noun = "part" if part_count == 1 else "parts"
+        raise PartTypeDeleteConflictError(
+            f"{part_type.name!r} is used by {part_count} inventory "
+            f"{noun} and cannot be deleted. Reassign or remove those "
+            "parts first."
+        )
+
+    fields = list(
+        db.execute(
+            management_select(ManagementPartTypeField)
+            .where(
+                ManagementPartTypeField.part_type_id == part_type_id
+            )
+            .order_by(
+                ManagementPartTypeField.sort_order.asc(),
+                ManagementPartTypeField.id.asc(),
+            )
+        ).scalars()
+    )
+
+    before_snapshot = _management_type_snapshot(
+        part_type,
+        fields,
+    )
+    response = DeleteManagementPartTypeDeleteResponse(
+        id=part_type.id,
+        name=part_type.name,
+        deleted=True,
+    )
+
+    try:
+        db.add(
+            ManagementAuditLog(
+                event_type="part_type.deleted",
+                entity_type="part_type",
+                entity_id=part_type.id,
+                actor_type=(
+                    "user"
+                    if actor_user_id is not None
+                    else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=f"Deleted custom part type {part_type.name}",
+                before_json=before_snapshot,
+                after_json={
+                    "id": part_type.id,
+                    "name": part_type.name,
+                    "deleted": True,
+                },
+                metadata_json={
+                    "field_count": len(fields),
+                    "template_version": part_type.template_version,
+                },
+            )
+        )
+
+        db.delete(part_type)
+        db.flush()
+
+        if commit:
+            db.commit()
+
+    except ManagementIntegrityError as exc:
+        db.rollback()
+        raise PartTypeDeleteConflictError(
+            "This custom part type is still referenced by inventory "
+            "data and cannot be deleted."
+        ) from exc
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return response

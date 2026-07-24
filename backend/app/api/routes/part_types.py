@@ -26,6 +26,15 @@ from app.services.part_types import (
     PartTypeUpdateValidationError,
     update_custom_part_type,
 )
+from app.schemas.part_types import (
+    PartTypeDeleteResponse as DeleteManagementPartTypeDeleteResponse,
+)
+from app.services.part_types import (
+    PartTypeDeleteConflictError,
+    PartTypeDeleteForbiddenError,
+    PartTypeDeleteNotFoundError,
+    delete_custom_part_type,
+)
 
 
 router = APIRouter(prefix="/part-types", tags=["part-types"])
@@ -126,5 +135,38 @@ def update_part_type(
     except PartTypeUpdateValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+# PATCH 089: safe custom part type deletion route
+@router.delete(
+    "/{part_type_id}",
+    response_model=DeleteManagementPartTypeDeleteResponse,
+)
+def delete_part_type(
+    part_type_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeleteManagementPartTypeDeleteResponse:
+    try:
+        return delete_custom_part_type(
+            db,
+            part_type_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except PartTypeDeleteNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except PartTypeDeleteForbiddenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except PartTypeDeleteConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc

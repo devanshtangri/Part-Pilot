@@ -65,3 +65,10 @@ export interface UpdatePartTypePayload {
   description: string | null;
   fields: UpdatePartTypeFieldPayload[];
 }
+
+// PATCH 089: custom part type delete response
+export interface DeletePartTypeResponse {
+  id: number;
+  name: string;
+  deleted: boolean;
+}

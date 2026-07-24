@@ -1262,6 +1262,235 @@ def check_custom_part_type_update_api() -> None:
 
     ok("Custom part types can be edited with protected ordered fields")
 
+# PATCH 089: custom part type deletion API smoke test
+def check_custom_part_type_delete_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_part_type_delete_user"
+    password = "part-type-delete-smoke-password"
+    custom_type_id: int | None = None
+    blocking_part_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if blocking_part_id is not None:
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": blocking_part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": blocking_part_id},
+                )
+
+            if custom_type_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part_type' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": custom_type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_type_fields "
+                        "where part_type_id = :part_type_id"
+                    ),
+                    {"part_type_id": custom_type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_types "
+                        "where id = :part_type_id"
+                    ),
+                    {"part_type_id": custom_type_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Part Type Delete Smoke User",
+                password=password,
+                commit=True,
+            )
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        create_response = client.post(
+            "/api/part-types",
+            headers=headers,
+            json={
+                "name": "Smoke Deletable Part Type",
+                "description": "Temporary deletion smoke template",
+                "fields": [
+                    {
+                        "field_key": "temporary_code",
+                        "label": "Temporary code",
+                        "field_type": "text",
+                        "is_required": False,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": None,
+                    }
+                ],
+            },
+        )
+        if create_response.status_code != 201:
+            fail(
+                "POST /api/part-types for delete smoke returned "
+                f"{create_response.status_code}: "
+                f"{create_response.text}"
+            )
+
+        created = create_response.json()
+        custom_type_id = created.get("id")
+        if not isinstance(custom_type_id, int):
+            fail(
+                "Delete smoke setup did not return a custom type ID."
+            )
+
+        with db_session() as db:
+            builtin_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_builtin = 1 order by id limit 1"
+                )
+            ).scalar()
+
+        builtin_response = client.delete(
+            f"/api/part-types/{builtin_id}",
+            headers=headers,
+        )
+        if builtin_response.status_code != 403:
+            fail(
+                "DELETE /api/part-types/{id} should reject built-in "
+                f"types with 403, got {builtin_response.status_code}."
+            )
+
+        with db_session() as db:
+            blocking_part = Part(
+                part_type_id=custom_type_id,
+                name="Deletion smoke blocking part",
+                total_quantity=0,
+                reserved_quantity=0,
+            )
+            db.add(blocking_part)
+            db.commit()
+            db.refresh(blocking_part)
+            blocking_part_id = blocking_part.id
+
+        conflict_response = client.delete(
+            f"/api/part-types/{custom_type_id}",
+            headers=headers,
+        )
+        if conflict_response.status_code != 409:
+            fail(
+                "DELETE /api/part-types/{id} should reject a used "
+                f"type with 409, got {conflict_response.status_code}: "
+                f"{conflict_response.text}"
+            )
+
+        with db_session() as db:
+            db.execute(
+                text("delete from parts where id = :part_id"),
+                {"part_id": blocking_part_id},
+            )
+            db.commit()
+        blocking_part_id = None
+
+        delete_response = client.delete(
+            f"/api/part-types/{custom_type_id}",
+            headers=headers,
+        )
+        if delete_response.status_code != 200:
+            fail(
+                "DELETE /api/part-types/{id} returned "
+                f"{delete_response.status_code}: "
+                f"{delete_response.text}"
+            )
+
+        deleted = delete_response.json()
+        if (
+            deleted.get("id") != custom_type_id
+            or deleted.get("deleted") is not True
+        ):
+            fail(
+                "DELETE /api/part-types/{id} returned an unexpected "
+                f"response: {deleted}"
+            )
+
+        with db_session() as db:
+            remaining_type = db.execute(
+                text(
+                    "select count(*) from part_types "
+                    "where id = :part_type_id"
+                ),
+                {"part_type_id": custom_type_id},
+            ).scalar()
+            remaining_fields = db.execute(
+                text(
+                    "select count(*) from part_type_fields "
+                    "where part_type_id = :part_type_id"
+                ),
+                {"part_type_id": custom_type_id},
+            ).scalar()
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = 'part_type.deleted' "
+                    "and entity_id = :entity_id"
+                ),
+                {"entity_id": custom_type_id},
+            ).scalar()
+
+        if remaining_type != 0:
+            fail("Deleted custom part type still exists.")
+        if remaining_fields != 0:
+            fail("Deleted custom part type fields still exist.")
+        if audit_count != 1:
+            fail(
+                "Custom part type deletion did not create exactly one "
+                f"audit event: {audit_count!r}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Custom part types delete safely with inventory usage safeguards"
+    )
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -1279,6 +1508,7 @@ def main() -> None:
         check_phase4_part_types_api,
         check_custom_part_type_creation,
         check_custom_part_type_update_api,
+        check_custom_part_type_delete_api,
     ]
 
     for check in checks:

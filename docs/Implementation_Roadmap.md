@@ -1092,3 +1092,12 @@ When a decision changes, update all affected files.
 - [x] Preserve field IDs while editing and reordering.
 - [x] Reuse the focused modal for create and edit workflows.
 - [ ] Delete custom part types with usage safeguards.
+
+
+### Phase 4 custom part type deletion checkpoint
+
+- [x] Delete unused custom part types.
+- [x] Protect built-in types from deletion.
+- [x] Block deletion when inventory parts still use the type.
+- [x] Require typed-name confirmation in the UI.
+- [x] Record audit logs for successful deletion.

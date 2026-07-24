@@ -13,7 +13,8 @@ import {
   createPartType,
   getPartTypes,
   updatePartType,
-  } from "../services/partTypesClient";
+  deletePartType,
+} from "../services/partTypesClient";
 import type {
   CreatePartTypeFieldPayload,
   CreatePartTypePayload,
@@ -178,6 +179,12 @@ export function PartManager() {
   const [editableFields, setEditableFields] = useState<EditableField[]>([]);
   const [creatorError, setCreatorError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] =
+    useState<PartType | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteError, setDeleteError] =
+    useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -486,6 +493,87 @@ function closeCreator() {
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  // PATCH 089: custom part type delete workflow
+  function openDeleteDialog(partType: PartType) {
+    if (partType.is_builtin) {
+      return;
+    }
+
+    setDeleteTarget(partType);
+    setDeleteConfirmation("");
+    setDeleteError(null);
+  }
+
+  function closeDeleteDialog() {
+    if (isDeleting) {
+      return;
+    }
+
+    setDeleteTarget(null);
+    setDeleteConfirmation("");
+    setDeleteError(null);
+  }
+
+  useEffect(() => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    function handleDeleteDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isDeleting) {
+        setDeleteTarget(null);
+        setDeleteConfirmation("");
+        setDeleteError(null);
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleDeleteDialogKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener(
+        "keydown",
+        handleDeleteDialogKeyDown
+      );
+    };
+  }, [deleteTarget, isDeleting]);
+
+  async function handleDeletePartType(event: FormEvent) {
+    event.preventDefault();
+
+    if (
+      !token
+      || !deleteTarget
+      || deleteConfirmation !== deleteTarget.name
+    ) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await deletePartType(token, deleteTarget.id);
+      const refreshed = await getPartTypes(token);
+
+      setCollection(refreshed);
+      setSelectedId(refreshed.part_types[0]?.id ?? null);
+      setDeleteTarget(null);
+      setDeleteConfirmation("");
+    } catch (caught) {
+      setDeleteError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to delete the custom part type"
+      );
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -851,6 +939,102 @@ function closeCreator() {
             </div>
       ) : null}
 
+      {deleteTarget ? (
+        <div
+          className="delete-type-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (
+              event.target === event.currentTarget
+              && !isDeleting
+            ) {
+              closeDeleteDialog();
+            }
+          }}
+        >
+          <section
+            className="delete-type-dialog card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-part-type-title"
+            aria-describedby="delete-part-type-description"
+          >
+            <form onSubmit={handleDeletePartType}>
+              <header>
+                <div>
+                  <p className="eyebrow">Permanent action</p>
+                  <h2 id="delete-part-type-title">
+                    Delete custom part type?
+                  </h2>
+                </div>
+                <button
+                  className="delete-type-close"
+                  type="button"
+                  onClick={closeDeleteDialog}
+                  disabled={isDeleting}
+                  aria-label="Close deletion dialog"
+                  title="Close"
+                >
+                  ×
+                </button>
+              </header>
+
+              <div className="delete-type-content">
+                <p id="delete-part-type-description">
+                  This permanently removes the
+                  <strong> {deleteTarget.name} </strong>
+                  template and all of its template fields. Deletion is
+                  blocked when any inventory part still uses this type.
+                </p>
+
+                <label>
+                  <span>
+                    Type <strong>{deleteTarget.name}</strong> to confirm
+                  </span>
+                  <input
+                    value={deleteConfirmation}
+                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                      setDeleteConfirmation(event.target.value)
+                    }
+                    autoComplete="off"
+                    spellCheck={false}
+                    autoFocus
+                  />
+                </label>
+
+                {deleteError ? (
+                  <div className="delete-type-error" role="alert">
+                    {deleteError}
+                  </div>
+                ) : null}
+              </div>
+
+              <footer>
+                <button
+                  type="button"
+                  onClick={closeDeleteDialog}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="delete-type-confirm"
+                  type="submit"
+                  disabled={
+                    isDeleting
+                    || deleteConfirmation !== deleteTarget.name
+                  }
+                >
+                  {isDeleting
+                    ? "Deleting…"
+                    : "Delete custom type"}
+                </button>
+              </footer>
+            </form>
+          </section>
+        </div>
+      ) : null}
+
       <section className="search-card">
         <label>
           <span>Search part types and fields</span>
@@ -942,6 +1126,7 @@ function closeCreator() {
                   </div>
                   <div className="part-type-detail-actions">
                     {!selectedType.is_builtin ? (
+                      <>
                       <button
                         className="part-type-edit-button"
                         type="button"
@@ -949,6 +1134,14 @@ function closeCreator() {
                       >
                         Edit custom type
                       </button>
+                      <button
+                        className="part-type-delete-button"
+                        type="button"
+                        onClick={() => openDeleteDialog(selectedType)}
+                      >
+                        Delete
+                      </button>
+                    </>
                     ) : null}
                     <span className="status-pill">
                       Template v{selectedType.template_version}
