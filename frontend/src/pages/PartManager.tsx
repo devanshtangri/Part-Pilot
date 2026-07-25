@@ -18,7 +18,10 @@ import {
   deletePartType,
 } from "../services/partTypesClient";
 // PATCH 110: basic inventory browsing collection
-import { getParts } from "../services/partsClient";
+import {
+  getPart,
+  getParts
+} from "../services/partsClient";
 import type { Part, PartCollection } from "../types/parts";
 import type {
   CreatePartTypeFieldPayload,
@@ -240,6 +243,48 @@ function inventoryStockClass(part: Part): string {
   return "is-in";
 }
 
+// PATCH 124: read-only inventory detail helpers
+// PATCH 127: trim database decimal padding without rounding
+const PART_DETAIL_NUMBER_FORMAT_VERSION = "part-detail-number-format-v127";
+
+function inventoryNumberDisplayValue(value: string): string {
+  const normalized = value.trim();
+
+  if (!/^-?\d+(?:\.\d+)?$/.test(normalized)) {
+    return normalized;
+  }
+
+  const [integerPart, decimalPart] = normalized.split(".");
+  if (!decimalPart) {
+    return integerPart;
+  }
+
+  const trimmedDecimal = decimalPart.replace(/0+$/, "");
+  return trimmedDecimal
+    ? `${integerPart}.${trimmedDecimal}`
+    : integerPart;
+}
+
+function inventoryFieldDisplayValue(
+  field: Part["field_values"][number]
+): string | null {
+  if (field.value_bool !== null) {
+    return field.value_bool ? "Yes" : "No";
+  }
+  if (field.value_number !== null) {
+    const value = inventoryNumberDisplayValue(field.value_number);
+    return `${value}${field.unit ? ` ${field.unit}` : ""}`;
+  }
+  return field.value_text || null;
+}
+
+function inventoryDateLabel(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleString();
+}
+
 export function PartManager() {
   const { token } = useAuth();
   const [collection, setCollection] = useState<PartTypeCollection | null>(null);
@@ -258,6 +303,14 @@ export function PartManager() {
   const [inventoryQuery, setInventoryQuery] = useState("");
   const [inventoryStockFilter, setInventoryStockFilter] =
     useState<InventoryStockFilter>("all");
+  // PATCH 124: selected inventory record and drawer state
+  const [selectedInventoryPartId, setSelectedInventoryPartId] =
+    useState<number | null>(null);
+  const [selectedInventoryPart, setSelectedInventoryPart] =
+    useState<Part | null>(null);
+  const [partDetailsLoading, setPartDetailsLoading] = useState(false);
+  const [partDetailsError, setPartDetailsError] =
+    useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -356,6 +409,66 @@ export function PartManager() {
     };
   }, [token, inventoryRefreshSequence]);
 
+  useEffect(() => {
+    if (selectedInventoryPartId === null || !token) {
+      return;
+    }
+
+    let cancelled = false;
+    setPartDetailsLoading(true);
+    setPartDetailsError(null);
+    setSelectedInventoryPart(null);
+
+    getPart(token, selectedInventoryPartId)
+      .then((part) => {
+        if (!cancelled) {
+          setSelectedInventoryPart(part);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setPartDetailsError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load part details"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPartDetailsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedInventoryPartId, token]);
+
+  useEffect(() => {
+    if (selectedInventoryPartId === null) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    function handlePartDetailsKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedInventoryPartId(null);
+        setSelectedInventoryPart(null);
+        setPartDetailsError(null);
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handlePartDetailsKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handlePartDetailsKeyDown);
+    };
+  }, [selectedInventoryPartId]);
+
   const filteredTypes = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const allTypes = collection?.part_types ?? [];
@@ -438,6 +551,18 @@ export function PartManager() {
     inventoryQuery,
     inventoryStockFilter
   ]);
+
+  function openPartDetails(partId: number) {
+    setPartDetailsError(null);
+    setSelectedInventoryPart(null);
+    setSelectedInventoryPartId(partId);
+  }
+
+  function closePartDetails() {
+    setSelectedInventoryPartId(null);
+    setSelectedInventoryPart(null);
+    setPartDetailsError(null);
+  }
 
   function openCreator() {
     setEditingTypeId(null);
@@ -1603,7 +1728,27 @@ function closeCreator() {
                 </thead>
                 <tbody>
                   {filteredInventoryParts.map((part) => (
-                    <tr key={part.id}>
+                    <tr
+                      key={part.id}
+                      className={
+                        selectedInventoryPartId === part.id
+                          ? "inventory-row-action is-selected"
+                          : "inventory-row-action"
+                      }
+                      tabIndex={0}
+                      aria-label={`View details for ${inventoryPartName(part)}`}
+                      aria-haspopup="dialog"
+                      onClick={() => openPartDetails(part.id)}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter"
+                          || event.key === " "
+                        ) {
+                          event.preventDefault();
+                          openPartDetails(part.id);
+                        }
+                      }}
+                    >
                       <td>
                         <strong>{inventoryPartName(part)}</strong>
                         <small>
@@ -1638,6 +1783,264 @@ function closeCreator() {
             </div>
           ) : null}
       </section>
-    </div>
+
+      {selectedInventoryPartId !== null ? (
+        <div
+          className="part-details-backdrop"
+          data-part-details-version="inventory-part-details-v124"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closePartDetails();
+            }
+          }}
+        >
+          <aside
+            className="part-details-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="part-details-title"
+          >
+            <header className="part-details-header">
+              <div>
+                <p className="eyebrow">Inventory record</p>
+                <h2 id="part-details-title">
+                  {selectedInventoryPart
+                    ? inventoryPartName(selectedInventoryPart)
+                    : "Part details"}
+                </h2>
+                <p>
+                  {selectedInventoryPart?.part_number
+                    || "Read-only inventory details"}
+                </p>
+              </div>
+              <button
+                className="part-details-close"
+                type="button"
+                onClick={closePartDetails}
+                aria-label="Close part details"
+                title="Close"
+                autoFocus
+              >
+                ×
+              </button>
+            </header>
+
+            <div
+              className="part-details-body"
+              data-number-format-version={
+                PART_DETAIL_NUMBER_FORMAT_VERSION
+              }
+            >
+              {partDetailsLoading
+                || (!selectedInventoryPart && !partDetailsError) ? (
+                  <div className="part-details-state">
+                    Loading part details...
+                  </div>
+                ) : null}
+
+              {partDetailsError ? (
+                <div
+                  className="part-details-state is-error"
+                  role="alert"
+                >
+                  <strong>Part details could not load</strong>
+                  <p>{partDetailsError}</p>
+                </div>
+              ) : null}
+
+              {selectedInventoryPart ? (
+                <>
+                  <section
+                    className="part-details-stock"
+                    aria-label="Stock quantities"
+                  >
+                    <article>
+                      <span>Available</span>
+                      <strong>
+                        {selectedInventoryPart.available_quantity}
+                      </strong>
+                    </article>
+                    <article>
+                      <span>Reserved</span>
+                      <strong>
+                        {selectedInventoryPart.reserved_quantity}
+                      </strong>
+                    </article>
+                    <article>
+                      <span>Total</span>
+                      <strong>
+                        {selectedInventoryPart.total_quantity}
+                      </strong>
+                    </article>
+                  </section>
+
+                  <section className="part-details-section">
+                    <div className="part-details-section-heading">
+                      <strong>Identification</strong>
+                      <span
+                        className={
+                          `inventory-stock-pill ${
+                            inventoryStockClass(selectedInventoryPart)
+                          }`
+                        }
+                      >
+                        {inventoryStockLabel(selectedInventoryPart)}
+                      </span>
+                    </div>
+                    <dl className="part-details-grid">
+                      <div>
+                        <dt>Display name</dt>
+                        <dd>
+                          {selectedInventoryPart.name || "Not specified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Part number / model</dt>
+                        <dd>
+                          {selectedInventoryPart.part_number
+                            || "Not specified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Part type</dt>
+                        <dd>{selectedInventoryPart.part_type_name}</dd>
+                      </div>
+                      <div>
+                        <dt>Manufacturer</dt>
+                        <dd>
+                          {selectedInventoryPart.manufacturer_name
+                            || "Not specified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Package / form factor</dt>
+                        <dd>
+                          {selectedInventoryPart.package
+                            || "Not specified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Low-stock threshold</dt>
+                        <dd>
+                          {selectedInventoryPart.low_stock_enabled
+                            ? (
+                              selectedInventoryPart.low_stock_threshold
+                              ?? "Not set"
+                            )
+                            : "Disabled"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  <section className="part-details-section">
+                    <div className="part-details-section-heading">
+                      <strong>Purchase and record</strong>
+                    </div>
+                    <dl className="part-details-grid">
+                      <div>
+                        <dt>Unit price</dt>
+                        <dd>
+                          {selectedInventoryPart.unit_price
+                            ?? "Not specified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Purchase link</dt>
+                        <dd>
+                          {selectedInventoryPart.purchase_link ? (
+                            <a
+                              href={selectedInventoryPart.purchase_link}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Open purchase page
+                            </a>
+                          ) : (
+                            "Not specified"
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Created</dt>
+                        <dd>
+                          {inventoryDateLabel(
+                            selectedInventoryPart.created_at
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Last updated</dt>
+                        <dd>
+                          {inventoryDateLabel(
+                            selectedInventoryPart.updated_at
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+
+                  {selectedInventoryPart.description ? (
+                    <section className="part-details-section">
+                      <div className="part-details-section-heading">
+                        <strong>Description</strong>
+                      </div>
+                      <p className="part-details-copy">
+                        {selectedInventoryPart.description}
+                      </p>
+                    </section>
+                  ) : null}
+
+                  {selectedInventoryPart.notes ? (
+                    <section className="part-details-section">
+                      <div className="part-details-section-heading">
+                        <strong>Notes</strong>
+                      </div>
+                      <p className="part-details-copy">
+                        {selectedInventoryPart.notes}
+                      </p>
+                    </section>
+                  ) : null}
+
+                  {selectedInventoryPart.field_values.some(
+                    (field) =>
+                      inventoryFieldDisplayValue(field) !== null
+                  ) ? (
+                    <section className="part-details-section">
+                      <div className="part-details-section-heading">
+                        <strong>Template fields</strong>
+                      </div>
+                      <dl className="part-details-template-fields">
+                        {selectedInventoryPart.field_values
+                          .filter(
+                            (field) =>
+                              inventoryFieldDisplayValue(field)
+                              !== null
+                          )
+                          .map((field) => (
+                            <div key={field.id}>
+                              <dt>{field.label}</dt>
+                              <dd>
+                                {inventoryFieldDisplayValue(field)}
+                              </dd>
+                            </div>
+                          ))}
+                      </dl>
+                    </section>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+
+            <footer className="part-details-footer">
+              <span>Read-only view</span>
+              <button type="button" onClick={closePartDetails}>
+                Close
+              </button>
+            </footer>
+          </aside>
+        </div>
+      ) : null}
+</div>
   );
 }

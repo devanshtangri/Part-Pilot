@@ -1,6 +1,6 @@
 # Part Pilot Checkpoint
 
-Generated: 2026-07-07  
+Generated: 2026-07-07
 Purpose: Master checklist and project memory for Part Pilot. This file tracks every locked decision, V1 task, later feature, design polish item, and implementation concern discussed so far.
 
 ---
@@ -1157,3 +1157,71 @@ Phase boundary note:
 - [x] Added an inline manufacturer creator to Add Part.
 - [x] Kept templates with a manufacturer field backward-compatible without showing a duplicate control.
 - [x] Replaced the oversized success screen with a compact inventory receipt.
+
+<!-- PATCH 131 PART DETAILS PACKAGE CHECKPOINT -->
+
+---
+
+## Implementation Checkpoint — Part Details and Package Catalogue
+
+Checkpoint status: **browser approved and committed**
+
+### Completed inventory browsing work
+
+- [x] Stored Parts table backed by `GET /api/parts`.
+- [x] Search across part name, part number, type, and manufacturer.
+- [x] All / In stock / Low / Out stock filters.
+- [x] Contextual Add Part action from the selected template.
+- [x] Read-only part details drawer on desktop.
+- [x] Responsive bottom-sheet details view on narrow screens.
+- [x] Mouse, Enter, Space, Escape, close-button, and backdrop interactions.
+- [x] Identification, manufacturer, package, stock, low-stock settings, price,
+      purchase link, notes, timestamps, and template fields are visible.
+- [x] Numeric custom-field values hide unnecessary decimal padding without
+      rounding meaningful precision.
+
+### Completed reusable package/form-factor work
+
+- [x] Alembic head `0005_packages`.
+- [x] First-class reusable `packages` catalogue.
+- [x] Common electronics packages and module formats seeded.
+- [x] Existing non-empty `Part.package` values backfilled.
+- [x] Existing `Part.package` text storage preserved for compatibility.
+- [x] Protected `GET /api/packages`.
+- [x] Protected `POST /api/packages`.
+- [x] Normalised duplicate package names rejected.
+- [x] Package creation audit events.
+- [x] Add Part package/form-factor dropdown.
+- [x] Inline creation and immediate selection of new package options.
+- [x] Custom package options remain reusable after reopening Add Part.
+
+### Completed Part Manager polish
+
+- [x] Template-field rows use a consistent minimum height.
+- [x] Field labels and metadata are vertically centred.
+- [x] Longer descriptions can expand naturally.
+
+### Manual browser approval
+
+- [x] Stored Parts rows open the details view.
+- [x] Desktop and responsive close interactions work.
+- [x] Numeric values display without padded decimal zeros.
+- [x] Seeded package options appear in Add Part.
+- [x] Custom package creation, selection, and reuse work.
+- [x] Only one Package/form-factor control is shown.
+- [x] Selected package values appear in part details.
+- [x] Template-field row heights are visually consistent.
+
+### Next major implementation slice
+
+Continue Phase 4 with a small stock-movement and quantity-adjustment workflow:
+
+1. Inspect the existing `StockMovement` model and current parts service.
+2. Define add, remove, consume, and correction semantics.
+3. Add an authenticated quantity-adjustment service and API.
+4. Record quantity before/after, delta, reason, note, actor, and timestamp.
+5. Add a compact adjustment action from part details.
+6. Show recent movement history read-only.
+7. Keep reservations, projects, metadata editing, and deletion separate.
+
+The next chat starts with read-only **Diagnostic 132**.

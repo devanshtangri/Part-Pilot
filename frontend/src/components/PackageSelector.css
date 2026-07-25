@@ -1,0 +1,111 @@
+/* PATCH 129: REUSABLE PACKAGE / FORM-FACTOR SELECTOR */
+
+.add-part-package-field {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  align-self: start;
+  min-width: 0;
+}
+
+.add-part-package-field > span {
+  color: #aebed0;
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+
+.add-part-package-field > small {
+  color: #718299;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.add-part-package-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.add-part-package-control select {
+  min-width: 0;
+}
+
+.add-part-package-control button,
+.add-part-package-creator button {
+  appearance: none;
+  min-height: 38px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid #3a475b;
+  border-radius: 7px;
+  outline: none;
+  background: #141e2c;
+  color: #dbe7f5;
+  box-shadow: none;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.add-part-package-control button:hover:not(:disabled),
+.add-part-package-creator button:hover:not(:disabled) {
+  border-color: #60718d;
+  background: #1b293a;
+  color: #ffffff;
+}
+
+.add-part-package-control button:focus-visible,
+.add-part-package-creator button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.add-part-package-control button:disabled,
+.add-part-package-creator button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.add-part-package-creator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid #29384d;
+  border-radius: 8px;
+  background: rgba(8, 15, 25, 0.62);
+}
+
+.add-part-package-creator input {
+  min-width: 0;
+}
+
+.add-part-package-error {
+  padding: 8px 9px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  border-radius: 7px;
+  background: rgba(127, 29, 29, 0.16);
+  color: #fecaca;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+@media (max-width: 520px) {
+  .add-part-package-control,
+  .add-part-package-creator {
+    grid-template-columns: 1fr;
+  }
+
+  .add-part-package-control button,
+  .add-part-package-creator button {
+    width: 100%;
+  }
+}
+
+/* END PATCH 129 */

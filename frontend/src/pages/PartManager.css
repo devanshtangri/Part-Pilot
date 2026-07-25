@@ -1604,3 +1604,364 @@
 }
 
 /* END PATCH 120 */
+
+/* PATCH 124: READ-ONLY INVENTORY PART DETAILS */
+
+.part-manager-page {
+  --inventory-part-details-v124: 1;
+}
+
+.part-manager-page .inventory-row-action {
+  cursor: pointer !important;
+  outline: none !important;
+}
+
+.part-manager-page .inventory-row-action:focus-visible td {
+  background: rgba(45, 212, 191, 0.07) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(45, 212, 191, 0.42),
+    inset 0 -1px 0 rgba(45, 212, 191, 0.42) !important;
+}
+
+.part-manager-page .inventory-row-action.is-selected td {
+  background: rgba(45, 212, 191, 0.055) !important;
+}
+
+.part-details-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 1500 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  overflow: hidden !important;
+  background: rgba(3, 7, 13, 0.76) !important;
+  backdrop-filter: blur(3px) !important;
+}
+
+.part-manager-page .part-details-drawer {
+  display: grid !important;
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  width: min(540px, 100%) !important;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  border-left: 1px solid #334155 !important;
+  background: #0b121c !important;
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.54) !important;
+}
+
+.part-manager-page .part-details-header {
+  display: flex !important;
+  gap: 16px !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  padding: 18px 18px 16px !important;
+  border-bottom: 1px solid var(--panel-border) !important;
+  background: #111a27 !important;
+}
+
+.part-manager-page .part-details-header h2,
+.part-manager-page .part-details-header p {
+  margin: 0 !important;
+}
+
+.part-manager-page .part-details-header h2 {
+  margin-top: 3px !important;
+  color: #f1f5f9 !important;
+  font-size: 1.2rem !important;
+  line-height: 1.25 !important;
+}
+
+.part-manager-page .part-details-header p:last-child {
+  margin-top: 5px !important;
+  color: var(--muted) !important;
+  font-size: 0.76rem !important;
+}
+
+.part-manager-page .part-details-close {
+  display: grid !important;
+  width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  flex: 0 0 auto !important;
+  place-items: center !important;
+  padding: 0 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: #0d1520 !important;
+  color: #cbd5e1 !important;
+  font: inherit !important;
+  font-size: 1.18rem !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+}
+
+.part-manager-page .part-details-close:hover {
+  border-color: #60718d !important;
+  background: #172233 !important;
+  color: #ffffff !important;
+}
+
+.part-manager-page .part-details-close:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+.part-manager-page .part-details-body {
+  display: grid !important;
+  align-content: start !important;
+  gap: 14px !important;
+  min-height: 0 !important;
+  padding: 16px 18px 22px !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+.part-manager-page .part-details-state {
+  padding: 20px !important;
+  border: 1px dashed var(--panel-border) !important;
+  border-radius: 8px !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+}
+
+.part-manager-page .part-details-state.is-error {
+  border-color: rgba(248, 113, 113, 0.42) !important;
+  background: rgba(127, 29, 29, 0.14) !important;
+  color: #fecaca !important;
+}
+
+.part-manager-page .part-details-state strong,
+.part-manager-page .part-details-state p {
+  display: block !important;
+  margin: 0 !important;
+}
+
+.part-manager-page .part-details-state p {
+  margin-top: 6px !important;
+  font-size: 0.76rem !important;
+}
+
+.part-manager-page .part-details-stock {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 9px !important;
+}
+
+.part-manager-page .part-details-stock article {
+  display: grid !important;
+  gap: 4px !important;
+  padding: 12px !important;
+  border: 1px solid #273449 !important;
+  border-radius: 8px !important;
+  background: #101925 !important;
+}
+
+.part-manager-page .part-details-stock span {
+  color: var(--muted) !important;
+  font-size: 0.68rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.035em !important;
+  text-transform: uppercase !important;
+}
+
+.part-manager-page .part-details-stock strong {
+  color: #f1f5f9 !important;
+  font-size: 1.25rem !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.part-manager-page .part-details-section {
+  display: grid !important;
+  gap: 10px !important;
+  padding: 14px !important;
+  border: 1px solid #273449 !important;
+  border-radius: 8px !important;
+  background: #0e1723 !important;
+}
+
+.part-manager-page .part-details-section-heading {
+  display: flex !important;
+  gap: 12px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.part-manager-page .part-details-section-heading > strong {
+  color: #e2e8f0 !important;
+  font-size: 0.79rem !important;
+}
+
+.part-manager-page .part-details-grid,
+.part-manager-page .part-details-template-fields {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 1px !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid #253247 !important;
+  border-radius: 7px !important;
+  background: #253247 !important;
+}
+
+.part-manager-page .part-details-grid > div,
+.part-manager-page .part-details-template-fields > div {
+  min-width: 0 !important;
+  padding: 10px 11px !important;
+  background: #0b1420 !important;
+}
+
+.part-manager-page .part-details-grid dt,
+.part-manager-page .part-details-template-fields dt {
+  margin: 0 !important;
+  color: #7f91a7 !important;
+  font-size: 0.66rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.025em !important;
+  text-transform: uppercase !important;
+}
+
+.part-manager-page .part-details-grid dd,
+.part-manager-page .part-details-template-fields dd {
+  margin: 5px 0 0 !important;
+  overflow-wrap: anywhere !important;
+  color: #dbe7f5 !important;
+  font-size: 0.77rem !important;
+  line-height: 1.4 !important;
+}
+
+.part-manager-page .part-details-grid a {
+  color: #5eead4 !important;
+  text-decoration: none !important;
+}
+
+.part-manager-page .part-details-grid a:hover {
+  text-decoration: underline !important;
+}
+
+.part-manager-page .part-details-copy {
+  margin: 0 !important;
+  color: #cbd5e1 !important;
+  font-size: 0.78rem !important;
+  line-height: 1.55 !important;
+  overflow-wrap: anywhere !important;
+}
+
+.part-manager-page .part-details-template-fields {
+  grid-template-columns: 1fr !important;
+}
+
+.part-manager-page .part-details-footer {
+  display: flex !important;
+  gap: 12px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 12px 18px !important;
+  border-top: 1px solid var(--panel-border) !important;
+  background: #0c131e !important;
+}
+
+.part-manager-page .part-details-footer span {
+  color: var(--muted) !important;
+  font-size: 0.7rem !important;
+}
+
+.part-manager-page .part-details-footer button {
+  appearance: none !important;
+  min-width: 82px !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 7px 11px !important;
+  border: 1px solid #3a475b !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: #141e2c !important;
+  color: #dbe7f5 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.75rem !important;
+  font-weight: 750 !important;
+  cursor: pointer !important;
+}
+
+.part-manager-page .part-details-footer button:hover {
+  border-color: #60718d !important;
+  background: #1b293a !important;
+  color: #ffffff !important;
+}
+
+.part-manager-page .part-details-footer button:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+@media (max-width: 720px) {
+  .part-details-backdrop {
+    align-items: flex-end !important;
+    padding-top: 20px !important;
+  }
+
+  .part-manager-page .part-details-drawer {
+    width: 100% !important;
+    height: min(88dvh, 760px) !important;
+    border-top: 1px solid #3b4a60 !important;
+    border-left: 0 !important;
+    border-radius: 14px 14px 0 0 !important;
+    box-shadow: 0 -24px 70px rgba(0, 0, 0, 0.58) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .part-manager-page .part-details-header {
+    padding: 15px 14px 13px !important;
+  }
+
+  .part-manager-page .part-details-body {
+    padding: 13px 14px 18px !important;
+  }
+
+  .part-manager-page .part-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .part-manager-page .part-details-stock {
+    gap: 6px !important;
+  }
+
+  .part-manager-page .part-details-stock article {
+    padding: 9px !important;
+  }
+
+  .part-manager-page .part-details-footer {
+    padding:
+      11px
+      14px
+      max(11px, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* END PATCH 124 */
+
+/* PATCH 130: CONSISTENT TEMPLATE FIELD ROW HEIGHTS */
+
+.part-manager-page {
+  --template-field-row-height-v130: 1;
+}
+
+.part-manager-page .template-field-row {
+  min-height: 66px;
+  align-items: center;
+}
+
+.part-manager-page .template-field-copy,
+.part-manager-page .template-field-meta {
+  align-self: center;
+}
+
+@media (max-width: 620px) {
+  .part-manager-page .template-field-row {
+    min-height: 60px;
+  }
+}
+
+/* END PATCH 130 */

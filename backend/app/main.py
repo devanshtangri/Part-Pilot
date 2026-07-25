@@ -40,6 +40,8 @@ from app.api.routes.part_types import router as part_types_router
 from app.api.routes.parts import router as parts_router
 # PATCH 095: manufacturer catalogue routes
 from app.api.routes.manufacturers import router as manufacturers_router
+# PATCH 128: package catalogue routes
+from app.api.routes.packages import router as packages_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -69,6 +71,8 @@ app.include_router(part_types_router, prefix="/api")
 app.include_router(parts_router, prefix="/api")
 # PATCH 095: manufacturer catalogue API
 app.include_router(manufacturers_router, prefix="/api")
+# PATCH 128: package catalogue API
+app.include_router(packages_router, prefix="/api")
 
 frontend_dist = Path("/app/frontend_dist")
 if frontend_dist.exists():

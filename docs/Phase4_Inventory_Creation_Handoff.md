@@ -200,3 +200,18 @@ This batch is approved for commit with:
 ```text
 Add inventory part creation and manufacturer catalogue
 ```
+
+<!-- PATCH 131 SUPERSEDED HANDOFF -->
+
+---
+
+## Superseded Handoff Notice
+
+This handoff is retained as project history. The current continuation handoff
+is:
+
+`docs/Phase4_Inventory_Details_Package_Catalogue_Handoff.md`
+
+Direct GitHub source:
+
+https://raw.githubusercontent.com/devanshtangri/Part-Pilot/main/docs/Phase4_Inventory_Details_Package_Catalogue_Handoff.md

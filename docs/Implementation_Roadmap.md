@@ -1,7 +1,7 @@
 # Part Pilot Implementation Roadmap
 
-Generated: 2026-07-07  
-Project: Part Pilot  
+Generated: 2026-07-07
+Project: Part Pilot
 Purpose: Practical build order for taking Part Pilot from empty repository to working V1 prototype, then polished V1 release.
 
 ---
@@ -1132,3 +1132,56 @@ When a decision changes, update all affected files.
 - [x] Backfill legacy manufacturer field values when possible.
 - [x] Show manufacturer in the compact Part Added confirmation.
 - [ ] Add manufacturer administration and merge tools.
+
+<!-- PATCH 131 ROADMAP CHECKPOINT -->
+
+---
+
+## Current Roadmap Checkpoint — 2026-07-25
+
+### Phase 4 inventory foundation completed
+
+- [x] Inventory part creation.
+- [x] Reusable manufacturer catalogue.
+- [x] Inventory list and refresh.
+- [x] Search by name, part number, type, and manufacturer.
+- [x] In-stock, low-stock, and out-of-stock filtering.
+- [x] Read-only part details.
+- [x] Responsive details drawer/bottom sheet.
+- [x] Clean numeric custom-field display.
+- [x] Reusable package/form-factor catalogue.
+- [x] Package migration and existing-value backfill.
+- [x] Seeded and custom package selection in Add Part.
+- [x] Consistent template-field row layout.
+
+### Immediate next slice
+
+- [ ] Diagnostic 132: inspect stock-movement and quantity-adjustment targets.
+- [ ] Add stock.
+- [ ] Remove stock.
+- [ ] Consume stock.
+- [ ] Correct stock with an explicit reason.
+- [ ] Persist before/after quantities and audit context.
+- [ ] Show recent movement history in part details.
+
+### Following Phase 4 slices
+
+- [ ] Metadata editing for existing parts.
+- [ ] Soft deletion and restoration safeguards.
+- [ ] Reusable location management.
+- [ ] Low-stock dashboard and settings-driven out-of-stock grouping.
+- [ ] Reservations.
+- [ ] Projects.
+- [ ] Reservation consumption and release.
+- [ ] Full inventory/history pages.
+
+### Later V1 phases
+
+- [ ] Settings and appearance completion.
+- [ ] Backup and restore workflows.
+- [ ] MCP read tools.
+- [ ] MCP write tools with confirmation safeguards.
+- [ ] Final responsive, accessibility, and release polish.
+
+The roadmap remains incremental: each implementation slice is browser-tested
+before its checkpoint commit.

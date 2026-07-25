@@ -148,6 +148,35 @@ class Manufacturer(Base, TimestampMixin):
         nullable=False,
     )
 
+# PATCH 128: reusable package catalogue
+class PackageOption(Base, TimestampMixin):
+    __tablename__ = "packages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    normalized_name: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    is_builtin: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+
 class Part(Base, TimestampMixin):
     __tablename__ = "parts"
     __table_args__ = (

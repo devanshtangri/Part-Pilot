@@ -34,7 +34,7 @@ from app.schemas.part_types import (
 from app.services.part_types import create_custom_part_type
 
 EXPECTED_PART_TYPES = 34
-EXPECTED_AUTH_SCHEMA_HEAD = "0004_manufacturers"
+EXPECTED_AUTH_SCHEMA_HEAD = "0005_packages"
 MIN_TEMPLATE_FIELDS = 140
 EXPECTED_SETTINGS = {
     "setup.completed",
@@ -2029,6 +2029,168 @@ def check_manufacturer_catalogue_api() -> None:
         "Reusable manufacturer catalogue is seeded and extensible"
     )
 
+# PATCH 128: package catalogue API smoke test
+def check_package_catalogue_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_package_catalogue_user"
+    password = "package-catalogue-smoke-password"
+    custom_name = f"Smoke Package {uuid4().hex[:10]}"
+    custom_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if custom_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'package' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": custom_id},
+                )
+                db.execute(
+                    text("delete from packages where id = :package_id"),
+                    {"package_id": custom_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.get("/api/packages")
+        if unauthenticated.status_code not in {401, 403}:
+            fail(
+                "GET /api/packages should require authentication, "
+                f"got {unauthenticated.status_code}."
+            )
+
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Package Catalogue Smoke User",
+                password=password,
+                commit=True,
+            )
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+        list_response = client.get("/api/packages", headers=headers)
+        if list_response.status_code != 200:
+            fail(
+                "GET /api/packages returned "
+                f"{list_response.status_code}: {list_response.text}"
+            )
+
+        payload = list_response.json()
+        names = {
+            item.get("name")
+            for item in payload.get("packages", [])
+        }
+        expected = {
+            "TO-92",
+            "TO-220",
+            "SOT-23",
+            "SOIC-8",
+            "0603",
+            "Development Board",
+        }
+        if not expected.issubset(names):
+            fail(
+                "Package catalogue is missing seeded names: "
+                f"{sorted(expected - names)}"
+            )
+
+        with db_session() as db:
+            existing_names = {
+                " ".join(str(row[0]).split()).casefold()
+                for row in db.execute(
+                    text(
+                        "select distinct package from parts "
+                        "where package is not null "
+                        "and length(trim(package)) > 0"
+                    )
+                ).all()
+            }
+            catalogue_names = {
+                str(row[0])
+                for row in db.execute(
+                    text("select normalized_name from packages")
+                ).all()
+            }
+
+        missing_backfill = existing_names - catalogue_names
+        if missing_backfill:
+            fail(
+                "Existing Part.package values were not backfilled: "
+                f"{sorted(missing_backfill)}"
+            )
+
+        create_response = client.post(
+            "/api/packages",
+            headers=headers,
+            json={"name": custom_name},
+        )
+        if create_response.status_code != 201:
+            fail(
+                "POST /api/packages returned "
+                f"{create_response.status_code}: {create_response.text}"
+            )
+
+        created = create_response.json()
+        custom_id = created.get("id")
+        if not isinstance(custom_id, int):
+            fail("Created package did not include an integer id.")
+        if created.get("name") != custom_name:
+            fail("Created package name did not match the request.")
+        if created.get("is_builtin") is not False:
+            fail("Created package should be custom.")
+
+        duplicate = client.post(
+            "/api/packages",
+            headers=headers,
+            json={"name": f"  {custom_name.upper()}  "},
+        )
+        if duplicate.status_code != 409:
+            fail(
+                "Normalized duplicate package should return 409, got "
+                f"{duplicate.status_code}."
+            )
+
+        refreshed = client.get("/api/packages", headers=headers)
+        refreshed_names = {
+            item.get("name")
+            for item in refreshed.json().get("packages", [])
+        }
+        if custom_name not in refreshed_names:
+            fail("Created package was not returned by the catalogue.")
+    finally:
+        cleanup()
+
+    ok("Reusable package catalogue is seeded and extensible")
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -2049,6 +2211,7 @@ def main() -> None:
         check_custom_part_type_delete_api,
         check_inventory_part_creation_api,
         check_manufacturer_catalogue_api,
+        check_package_catalogue_api,
     ]
 
     for check in checks:

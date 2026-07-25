@@ -25,6 +25,8 @@ import type {
   PartTypeField
 } from "../types/partTypes";
 
+import { PackageSelector } from "./PackageSelector";
+
 import "./AddPartModal.css";
 
 
@@ -985,20 +987,12 @@ export function AddPartModal({
                     ) : null}
                   </label>
 
-                  <label>
-                    <span>Package / form factor</span>
-                    <input
-                      value={packageName}
-                      onChange={(
-                        event: ChangeEvent<HTMLInputElement>
-                      ) => setPackageName(event.target.value)}
-                      placeholder="Example: TO-92, SOT-23, DIP-8"
-                      maxLength={120}
-                    />
-                    <small>
-                      Physical package or module format.
-                    </small>
-                  </label>
+                  <PackageSelector
+                    token={token}
+                    value={packageName}
+                    onChange={setPackageName}
+                    disabled={isSaving}
+                  />
 
                   <label>
                     <span>Quantity</span>
