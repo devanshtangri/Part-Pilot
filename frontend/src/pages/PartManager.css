@@ -1196,3 +1196,411 @@
 }
 
 /* END PATCH 094 */
+/* PATCH 110: first inventory browsing slice */
+
+.part-manager-page .inventory-browser {
+  display: grid !important;
+  min-width: 0 !important;
+  gap: 14px !important;
+  padding: 16px !important;
+}
+
+.part-manager-page .inventory-browser-header {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 18px !important;
+  align-items: start !important;
+}
+
+.part-manager-page .inventory-browser-header h2,
+.part-manager-page .inventory-browser-header p {
+  margin: 0 !important;
+}
+
+.part-manager-page .inventory-browser-header h2 {
+  margin-top: 2px !important;
+  font-size: 1.1rem !important;
+}
+
+.part-manager-page .inventory-browser-header p:last-child {
+  margin-top: 5px !important;
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+}
+
+.part-manager-page .inventory-browser-actions {
+  display: flex !important;
+  gap: 9px !important;
+  align-items: center !important;
+}
+
+.part-manager-page .inventory-browser-actions > span {
+  color: var(--muted) !important;
+  font-size: 0.75rem !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .inventory-browser-actions button {
+  min-height: 34px !important;
+  padding: 6px 11px !important;
+}
+
+.part-manager-page .inventory-browser-state {
+  padding: 18px !important;
+  border: 1px dashed var(--panel-border) !important;
+  border-radius: 8px !important;
+  color: var(--muted) !important;
+  text-align: center !important;
+}
+
+.part-manager-page .inventory-browser-state.is-error {
+  border-color: rgba(248, 113, 113, 0.42) !important;
+  background: rgba(127, 29, 29, 0.12) !important;
+  color: #fca5a5 !important;
+}
+
+.part-manager-page .inventory-table-wrap {
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 9px !important;
+}
+
+.part-manager-page .inventory-table {
+  width: 100% !important;
+  min-width: 760px !important;
+  border-collapse: collapse !important;
+  font-size: 0.78rem !important;
+}
+
+.part-manager-page .inventory-table th,
+.part-manager-page .inventory-table td {
+  padding: 10px 12px !important;
+  border-bottom: 1px solid var(--panel-border) !important;
+  text-align: left !important;
+  vertical-align: middle !important;
+}
+
+.part-manager-page .inventory-table th {
+  background: rgba(15, 23, 42, 0.72) !important;
+  color: var(--muted) !important;
+  font-size: 0.68rem !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .inventory-table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+.part-manager-page .inventory-table tbody tr:hover td {
+  background: rgba(45, 212, 163, 0.035) !important;
+}
+
+.part-manager-page .inventory-table td:first-child {
+  min-width: 190px !important;
+}
+
+.part-manager-page .inventory-table td:first-child strong,
+.part-manager-page .inventory-table td:first-child small {
+  display: block !important;
+}
+
+.part-manager-page .inventory-table td:first-child small {
+  margin-top: 3px !important;
+  color: var(--muted) !important;
+  font-size: 0.7rem !important;
+}
+
+.part-manager-page .inventory-quantity {
+  font-variant-numeric: tabular-nums !important;
+  font-weight: 800 !important;
+}
+
+.part-manager-page .inventory-stock-pill {
+  display: inline-flex !important;
+  min-width: 76px !important;
+  justify-content: center !important;
+  padding: 4px 7px !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 999px !important;
+  font-size: 0.66rem !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .inventory-stock-pill.is-in {
+  border-color: rgba(45, 212, 163, 0.34) !important;
+  background: rgba(45, 212, 163, 0.08) !important;
+  color: #99f6e4 !important;
+}
+
+.part-manager-page .inventory-stock-pill.is-low {
+  border-color: rgba(251, 191, 36, 0.42) !important;
+  background: rgba(120, 53, 15, 0.18) !important;
+  color: #fde68a !important;
+}
+
+.part-manager-page .inventory-stock-pill.is-out {
+  border-color: rgba(248, 113, 113, 0.42) !important;
+  background: rgba(127, 29, 29, 0.16) !important;
+  color: #fca5a5 !important;
+}
+
+@media (max-width: 620px) {
+  .part-manager-page .inventory-browser-header {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  .part-manager-page .inventory-browser-actions {
+    justify-content: space-between !important;
+  }
+}
+
+/* PATCH 112: THEMED INVENTORY REFRESH ACTION */
+
+.part-manager-page .inventory-browser {
+  --inventory-refresh-polish-v112: 1;
+}
+
+.part-manager-page .inventory-browser-actions button {
+  appearance: none !important;
+  min-width: 82px !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 6px 10px !important;
+  border: 1px solid #3a475b !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: #141e2c !important;
+  color: #dbe7f5 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.75rem !important;
+  font-weight: 750 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease !important;
+}
+
+.part-manager-page
+  .inventory-browser-actions
+  button:hover:not(:disabled) {
+  border-color: #60718d !important;
+  background: #1b293a !important;
+  color: #ffffff !important;
+}
+
+.part-manager-page
+  .inventory-browser-actions
+  button:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+.part-manager-page
+  .inventory-browser-actions
+  button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.46 !important;
+}
+
+/* END PATCH 112 */
+
+/* PATCH 118: CONTEXTUAL ADD PART ACTION */
+
+.part-manager-page {
+  --contextual-add-part-v118: 1;
+}
+
+.part-manager-page
+  .part-type-detail-actions
+  .part-manager-add-part-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 620px) {
+  .part-manager-page
+    .part-type-detail-actions
+    .part-manager-add-part-button {
+    flex: 1 1 130px;
+  }
+}
+
+/* END PATCH 118 */
+
+/* PATCH 120: INVENTORY SEARCH AND STOCK FILTER */
+
+.part-manager-page .inventory-browser {
+  --inventory-search-filter-v120: 1;
+}
+
+.part-manager-page .inventory-browser-toolbar {
+  display: grid !important;
+  grid-template-columns: minmax(220px, 1fr) auto !important;
+  gap: 12px !important;
+  align-items: center !important;
+}
+
+.part-manager-page .inventory-search-control {
+  display: block !important;
+  min-width: 0 !important;
+}
+
+.part-manager-page .inventory-search-control input {
+  appearance: none !important;
+  width: 100% !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  padding: 8px 11px !important;
+  border: 1px solid #334155 !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: #0c1522 !important;
+  color: #e5edf7 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.77rem !important;
+  line-height: 1.25 !important;
+}
+
+.part-manager-page .inventory-search-control input::placeholder {
+  color: #64748b !important;
+  opacity: 1 !important;
+}
+
+.part-manager-page
+  .inventory-search-control
+  input:hover:not(:disabled) {
+  border-color: #475569 !important;
+  background: #101b2a !important;
+}
+
+.part-manager-page
+  .inventory-search-control
+  input:focus {
+  border-color: var(--accent) !important;
+  background: #111d2c !important;
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.1) !important;
+}
+
+.part-manager-page .inventory-search-control input:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.5 !important;
+}
+
+.part-manager-page .inventory-stock-filters {
+  display: inline-flex !important;
+  gap: 3px !important;
+  align-items: center !important;
+  padding: 3px !important;
+  border: 1px solid #293548 !important;
+  border-radius: 8px !important;
+  background: #0b1420 !important;
+}
+
+.part-manager-page .inventory-stock-filters button {
+  appearance: none !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 5px 9px !important;
+  border: 1px solid transparent !important;
+  border-radius: 5px !important;
+  outline: none !important;
+  background: transparent !important;
+  color: #8fa1b6 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.69rem !important;
+  font-weight: 750 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+
+.part-manager-page
+  .inventory-stock-filters
+  button:hover:not(:disabled):not(.active) {
+  background: #162132 !important;
+  color: #d7e2ef !important;
+}
+
+.part-manager-page .inventory-stock-filters button.active {
+  border-color: rgba(45, 212, 191, 0.36) !important;
+  background: rgba(13, 148, 136, 0.18) !important;
+  color: #ccfbf1 !important;
+}
+
+.part-manager-page
+  .inventory-stock-filters
+  button:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 1px !important;
+}
+
+.part-manager-page .inventory-stock-filters button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.44 !important;
+}
+
+.part-manager-page .inventory-filter-empty {
+  display: grid !important;
+  justify-items: center !important;
+  gap: 6px !important;
+}
+
+.part-manager-page .inventory-filter-empty strong {
+  color: #dce6f2 !important;
+  font-size: 0.82rem !important;
+}
+
+.part-manager-page .inventory-filter-empty p {
+  margin: 0 !important;
+  color: var(--muted) !important;
+  font-size: 0.74rem !important;
+}
+
+.part-manager-page .inventory-filter-empty button {
+  min-height: 32px !important;
+  margin-top: 4px !important;
+  padding: 6px 10px !important;
+  border: 1px solid #3a475b !important;
+  border-radius: 7px !important;
+  background: #141e2c !important;
+  color: #dbe7f5 !important;
+  font: inherit !important;
+  font-size: 0.72rem !important;
+  font-weight: 750 !important;
+  cursor: pointer !important;
+}
+
+.part-manager-page .inventory-filter-empty button:hover {
+  border-color: #60718d !important;
+  background: #1b293a !important;
+  color: #ffffff !important;
+}
+
+@media (max-width: 760px) {
+  .part-manager-page .inventory-browser-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .part-manager-page .inventory-stock-filters {
+    width: 100% !important;
+  }
+
+  .part-manager-page .inventory-stock-filters button {
+    flex: 1 1 0 !important;
+  }
+}
+
+/* END PATCH 120 */

@@ -99,17 +99,37 @@ function validateHttpUrl(value: string): boolean {
 }
 
 
+function normalizeTemplateFieldKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+
 function isManufacturerField(
   field: PartTypeField
 ): boolean {
-  const key = field.field_key
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_");
+  const key = normalizeTemplateFieldKey(field.field_key);
 
   return (
     key === "manufacturer"
     || key === "manufacturer_name"
+  );
+}
+
+
+// PATCH 115: fields already represented by dedicated core controls
+function isCoreIdentificationField(
+  field: PartTypeField
+): boolean {
+  const key = normalizeTemplateFieldKey(field.field_key);
+
+  return (
+    isManufacturerField(field)
+    || key === "package"
+    || key === "package_name"
   );
 }
 
@@ -191,7 +211,7 @@ export function AddPartModal({
   const visibleTemplateFields = useMemo(
     () =>
       selectedType?.fields.filter(
-        (field) => !isManufacturerField(field)
+        (field) => !isCoreIdentificationField(field)
       ) ?? [],
     [selectedType]
   );
@@ -697,48 +717,56 @@ export function AddPartModal({
         aria-labelledby="add-part-title"
       >
         <form onSubmit={handleSubmit}>
-          <header className="add-part-header">
-            <div>
-              <p className="eyebrow">
-                {createdPart
-                  ? "Inventory updated"
-                  : "New inventory record"}
-              </p>
-              <h2 id="add-part-title">
-                {createdPart
-                  ? "Part added"
-                  : "Add part"}
-              </h2>
-              <p>
-                {createdPart
-                  ? `${displayPartName(createdPart)} is now in inventory.`
-                  : "Select a template and record the part's identifiers, quantity, and specifications."}
-              </p>
-            </div>
+          {!createdPart ? (
+            <header className="add-part-header">
+              <div>
+                <p className="eyebrow">New inventory record</p>
+                <h2 id="add-part-title">Add part</h2>
+                <p>
+                  Select a template and record the part&apos;s identifiers,
+                  quantity, and specifications.
+                </p>
+              </div>
 
-            <button
-              className="add-part-close"
-              type="button"
-              onClick={onClose}
-              disabled={isSaving}
-              aria-label="Close Add Part dialog"
-              title="Close"
-            >
-              ×
-            </button>
-          </header>
+              <button
+                className="add-part-close"
+                type="button"
+                onClick={onClose}
+                disabled={isSaving}
+                aria-label="Close Add Part dialog"
+                title="Close"
+              >
+                ×
+              </button>
+            </header>
+          ) : null}
 
           {createdPart ? (
-            <div className="add-part-success">
-              {/* PATCH 095: compact Part Added state */}
-              <div className="add-part-success-hero">
+            <div
+              className="add-part-success"
+              data-success-panel-version="add-part-success-panel-v113"
+            >
+              {/* PATCH 113: unified success confirmation */}
+              <div className="add-part-success-top">
                 <div className="add-part-success-mark">✓</div>
-                <div>
-                  <strong>{displayPartName(createdPart)}</strong>
+
+                <div className="add-part-success-copy">
+                  <p className="eyebrow">Inventory updated</p>
+                  <h2 id="add-part-title">Part added</h2>
                   <span>
-                    Inventory record created successfully
+                    {displayPartName(createdPart)} is now in inventory.
                   </span>
                 </div>
+
+                <button
+                  className="add-part-close add-part-success-close"
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close Add Part dialog"
+                  title="Close"
+                >
+                  ×
+                </button>
               </div>
 
               <div className="add-part-success-details">
@@ -817,40 +845,51 @@ export function AddPartModal({
                 </label>
               </section>
 
-              <section className="add-part-section">
+              <section
+                className="add-part-section"
+                data-field-guidance-version="add-part-field-guidance-v115"
+              >
                 <div className="add-part-section-heading">
                   <div>
-                    <strong>Identity</strong>
+                    <strong>Identification</strong>
                     <span>
-                      A name or part number is required.
+                      Enter the model number. Add a display name only when
+                      it helps distinguish the item.
                     </span>
                   </div>
                 </div>
 
                 <div className="add-part-grid">
                   <label>
-                    <span>Part name</span>
+                    <span>Display name (optional)</span>
                     <input
                       value={name}
                       onChange={(
                         event: ChangeEvent<HTMLInputElement>
                       ) => setName(event.target.value)}
-                      placeholder="Example: ESP32-C3 Super Mini"
+                      placeholder="Example: Bench stock 2N2222A"
                       maxLength={220}
                     />
+                    <small>
+                      Friendly label used in lists. Leave blank to use
+                      the part number.
+                    </small>
                   </label>
 
                   <label>
-                    <span>Part number</span>
+                    <span>Part number / model</span>
                     <input
                       value={partNumber}
                       onChange={(
                         event: ChangeEvent<HTMLInputElement>
                       ) => setPartNumber(event.target.value)}
-                      placeholder="Manufacturer or internal code"
+                      placeholder="Example: 2N2222A"
                       maxLength={160}
                       spellCheck={false}
                     />
+                    <small>
+                      Manufacturer model, catalogue number, or internal code.
+                    </small>
                   </label>
 
                   <label>
@@ -947,15 +986,18 @@ export function AddPartModal({
                   </label>
 
                   <label>
-                    <span>Package</span>
+                    <span>Package / form factor</span>
                     <input
                       value={packageName}
                       onChange={(
                         event: ChangeEvent<HTMLInputElement>
                       ) => setPackageName(event.target.value)}
-                      placeholder="Example: SOT-23, Module"
+                      placeholder="Example: TO-92, SOT-23, DIP-8"
                       maxLength={120}
                     />
+                    <small>
+                      Physical package or module format.
+                    </small>
                   </label>
 
                   <label>

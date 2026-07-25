@@ -17,6 +17,9 @@ import {
   updatePartType,
   deletePartType,
 } from "../services/partTypesClient";
+// PATCH 110: basic inventory browsing collection
+import { getParts } from "../services/partsClient";
+import type { Part, PartCollection } from "../types/parts";
 import type {
   CreatePartTypeFieldPayload,
   CreatePartTypePayload,
@@ -28,6 +31,7 @@ import type {
 } from "../types/partTypes";
 
 type FilterMode = "all" | "builtin" | "custom";
+type InventoryStockFilter = "all" | "in" | "low" | "out";
 
 // PATCH 106: editor-only semantic field preset
 type EditorFieldKind = PartTypeFieldKind | "manufacturer";
@@ -211,12 +215,49 @@ function previewInput(field: EditableField) {
   );
 }
 
+// PATCH 110: basic inventory list presentation helpers
+function inventoryPartName(part: Part): string {
+  return part.name || part.part_number || `Part ${part.id}`;
+}
+
+function inventoryStockLabel(part: Part): string {
+  if (part.available_quantity <= 0) {
+    return "Out of stock";
+  }
+  if (part.is_low_stock) {
+    return "Low stock";
+  }
+  return "In stock";
+}
+
+function inventoryStockClass(part: Part): string {
+  if (part.available_quantity <= 0) {
+    return "is-out";
+  }
+  if (part.is_low_stock) {
+    return "is-low";
+  }
+  return "is-in";
+}
+
 export function PartManager() {
   const { token } = useAuth();
   const [collection, setCollection] = useState<PartTypeCollection | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<FilterMode>("all");
   const [query, setQuery] = useState("");
+  // PATCH 110: inventory collection state
+  const [inventoryCollection, setInventoryCollection] =
+    useState<PartCollection | null>(null);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] =
+    useState<string | null>(null);
+  const [inventoryRefreshSequence, setInventoryRefreshSequence] =
+    useState(0);
+  // PATCH 120: client-side inventory search and stock filter
+  const [inventoryQuery, setInventoryQuery] = useState("");
+  const [inventoryStockFilter, setInventoryStockFilter] =
+    useState<InventoryStockFilter>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -274,6 +315,47 @@ export function PartManager() {
     };
   }, [token]);
 
+  // PATCH 110: load the existing inventory collection
+  useEffect(() => {
+    if (!token) {
+      setInventoryCollection(null);
+      setInventoryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setInventoryLoading(true);
+    setInventoryError(null);
+
+    getParts(token, {
+      limit: 250,
+      offset: 0
+    })
+      .then((result) => {
+        if (!cancelled) {
+          setInventoryCollection(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setInventoryError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load inventory"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setInventoryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, inventoryRefreshSequence]);
+
   const filteredTypes = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const allTypes = collection?.part_types ?? [];
@@ -312,6 +394,50 @@ export function PartManager() {
 
   const selectedType: PartType | null =
     collection?.part_types.find((item) => item.id === selectedId) ?? null;
+
+  const filteredInventoryParts = useMemo(() => {
+    const normalizedQuery = inventoryQuery.trim().toLowerCase();
+    const parts = inventoryCollection?.parts ?? [];
+
+    return parts.filter((part) => {
+      const matchesQuery =
+        !normalizedQuery
+        || [
+          part.name,
+          part.part_number,
+          part.part_type_name,
+          part.manufacturer_name
+        ].some(
+          (value) =>
+            Boolean(
+              value
+              && value.toLowerCase().includes(normalizedQuery)
+            )
+        );
+
+      if (!matchesQuery) {
+        return false;
+      }
+
+      if (inventoryStockFilter === "in") {
+        return part.available_quantity > 0 && !part.is_low_stock;
+      }
+
+      if (inventoryStockFilter === "low") {
+        return part.available_quantity > 0 && part.is_low_stock;
+      }
+
+      if (inventoryStockFilter === "out") {
+        return part.available_quantity <= 0;
+      }
+
+      return true;
+    });
+  }, [
+    inventoryCollection,
+    inventoryQuery,
+    inventoryStockFilter
+  ]);
 
   function openCreator() {
     setEditingTypeId(null);
@@ -686,31 +812,6 @@ function closeCreator() {
                 : "Editing custom type"
               : "Template manager"}
           </span>
-          <button
-
-            className="part-manager-add-part-button"
-
-            type="button"
-
-            onClick={() => setIsAddingPart(true)}
-
-            disabled={
-
-              !token
-
-              || !collection
-
-              || isLoading
-
-              || isCreating
-
-            }
-
-          >
-
-            Add part
-
-          </button>
 
           <button
             className="part-manager-create-button"
@@ -750,7 +851,12 @@ function closeCreator() {
           token={token}
           partTypes={collection.part_types}
           initialPartTypeId={selectedType?.id ?? null}
-          onClose={() => setIsAddingPart(false)}
+          onClose={() => {
+            setIsAddingPart(false);
+            setInventoryRefreshSequence(
+              (current) => current + 1
+            );
+          }}
         />
       ) : null}
 
@@ -1276,6 +1382,22 @@ function closeCreator() {
                       </button>
                     </>
                     ) : null}
+                    {/* PATCH 118: contextual Add Part action */}
+                    <button
+                      className="part-manager-add-part-button"
+                      data-contextual-add-version="contextual-add-part-v118"
+                      type="button"
+                      onClick={() => setIsAddingPart(true)}
+                      disabled={
+                        !token
+                        || !collection
+                        || isLoading
+                        || isCreating
+                        || !selectedType
+                      }
+                    >
+                      Add part
+                    </button>
                     <span className="status-pill">
                       Template v{selectedType.template_version}
                     </span>
@@ -1333,6 +1455,189 @@ function closeCreator() {
           </div>
         </section>
       ) : null}
+      {/* PATCH 110: first inventory browsing slice */}
+      <section
+        className="inventory-browser card"
+        data-inventory-browser-version="inventory-browser-v110"
+        aria-labelledby="inventory-browser-title"
+      >
+        <header className="inventory-browser-header">
+          <div>
+            <p className="eyebrow">Inventory</p>
+            <h2 id="inventory-browser-title">Stored parts</h2>
+            <p>
+              Search stored parts and filter them by current stock status.
+            </p>
+          </div>
+          <div className="inventory-browser-actions">
+            <span>
+              {inventoryQuery.trim()
+                || inventoryStockFilter !== "all"
+                ? `${filteredInventoryParts.length} of ${
+                    inventoryCollection?.parts.length ?? 0
+                  } shown`
+                : `${inventoryCollection?.total ?? 0} parts`}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setInventoryRefreshSequence(
+                  (current) => current + 1
+                )
+              }
+              disabled={inventoryLoading || !token}
+            >
+              {inventoryLoading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+        </header>
+
+        {/* PATCH 120: inventory search and stock filter */}
+        <div
+          className="inventory-browser-toolbar"
+          data-inventory-filter-version="inventory-search-filter-v120"
+        >
+          <label className="inventory-search-control">
+            <span className="sr-only">Search stored parts</span>
+            <input
+              type="search"
+              value={inventoryQuery}
+              onChange={(
+                event: ChangeEvent<HTMLInputElement>
+              ) => setInventoryQuery(event.target.value)}
+              placeholder="Search name, model, type, or manufacturer..."
+              disabled={inventoryLoading || !inventoryCollection}
+            />
+          </label>
+
+          <div
+            className="inventory-stock-filters"
+            role="group"
+            aria-label="Filter inventory by stock status"
+          >
+            {(
+              [
+                ["all", "All"],
+                ["in", "In stock"],
+                ["low", "Low"],
+                ["out", "Out"]
+              ] as Array<[InventoryStockFilter, string]>
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                className={
+                  inventoryStockFilter === mode ? "active" : ""
+                }
+                aria-pressed={inventoryStockFilter === mode}
+                onClick={() => setInventoryStockFilter(mode)}
+                disabled={inventoryLoading || !inventoryCollection}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {inventoryLoading ? (
+          <div className="inventory-browser-state">
+            Loading inventory...
+          </div>
+        ) : null}
+
+        {inventoryError ? (
+          <div
+            className="inventory-browser-state is-error"
+            role="alert"
+          >
+            {inventoryError}
+          </div>
+        ) : null}
+
+        {!inventoryLoading
+          && !inventoryError
+          && inventoryCollection
+          && inventoryCollection.parts.length === 0 ? (
+            <div className="inventory-browser-state">
+              No inventory parts yet. Use Add part to create the first one.
+            </div>
+          ) : null}
+
+        {!inventoryLoading
+          && !inventoryError
+          && inventoryCollection
+          && inventoryCollection.parts.length > 0
+          && filteredInventoryParts.length === 0 ? (
+            <div className="inventory-browser-state inventory-filter-empty">
+              <strong>No stored parts match</strong>
+              <p>
+                Try another search or clear the stock filter.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setInventoryQuery("");
+                  setInventoryStockFilter("all");
+                }}
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : null}
+
+        {!inventoryLoading
+          && !inventoryError
+          && inventoryCollection
+          && filteredInventoryParts.length > 0 ? (
+            <div className="inventory-table-wrap">
+              <table className="inventory-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Part</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Manufacturer</th>
+                    <th scope="col">Available</th>
+                    <th scope="col">Total</th>
+                    <th scope="col">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInventoryParts.map((part) => (
+                    <tr key={part.id}>
+                      <td>
+                        <strong>{inventoryPartName(part)}</strong>
+                        <small>
+                          {part.part_number || "No part number"}
+                        </small>
+                      </td>
+                      <td>{part.part_type_name}</td>
+                      <td>
+                        {part.manufacturer_name || "Not specified"}
+                      </td>
+                      <td className="inventory-quantity">
+                        {part.available_quantity}
+                      </td>
+                      <td className="inventory-quantity">
+                        {part.total_quantity}
+                      </td>
+                      <td>
+                        <span
+                          className={
+                            `inventory-stock-pill ${
+                              inventoryStockClass(part)
+                            }`
+                          }
+                        >
+                          {inventoryStockLabel(part)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+      </section>
     </div>
   );
 }
