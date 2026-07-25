@@ -19,10 +19,17 @@ import {
 } from "../services/partTypesClient";
 // PATCH 110: basic inventory browsing collection
 import {
+  adjustPartQuantity,
   getPart,
+  getPartMovements,
   getParts
 } from "../services/partsClient";
-import type { Part, PartCollection } from "../types/parts";
+import type {
+  Part,
+  PartCollection,
+  QuantityAdjustmentOperation,
+  StockMovement
+} from "../types/parts";
 import type {
   CreatePartTypeFieldPayload,
   CreatePartTypePayload,
@@ -285,6 +292,44 @@ function inventoryDateLabel(value: string): string {
     : parsed.toLocaleString();
 }
 
+// PATCH 137: compact quantity adjustment and movement history UI
+function movementTypeLabel(movement: StockMovement): string {
+  if (movement.movement_type === "restock") {
+    return "Stock added";
+  }
+  if (movement.movement_type === "consume") {
+    return "Stock consumed";
+  }
+  if (movement.movement_type === "adjust") {
+    return movement.quantity_delta < 0
+      ? "Stock reduced"
+      : "Stock corrected";
+  }
+  return movement.movement_type
+    .replace(/_/g, " ")
+    .replace(/^./, (character) => character.toUpperCase());
+}
+
+function movementDeltaLabel(quantityDelta: number): string {
+  return quantityDelta > 0 ? `+${quantityDelta}` : String(quantityDelta);
+}
+
+function quantityOperationHint(
+  operation: QuantityAdjustmentOperation,
+  part: Part
+): string {
+  if (operation === "add") {
+    return "Increase total stock by the entered quantity.";
+  }
+  if (operation === "remove") {
+    return `Remove unreserved stock. ${part.available_quantity} available.`;
+  }
+  if (operation === "consume") {
+    return `Record consumed stock. ${part.available_quantity} available.`;
+  }
+  return "Apply a signed correction, such as -2 or 3. A reason is required.";
+}
+
 export function PartManager() {
   const { token } = useAuth();
   const [collection, setCollection] = useState<PartTypeCollection | null>(null);
@@ -310,6 +355,20 @@ export function PartManager() {
     useState<Part | null>(null);
   const [partDetailsLoading, setPartDetailsLoading] = useState(false);
   const [partDetailsError, setPartDetailsError] =
+    useState<string | null>(null);
+  const [partMovements, setPartMovements] = useState<StockMovement[]>([]);
+  const [partMovementsLoading, setPartMovementsLoading] = useState(false);
+  const [partMovementsError, setPartMovementsError] =
+    useState<string | null>(null);
+  const [adjustmentOperation, setAdjustmentOperation] =
+    useState<QuantityAdjustmentOperation>("add");
+  const [adjustmentQuantity, setAdjustmentQuantity] = useState("");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [adjustmentNote, setAdjustmentNote] = useState("");
+  const [adjustmentSaving, setAdjustmentSaving] = useState(false);
+  const [adjustmentError, setAdjustmentError] =
+    useState<string | null>(null);
+  const [adjustmentSuccess, setAdjustmentSuccess] =
     useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -446,6 +505,42 @@ export function PartManager() {
   }, [selectedInventoryPartId, token]);
 
   useEffect(() => {
+    if (selectedInventoryPartId === null || !token) {
+      setPartMovements([]);
+      setPartMovementsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPartMovementsLoading(true);
+    setPartMovementsError(null);
+    getPartMovements(token, selectedInventoryPartId, { limit: 12 })
+      .then((result) => {
+        if (!cancelled) {
+          setPartMovements(result.movements);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setPartMovementsError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load stock history"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setPartMovementsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedInventoryPartId, token]);
+
+  useEffect(() => {
     if (selectedInventoryPartId === null) {
       return;
     }
@@ -552,9 +647,21 @@ export function PartManager() {
     inventoryStockFilter
   ]);
 
+  function resetQuantityAdjustment() {
+    setAdjustmentOperation("add");
+    setAdjustmentQuantity("");
+    setAdjustmentReason("");
+    setAdjustmentNote("");
+    setAdjustmentError(null);
+    setAdjustmentSuccess(null);
+  }
+
   function openPartDetails(partId: number) {
     setPartDetailsError(null);
+    setPartMovements([]);
+    setPartMovementsError(null);
     setSelectedInventoryPart(null);
+    resetQuantityAdjustment();
     setSelectedInventoryPartId(partId);
   }
 
@@ -562,6 +669,91 @@ export function PartManager() {
     setSelectedInventoryPartId(null);
     setSelectedInventoryPart(null);
     setPartDetailsError(null);
+    setPartMovements([]);
+    setPartMovementsError(null);
+    resetQuantityAdjustment();
+  }
+
+  async function handleQuantityAdjustment(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+    if (!token || !selectedInventoryPart) {
+      setAdjustmentError("Part details are unavailable. Reopen the record.");
+      return;
+    }
+
+    const normalizedQuantity = adjustmentQuantity.trim();
+    if (!/^-?\d+$/.test(normalizedQuantity)) {
+      setAdjustmentError("Enter a whole-number quantity.");
+      return;
+    }
+
+    const quantity = Number(normalizedQuantity);
+    if (!Number.isSafeInteger(quantity)) {
+      setAdjustmentError("Quantity is outside the supported range.");
+      return;
+    }
+    if (adjustmentOperation === "correction" && quantity === 0) {
+      setAdjustmentError("Correction cannot be zero.");
+      return;
+    }
+    if (adjustmentOperation !== "correction" && quantity <= 0) {
+      setAdjustmentError("Enter a quantity greater than zero.");
+      return;
+    }
+    if (
+      adjustmentOperation === "correction"
+      && adjustmentReason.trim().length === 0
+    ) {
+      setAdjustmentError("A correction reason is required.");
+      return;
+    }
+
+    setAdjustmentSaving(true);
+    setAdjustmentError(null);
+    setAdjustmentSuccess(null);
+    try {
+      const result = await adjustPartQuantity(
+        token,
+        selectedInventoryPart.id,
+        {
+          operation: adjustmentOperation,
+          quantity,
+          reason: adjustmentReason.trim() || null,
+          note: adjustmentNote.trim() || null
+        }
+      );
+      setSelectedInventoryPart(result.part);
+      setPartMovements((current) => [
+        result.movement,
+        ...current.filter((movement) => movement.id !== result.movement.id)
+      ].slice(0, 12));
+      setInventoryCollection((current) => current
+        ? {
+            ...current,
+            parts: current.parts.map((part) =>
+              part.id === result.part.id ? result.part : part
+            )
+          }
+        : current);
+      setInventoryRefreshSequence((current) => current + 1);
+      setAdjustmentQuantity("");
+      setAdjustmentReason("");
+      setAdjustmentNote("");
+      setAdjustmentSuccess(
+        `Stock updated from ${result.movement.quantity_before ?? "—"} `
+        + `to ${result.movement.quantity_after ?? "—"}.`
+      );
+    } catch (caught) {
+      setAdjustmentError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to update stock quantity"
+      );
+    } finally {
+      setAdjustmentSaving(false);
+    }
   }
 
   function openCreator() {
@@ -1788,6 +1980,7 @@ function closeCreator() {
         <div
           className="part-details-backdrop"
           data-part-details-version="inventory-part-details-v124"
+          data-stock-adjustment-version="inventory-stock-adjustment-v137"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               closePartDetails();
@@ -1874,7 +2067,202 @@ function closeCreator() {
                     </article>
                   </section>
 
-                  <section className="part-details-section">
+                                    <section
+                    className="part-details-section part-quantity-adjustment"
+                    aria-label="Adjust stock quantity"
+                  >
+                    <div className="part-details-section-heading">
+                      <strong>Adjust quantity</strong>
+                      <span className="part-quantity-current">
+                        Total {selectedInventoryPart.total_quantity}
+                      </span>
+                    </div>
+                    <form
+                      className="part-quantity-form"
+                      onSubmit={handleQuantityAdjustment}
+                    >
+                      <div className="part-quantity-controls">
+                        <label>
+                          <span>Action</span>
+                          <select
+                            value={adjustmentOperation}
+                            onChange={(event) => {
+                              setAdjustmentOperation(
+                                event.target.value as QuantityAdjustmentOperation
+                              );
+                              setAdjustmentError(null);
+                              setAdjustmentSuccess(null);
+                            }}
+                            disabled={adjustmentSaving}
+                          >
+                            <option value="add">Add stock</option>
+                            <option value="remove">Remove stock</option>
+                            <option value="consume">Consume stock</option>
+                            <option value="correction">Correction</option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>
+                            {adjustmentOperation === "correction"
+                              ? "Change by"
+                              : "Quantity"}
+                          </span>
+                          <input
+                            type="number"
+                            step="1"
+                            min={
+                              adjustmentOperation === "correction"
+                                ? undefined
+                                : 1
+                            }
+                            value={adjustmentQuantity}
+                            onChange={(event) =>
+                              setAdjustmentQuantity(event.target.value)}
+                            placeholder={
+                              adjustmentOperation === "correction"
+                                ? "-2 or 3"
+                                : "1"
+                            }
+                            required
+                            disabled={adjustmentSaving}
+                          />
+                        </label>
+                      </div>
+                      <p className="part-quantity-hint">
+                        {quantityOperationHint(
+                          adjustmentOperation,
+                          selectedInventoryPart
+                        )}
+                      </p>
+                      <label className="part-quantity-wide-field">
+                        <span>
+                          Reason
+                          {adjustmentOperation === "correction"
+                            ? " (required)"
+                            : " (optional)"}
+                        </span>
+                        <input
+                          type="text"
+                          maxLength={180}
+                          value={adjustmentReason}
+                          onChange={(event) =>
+                            setAdjustmentReason(event.target.value)}
+                          placeholder="Why is the stock changing?"
+                          required={adjustmentOperation === "correction"}
+                          disabled={adjustmentSaving}
+                        />
+                      </label>
+                      <label className="part-quantity-wide-field">
+                        <span>Note (optional)</span>
+                        <textarea
+                          rows={2}
+                          maxLength={5000}
+                          value={adjustmentNote}
+                          onChange={(event) =>
+                            setAdjustmentNote(event.target.value)}
+                          placeholder="Add useful context for this movement"
+                          disabled={adjustmentSaving}
+                        />
+                      </label>
+                      {adjustmentError ? (
+                        <div
+                          className="part-quantity-feedback is-error"
+                          role="alert"
+                        >
+                          {adjustmentError}
+                        </div>
+                      ) : null}
+                      {adjustmentSuccess ? (
+                        <div
+                          className="part-quantity-feedback is-success"
+                          role="status"
+                        >
+                          {adjustmentSuccess}
+                        </div>
+                      ) : null}
+                      <div className="part-quantity-submit-row">
+                        <span>
+                          Reserved stock cannot be removed or consumed.
+                        </span>
+                        <button type="submit" disabled={adjustmentSaving}>
+                          {adjustmentSaving ? "Saving..." : "Apply change"}
+                        </button>
+                      </div>
+                    </form>
+                  </section>
+                  <section
+                    className="part-details-section part-movement-history"
+                    aria-label="Recent stock history"
+                  >
+                    <div className="part-details-section-heading">
+                      <strong>Recent stock history</strong>
+                      <span className="part-movement-count">
+                        {partMovements.length} shown
+                      </span>
+                    </div>
+                    {partMovementsLoading ? (
+                      <div className="part-movement-state">
+                        Loading stock history...
+                      </div>
+                    ) : null}
+                    {partMovementsError ? (
+                      <div
+                        className="part-movement-state is-error"
+                        role="alert"
+                      >
+                        {partMovementsError}
+                      </div>
+                    ) : null}
+                    {!partMovementsLoading
+                      && !partMovementsError
+                      && partMovements.length === 0 ? (
+                        <div className="part-movement-state">
+                          No stock movements recorded yet.
+                        </div>
+                      ) : null}
+                    {partMovements.length > 0 ? (
+                      <ol className="part-movement-list">
+                        {partMovements.map((movement) => (
+                          <li key={movement.id}>
+                            <div className="part-movement-primary">
+                              <div>
+                                <strong>
+                                  {movement.reason
+                                    || movementTypeLabel(movement)}
+                                </strong>
+                                <span>
+                                  {movementTypeLabel(movement)}
+                                  {` · ${inventoryDateLabel(
+                                    movement.created_at
+                                  )}`}
+                                </span>
+                              </div>
+                              <b
+                                className={
+                                  movement.quantity_delta > 0
+                                    ? "is-positive"
+                                    : "is-negative"
+                                }
+                              >
+                                {movementDeltaLabel(
+                                  movement.quantity_delta
+                                )}
+                              </b>
+                            </div>
+                            <p>
+                              {movement.quantity_before ?? "—"}
+                              {" → "}
+                              {movement.quantity_after ?? "—"}
+                            </p>
+                            {movement.note ? (
+                              <small>{movement.note}</small>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : null}
+                  </section>
+<section className="part-details-section">
                     <div className="part-details-section-heading">
                       <strong>Identification</strong>
                       <span
@@ -2033,7 +2421,7 @@ function closeCreator() {
             </div>
 
             <footer className="part-details-footer">
-              <span>Read-only view</span>
+              <span>Stock changes are recorded in history</span>
               <button type="button" onClick={closePartDetails}>
                 Close
               </button>

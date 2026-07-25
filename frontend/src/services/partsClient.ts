@@ -1,7 +1,10 @@
 import type {
   CreatePartPayload,
   Part,
-  PartCollection
+  PartCollection,
+  PartMovementCollection,
+  QuantityAdjustmentPayload,
+  QuantityAdjustmentResponse
 } from "../types/parts";
 
 
@@ -114,4 +117,36 @@ export function getPart(
   partId: number
 ): Promise<Part> {
   return requestJson<Part>(`/parts/${partId}`, token);
+}
+
+// PATCH 137: stock quantity adjustment and movement history client
+export function adjustPartQuantity(
+  token: string,
+  partId: number,
+  payload: QuantityAdjustmentPayload
+): Promise<QuantityAdjustmentResponse> {
+  return requestJson<QuantityAdjustmentResponse>(
+    `/parts/${partId}/quantity-adjustments`,
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export function getPartMovements(
+  token: string,
+  partId: number,
+  options?: { limit?: number }
+): Promise<PartMovementCollection> {
+  const parameters = new URLSearchParams();
+  if (options?.limit !== undefined) {
+    parameters.set("limit", String(options.limit));
+  }
+  const query = parameters.toString();
+  return requestJson<PartMovementCollection>(
+    `/parts/${partId}/movements${query ? `?${query}` : ""}`,
+    token
+  );
 }

@@ -65,3 +65,44 @@ export interface PartCollection {
   offset: number;
   parts: Part[];
 }
+
+// PATCH 137: stock quantity adjustment and movement history types
+export type QuantityAdjustmentOperation =
+  | "add"
+  | "remove"
+  | "consume"
+  | "correction";
+
+export interface QuantityAdjustmentPayload {
+  operation: QuantityAdjustmentOperation;
+  quantity: number;
+  reason: string | null;
+  note: string | null;
+}
+
+export interface StockMovement {
+  id: number;
+  part_id: number | null;
+  movement_type: string;
+  quantity_delta: number;
+  quantity_before: number | null;
+  quantity_after: number | null;
+  unit_price_snapshot: string | null;
+  currency_snapshot: string | null;
+  reason: string | null;
+  note: string | null;
+  source: string;
+  actor_user_id: number | null;
+  created_at: string;
+}
+
+export interface QuantityAdjustmentResponse {
+  operation: QuantityAdjustmentOperation;
+  part: Part;
+  movement: StockMovement;
+}
+
+export interface PartMovementCollection {
+  part_id: number;
+  movements: StockMovement[];
+}

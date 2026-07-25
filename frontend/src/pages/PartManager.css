@@ -1965,3 +1965,257 @@
 }
 
 /* END PATCH 130 */
+
+/* PATCH 137: QUANTITY ADJUSTMENT AND MOVEMENT HISTORY */
+.part-manager-page {
+  --inventory-stock-adjustment-v137: 1;
+  --inventory-stock-adjustment-button-weight-v139: 650;
+}
+
+.part-manager-page .part-quantity-current,
+.part-manager-page .part-movement-count {
+  color: #8293a9 !important;
+  font-size: 0.68rem !important;
+  font-weight: 700 !important;
+}
+
+.part-manager-page .part-quantity-form {
+  display: grid !important;
+  gap: 10px !important;
+}
+
+.part-manager-page .part-quantity-controls {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.15fr) minmax(110px, 0.85fr) !important;
+  gap: 9px !important;
+}
+
+.part-manager-page .part-quantity-form label {
+  display: grid !important;
+  gap: 5px !important;
+  min-width: 0 !important;
+}
+
+.part-manager-page .part-quantity-form label > span {
+  color: #8ea0b6 !important;
+  font-size: 0.67rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.02em !important;
+  text-transform: uppercase !important;
+}
+
+.part-manager-page .part-quantity-form input,
+.part-manager-page .part-quantity-form select,
+.part-manager-page .part-quantity-form textarea {
+  width: 100% !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  padding: 8px 9px !important;
+  border: 1px solid #344158 !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: #0a131f !important;
+  color: #e2e8f0 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.76rem !important;
+}
+
+.part-manager-page .part-quantity-form textarea {
+  min-height: 58px !important;
+  resize: vertical !important;
+  line-height: 1.4 !important;
+}
+
+.part-manager-page .part-quantity-form input:focus,
+.part-manager-page .part-quantity-form select:focus,
+.part-manager-page .part-quantity-form textarea:focus {
+  border-color: #2dd4bf !important;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.12) !important;
+}
+
+.part-manager-page .part-quantity-form input:disabled,
+.part-manager-page .part-quantity-form select:disabled,
+.part-manager-page .part-quantity-form textarea:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.62 !important;
+}
+
+.part-manager-page .part-quantity-hint {
+  margin: -2px 0 0 !important;
+  color: #8293a9 !important;
+  font-size: 0.69rem !important;
+  line-height: 1.4 !important;
+}
+
+.part-manager-page .part-quantity-feedback {
+  padding: 8px 9px !important;
+  border: 1px solid transparent !important;
+  border-radius: 7px !important;
+  font-size: 0.72rem !important;
+  line-height: 1.4 !important;
+}
+
+.part-manager-page .part-quantity-feedback.is-error {
+  border-color: rgba(248, 113, 113, 0.4) !important;
+  background: rgba(127, 29, 29, 0.16) !important;
+  color: #fecaca !important;
+}
+
+.part-manager-page .part-quantity-feedback.is-success {
+  border-color: rgba(45, 212, 191, 0.38) !important;
+  background: rgba(13, 148, 136, 0.12) !important;
+  color: #99f6e4 !important;
+}
+
+.part-manager-page .part-quantity-submit-row {
+  display: flex !important;
+  gap: 12px !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.part-manager-page .part-quantity-submit-row > span {
+  max-width: 250px !important;
+  color: #72849a !important;
+  font-size: 0.65rem !important;
+  line-height: 1.35 !important;
+}
+
+.part-manager-page .part-quantity-submit-row button {
+  appearance: none !important;
+  min-height: 35px !important;
+  margin: 0 !important;
+  padding: 7px 12px !important;
+  border: 1px solid #20b8a6 !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: #0f766e !important;
+  color: #f0fdfa !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.73rem !important;
+  font-weight: var(--inventory-stock-adjustment-button-weight-v139) !important;
+  cursor: pointer !important;
+}
+
+.part-manager-page .part-quantity-submit-row button:hover:not(:disabled) {
+  border-color: #5eead4 !important;
+  background: #0d9488 !important;
+}
+
+.part-manager-page .part-quantity-submit-row button:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+.part-manager-page .part-quantity-submit-row button:disabled {
+  cursor: wait !important;
+  opacity: 0.62 !important;
+}
+
+.part-manager-page .part-movement-state {
+  padding: 12px !important;
+  border: 1px dashed #314057 !important;
+  border-radius: 7px !important;
+  color: #8293a9 !important;
+  font-size: 0.72rem !important;
+  text-align: center !important;
+}
+
+.part-manager-page .part-movement-state.is-error {
+  border-color: rgba(248, 113, 113, 0.4) !important;
+  color: #fecaca !important;
+}
+
+.part-manager-page .part-movement-list {
+  display: grid !important;
+  gap: 1px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid #26344a !important;
+  border-radius: 7px !important;
+  background: #26344a !important;
+  list-style: none !important;
+}
+
+.part-manager-page .part-movement-list li {
+  display: grid !important;
+  gap: 5px !important;
+  padding: 10px 11px !important;
+  background: #0b1420 !important;
+}
+
+.part-manager-page .part-movement-primary {
+  display: flex !important;
+  gap: 12px !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+}
+
+.part-manager-page .part-movement-primary > div {
+  display: grid !important;
+  gap: 3px !important;
+  min-width: 0 !important;
+}
+
+.part-manager-page .part-movement-primary strong {
+  overflow-wrap: anywhere !important;
+  color: #dbe7f5 !important;
+  font-size: 0.74rem !important;
+}
+
+.part-manager-page .part-movement-primary span,
+.part-manager-page .part-movement-list p,
+.part-manager-page .part-movement-list small {
+  margin: 0 !important;
+  color: #7f91a7 !important;
+  font-size: 0.66rem !important;
+  line-height: 1.4 !important;
+}
+
+.part-manager-page .part-movement-primary b {
+  flex: 0 0 auto !important;
+  font-size: 0.78rem !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.part-manager-page .part-movement-primary b.is-positive {
+  color: #5eead4 !important;
+}
+
+.part-manager-page .part-movement-primary b.is-negative {
+  color: #fca5a5 !important;
+}
+
+.part-manager-page .part-movement-list p {
+  color: #aebed0 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.part-manager-page .part-movement-list small {
+  overflow-wrap: anywhere !important;
+  color: #94a3b8 !important;
+}
+
+@media (max-width: 520px) {
+  .part-manager-page .part-quantity-controls {
+    grid-template-columns: 1fr !important;
+  }
+
+  .part-manager-page .part-quantity-submit-row {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+
+  .part-manager-page .part-quantity-submit-row > span {
+    max-width: none !important;
+  }
+
+  .part-manager-page .part-quantity-submit-row button {
+    width: 100% !important;
+  }
+}
+
+/* END PATCH 137 */

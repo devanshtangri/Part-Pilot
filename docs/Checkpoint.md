@@ -1225,3 +1225,69 @@ Continue Phase 4 with a small stock-movement and quantity-adjustment workflow:
 7. Keep reservations, projects, metadata editing, and deletion separate.
 
 The next chat starts with read-only **Diagnostic 132**.
+
+<!-- PATCH 140 STOCK MOVEMENT CHECKPOINT -->
+
+---
+
+## Implementation Checkpoint — Stock Movement and Quantity Adjustment
+
+Checkpoint status: **browser approved and committed**
+
+### Completed backend workflow
+
+- [x] Added authenticated quantity adjustment at
+      `POST /api/parts/{part_id}/quantity-adjustments`.
+- [x] Added authenticated recent history at
+      `GET /api/parts/{part_id}/movements`.
+- [x] Added explicit operations for add, remove, consume, and signed correction.
+- [x] Mapped add to `restock`, consume to `consume`, and remove/correction to
+      `adjust` movement records.
+- [x] Rejected zero-value adjustments.
+- [x] Rejected results below zero.
+- [x] Rejected results below the part's reserved quantity.
+- [x] Updated `Part.total_quantity`, `StockMovement`, and `AuditLog`
+      atomically.
+- [x] Recorded quantity before, quantity after, signed delta, movement type,
+      reason, note, source, actor, snapshots, and timestamp.
+- [x] Added complete smoke coverage with cleanup.
+
+### Completed part-details workflow
+
+- [x] Added a compact Adjust quantity form to the existing details drawer.
+- [x] Added Add stock, Remove stock, Consume stock, and Correction actions.
+- [x] Added optional reason and note fields.
+- [x] Refreshed the selected part and Stored Parts list immediately after
+      success.
+- [x] Added recent read-only stock movement history.
+- [x] Preserved the desktop drawer and narrow-screen bottom-sheet behaviour.
+- [x] Reduced the Apply change button font weight so its label is not visually
+      compressed.
+
+### Manual browser approval
+
+- [x] Add stock updates quantity and history.
+- [x] Remove stock updates quantity and history.
+- [x] Consume stock updates quantity and history.
+- [x] Positive and negative corrections work.
+- [x] Excessive removal is rejected.
+- [x] Reserved stock cannot be crossed.
+- [x] Details and history refresh immediately.
+- [x] Desktop and narrow layouts remain usable.
+- [x] Apply change button typography is visually consistent.
+
+### Next major implementation slice
+
+Continue Phase 4 with editing existing part metadata:
+
+1. Inspect current create/detail schemas, service methods, routes, and dynamic
+   field persistence.
+2. Define update semantics for base fields and template-field values.
+3. Preserve manufacturer and package catalogue behaviour.
+4. Preserve duplicate part-number protection.
+5. Record before/after audit snapshots.
+6. Add one focused Edit details action from the existing drawer.
+7. Keep quantity adjustment, deletion, reusable locations, reservations, and
+   projects outside this slice.
+
+The next chat starts with read-only **Diagnostic 141**.

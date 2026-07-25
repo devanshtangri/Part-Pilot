@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Self
+from typing import Literal, Self
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -146,3 +146,69 @@ class PartCollectionResponse(BaseModel):
     limit: int
     offset: int
     parts: list[PartResponse]
+
+# PATCH 134: stock quantity adjustment and movement history schemas
+class PartQuantityAdjustmentRequest(BaseModel):
+    operation: Literal["add", "remove", "consume", "correction"]
+    quantity: int = Field(
+        strict=True,
+        description=(
+            "Positive units for add, remove, and consume. Correction accepts "
+            "a signed non-zero delta."
+        ),
+    )
+    reason: str | None = Field(default=None, max_length=180)
+    note: str | None = Field(default=None, max_length=5000)
+
+    @field_validator("reason", "note")
+    @classmethod
+    def clean_optional_adjustment_text(
+        cls,
+        value: str | None,
+    ) -> str | None:
+        if value is None:
+            return None
+        cleaned = " ".join(value.split())
+        return cleaned or None
+
+    @model_validator(mode="after")
+    def validate_adjustment(self) -> Self:
+        if self.quantity == 0:
+            raise ValueError("Quantity adjustment cannot be zero")
+        if (
+            self.operation in {"add", "remove", "consume"}
+            and self.quantity < 0
+        ):
+            raise ValueError(
+                "Add, remove, and consume quantities must be positive"
+            )
+        if self.operation == "correction" and self.reason is None:
+            raise ValueError("Correction reason is required")
+        return self
+
+
+class StockMovementResponse(BaseModel):
+    id: int
+    part_id: int | None = None
+    movement_type: str
+    quantity_delta: int
+    quantity_before: int | None = None
+    quantity_after: int | None = None
+    unit_price_snapshot: Decimal | None = None
+    currency_snapshot: str | None = None
+    reason: str | None = None
+    note: str | None = None
+    source: str
+    actor_user_id: int | None = None
+    created_at: datetime
+
+
+class PartQuantityAdjustmentResponse(BaseModel):
+    operation: Literal["add", "remove", "consume", "correction"]
+    part: PartResponse
+    movement: StockMovementResponse
+
+
+class PartMovementCollectionResponse(BaseModel):
+    part_id: int
+    movements: list[StockMovementResponse]

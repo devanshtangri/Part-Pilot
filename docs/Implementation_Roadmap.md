@@ -1185,3 +1185,49 @@ When a decision changes, update all affected files.
 
 The roadmap remains incremental: each implementation slice is browser-tested
 before its checkpoint commit.
+
+<!-- PATCH 140 STOCK MOVEMENT ROADMAP CHECKPOINT -->
+
+---
+
+## Current Roadmap Checkpoint — Stock Movement Complete
+
+### Completed stock workflow
+
+- [x] Diagnostic 132 mapped the stock-movement implementation targets.
+- [x] Authenticated add-stock operation.
+- [x] Authenticated remove-stock operation.
+- [x] Authenticated consume-stock operation.
+- [x] Signed quantity correction with explicit context.
+- [x] Negative and reserved-stock safeguards.
+- [x] Atomic part, stock movement, and audit writes.
+- [x] Recent read-only movement history API.
+- [x] Compact quantity action in part details.
+- [x] Immediate selected-part and inventory-list refresh.
+- [x] Responsive desktop drawer and mobile bottom-sheet support.
+- [x] Manual browser verification completed.
+
+### Immediate next slice
+
+- [ ] Diagnostic 141: inspect existing-part metadata editing targets.
+- [ ] Update base identification and descriptive fields.
+- [ ] Update manufacturer and package selections safely.
+- [ ] Update typed template-field values.
+- [ ] Preserve duplicate part-number validation.
+- [ ] Record before/after audit snapshots.
+- [ ] Add a focused Edit details workflow.
+- [ ] Browser-test before the next checkpoint commit.
+
+### Following Phase 4 slices
+
+- [ ] Soft deletion and restoration safeguards.
+- [ ] Reusable location management.
+- [ ] Low-stock dashboard and settings-driven out-of-stock grouping.
+- [ ] Reservations.
+- [ ] Projects.
+- [ ] Reservation consumption and release.
+- [ ] Full inventory/history pages.
+
+The roadmap remains incremental: diagnostics are read-only, implementation
+patches stay narrow, and each completed slice is browser-tested before its
+checkpoint commit.

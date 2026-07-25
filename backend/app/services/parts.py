@@ -6,6 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.db.constants import (
+    MOVEMENT_TYPE_ADJUST,
+    MOVEMENT_TYPE_CONSUME,
+    MOVEMENT_TYPE_RESTOCK,
+    SOURCE_MANUAL,
+)
 from app.models import (
     AuditLog,
     Manufacturer,
@@ -13,13 +19,18 @@ from app.models import (
     PartFieldValue,
     PartType,
     PartTypeField,
+    StockMovement,
 )
 from app.schemas.parts import (
     PartCollectionResponse,
     PartCreateRequest,
     PartFieldValueCreateRequest,
     PartFieldValueResponse,
+    PartMovementCollectionResponse,
+    PartQuantityAdjustmentRequest,
+    PartQuantityAdjustmentResponse,
     PartResponse,
+    StockMovementResponse,
 )
 
 
@@ -445,4 +456,195 @@ def list_parts(
         limit=limit,
         offset=offset,
         parts=[_serialize_part(db, part) for part in parts],
+    )
+
+# PATCH 134: stock quantity adjustment and movement history service
+_ADJUSTMENT_MOVEMENT_TYPES = {
+    "add": MOVEMENT_TYPE_RESTOCK,
+    "remove": MOVEMENT_TYPE_ADJUST,
+    "consume": MOVEMENT_TYPE_CONSUME,
+    "correction": MOVEMENT_TYPE_ADJUST,
+}
+
+_DEFAULT_ADJUSTMENT_REASONS = {
+    "add": "Manual stock addition",
+    "remove": "Manual stock removal",
+    "consume": "Manual stock consumption",
+    "correction": "Manual stock correction",
+}
+
+
+def _adjustment_delta(payload: PartQuantityAdjustmentRequest) -> int:
+    if payload.operation == "add":
+        return payload.quantity
+    if payload.operation in {"remove", "consume"}:
+        return -payload.quantity
+    return payload.quantity
+
+
+def _serialize_stock_movement(
+    movement: StockMovement,
+) -> StockMovementResponse:
+    return StockMovementResponse(
+        id=movement.id,
+        part_id=movement.part_id,
+        movement_type=movement.movement_type,
+        quantity_delta=movement.quantity_delta,
+        quantity_before=movement.quantity_before,
+        quantity_after=movement.quantity_after,
+        unit_price_snapshot=movement.unit_price_snapshot,
+        currency_snapshot=movement.currency_snapshot,
+        reason=movement.reason,
+        note=movement.note,
+        source=movement.source,
+        actor_user_id=movement.actor_user_id,
+        created_at=movement.created_at,
+    )
+
+
+def adjust_part_quantity(
+    db: Session,
+    part_id: int,
+    payload: PartQuantityAdjustmentRequest,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> PartQuantityAdjustmentResponse:
+    part = db.execute(
+        select(Part)
+        .where(
+            Part.id == part_id,
+            Part.is_deleted.is_(False),
+        )
+        .with_for_update()
+    ).scalar_one_or_none()
+    if part is None:
+        raise PartNotFoundError("Part not found.")
+
+    quantity_before = int(part.total_quantity)
+    quantity_delta = _adjustment_delta(payload)
+    quantity_after = quantity_before + quantity_delta
+
+    if quantity_after < 0:
+        raise PartValidationError(
+            "Quantity adjustment cannot reduce total stock below zero."
+        )
+    if quantity_after < part.reserved_quantity:
+        raise PartValidationError(
+            "Quantity adjustment cannot reduce total stock below the "
+            "reserved quantity."
+        )
+
+    movement_type = _ADJUSTMENT_MOVEMENT_TYPES[payload.operation]
+    reason = payload.reason or _DEFAULT_ADJUSTMENT_REASONS[payload.operation]
+    display_name = part.name or part.part_number or f"Part {part.id}"
+    available_before = quantity_before - part.reserved_quantity
+    available_after = quantity_after - part.reserved_quantity
+
+    movement = StockMovement(
+        part_id=part.id,
+        movement_type=movement_type,
+        quantity_delta=quantity_delta,
+        quantity_before=quantity_before,
+        quantity_after=quantity_after,
+        unit_price_snapshot=part.unit_price,
+        currency_snapshot=None,
+        reason=reason,
+        note=payload.note,
+        source=SOURCE_MANUAL,
+        actor_user_id=actor_user_id,
+    )
+
+    try:
+        part.total_quantity = quantity_after
+        db.add(movement)
+        db.flush()
+        db.add(
+            AuditLog(
+                event_type="part.quantity_adjusted",
+                entity_type="part",
+                entity_id=part.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=(
+                    f"{payload.operation.title()} stock for {display_name}: "
+                    f"{quantity_before} to {quantity_after}"
+                ),
+                before_json={
+                    "total_quantity": quantity_before,
+                    "reserved_quantity": part.reserved_quantity,
+                    "available_quantity": available_before,
+                },
+                after_json={
+                    "total_quantity": quantity_after,
+                    "reserved_quantity": part.reserved_quantity,
+                    "available_quantity": available_after,
+                },
+                metadata_json={
+                    "operation": payload.operation,
+                    "movement_type": movement_type,
+                    "quantity_delta": quantity_delta,
+                    "stock_movement_id": movement.id,
+                    "source": SOURCE_MANUAL,
+                    "reason": reason,
+                },
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(part)
+            db.refresh(movement)
+    except IntegrityError as exc:
+        if commit:
+            db.rollback()
+        raise PartConflictError(
+            "Quantity adjustment conflicted with current inventory data."
+        ) from exc
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return PartQuantityAdjustmentResponse(
+        operation=payload.operation,
+        part=_serialize_part(db, part),
+        movement=_serialize_stock_movement(movement),
+    )
+
+
+def list_part_movements(
+    db: Session,
+    part_id: int,
+    *,
+    limit: int = 20,
+) -> PartMovementCollectionResponse:
+    part = db.execute(
+        select(Part).where(
+            Part.id == part_id,
+            Part.is_deleted.is_(False),
+        )
+    ).scalar_one_or_none()
+    if part is None:
+        raise PartNotFoundError("Part not found.")
+
+    movements = list(
+        db.execute(
+            select(StockMovement)
+            .where(StockMovement.part_id == part.id)
+            .order_by(
+                StockMovement.created_at.desc(),
+                StockMovement.id.desc(),
+            )
+            .limit(limit)
+        ).scalars()
+    )
+    return PartMovementCollectionResponse(
+        part_id=part.id,
+        movements=[
+            _serialize_stock_movement(movement)
+            for movement in movements
+        ],
     )

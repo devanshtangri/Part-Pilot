@@ -2191,6 +2191,360 @@ def check_package_catalogue_api() -> None:
 
     ok("Reusable package catalogue is seeded and extensible")
 
+# PATCH 134: stock quantity adjustment and movement history smoke test
+def check_stock_quantity_adjustment_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_stock_adjustment_user"
+    password = "stock-adjustment-smoke-password"
+    part_number = f"SMOKE-STOCK-{uuid4().hex[:10]}"
+    created_part_id: int | None = None
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if created_part_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": created_part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": created_part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": created_part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": created_part_id},
+                )
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated_adjustment = client.post(
+            "/api/parts/1/quantity-adjustments",
+            json={"operation": "add", "quantity": 1},
+        )
+        if unauthenticated_adjustment.status_code not in {401, 403}:
+            fail(
+                "Quantity adjustment endpoint should require authentication, "
+                f"got {unauthenticated_adjustment.status_code}."
+            )
+        unauthenticated_history = client.get("/api/parts/1/movements")
+        if unauthenticated_history.status_code not in {401, 403}:
+            fail(
+                "Movement history endpoint should require authentication, "
+                f"got {unauthenticated_history.status_code}."
+            )
+
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Stock Adjustment Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+            part_type_id = db.execute(
+                text("select id from part_types order by id limit 1")
+            ).scalar()
+            if part_type_id is None:
+                fail("Cannot test stock adjustments without a part type.")
+            part = Part(
+                part_type_id=part_type_id,
+                part_number=part_number,
+                name="Stock adjustment smoke part",
+                total_quantity=10,
+                reserved_quantity=2,
+                low_stock_enabled=False,
+                is_deleted=False,
+            )
+            db.add(part)
+            db.commit()
+            db.refresh(part)
+            created_part_id = part.id
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        def post_adjustment(
+            operation: str,
+            quantity: int,
+            *,
+            reason: str | None = None,
+            note: str | None = None,
+        ):
+            payload: dict[str, object] = {
+                "operation": operation,
+                "quantity": quantity,
+            }
+            if reason is not None:
+                payload["reason"] = reason
+            if note is not None:
+                payload["note"] = note
+            return client.post(
+                f"/api/parts/{created_part_id}/quantity-adjustments",
+                headers=headers,
+                json=payload,
+            )
+
+        add_response = post_adjustment(
+            "add",
+            5,
+            note="Purchase receipt smoke coverage",
+        )
+        if add_response.status_code != 200:
+            fail(
+                "Add-stock adjustment returned "
+                f"{add_response.status_code}: {add_response.text}"
+            )
+        added = add_response.json()
+        if (
+            added.get("operation") != "add"
+            or added.get("part", {}).get("total_quantity") != 15
+            or added.get("movement", {}).get("movement_type") != "restock"
+            or added.get("movement", {}).get("quantity_delta") != 5
+            or added.get("movement", {}).get("quantity_before") != 10
+            or added.get("movement", {}).get("quantity_after") != 15
+            or not added.get("movement", {}).get("reason")
+        ):
+            fail(f"Unexpected add-stock response: {added}")
+
+        remove_response = post_adjustment(
+            "remove",
+            3,
+            reason="Damaged units removed",
+        )
+        if remove_response.status_code != 200:
+            fail(
+                "Remove-stock adjustment returned "
+                f"{remove_response.status_code}: {remove_response.text}"
+            )
+        removed = remove_response.json()
+        if (
+            removed.get("part", {}).get("total_quantity") != 12
+            or removed.get("movement", {}).get("movement_type") != "adjust"
+            or removed.get("movement", {}).get("quantity_delta") != -3
+            or removed.get("movement", {}).get("quantity_before") != 15
+            or removed.get("movement", {}).get("quantity_after") != 12
+        ):
+            fail(f"Unexpected remove-stock response: {removed}")
+
+        consume_response = post_adjustment(
+            "consume",
+            4,
+            reason="Workbench consumption",
+        )
+        if consume_response.status_code != 200:
+            fail(
+                "Consume-stock adjustment returned "
+                f"{consume_response.status_code}: {consume_response.text}"
+            )
+        consumed = consume_response.json()
+        if (
+            consumed.get("part", {}).get("total_quantity") != 8
+            or consumed.get("movement", {}).get("movement_type") != "consume"
+            or consumed.get("movement", {}).get("quantity_delta") != -4
+            or consumed.get("movement", {}).get("quantity_before") != 12
+            or consumed.get("movement", {}).get("quantity_after") != 8
+        ):
+            fail(f"Unexpected consume-stock response: {consumed}")
+
+        correction_response = post_adjustment(
+            "correction",
+            -1,
+            reason="Cycle count correction",
+            note="Physical count found one fewer unit",
+        )
+        if correction_response.status_code != 200:
+            fail(
+                "Correction adjustment returned "
+                f"{correction_response.status_code}: "
+                f"{correction_response.text}"
+            )
+        corrected = correction_response.json()
+        if (
+            corrected.get("part", {}).get("total_quantity") != 7
+            or corrected.get("movement", {}).get("movement_type") != "adjust"
+            or corrected.get("movement", {}).get("quantity_delta") != -1
+            or corrected.get("movement", {}).get("quantity_before") != 8
+            or corrected.get("movement", {}).get("quantity_after") != 7
+        ):
+            fail(f"Unexpected correction response: {corrected}")
+
+        below_reserved = post_adjustment(
+            "remove",
+            6,
+            reason="Should fail reserved-stock guard",
+        )
+        if below_reserved.status_code != 422:
+            fail(
+                "Removing below reserved quantity should return 422, got "
+                f"{below_reserved.status_code}: {below_reserved.text}"
+            )
+
+        zero_quantity = post_adjustment("add", 0)
+        if zero_quantity.status_code != 422:
+            fail(
+                "Zero quantity adjustment should return 422, got "
+                f"{zero_quantity.status_code}: {zero_quantity.text}"
+            )
+
+        correction_without_reason = post_adjustment("correction", 1)
+        if correction_without_reason.status_code != 422:
+            fail(
+                "Correction without a reason should return 422, got "
+                f"{correction_without_reason.status_code}: "
+                f"{correction_without_reason.text}"
+            )
+
+        missing_part = client.post(
+            "/api/parts/999999999/quantity-adjustments",
+            headers=headers,
+            json={"operation": "add", "quantity": 1},
+        )
+        if missing_part.status_code != 404:
+            fail(
+                "Quantity adjustment for a missing part should return 404, "
+                f"got {missing_part.status_code}."
+            )
+
+        history_response = client.get(
+            f"/api/parts/{created_part_id}/movements?limit=10",
+            headers=headers,
+        )
+        if history_response.status_code != 200:
+            fail(
+                "Movement history returned "
+                f"{history_response.status_code}: {history_response.text}"
+            )
+        history_payload = history_response.json()
+        movements = history_payload.get("movements", [])
+        expected_history = [
+            ("adjust", -1, 8, 7),
+            ("consume", -4, 12, 8),
+            ("adjust", -3, 15, 12),
+            ("restock", 5, 10, 15),
+        ]
+        actual_history = [
+            (
+                movement.get("movement_type"),
+                movement.get("quantity_delta"),
+                movement.get("quantity_before"),
+                movement.get("quantity_after"),
+            )
+            for movement in movements
+        ]
+        if (
+            history_payload.get("part_id") != created_part_id
+            or actual_history != expected_history
+        ):
+            fail(
+                "Movement history did not return the expected newest-first "
+                f"records: {history_payload}"
+            )
+
+        detail_response = client.get(
+            f"/api/parts/{created_part_id}",
+            headers=headers,
+        )
+        if detail_response.status_code != 200:
+            fail(
+                "Part detail after adjustments returned "
+                f"{detail_response.status_code}: {detail_response.text}"
+            )
+        detail = detail_response.json()
+        if (
+            detail.get("total_quantity") != 7
+            or detail.get("reserved_quantity") != 2
+            or detail.get("available_quantity") != 5
+        ):
+            fail(f"Part quantities were not updated correctly: {detail}")
+
+        with db_session() as db:
+            movement_rows = db.execute(
+                text(
+                    "select movement_type, quantity_delta, quantity_before, "
+                    "quantity_after, reason, source, actor_user_id "
+                    "from stock_movements where part_id = :part_id "
+                    "order by id"
+                ),
+                {"part_id": created_part_id},
+            ).all()
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = 'part.quantity_adjusted' "
+                    "and entity_type = 'part' "
+                    "and entity_id = :entity_id"
+                ),
+                {"entity_id": created_part_id},
+            ).scalar()
+
+        if len(movement_rows) != 4:
+            fail(
+                "Expected four persisted movement rows after rejected "
+                f"operations, got {len(movement_rows)}."
+            )
+        if audit_count != 4:
+            fail(
+                "Expected four quantity-adjustment audit rows, got "
+                f"{audit_count!r}."
+            )
+        for row in movement_rows:
+            if (
+                row[2] is None
+                or row[3] is None
+                or row[4] is None
+                or row[5] != "manual"
+                or row[6] != user_id
+            ):
+                fail(f"Movement row is incomplete: {row!r}")
+
+    finally:
+        cleanup()
+
+    ok(
+        "Stock quantity adjustments are authenticated, atomic, guarded, "
+        "audited, and exposed through recent history"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -2212,6 +2566,7 @@ def main() -> None:
         check_inventory_part_creation_api,
         check_manufacturer_catalogue_api,
         check_package_catalogue_api,
+        check_stock_quantity_adjustment_api,
     ]
 
     for check in checks:
