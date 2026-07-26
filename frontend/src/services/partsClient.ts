@@ -1,5 +1,7 @@
 import type {
   CreatePartPayload,
+  DeletedPart,
+  DeletedPartCollection,
   Part,
   PartCollection,
   PartMovementCollection,
@@ -161,5 +163,48 @@ export function updatePart(
   return requestJson<Part>(`/parts/${partId}`, token, {
     method: "PUT",
     body: JSON.stringify(payload)
+  });
+}
+
+// PATCH 153: recoverable part deletion and restoration client
+export function getDeletedParts(
+  token: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+  }
+): Promise<DeletedPartCollection> {
+  const parameters = new URLSearchParams();
+
+  if (options?.limit !== undefined) {
+    parameters.set("limit", String(options.limit));
+  }
+
+  if (options?.offset !== undefined) {
+    parameters.set("offset", String(options.offset));
+  }
+
+  const query = parameters.toString();
+  return requestJson<DeletedPartCollection>(
+    `/parts/deleted${query ? `?${query}` : ""}`,
+    token
+  );
+}
+
+export function deletePart(
+  token: string,
+  partId: number
+): Promise<DeletedPart> {
+  return requestJson<DeletedPart>(`/parts/${partId}`, token, {
+    method: "DELETE"
+  });
+}
+
+export function restorePart(
+  token: string,
+  partId: number
+): Promise<Part> {
+  return requestJson<Part>(`/parts/${partId}/restore`, token, {
+    method: "POST"
   });
 }

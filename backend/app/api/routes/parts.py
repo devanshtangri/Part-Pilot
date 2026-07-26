@@ -13,6 +13,8 @@ from app.schemas.parts import (
     PartQuantityAdjustmentResponse,
     PartResponse,
     PartUpdateRequest,
+    DeletedPartCollectionResponse,
+    DeletedPartResponse,
 )
 from app.services.parts import (
     PartConflictError,
@@ -24,6 +26,9 @@ from app.services.parts import (
     list_part_movements,
     list_parts,
     update_part_metadata,
+    list_deleted_parts,
+    restore_part,
+    soft_delete_part,
 )
 
 
@@ -75,6 +80,80 @@ def create_inventory_part(
             detail=str(exc),
         ) from exc
 
+
+# PATCH 152: part soft-delete and restoration routes
+@router.get(
+    "/deleted",
+    response_model=DeletedPartCollectionResponse,
+)
+def read_deleted_parts(
+    limit: int = Query(default=100, ge=1, le=250),
+    offset: int = Query(default=0, ge=0),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeletedPartCollectionResponse:
+    del current_user
+    return list_deleted_parts(
+        db,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post(
+    "/{part_id}/restore",
+    response_model=PartResponse,
+)
+def restore_inventory_part(
+    part_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PartResponse:
+    try:
+        return restore_part(
+            db,
+            part_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except PartNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except PartConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+
+@router.delete(
+    "/{part_id}",
+    response_model=DeletedPartResponse,
+)
+def delete_inventory_part(
+    part_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeletedPartResponse:
+    try:
+        return soft_delete_part(
+            db,
+            part_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except PartNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except PartConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
 
 
 # PATCH 134: stock quantity adjustment and movement history routes

@@ -12,6 +12,7 @@ import "./PartManager.css";
 // PATCH 094: dynamic inventory Add Part modal
 import { AddPartModal } from "../components/AddPartModal";
 import { EditPartModal } from "../components/EditPartModal";
+import { PartLifecycleModal } from "../components/PartLifecycleModal";
 import {
   createPartType,
   getPartTypes,
@@ -391,6 +392,10 @@ export function PartManager() {
   const [isAddingPart, setIsAddingPart] = useState(false);
   const [partBeingEdited, setPartBeingEdited] =
     useState<Part | null>(null);
+  // PATCH 153: recoverable part deletion and restoration UI
+  const [partDeleteTarget, setPartDeleteTarget] =
+    useState<Part | null>(null);
+  const [deletedPartsOpen, setDeletedPartsOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -674,6 +679,64 @@ export function PartManager() {
       setSelectedInventoryPartId(partBeingEdited.id);
     }
     setPartBeingEdited(null);
+  }
+
+
+  // PATCH 153: recoverable part deletion and restoration UI
+  function openPartDeleteDialog(part: Part) {
+    setPartDeleteTarget(part);
+    setSelectedInventoryPartId(null);
+    setSelectedInventoryPart(null);
+    setPartDetailsError(null);
+    setPartMovements([]);
+    setPartMovementsError(null);
+    resetQuantityAdjustment();
+  }
+
+  function closePartDeleteDialog() {
+    if (partDeleteTarget) {
+      setSelectedInventoryPart(partDeleteTarget);
+      setSelectedInventoryPartId(partDeleteTarget.id);
+    }
+    setPartDeleteTarget(null);
+  }
+
+  function handlePartDeleted(partId: number) {
+    setPartDeleteTarget(null);
+    setSelectedInventoryPartId(null);
+    setSelectedInventoryPart(null);
+    setPartDetailsError(null);
+    setPartMovements([]);
+    setPartMovementsError(null);
+    resetQuantityAdjustment();
+    setInventoryCollection((current) =>
+      current
+        ? {
+            ...current,
+            total: Math.max(0, current.total - 1),
+            parts: current.parts.filter((item) => item.id !== partId)
+          }
+        : current
+    );
+    setInventoryRefreshSequence((current) => current + 1);
+  }
+
+  function handlePartRestored(part: Part) {
+    setInventoryCollection((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const withoutRestored = current.parts.filter(
+        (item) => item.id !== part.id
+      );
+      return {
+        ...current,
+        total: withoutRestored.length + 1,
+        parts: [part, ...withoutRestored]
+      };
+    });
+    setInventoryRefreshSequence((current) => current + 1);
   }
 
   function openPartDetails(partId: number) {
@@ -1133,6 +1196,7 @@ function closeCreator() {
     <div
       className="page-stack part-manager-page"
       data-manufacturer-preset-version="part-manager-manufacturer-preset-v106"
+      data-part-lifecycle-version="part-lifecycle-v153"
     >
       <header className="page-header part-manager-header">
         <div>
@@ -1231,6 +1295,19 @@ function closeCreator() {
           }}
         />
       ) : null}
+
+      {token ? (
+        <PartLifecycleModal
+          token={token}
+          deleteTarget={partDeleteTarget}
+          deletedPartsOpen={deletedPartsOpen}
+          onCloseDelete={closePartDeleteDialog}
+          onDeleted={handlePartDeleted}
+          onCloseDeletedParts={() => setDeletedPartsOpen(false)}
+          onRestored={handlePartRestored}
+        />
+      ) : null}
+
       {isCreating ? (
             <div
               className="creator-modal-backdrop"
@@ -1849,6 +1926,14 @@ function closeCreator() {
                   } shown`
                 : `${inventoryCollection?.total ?? 0} parts`}
             </span>
+            <button
+              className="inventory-deleted-button"
+              type="button"
+              onClick={() => setDeletedPartsOpen(true)}
+              disabled={!token}
+            >
+              Deleted items
+            </button>
             <button
               type="button"
               onClick={() =>
@@ -2478,14 +2563,24 @@ function closeCreator() {
               <span>Stock changes are recorded in history</span>
               <div className="part-details-footer-actions">
                 {selectedInventoryPart ? (
-                  <button
-                    className="part-details-edit-button"
-                    type="button"
-                    onClick={() =>
-                      openPartMetadataEditor(selectedInventoryPart)}
-                  >
-                    Edit details
-                  </button>
+                  <>
+                    <button
+                      className="part-details-delete-button"
+                      type="button"
+                      onClick={() =>
+                        openPartDeleteDialog(selectedInventoryPart)}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      className="part-details-edit-button"
+                      type="button"
+                      onClick={() =>
+                        openPartMetadataEditor(selectedInventoryPart)}
+                    >
+                      Edit details
+                    </button>
+                  </>
                 ) : null}
                 <button type="button" onClick={closePartDetails}>
                   Close

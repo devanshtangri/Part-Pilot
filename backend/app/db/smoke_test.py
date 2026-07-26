@@ -3244,6 +3244,592 @@ def check_part_metadata_update_api() -> None:
     )
 
 
+# PATCH 152: part soft-delete and restoration smoke test
+def check_part_soft_delete_restore_api() -> None:
+    import json as json_module
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import PartFieldValue, StockMovement
+
+    username = "smoke_part_lifecycle_user"
+    password = "part-lifecycle-smoke-password"
+    suffix = uuid4().hex[:10]
+    part_number = f"SMOKE-LIFECYCLE-{suffix}"
+    part_id: int | None = None
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if part_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated_delete = client.delete("/api/parts/1")
+        if unauthenticated_delete.status_code not in {401, 403}:
+            fail(
+                "DELETE /api/parts/{id} should require authentication, got "
+                f"{unauthenticated_delete.status_code}."
+            )
+
+        unauthenticated_deleted_list = client.get("/api/parts/deleted")
+        if unauthenticated_deleted_list.status_code not in {401, 403}:
+            fail(
+                "GET /api/parts/deleted should require authentication, got "
+                f"{unauthenticated_deleted_list.status_code}."
+            )
+
+        unauthenticated_restore = client.post("/api/parts/1/restore")
+        if unauthenticated_restore.status_code not in {401, 403}:
+            fail(
+                "POST /api/parts/{id}/restore should require "
+                "authentication, got "
+                f"{unauthenticated_restore.status_code}."
+            )
+
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Part Lifecycle Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+            field_row = db.execute(
+                text(
+                    "select id, part_type_id from part_type_fields "
+                    "where field_type = 'text' order by id limit 1"
+                )
+            ).one_or_none()
+            if field_row is None:
+                fail(
+                    "Cannot test part lifecycle without a text template field."
+                )
+
+            field_id = int(field_row[0])
+            part_type_id = int(field_row[1])
+            part = Part(
+                part_type_id=part_type_id,
+                part_number=part_number,
+                name="Part lifecycle smoke part",
+                description="Must survive soft deletion",
+                package="Smoke package",
+                notes="Lifecycle retention coverage",
+                total_quantity=11,
+                reserved_quantity=2,
+                unit_price="4.5000",
+                purchase_link="https://example.com/lifecycle-smoke",
+                low_stock_enabled=True,
+                low_stock_threshold=3,
+                is_deleted=False,
+                deleted_at=None,
+            )
+            db.add(part)
+            db.flush()
+            part_id = part.id
+
+            db.add(
+                PartFieldValue(
+                    part_id=part.id,
+                    field_id=field_id,
+                    value_text="retained lifecycle value",
+                )
+            )
+            db.add(
+                StockMovement(
+                    part_id=part.id,
+                    movement_type="adjust",
+                    quantity_delta=1,
+                    quantity_before=10,
+                    quantity_after=11,
+                    unit_price_snapshot=part.unit_price,
+                    currency_snapshot=None,
+                    reason="Lifecycle retention seed",
+                    note="Must survive soft deletion",
+                    source="manual",
+                    actor_user_id=user_id,
+                )
+            )
+            db.commit()
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        initial_detail = client.get(
+            f"/api/parts/{part_id}",
+            headers=headers,
+        )
+        if initial_detail.status_code != 200:
+            fail(
+                "Lifecycle part detail before deletion returned "
+                f"{initial_detail.status_code}: {initial_detail.text}"
+            )
+        initial = initial_detail.json()
+        if (
+            initial.get("total_quantity") != 11
+            or initial.get("reserved_quantity") != 2
+            or len(initial.get("field_values", [])) != 1
+        ):
+            fail(f"Unexpected initial lifecycle part: {initial}")
+
+        initial_deleted = client.get(
+            "/api/parts/deleted",
+            headers=headers,
+        )
+        if initial_deleted.status_code != 200:
+            fail(
+                "Initial deleted-parts collection returned "
+                f"{initial_deleted.status_code}: {initial_deleted.text}"
+            )
+        if any(
+            item.get("id") == part_id
+            for item in initial_deleted.json().get("parts", [])
+        ):
+            fail("Active part appeared in the deleted-parts collection.")
+
+        delete_response = client.delete(
+            f"/api/parts/{part_id}",
+            headers=headers,
+        )
+        if delete_response.status_code != 200:
+            fail(
+                "Soft deletion returned "
+                f"{delete_response.status_code}: {delete_response.text}"
+            )
+        deleted = delete_response.json()
+        if (
+            deleted.get("id") != part_id
+            or deleted.get("is_deleted") is not True
+            or not deleted.get("deleted_at")
+            or deleted.get("total_quantity") != 11
+            or deleted.get("reserved_quantity") != 2
+            or len(deleted.get("field_values", [])) != 1
+        ):
+            fail(f"Unexpected soft-deletion response: {deleted}")
+
+        repeated_delete = client.delete(
+            f"/api/parts/{part_id}",
+            headers=headers,
+        )
+        if repeated_delete.status_code != 409:
+            fail(
+                "Deleting an already deleted part should return 409, got "
+                f"{repeated_delete.status_code}: {repeated_delete.text}"
+            )
+
+        hidden_detail = client.get(
+            f"/api/parts/{part_id}",
+            headers=headers,
+        )
+        if hidden_detail.status_code != 404:
+            fail(
+                "Normal part detail should hide deleted parts with 404, got "
+                f"{hidden_detail.status_code}: {hidden_detail.text}"
+            )
+
+        hidden_movements = client.get(
+            f"/api/parts/{part_id}/movements",
+            headers=headers,
+        )
+        if hidden_movements.status_code != 404:
+            fail(
+                "Normal movement history should hide deleted parts with 404, "
+                f"got {hidden_movements.status_code}: "
+                f"{hidden_movements.text}"
+            )
+
+        active_collection = client.get(
+            "/api/parts?limit=250",
+            headers=headers,
+        )
+        if active_collection.status_code != 200:
+            fail(
+                "Active parts collection after deletion returned "
+                f"{active_collection.status_code}: "
+                f"{active_collection.text}"
+            )
+        if any(
+            item.get("id") == part_id
+            for item in active_collection.json().get("parts", [])
+        ):
+            fail("Deleted part remained visible in the active collection.")
+
+        deleted_collection = client.get(
+            "/api/parts/deleted?limit=250",
+            headers=headers,
+        )
+        if deleted_collection.status_code != 200:
+            fail(
+                "Deleted-parts collection returned "
+                f"{deleted_collection.status_code}: "
+                f"{deleted_collection.text}"
+            )
+        deleted_items = [
+            item
+            for item in deleted_collection.json().get("parts", [])
+            if item.get("id") == part_id
+        ]
+        if len(deleted_items) != 1:
+            fail(
+                "Deleted-parts collection should contain the lifecycle part "
+                f"exactly once, got {deleted_items!r}."
+            )
+
+        duplicate_while_deleted = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                "part_type_id": initial["part_type_id"],
+                "part_number": part_number,
+                "name": "Duplicate while original is deleted",
+                "total_quantity": 0,
+                "field_values": [],
+            },
+        )
+        if duplicate_while_deleted.status_code != 409:
+            fail(
+                "A deleted part should continue reserving its part number; "
+                "duplicate creation should return 409, got "
+                f"{duplicate_while_deleted.status_code}: "
+                f"{duplicate_while_deleted.text}"
+            )
+
+        with db_session() as db:
+            deleted_row = db.execute(
+                text(
+                    "select is_deleted, deleted_at, total_quantity, "
+                    "reserved_quantity, part_number, name "
+                    "from parts where id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).one()
+            value_count = db.execute(
+                text(
+                    "select count(*) from part_field_values "
+                    "where part_id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).scalar()
+            movement_rows = db.execute(
+                text(
+                    "select movement_type, quantity_delta, quantity_before, "
+                    "quantity_after, reason, source, actor_user_id "
+                    "from stock_movements where part_id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).all()
+            deletion_audits = db.execute(
+                text(
+                    "select actor_user_id, before_json, after_json, "
+                    "metadata_json from audit_log "
+                    "where event_type = 'part.deleted' "
+                    "and entity_type = 'part' "
+                    "and entity_id = :entity_id order by id"
+                ),
+                {"entity_id": part_id},
+            ).all()
+
+        if (
+            deleted_row[0] != 1
+            or deleted_row[1] is None
+            or deleted_row[2] != 11
+            or deleted_row[3] != 2
+            or deleted_row[4] != part_number
+            or deleted_row[5] != "Part lifecycle smoke part"
+        ):
+            fail(
+                "Soft deletion changed retained part data unexpectedly: "
+                f"{deleted_row!r}"
+            )
+        if value_count != 1:
+            fail(
+                "Soft deletion did not preserve the dynamic field value: "
+                f"{value_count!r}"
+            )
+        if len(movement_rows) != 1:
+            fail(
+                "Soft deletion did not preserve stock movement history: "
+                f"{movement_rows!r}"
+            )
+        if len(deletion_audits) != 1:
+            fail(
+                "Soft deletion should create exactly one audit event, got "
+                f"{len(deletion_audits)}."
+            )
+
+        deletion_audit = deletion_audits[0]
+        deletion_before = (
+            json_module.loads(deletion_audit[1])
+            if isinstance(deletion_audit[1], str)
+            else deletion_audit[1]
+        )
+        deletion_after = (
+            json_module.loads(deletion_audit[2])
+            if isinstance(deletion_audit[2], str)
+            else deletion_audit[2]
+        )
+        deletion_metadata = (
+            json_module.loads(deletion_audit[3])
+            if isinstance(deletion_audit[3], str)
+            else deletion_audit[3]
+        )
+        if (
+            deletion_audit[0] != user_id
+            or deletion_before.get("is_deleted") is not False
+            or deletion_before.get("deleted_at") is not None
+            or deletion_after.get("is_deleted") is not True
+            or not deletion_after.get("deleted_at")
+            or deletion_before.get("total_quantity") != 11
+            or deletion_after.get("total_quantity") != 11
+            or deletion_metadata.get("field_value_count") != 1
+            or deletion_metadata.get("movement_count") != 1
+            or deletion_metadata.get("total_quantity_preserved") != 11
+            or deletion_metadata.get("reserved_quantity_preserved") != 2
+        ):
+            fail(
+                "Deletion audit snapshot or retention metadata is incomplete: "
+                f"{deletion_audit!r}"
+            )
+
+        restore_response = client.post(
+            f"/api/parts/{part_id}/restore",
+            headers=headers,
+        )
+        if restore_response.status_code != 200:
+            fail(
+                "Part restoration returned "
+                f"{restore_response.status_code}: {restore_response.text}"
+            )
+        restored = restore_response.json()
+        if (
+            restored.get("id") != part_id
+            or restored.get("total_quantity") != 11
+            or restored.get("reserved_quantity") != 2
+            or restored.get("part_number") != part_number
+            or len(restored.get("field_values", [])) != 1
+        ):
+            fail(f"Unexpected restoration response: {restored}")
+
+        repeated_restore = client.post(
+            f"/api/parts/{part_id}/restore",
+            headers=headers,
+        )
+        if repeated_restore.status_code != 409:
+            fail(
+                "Restoring an active part should return 409, got "
+                f"{repeated_restore.status_code}: {repeated_restore.text}"
+            )
+
+        restored_detail = client.get(
+            f"/api/parts/{part_id}",
+            headers=headers,
+        )
+        if restored_detail.status_code != 200:
+            fail(
+                "Restored part detail returned "
+                f"{restored_detail.status_code}: {restored_detail.text}"
+            )
+
+        restored_active_collection = client.get(
+            "/api/parts?limit=250",
+            headers=headers,
+        )
+        if not any(
+            item.get("id") == part_id
+            for item in restored_active_collection.json().get("parts", [])
+        ):
+            fail("Restored part did not return to the active collection.")
+
+        restored_deleted_collection = client.get(
+            "/api/parts/deleted?limit=250",
+            headers=headers,
+        )
+        if any(
+            item.get("id") == part_id
+            for item in restored_deleted_collection.json().get("parts", [])
+        ):
+            fail("Restored part remained in the deleted-parts collection.")
+
+        restored_movements = client.get(
+            f"/api/parts/{part_id}/movements",
+            headers=headers,
+        )
+        if (
+            restored_movements.status_code != 200
+            or len(restored_movements.json().get("movements", [])) != 1
+        ):
+            fail(
+                "Restoration did not recover movement-history visibility: "
+                f"{restored_movements.status_code}: "
+                f"{restored_movements.text}"
+            )
+
+        with db_session() as db:
+            restored_row = db.execute(
+                text(
+                    "select is_deleted, deleted_at, total_quantity, "
+                    "reserved_quantity, part_number, name "
+                    "from parts where id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).one()
+            restored_value_count = db.execute(
+                text(
+                    "select count(*) from part_field_values "
+                    "where part_id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).scalar()
+            restored_movement_count = db.execute(
+                text(
+                    "select count(*) from stock_movements "
+                    "where part_id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).scalar()
+            restoration_audits = db.execute(
+                text(
+                    "select actor_user_id, before_json, after_json, "
+                    "metadata_json from audit_log "
+                    "where event_type = 'part.restored' "
+                    "and entity_type = 'part' "
+                    "and entity_id = :entity_id order by id"
+                ),
+                {"entity_id": part_id},
+            ).all()
+
+        if (
+            restored_row[0] != 0
+            or restored_row[1] is not None
+            or restored_row[2] != 11
+            or restored_row[3] != 2
+            or restored_row[4] != part_number
+            or restored_row[5] != "Part lifecycle smoke part"
+            or restored_value_count != 1
+            or restored_movement_count != 1
+        ):
+            fail(
+                "Restoration did not preserve and reactivate the full part: "
+                f"{restored_row!r}, values={restored_value_count!r}, "
+                f"movements={restored_movement_count!r}"
+            )
+        if len(restoration_audits) != 1:
+            fail(
+                "Restoration should create exactly one audit event, got "
+                f"{len(restoration_audits)}."
+            )
+
+        restoration_audit = restoration_audits[0]
+        restoration_before = (
+            json_module.loads(restoration_audit[1])
+            if isinstance(restoration_audit[1], str)
+            else restoration_audit[1]
+        )
+        restoration_after = (
+            json_module.loads(restoration_audit[2])
+            if isinstance(restoration_audit[2], str)
+            else restoration_audit[2]
+        )
+        restoration_metadata = (
+            json_module.loads(restoration_audit[3])
+            if isinstance(restoration_audit[3], str)
+            else restoration_audit[3]
+        )
+        if (
+            restoration_audit[0] != user_id
+            or restoration_before.get("is_deleted") is not True
+            or not restoration_before.get("deleted_at")
+            or restoration_after.get("is_deleted") is not False
+            or restoration_after.get("deleted_at") is not None
+            or restoration_metadata.get("field_value_count") != 1
+            or restoration_metadata.get("movement_count") != 1
+            or restoration_metadata.get(
+                "part_number_conflict_checked"
+            ) is not True
+        ):
+            fail(
+                "Restoration audit snapshot or conflict metadata is "
+                f"incomplete: {restoration_audit!r}"
+            )
+
+        missing_part_id = 2_147_483_647
+        missing_delete = client.delete(
+            f"/api/parts/{missing_part_id}",
+            headers=headers,
+        )
+        if missing_delete.status_code != 404:
+            fail(
+                "Deleting a missing part should return 404, got "
+                f"{missing_delete.status_code}: {missing_delete.text}"
+            )
+
+        missing_restore = client.post(
+            f"/api/parts/{missing_part_id}/restore",
+            headers=headers,
+        )
+        if missing_restore.status_code != 404:
+            fail(
+                "Restoring a missing part should return 404, got "
+                f"{missing_restore.status_code}: {missing_restore.text}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Part soft deletion and restoration are authenticated, reversible, "
+        "retention-safe, duplicate-safe, hidden from active reads, and audited"
+    )
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -3267,6 +3853,7 @@ def main() -> None:
         check_package_catalogue_api,
         check_stock_quantity_adjustment_api,
         check_part_metadata_update_api,
+        check_part_soft_delete_restore_api,
     ]
 
     for check in checks:

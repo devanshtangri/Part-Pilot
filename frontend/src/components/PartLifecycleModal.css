@@ -1,0 +1,382 @@
+/* PATCH 153: RECOVERABLE PART DELETION AND RESTORATION UI */
+
+.part-manager-page {
+  --part-lifecycle-v153: 1;
+}
+
+.part-lifecycle-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  overflow: auto;
+  background: rgba(3, 7, 13, 0.78);
+  backdrop-filter: blur(4px);
+}
+
+.part-lifecycle-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(620px, 100%);
+  max-height: min(82dvh, 760px);
+  overflow: hidden;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0b121c;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.58);
+}
+
+.part-lifecycle-dialog.is-delete {
+  width: min(520px, 100%);
+  max-height: none;
+}
+
+.part-lifecycle-dialog > header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 17px 18px 15px;
+  border-bottom: 1px solid #273449;
+  background: #111a27;
+}
+
+.part-lifecycle-dialog > header h2,
+.part-lifecycle-dialog > header p {
+  margin: 0;
+}
+
+.part-lifecycle-dialog > header h2 {
+  color: #f1f5f9;
+  font-size: 1.06rem;
+}
+
+.part-lifecycle-dialog > header > div {
+  display: grid;
+  gap: 5px;
+}
+
+.part-lifecycle-dialog > header > div > p:last-child:not(.eyebrow) {
+  color: #8293a9;
+  font-size: 0.73rem;
+  line-height: 1.4;
+}
+
+.part-lifecycle-close {
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #3a475b;
+  border-radius: 7px;
+  background: #141e2c;
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.part-lifecycle-close:hover:not(:disabled) {
+  border-color: #60718d;
+  background: #1b293a;
+  color: #ffffff;
+}
+
+.part-lifecycle-content {
+  display: grid;
+  gap: 13px;
+  min-height: 0;
+  padding: 16px 18px 18px;
+  overflow: auto;
+}
+
+.part-lifecycle-content > p {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.79rem;
+  line-height: 1.55;
+}
+
+.part-lifecycle-preservation {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  border-radius: 8px;
+  background: rgba(15, 118, 110, 0.1);
+}
+
+.part-lifecycle-preservation strong {
+  color: #99f6e4;
+  font-size: 0.76rem;
+}
+
+.part-lifecycle-preservation span {
+  color: #9fb0c5;
+  font-size: 0.71rem;
+  line-height: 1.45;
+}
+
+.part-lifecycle-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #29374c;
+  border-radius: 8px;
+  background: #29374c;
+}
+
+.part-lifecycle-summary > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  background: #0c1522;
+}
+
+.part-lifecycle-summary dt {
+  color: #71839a;
+  font-size: 0.63rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.part-lifecycle-summary dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #dbe7f5;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.part-lifecycle-dialog > footer {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 12px 18px;
+  border-top: 1px solid #273449;
+  background: #0f1824;
+}
+
+.part-lifecycle-dialog > footer > span {
+  margin-right: auto;
+  color: #71839a;
+  font-size: 0.7rem;
+}
+
+.part-lifecycle-dialog button {
+  font-family: inherit;
+}
+
+.part-lifecycle-secondary,
+.part-lifecycle-danger,
+.part-lifecycle-restore {
+  appearance: none;
+  min-height: 35px;
+  margin: 0;
+  padding: 7px 12px;
+  border-radius: 7px;
+  outline: none;
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.part-lifecycle-secondary {
+  border: 1px solid #3a475b;
+  background: #141e2c;
+  color: #dbe7f5;
+}
+
+.part-lifecycle-danger {
+  border: 1px solid rgba(248, 113, 113, 0.58);
+  background: #991b1b;
+  color: #fff1f2;
+}
+
+.part-lifecycle-restore {
+  flex: 0 0 auto;
+  border: 1px solid #20b8a6;
+  background: #0f766e;
+  color: #f0fdfa;
+}
+
+.part-lifecycle-secondary:hover:not(:disabled) {
+  border-color: #60718d;
+  background: #1b293a;
+  color: #ffffff;
+}
+
+.part-lifecycle-danger:hover:not(:disabled) {
+  border-color: #fca5a5;
+  background: #b91c1c;
+}
+
+.part-lifecycle-restore:hover:not(:disabled) {
+  border-color: #5eead4;
+  background: #0d9488;
+}
+
+.part-lifecycle-dialog button:focus-visible,
+.part-lifecycle-search input:focus {
+  outline: 2px solid #2dd4bf;
+  outline-offset: 2px;
+}
+
+.part-lifecycle-dialog button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.part-lifecycle-error {
+  padding: 9px 10px;
+  border: 1px solid rgba(248, 113, 113, 0.42);
+  border-radius: 7px;
+  background: rgba(127, 29, 29, 0.14);
+  color: #fecaca;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.part-lifecycle-search input {
+  appearance: none;
+  width: 100%;
+  min-height: 37px;
+  margin: 0;
+  padding: 8px 11px;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  outline: none;
+  background: #0a131f;
+  color: #e5edf7;
+  font: inherit;
+  font-size: 0.77rem;
+}
+
+.part-lifecycle-search input::placeholder {
+  color: #64748b;
+}
+
+.part-lifecycle-state {
+  display: grid;
+  gap: 4px;
+  padding: 24px 14px;
+  border: 1px dashed #314057;
+  border-radius: 8px;
+  color: #8293a9;
+  font-size: 0.73rem;
+  text-align: center;
+}
+
+.part-lifecycle-state strong {
+  color: #cbd5e1;
+}
+
+.part-lifecycle-list {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #29374c;
+  border-radius: 8px;
+  background: #29374c;
+}
+
+.part-lifecycle-list article {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px;
+  background: #0b1420;
+}
+
+.part-lifecycle-part-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.part-lifecycle-part-copy strong {
+  overflow-wrap: anywhere;
+  color: #dbe7f5;
+  font-size: 0.78rem;
+}
+
+.part-lifecycle-part-copy span,
+.part-lifecycle-part-copy small {
+  overflow-wrap: anywhere;
+  color: #7f91a7;
+  font-size: 0.67rem;
+  line-height: 1.4;
+}
+
+.part-manager-page .inventory-deleted-button {
+  min-width: 96px;
+}
+
+.part-manager-page .part-details-delete-button {
+  border-color: rgba(248, 113, 113, 0.45) !important;
+  background: rgba(127, 29, 29, 0.13) !important;
+  color: #fca5a5 !important;
+}
+
+.part-manager-page .part-details-delete-button:hover:not(:disabled) {
+  border-color: #f87171 !important;
+  background: rgba(153, 27, 27, 0.3) !important;
+  color: #fecaca !important;
+}
+
+@media (max-width: 620px) {
+  .part-lifecycle-backdrop {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  .part-lifecycle-dialog,
+  .part-lifecycle-dialog.is-delete {
+    width: 100%;
+    max-height: min(90dvh, 780px);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .part-lifecycle-dialog > header,
+  .part-lifecycle-content,
+  .part-lifecycle-dialog > footer {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .part-lifecycle-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .part-lifecycle-list article {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 420px) {
+  .part-lifecycle-dialog > footer {
+    flex-wrap: wrap;
+  }
+
+  .part-lifecycle-dialog > footer > span {
+    flex: 1 0 100%;
+  }
+
+  .part-lifecycle-secondary,
+  .part-lifecycle-danger {
+    flex: 1 1 0;
+  }
+}

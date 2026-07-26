@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from urllib.parse import urlparse
 
 from sqlalchemy import func, select
@@ -32,6 +34,8 @@ from app.schemas.parts import (
     PartResponse,
     PartUpdateRequest,
     StockMovementResponse,
+    DeletedPartCollectionResponse,
+    DeletedPartResponse,
 )
 
 
@@ -873,3 +877,271 @@ def list_part_movements(
             for movement in movements
         ],
     )
+
+# PATCH 152: part soft-delete and restoration service
+def _serialize_deleted_part(
+    db: Session,
+    part: Part,
+) -> DeletedPartResponse:
+    if not part.is_deleted or part.deleted_at is None:
+        raise PartValidationError("Part is not deleted.")
+
+    active_shape = _serialize_part(db, part)
+    return DeletedPartResponse(
+        **active_shape.model_dump(),
+        is_deleted=True,
+        deleted_at=part.deleted_at,
+    )
+
+
+def _part_lifecycle_snapshot(
+    db: Session,
+    part: Part,
+) -> dict[str, object]:
+    response = _serialize_part(db, part)
+    field_value_count = int(
+        db.execute(
+            select(func.count(PartFieldValue.id)).where(
+                PartFieldValue.part_id == part.id
+            )
+        ).scalar_one()
+    )
+    movement_count = int(
+        db.execute(
+            select(func.count(StockMovement.id)).where(
+                StockMovement.part_id == part.id
+            )
+        ).scalar_one()
+    )
+    return {
+        "id": part.id,
+        "part_type_id": response.part_type_id,
+        "part_type_name": response.part_type_name,
+        "manufacturer_id": response.manufacturer_id,
+        "manufacturer_name": response.manufacturer_name,
+        "part_number": response.part_number,
+        "name": response.name,
+        "total_quantity": response.total_quantity,
+        "reserved_quantity": response.reserved_quantity,
+        "available_quantity": response.available_quantity,
+        "is_deleted": bool(part.is_deleted),
+        "deleted_at": (
+            part.deleted_at.isoformat()
+            if part.deleted_at is not None
+            else None
+        ),
+        "field_value_count": field_value_count,
+        "movement_count": movement_count,
+    }
+
+
+def list_deleted_parts(
+    db: Session,
+    *,
+    limit: int = 100,
+    offset: int = 0,
+) -> DeletedPartCollectionResponse:
+    conditions = [Part.is_deleted.is_(True)]
+
+    total = int(
+        db.execute(
+            select(func.count(Part.id)).where(*conditions)
+        ).scalar_one()
+    )
+    parts = list(
+        db.execute(
+            select(Part)
+            .where(*conditions)
+            .order_by(
+                Part.deleted_at.desc(),
+                Part.id.desc(),
+            )
+            .limit(limit)
+            .offset(offset)
+        ).scalars()
+    )
+    return DeletedPartCollectionResponse(
+        total=total,
+        limit=limit,
+        offset=offset,
+        parts=[
+            _serialize_deleted_part(db, part)
+            for part in parts
+        ],
+    )
+
+
+def soft_delete_part(
+    db: Session,
+    part_id: int,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> DeletedPartResponse:
+    part = db.execute(
+        select(Part)
+        .where(Part.id == part_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if part is None:
+        raise PartNotFoundError("Part not found.")
+    if part.is_deleted:
+        raise PartConflictError("Part is already deleted.")
+
+    before_snapshot = _part_lifecycle_snapshot(db, part)
+    display_name = (
+        part.name
+        or part.part_number
+        or f"Part {part.id}"
+    )
+
+    try:
+        part.is_deleted = True
+        part.deleted_at = datetime.now(timezone.utc)
+        db.flush()
+
+        after_snapshot = _part_lifecycle_snapshot(db, part)
+        db.add(
+            AuditLog(
+                event_type="part.deleted",
+                entity_type="part",
+                entity_id=part.id,
+                actor_type=(
+                    "user"
+                    if actor_user_id is not None
+                    else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=f"Soft-deleted inventory part {display_name}",
+                before_json=before_snapshot,
+                after_json=after_snapshot,
+                metadata_json={
+                    "operation": "soft_delete",
+                    "part_number_reserved": (
+                        part.part_number is not None
+                    ),
+                    "field_value_count": after_snapshot[
+                        "field_value_count"
+                    ],
+                    "movement_count": after_snapshot[
+                        "movement_count"
+                    ],
+                    "total_quantity_preserved": part.total_quantity,
+                    "reserved_quantity_preserved": (
+                        part.reserved_quantity
+                    ),
+                },
+            )
+        )
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(part)
+
+    except IntegrityError as exc:
+        db.rollback()
+        raise PartConflictError(
+            "Part deletion conflicted with current inventory data."
+        ) from exc
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return _serialize_deleted_part(db, part)
+
+
+def restore_part(
+    db: Session,
+    part_id: int,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> PartResponse:
+    part = db.execute(
+        select(Part)
+        .where(Part.id == part_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if part is None:
+        raise PartNotFoundError("Part not found.")
+    if not part.is_deleted:
+        raise PartConflictError("Part is already active.")
+
+    if part.part_number:
+        conflicting_id = db.execute(
+            select(Part.id).where(
+                Part.part_number == part.part_number,
+                Part.id != part.id,
+            )
+        ).scalar_one_or_none()
+        if conflicting_id is not None:
+            raise PartConflictError(
+                "This part cannot be restored because its part number "
+                "is already in use."
+            )
+
+    before_snapshot = _part_lifecycle_snapshot(db, part)
+    display_name = (
+        part.name
+        or part.part_number
+        or f"Part {part.id}"
+    )
+
+    try:
+        part.is_deleted = False
+        part.deleted_at = None
+        db.flush()
+
+        after_snapshot = _part_lifecycle_snapshot(db, part)
+        db.add(
+            AuditLog(
+                event_type="part.restored",
+                entity_type="part",
+                entity_id=part.id,
+                actor_type=(
+                    "user"
+                    if actor_user_id is not None
+                    else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=f"Restored inventory part {display_name}",
+                before_json=before_snapshot,
+                after_json=after_snapshot,
+                metadata_json={
+                    "operation": "restore",
+                    "part_number_conflict_checked": (
+                        part.part_number is not None
+                    ),
+                    "field_value_count": after_snapshot[
+                        "field_value_count"
+                    ],
+                    "movement_count": after_snapshot[
+                        "movement_count"
+                    ],
+                    "total_quantity_preserved": part.total_quantity,
+                    "reserved_quantity_preserved": (
+                        part.reserved_quantity
+                    ),
+                },
+            )
+        )
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(part)
+
+    except IntegrityError as exc:
+        db.rollback()
+        raise PartConflictError(
+            "This part cannot be restored because it conflicts with "
+            "current inventory data."
+        ) from exc
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return _serialize_part(db, part)

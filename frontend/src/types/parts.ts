@@ -66,6 +66,19 @@ export interface PartCollection {
   parts: Part[];
 }
 
+// PATCH 153: recoverable part deletion and restoration types
+export interface DeletedPart extends Part {
+  is_deleted: true;
+  deleted_at: string;
+}
+
+export interface DeletedPartCollection {
+  total: number;
+  limit: number;
+  offset: number;
+  parts: DeletedPart[];
+}
+
 // PATCH 137: stock quantity adjustment and movement history types
 export type QuantityAdjustmentOperation =
   | "add"

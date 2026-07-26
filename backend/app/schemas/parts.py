@@ -217,6 +217,18 @@ class PartCollectionResponse(BaseModel):
     offset: int
     parts: list[PartResponse]
 
+# PATCH 152: part soft-delete and restoration schemas
+class DeletedPartResponse(PartResponse):
+    is_deleted: bool
+    deleted_at: datetime
+
+
+class DeletedPartCollectionResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    parts: list[DeletedPartResponse]
+
 # PATCH 134: stock quantity adjustment and movement history schemas
 class PartQuantityAdjustmentRequest(BaseModel):
     operation: Literal["add", "remove", "consume", "correction"]

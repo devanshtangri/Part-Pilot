@@ -1341,3 +1341,72 @@ Continue Phase 4 with soft deletion and restoration safeguards. Start with
 read-only **Diagnostic 150** to inspect `is_deleted`, `deleted_at`, active-list
 filters, restoration conflicts, retained stock history, audit conventions,
 confirmation UI, and recoverable deleted-record entry points.
+
+<!-- PATCH 154 PART SOFT DELETE RESTORE CHECKPOINT -->
+
+---
+
+## Implementation Checkpoint — Recoverable Part Deletion and Restoration
+
+Checkpoint status: **terminal verified, browser approved, committed**
+
+### Completed backend workflow
+
+- [x] Added authenticated `DELETE /api/parts/{part_id}`.
+- [x] Added authenticated `POST /api/parts/{part_id}/restore`.
+- [x] Added authenticated `GET /api/parts/deleted`.
+- [x] Reused the existing `is_deleted` and `deleted_at` model fields.
+- [x] Required no migration.
+- [x] Preserved total and reserved quantities.
+- [x] Preserved typed field values.
+- [x] Preserved stock movement history.
+- [x] Preserved metadata, manufacturer, package, and part type.
+- [x] Kept deleted rows hidden from normal list, detail, movement, metadata,
+      and quantity workflows.
+- [x] Kept the globally unique part number reserved while deleted.
+- [x] Added conflict handling for repeated delete/restore transitions.
+- [x] Added atomic `part.deleted` and `part.restored` audit events.
+- [x] Added complete lifecycle smoke coverage and cleanup.
+
+### Completed frontend workflow
+
+- [x] Added a Delete action to part details.
+- [x] Closed the details drawer before opening deletion confirmation.
+- [x] Added clear recoverable-operation copy.
+- [x] Added Deleted items discovery from Stored Parts.
+- [x] Added searchable deleted-item recovery UI.
+- [x] Added Restore actions with conflict/error feedback.
+- [x] Refreshed active and deleted collections immediately.
+- [x] Preserved existing metadata editing, stock adjustment, and movement
+      history interactions.
+- [x] Added responsive desktop and mobile behaviour.
+
+### Manual browser approval
+
+- [x] Delete confirmation opens cleanly.
+- [x] Cancel, close, backdrop, and Escape restore the details drawer.
+- [x] Deleted parts leave the active collection.
+- [x] Deleted parts appear in Deleted items.
+- [x] Deleted-item search works.
+- [x] Restore returns the part to Stored Parts.
+- [x] Metadata, quantities, template values, and movement history remain.
+- [x] Edit details and quantity adjustment continue to work.
+- [x] Desktop and narrow layouts are usable.
+
+### Next implementation slice
+
+Continue Phase 4 with reusable location management.
+
+Start with read-only **Diagnostic 155** to inspect:
+
+1. Existing `Location` model fields and constraints.
+2. Current `Part.location_id` usage.
+3. Location create/list/edit/delete service gaps.
+4. Safe deletion behaviour when locations are in use.
+5. Inventory creation/edit integration points.
+6. Location filtering and details-display targets.
+7. Smoke-test cleanup patterns.
+8. Existing settings and catalogue UI patterns.
+
+The first implementation after the diagnostic should remain narrow and must
+not combine locations with reservations, projects, or dashboard work.

@@ -1267,3 +1267,43 @@ checkpoint commit.
 - [ ] Low-stock dashboard and out-of-stock grouping.
 - [ ] Reservations and projects.
 - [ ] Full inventory and history pages.
+
+<!-- PATCH 154 PART SOFT DELETE RESTORE ROADMAP CHECKPOINT -->
+
+---
+
+## Current Roadmap Checkpoint — Part Lifecycle Recovery Complete
+
+### Completed
+
+- [x] Diagnostic 151 mapped deletion/restoration targets.
+- [x] Authenticated soft deletion.
+- [x] Authenticated restoration.
+- [x] Dedicated deleted-parts collection.
+- [x] Active reads continue hiding deleted records.
+- [x] Quantity, field-value, and movement-history retention.
+- [x] Part-number reservation while deleted.
+- [x] Conflict handling for repeated transitions.
+- [x] Complete lifecycle audit events.
+- [x] Focused Delete confirmation UI.
+- [x] Searchable Deleted items recovery UI.
+- [x] Immediate active/deleted collection refresh.
+- [x] Manual browser verification.
+
+### Immediate next slice
+
+- [ ] Diagnostic 155: inspect reusable location management targets.
+- [ ] Add protected location catalogue API.
+- [ ] Add safe create/edit/deactivate/delete semantics.
+- [ ] Integrate location selection into part creation.
+- [ ] Integrate location selection into part metadata editing.
+- [ ] Add location filtering and details display.
+- [ ] Browser-test before checkpoint commit.
+
+### Following Phase 4 slices
+
+- [ ] Low-stock dashboard and settings-driven out-of-stock grouping.
+- [ ] Reservations.
+- [ ] Projects.
+- [ ] Reservation consumption and release.
+- [ ] Full inventory and history pages.
