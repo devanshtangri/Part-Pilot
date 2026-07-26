@@ -1416,3 +1416,29 @@ inventory phase.
 The next slice should remain incremental. Diagnostic 174 is read-only, and
 implementation should be divided into independently verifiable backend and
 browser-tested frontend batches.
+
+<!-- PARTPILOT:DASHBOARD_LOW_STOCK_ROADMAP:START -->
+## Dashboard low-stock milestone
+
+| Item | Status |
+| --- | --- |
+| Protected low-stock summary API | Complete |
+| Search out-of-stock setting API | Complete |
+| Dashboard low-stock summary UI | Complete |
+| Zero-stock parts without configured thresholds | Complete |
+| Dashboard loading, error, empty, and refresh states | Complete |
+| Complete smoke and focused regression coverage | Complete |
+| Browser approval | Complete |
+| Checkpoint commit | Complete through Patch 190 |
+
+### Next planned batch
+
+Implement the settings-driven Stored Parts out-of-stock grouping:
+
+- read `search.show_out_of_stock_section`;
+- keep normal in-stock and low-stock results clear;
+- show out-of-stock results in a dedicated section when enabled;
+- hide that dedicated section when disabled;
+- add or expose the corresponding setting control;
+- keep the batch browser-tested and uncommitted until approval.
+<!-- PARTPILOT:DASHBOARD_LOW_STOCK_ROADMAP:END -->

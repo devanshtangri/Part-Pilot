@@ -181,3 +181,26 @@ Part Pilot is being developed in narrow, verifiable slices:
 7. Commit implementation and documentation checkpoints separately.
 
 This keeps the repository recoverable while larger V1 workflows are built.
+
+<!-- PARTPILOT:DASHBOARD_LOW_STOCK_STATUS:START -->
+## Current development status
+
+The current development checkpoint includes a live dashboard low-stock summary
+with authenticated data, severity ordering, refresh support, responsive
+presentation, and clear empty/error states.
+
+| Capability | Status |
+| --- | --- |
+| Inventory creation and metadata editing | Available |
+| Manufacturer, package, and location catalogues | Available |
+| Stock quantity adjustments and movement history | Available |
+| Soft deletion and restoration | Available |
+| Stored Parts location filtering | Available |
+| Dashboard low-stock alerts | Available |
+| Unconfigured zero-stock detection | Available |
+| Settings-driven out-of-stock Stored Parts grouping | Planned next |
+
+Zero available stock is treated as out of stock even when the part was created
+without a low-stock threshold. Positive-stock low alerts continue to use each
+part's explicitly enabled threshold.
+<!-- PARTPILOT:DASHBOARD_LOW_STOCK_STATUS:END -->

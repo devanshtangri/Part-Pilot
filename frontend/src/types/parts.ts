@@ -70,6 +70,16 @@ export interface PartCollection {
   parts: Part[];
 }
 
+
+// PATCH 186: dashboard low-stock summary contract
+export interface LowStockSummary {
+  total: number;
+  low_stock_count: number;
+  out_of_stock_count: number;
+  limit: number;
+  parts: Part[];
+}
+
 // PATCH 153: recoverable part deletion and restoration types
 export interface DeletedPart extends Part {
   is_deleted: true;

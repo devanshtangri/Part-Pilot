@@ -5481,15 +5481,16 @@ def check_low_stock_and_search_settings_api() -> None:
                     low_stock_threshold=2,
                     is_deleted=False,
                 ),
+                # PATCH 189: unconfigured zero-stock contract
                 Part(
                     part_type_id=int(part_type_id),
                     location_id=location.id,
-                    part_number=f"SMOKE-LOW-DISABLED-{suffix}",
-                    name="Disabled low-stock smoke part",
+                    part_number=f"SMOKE-LOW-UNCONFIGURED-ZERO-{suffix}",
+                    name="Unconfigured zero-stock smoke part",
                     total_quantity=0,
                     reserved_quantity=0,
                     low_stock_enabled=False,
-                    low_stock_threshold=5,
+                    low_stock_threshold=None,
                     is_deleted=False,
                 ),
                 Part(
@@ -5527,7 +5528,7 @@ def check_low_stock_and_search_settings_api() -> None:
             zero_id = parts[0].id
             reserved_id = parts[1].id
             threshold_id = parts[2].id
-            disabled_id = parts[3].id
+            unconfigured_zero_id = parts[3].id
             above_id = parts[4].id
             deleted_id = parts[5].id
 
@@ -5738,12 +5739,17 @@ def check_low_stock_and_search_settings_api() -> None:
             for item in returned_parts
         ]
         if (
-            full_json.get("total") != 3
+            full_json.get("total") != 4
             or full_json.get("low_stock_count") != 2
-            or full_json.get("out_of_stock_count") != 1
+            or full_json.get("out_of_stock_count") != 2
             or full_json.get("limit") != 10
             or returned_ids
-            != [zero_id, reserved_id, threshold_id]
+            != [
+                unconfigured_zero_id,
+                zero_id,
+                reserved_id,
+                threshold_id,
+            ]
         ):
             fail(
                 "Low-stock summary totals or severity ordering are "
@@ -5751,16 +5757,24 @@ def check_low_stock_and_search_settings_api() -> None:
             )
 
         expected_available = {
+            unconfigured_zero_id: 0,
             zero_id: 0,
             reserved_id: 1,
             threshold_id: 2,
+        }
+        expected_is_low_stock = {
+            unconfigured_zero_id: False,
+            zero_id: True,
+            reserved_id: True,
+            threshold_id: True,
         }
         for item in returned_parts:
             item_id = item.get("id")
             if (
                 item.get("available_quantity")
                 != expected_available.get(item_id)
-                or item.get("is_low_stock") is not True
+                or item.get("is_low_stock")
+                is not expected_is_low_stock.get(item_id)
                 or item.get("location_id") != location_id
                 or item.get("location_name") != location_name
             ):
@@ -5770,14 +5784,18 @@ def check_low_stock_and_search_settings_api() -> None:
                 )
 
         excluded_ids = {
-            disabled_id,
             above_id,
             deleted_id,
         }
         if excluded_ids.intersection(returned_ids):
             fail(
-                "Low-stock summary included disabled, above-threshold, "
-                f"or deleted rows: {returned_ids}"
+                "Low-stock summary included above-threshold or deleted "
+                f"rows: {returned_ids}"
+            )
+        if unconfigured_zero_id not in returned_ids:
+            fail(
+                "Low-stock summary excluded an active zero-stock row "
+                "without a configured threshold."
             )
 
         limited_response = client.get(
@@ -5791,14 +5809,14 @@ def check_low_stock_and_search_settings_api() -> None:
         limited_json = limited_response.json()
         if (
             limited_response.status_code != 200
-            or limited_json.get("total") != 3
+            or limited_json.get("total") != 4
             or limited_json.get("low_stock_count") != 2
-            or limited_json.get("out_of_stock_count") != 1
+            or limited_json.get("out_of_stock_count") != 2
             or [
                 item.get("id")
                 for item in limited_json.get("parts", [])
             ]
-            != [zero_id, reserved_id]
+            != [unconfigured_zero_id, zero_id]
         ):
             fail(
                 "Limited low-stock response should retain full counts "
@@ -5853,9 +5871,9 @@ def check_low_stock_and_search_settings_api() -> None:
 
     ok(
         "Protected search settings persist and audit actual changes; "
-        "low-stock summary handles zero stock, reservations, thresholds, "
-        "disabled warnings, deleted rows, filters, limits, counts, and "
-        "deterministic severity ordering"
+        "low-stock summary handles configured and unconfigured zero stock, "
+        "reservations, thresholds, disabled positive stock, deleted rows, "
+        "filters, limits, counts, and deterministic severity ordering"
     )
 
 

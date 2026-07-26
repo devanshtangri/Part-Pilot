@@ -1559,3 +1559,43 @@ Start the next chat with read-only **Diagnostic 174** to inspect:
    projects, backups, or MCP work.
 
 The diagnostic must not modify application source.
+
+<!-- PARTPILOT:DASHBOARD_LOW_STOCK_CHECKPOINT:START -->
+## Dashboard low-stock checkpoint
+
+**Status:** complete, automated verification passed, and browser approval received.
+
+### Completed
+
+- Added the authenticated dashboard low-stock presentation.
+- Added frontend `LowStockSummary` and `getLowStockParts()` contracts.
+- Added loading, error, empty, refresh, count, severity, threshold, location,
+  and navigation states.
+- Active parts with available stock at or below zero now appear as out of
+  stock even when no low-stock threshold was configured.
+- Positive-stock parts still require an enabled low-stock threshold that is
+  being reached.
+- Deleted parts remain excluded.
+- Preserved `is_low_stock` as the configured threshold-alert flag rather than
+  redefining it as a generic zero-stock flag.
+- Corrected the Dashboard Manage Parts action-card spacing.
+- Updated the complete smoke contract for configured and unconfigured
+  zero-stock behaviour.
+
+### Verification
+
+- Docker image build: passed.
+- Deployment: passed.
+- Alembic head `0005_packages`: passed.
+- Complete backend smoke suite: passed.
+- Focused zero-stock regression verification: passed.
+- Protected low-stock and search-settings API checks: passed.
+- Dashboard and Part Manager SPA route checks: passed.
+- Desktop and browser UI review: approved.
+
+### Current repository state after this checkpoint
+
+The dashboard low-stock batch is ready for normal development to continue.
+The next planned browser-facing batch is the settings-driven out-of-stock
+grouping behaviour in Stored Parts.
+<!-- PARTPILOT:DASHBOARD_LOW_STOCK_CHECKPOINT:END -->

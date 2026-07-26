@@ -507,12 +507,24 @@ def list_low_stock_parts(
     available_expression = (
         Part.total_quantity - Part.reserved_quantity
     )
+    # PATCH 189: include every active zero-stock part
+    # without a configured threshold. Positive stock still
+    # requires an enabled threshold that is being reached.
     conditions = [
         Part.is_deleted.is_(False),
-        Part.low_stock_enabled.is_(True),
-        Part.low_stock_threshold.is_not(None),
-        available_expression <= Part.low_stock_threshold,
+        (
+            (available_expression <= 0)
+            | (
+                Part.low_stock_enabled.is_(True)
+                & Part.low_stock_threshold.is_not(None)
+                & (
+                    available_expression
+                    <= Part.low_stock_threshold
+                )
+            )
+        ),
     ]
+
     if part_type_id is not None:
         conditions.append(Part.part_type_id == part_type_id)
     if location_id is not None:

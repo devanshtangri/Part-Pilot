@@ -4,6 +4,7 @@ import type {
   DeletedPartCollection,
   Part,
   PartCollection,
+  LowStockSummary,
   PartMovementCollection,
   QuantityAdjustmentPayload,
   QuantityAdjustmentResponse,
@@ -119,6 +120,38 @@ export function getParts(
 
   return requestJson<PartCollection>(
     `/parts${query ? `?${query}` : ""}`,
+    token
+  );
+}
+
+
+// PATCH 186: dashboard low-stock summary client
+export function getLowStockParts(
+  token: string,
+  options?: {
+    partTypeId?: number;
+    locationId?: number;
+    limit?: number;
+  }
+): Promise<LowStockSummary> {
+  const parameters = new URLSearchParams();
+
+  if (options?.partTypeId) {
+    parameters.set("part_type_id", String(options.partTypeId));
+  }
+
+  if (options?.locationId) {
+    parameters.set("location_id", String(options.locationId));
+  }
+
+  if (options?.limit !== undefined) {
+    parameters.set("limit", String(options.limit));
+  }
+
+  const query = parameters.toString();
+
+  return requestJson<LowStockSummary>(
+    `/parts/low-stock${query ? `?${query}` : ""}`,
     token
   );
 }
