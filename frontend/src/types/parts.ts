@@ -106,3 +106,19 @@ export interface PartMovementCollection {
   part_id: number;
   movements: StockMovement[];
 }
+
+// PATCH 143: existing-part metadata update payload
+export interface UpdatePartPayload {
+  part_type_id: number;
+  manufacturer_id: number | null;
+  part_number: string | null;
+  name: string | null;
+  description: string | null;
+  package: string | null;
+  notes: string | null;
+  unit_price: string | null;
+  purchase_link: string | null;
+  low_stock_enabled: boolean;
+  low_stock_threshold: number | null;
+  field_values: PartFieldValueCreatePayload[];
+}

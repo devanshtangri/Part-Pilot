@@ -1291,3 +1291,53 @@ Continue Phase 4 with editing existing part metadata:
    projects outside this slice.
 
 The next chat starts with read-only **Diagnostic 141**.
+
+<!-- PATCH 149 PART METADATA EDIT CHECKPOINT -->
+
+---
+
+## Implementation Checkpoint — Existing-Part Metadata Editing
+
+Checkpoint status: **terminal verified, browser approved, committed**
+
+### Completed backend workflow
+
+- [x] Authenticated `PUT /api/parts/{part_id}`.
+- [x] Dedicated metadata-update schema with forbidden extra fields.
+- [x] Part type remains fixed.
+- [x] Total and reserved quantities remain unchanged.
+- [x] Name, part number, description, package, notes, unit price, purchase
+      link, manufacturer, and low-stock settings can be updated.
+- [x] Typed template-field values are replaced using existing validators.
+- [x] Duplicate part-number and active-manufacturer safeguards are preserved.
+- [x] Atomic `part.metadata_updated` before/after audit event.
+- [x] Complete smoke coverage and cleanup.
+
+### Completed frontend workflow
+
+- [x] Focused prefilled Edit details modal.
+- [x] Manufacturer and package catalogue reuse.
+- [x] Typed template-field editing.
+- [x] Quantity controls remain separate.
+- [x] Details drawer closes before the editor opens.
+- [x] Cancel, close, backdrop, Escape, and Save restore the drawer.
+- [x] Open details and Stored Parts refresh after save.
+- [x] Desktop and narrow layouts are supported.
+- [x] Fixed-scale decimal padding is trimmed only for edit-input display.
+
+### Manual browser approval
+
+- [x] Existing values prefill correctly.
+- [x] Metadata and typed values save correctly.
+- [x] Quantities remain unchanged.
+- [x] Duplicate and required-field safeguards work.
+- [x] Drawer/editor transition works.
+- [x] Padded zeroes are hidden without losing meaningful decimals.
+- [x] Remaining workflow and responsive layouts work.
+
+### Next implementation slice
+
+Continue Phase 4 with soft deletion and restoration safeguards. Start with
+read-only **Diagnostic 150** to inspect `is_deleted`, `deleted_at`, active-list
+filters, restoration conflicts, retained stock history, audit conventions,
+confirmation UI, and recoverable deleted-record entry points.

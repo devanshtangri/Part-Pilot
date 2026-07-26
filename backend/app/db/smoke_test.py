@@ -2545,6 +2545,705 @@ def check_stock_quantity_adjustment_api() -> None:
     )
 
 
+
+# PATCH 142: existing-part metadata update smoke test
+def check_part_metadata_update_api() -> None:
+    import json as json_module
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_part_metadata_update_user"
+    password = "part-metadata-update-smoke-password"
+    suffix = uuid4().hex[:10]
+    target_part_number = f"SMOKE-META-{suffix}"
+    duplicate_part_number = f"SMOKE-META-DUP-{suffix}"
+    custom_type_id: int | None = None
+    manufacturer_id: int | None = None
+    target_part_id: int | None = None
+    duplicate_part_id: int | None = None
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            for part_id in (target_part_id, duplicate_part_id):
+                if part_id is None:
+                    continue
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+
+            if manufacturer_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'manufacturer' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": manufacturer_id},
+                )
+                db.execute(
+                    text(
+                        "delete from manufacturers "
+                        "where id = :manufacturer_id"
+                    ),
+                    {"manufacturer_id": manufacturer_id},
+                )
+
+            if custom_type_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part_type' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": custom_type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_type_fields "
+                        "where part_type_id = :part_type_id"
+                    ),
+                    {"part_type_id": custom_type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_types "
+                        "where id = :part_type_id"
+                    ),
+                    {"part_type_id": custom_type_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.put(
+            "/api/parts/1",
+            json={
+                "part_type_id": 1,
+                "name": "Unauthenticated metadata update",
+                "field_values": [],
+            },
+        )
+        if unauthenticated.status_code not in {401, 403}:
+            fail(
+                "PUT /api/parts/{id} should require authentication, got "
+                f"{unauthenticated.status_code}."
+            )
+
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Part Metadata Update Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        type_response = client.post(
+            "/api/part-types",
+            headers=headers,
+            json={
+                "name": f"Smoke Metadata Device {suffix}",
+                "description": "Temporary metadata update template",
+                "fields": [
+                    {
+                        "field_key": "model_code",
+                        "label": "Model code",
+                        "field_type": "text",
+                        "is_required": True,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": None,
+                    },
+                    {
+                        "field_key": "logic_voltage",
+                        "label": "Logic voltage",
+                        "field_type": "unit_value",
+                        "is_required": True,
+                        "options": [],
+                        "default_unit": "V",
+                        "help_text": None,
+                    },
+                    {
+                        "field_key": "interface",
+                        "label": "Interface",
+                        "field_type": "dropdown",
+                        "is_required": False,
+                        "options": ["I2C", "SPI", "UART"],
+                        "default_unit": None,
+                        "help_text": None,
+                    },
+                    {
+                        "field_key": "datasheet",
+                        "label": "Datasheet",
+                        "field_type": "url",
+                        "is_required": False,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": None,
+                    },
+                    {
+                        "field_key": "rohs",
+                        "label": "RoHS compliant",
+                        "field_type": "boolean",
+                        "is_required": False,
+                        "options": [],
+                        "default_unit": None,
+                        "help_text": None,
+                    },
+                ],
+            },
+        )
+        if type_response.status_code != 201:
+            fail(
+                "Metadata smoke part type creation returned "
+                f"{type_response.status_code}: {type_response.text}"
+            )
+
+        part_type = type_response.json()
+        custom_type_id = part_type.get("id")
+        fields = {
+            field["field_key"]: field
+            for field in part_type.get("fields", [])
+        }
+        expected_field_keys = {
+            "model_code",
+            "logic_voltage",
+            "interface",
+            "datasheet",
+            "rohs",
+        }
+        if (
+            not isinstance(custom_type_id, int)
+            or set(fields) != expected_field_keys
+        ):
+            fail(
+                "Metadata smoke part type returned unexpected fields: "
+                f"{part_type}"
+            )
+
+        manufacturer_response = client.post(
+            "/api/manufacturers",
+            headers=headers,
+            json={"name": f"Smoke Metadata Manufacturer {suffix}"},
+        )
+        if manufacturer_response.status_code != 201:
+            fail(
+                "Metadata smoke manufacturer creation returned "
+                f"{manufacturer_response.status_code}: "
+                f"{manufacturer_response.text}"
+            )
+        manufacturer_id = manufacturer_response.json().get("id")
+        if not isinstance(manufacturer_id, int):
+            fail("Metadata smoke manufacturer did not return an ID.")
+
+        def initial_field_values(model_code: str) -> list[dict[str, object]]:
+            return [
+                {
+                    "field_id": fields["model_code"]["id"],
+                    "value_text": model_code,
+                },
+                {
+                    "field_id": fields["logic_voltage"]["id"],
+                    "value_number": "3.3",
+                    "unit": "V",
+                },
+                {
+                    "field_id": fields["interface"]["id"],
+                    "value_text": "I2C",
+                },
+                {
+                    "field_id": fields["datasheet"]["id"],
+                    "value_text": "https://example.com/original-datasheet",
+                },
+                {
+                    "field_id": fields["rohs"]["id"],
+                    "value_bool": False,
+                },
+            ]
+
+        target_create = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                "part_type_id": custom_type_id,
+                "part_number": target_part_number,
+                "name": "Original metadata smoke part",
+                "description": "Original description",
+                "package": "Original Module",
+                "notes": "Original notes",
+                "total_quantity": 9,
+                "unit_price": "12.5000",
+                "purchase_link": "https://example.com/original-part",
+                "low_stock_enabled": False,
+                "field_values": initial_field_values("META-OLD"),
+            },
+        )
+        if target_create.status_code != 201:
+            fail(
+                "Metadata target part creation returned "
+                f"{target_create.status_code}: {target_create.text}"
+            )
+        target_part_id = target_create.json().get("id")
+        if not isinstance(target_part_id, int):
+            fail("Metadata target part did not return an ID.")
+
+        duplicate_create = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                "part_type_id": custom_type_id,
+                "part_number": duplicate_part_number,
+                "name": "Duplicate metadata smoke part",
+                "total_quantity": 2,
+                "field_values": initial_field_values("META-DUP"),
+            },
+        )
+        if duplicate_create.status_code != 201:
+            fail(
+                "Metadata duplicate reference part creation returned "
+                f"{duplicate_create.status_code}: {duplicate_create.text}"
+            )
+        duplicate_part_id = duplicate_create.json().get("id")
+        if not isinstance(duplicate_part_id, int):
+            fail("Metadata duplicate reference part did not return an ID.")
+
+        def valid_update_payload() -> dict[str, object]:
+            return {
+                "part_type_id": custom_type_id,
+                "manufacturer_id": manufacturer_id,
+                "part_number": target_part_number,
+                "name": "Updated metadata smoke part",
+                "description": "Updated description",
+                "package": "Updated Module",
+                "notes": "Updated notes",
+                "unit_price": "19.7500",
+                "purchase_link": "https://example.com/updated-part",
+                "low_stock_enabled": True,
+                "low_stock_threshold": 3,
+                "field_values": [
+                    {
+                        "field_id": fields["model_code"]["id"],
+                        "value_text": "META-NEW",
+                    },
+                    {
+                        "field_id": fields["logic_voltage"]["id"],
+                        "value_number": "5",
+                        "unit": "V",
+                    },
+                    {
+                        "field_id": fields["interface"]["id"],
+                        "value_text": "SPI",
+                    },
+                    {
+                        "field_id": fields["datasheet"]["id"],
+                        "value_text": "https://example.com/updated-datasheet",
+                    },
+                    {
+                        "field_id": fields["rohs"]["id"],
+                        "value_bool": True,
+                    },
+                ],
+            }
+
+        forbidden_quantity_payload = valid_update_payload()
+        forbidden_quantity_payload["total_quantity"] = 99
+        forbidden_quantity = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=forbidden_quantity_payload,
+        )
+        if forbidden_quantity.status_code != 422:
+            fail(
+                "Metadata update should reject quantity fields with 422, got "
+                f"{forbidden_quantity.status_code}: "
+                f"{forbidden_quantity.text}"
+            )
+
+        missing_required_payload = valid_update_payload()
+        missing_required_payload["field_values"] = [
+            item
+            for item in missing_required_payload["field_values"]
+            if item["field_id"] != fields["model_code"]["id"]
+        ]
+        missing_required = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=missing_required_payload,
+        )
+        if missing_required.status_code != 422:
+            fail(
+                "Metadata update should reject a missing required field with "
+                f"422, got {missing_required.status_code}: "
+                f"{missing_required.text}"
+            )
+
+        invalid_dropdown_payload = valid_update_payload()
+        for item in invalid_dropdown_payload["field_values"]:
+            if item["field_id"] == fields["interface"]["id"]:
+                item["value_text"] = "CAN"
+        invalid_dropdown = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=invalid_dropdown_payload,
+        )
+        if invalid_dropdown.status_code != 422:
+            fail(
+                "Metadata update should reject an invalid dropdown with 422, "
+                f"got {invalid_dropdown.status_code}: "
+                f"{invalid_dropdown.text}"
+            )
+
+        invalid_url_payload = valid_update_payload()
+        for item in invalid_url_payload["field_values"]:
+            if item["field_id"] == fields["datasheet"]["id"]:
+                item["value_text"] = "javascript:invalid"
+        invalid_url = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=invalid_url_payload,
+        )
+        if invalid_url.status_code != 422:
+            fail(
+                "Metadata update should reject an invalid URL with 422, got "
+                f"{invalid_url.status_code}: {invalid_url.text}"
+            )
+
+        invalid_unit_value_payload = valid_update_payload()
+        for item in invalid_unit_value_payload["field_values"]:
+            if item["field_id"] == fields["logic_voltage"]["id"]:
+                item.pop("value_number", None)
+                item["value_text"] = "five volts"
+        invalid_unit_value = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=invalid_unit_value_payload,
+        )
+        if invalid_unit_value.status_code != 422:
+            fail(
+                "Metadata update should reject an invalid unit-aware value "
+                f"with 422, got {invalid_unit_value.status_code}: "
+                f"{invalid_unit_value.text}"
+            )
+
+        with db_session() as db:
+            other_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where id != :part_type_id order by id limit 1"
+                ),
+                {"part_type_id": custom_type_id},
+            ).scalar()
+        if other_type_id is None:
+            fail("Cannot test fixed part type without another part type.")
+
+        type_change_payload = valid_update_payload()
+        type_change_payload["part_type_id"] = other_type_id
+        type_change = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=type_change_payload,
+        )
+        if type_change.status_code != 422:
+            fail(
+                "Metadata update should reject part-type changes with 422, "
+                f"got {type_change.status_code}: {type_change.text}"
+            )
+
+        invalid_manufacturer_payload = valid_update_payload()
+        invalid_manufacturer_payload["manufacturer_id"] = 2147483647
+        invalid_manufacturer = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=invalid_manufacturer_payload,
+        )
+        if invalid_manufacturer.status_code != 422:
+            fail(
+                "Metadata update should reject an unknown manufacturer with "
+                f"422, got {invalid_manufacturer.status_code}: "
+                f"{invalid_manufacturer.text}"
+            )
+
+        missing_part = client.put(
+            "/api/parts/2147483647",
+            headers=headers,
+            json=valid_update_payload(),
+        )
+        if missing_part.status_code != 404:
+            fail(
+                "Metadata update should return 404 for a missing part, got "
+                f"{missing_part.status_code}: {missing_part.text}"
+            )
+
+        update_response = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=valid_update_payload(),
+        )
+        if update_response.status_code != 200:
+            fail(
+                "PUT /api/parts/{id} returned "
+                f"{update_response.status_code}: {update_response.text}"
+            )
+        updated = update_response.json()
+        if (
+            updated.get("id") != target_part_id
+            or updated.get("part_type_id") != custom_type_id
+            or updated.get("manufacturer_id") != manufacturer_id
+            or updated.get("part_number") != target_part_number
+            or updated.get("name") != "Updated metadata smoke part"
+            or updated.get("description") != "Updated description"
+            or updated.get("package") != "Updated Module"
+            or updated.get("notes") != "Updated notes"
+            or updated.get("total_quantity") != 9
+            or updated.get("reserved_quantity") != 0
+            or updated.get("available_quantity") != 9
+            or updated.get("unit_price") != "19.7500"
+            or updated.get("purchase_link")
+            != "https://example.com/updated-part"
+            or updated.get("low_stock_enabled") is not True
+            or updated.get("low_stock_threshold") != 3
+            or len(updated.get("field_values", [])) != 5
+        ):
+            fail(f"Metadata update returned an unexpected payload: {updated}")
+
+        updated_field_values = {
+            item.get("field_key"): item
+            for item in updated.get("field_values", [])
+        }
+        if (
+            updated_field_values.get("model_code", {}).get("value_text")
+            != "META-NEW"
+            or updated_field_values.get("logic_voltage", {}).get(
+                "value_number"
+            )
+            != "5.000000"
+            or updated_field_values.get("logic_voltage", {}).get("unit")
+            != "V"
+            or updated_field_values.get("interface", {}).get("value_text")
+            != "SPI"
+            or updated_field_values.get("datasheet", {}).get("value_text")
+            != "https://example.com/updated-datasheet"
+            or updated_field_values.get("rohs", {}).get("value_bool")
+            is not True
+        ):
+            fail(
+                "Metadata update did not replace all typed template values: "
+                f"{updated_field_values}"
+            )
+
+        duplicate_payload = valid_update_payload()
+        duplicate_payload["part_number"] = duplicate_part_number
+        duplicate = client.put(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+            json=duplicate_payload,
+        )
+        if duplicate.status_code != 409:
+            fail(
+                "Metadata update should reject another part's number with "
+                f"409, got {duplicate.status_code}: {duplicate.text}"
+            )
+
+        detail_response = client.get(
+            f"/api/parts/{target_part_id}",
+            headers=headers,
+        )
+        if detail_response.status_code != 200:
+            fail(
+                "Part detail after metadata update returned "
+                f"{detail_response.status_code}: {detail_response.text}"
+            )
+        detail = detail_response.json()
+        if (
+            detail.get("name") != "Updated metadata smoke part"
+            or detail.get("manufacturer_id") != manufacturer_id
+            or detail.get("total_quantity") != 9
+            or detail.get("reserved_quantity") != 0
+        ):
+            fail(
+                "Part detail did not preserve the metadata update and "
+                f"quantities: {detail}"
+            )
+
+        with db_session() as db:
+            persisted_part = db.execute(
+                text(
+                    "select part_type_id, manufacturer_id, part_number, name, "
+                    "description, package, notes, total_quantity, "
+                    "reserved_quantity, unit_price, purchase_link, "
+                    "low_stock_enabled, low_stock_threshold "
+                    "from parts where id = :part_id"
+                ),
+                {"part_id": target_part_id},
+            ).one()
+            movement_count = db.execute(
+                text(
+                    "select count(*) from stock_movements "
+                    "where part_id = :part_id"
+                ),
+                {"part_id": target_part_id},
+            ).scalar()
+            value_count = db.execute(
+                text(
+                    "select count(*) from part_field_values "
+                    "where part_id = :part_id"
+                ),
+                {"part_id": target_part_id},
+            ).scalar()
+            audit_rows = db.execute(
+                text(
+                    "select actor_user_id, before_json, after_json, "
+                    "metadata_json from audit_log "
+                    "where event_type = 'part.metadata_updated' "
+                    "and entity_type = 'part' "
+                    "and entity_id = :entity_id order by id"
+                ),
+                {"entity_id": target_part_id},
+            ).all()
+
+        if (
+            persisted_part[0] != custom_type_id
+            or persisted_part[1] != manufacturer_id
+            or persisted_part[2] != target_part_number
+            or persisted_part[3] != "Updated metadata smoke part"
+            or persisted_part[7] != 9
+            or persisted_part[8] != 0
+        ):
+            fail(
+                "Persisted metadata or protected quantity fields are "
+                f"unexpected: {persisted_part!r}"
+            )
+        if movement_count != 0:
+            fail(
+                "Metadata editing should not create stock movements, got "
+                f"{movement_count!r}."
+            )
+        if value_count != 5:
+            fail(
+                "Metadata editing did not persist five replacement values, "
+                f"got {value_count!r}."
+            )
+        if len(audit_rows) != 1:
+            fail(
+                "Metadata editing should create exactly one audit event, got "
+                f"{len(audit_rows)}."
+            )
+
+        audit_row = audit_rows[0]
+        if audit_row[0] != user_id:
+            fail(
+                "Metadata audit actor does not match the authenticated user: "
+                f"{audit_row!r}"
+            )
+
+        before_json = (
+            json_module.loads(audit_row[1])
+            if isinstance(audit_row[1], str)
+            else audit_row[1]
+        )
+        after_json = (
+            json_module.loads(audit_row[2])
+            if isinstance(audit_row[2], str)
+            else audit_row[2]
+        )
+        metadata_json = (
+            json_module.loads(audit_row[3])
+            if isinstance(audit_row[3], str)
+            else audit_row[3]
+        )
+
+        if (
+            before_json.get("name") != "Original metadata smoke part"
+            or after_json.get("name") != "Updated metadata smoke part"
+            or "total_quantity" in before_json
+            or "reserved_quantity" in before_json
+            or "total_quantity" in after_json
+            or "reserved_quantity" in after_json
+        ):
+            fail(
+                "Metadata audit before/after snapshots are incomplete or "
+                f"contain quantity fields: {audit_row!r}"
+            )
+
+        changed_fields = set(metadata_json.get("changed_fields", []))
+        required_changed_fields = {
+            "manufacturer_id",
+            "manufacturer_name",
+            "name",
+            "description",
+            "package",
+            "notes",
+            "unit_price",
+            "purchase_link",
+            "low_stock_enabled",
+            "low_stock_threshold",
+            "field_values",
+        }
+        if not required_changed_fields.issubset(changed_fields):
+            fail(
+                "Metadata audit changed_fields is incomplete: "
+                f"{sorted(changed_fields)}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Existing part metadata updates are authenticated, typed, atomic, "
+        "quantity-safe, duplicate-safe, and audited"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -2567,6 +3266,7 @@ def main() -> None:
         check_manufacturer_catalogue_api,
         check_package_catalogue_api,
         check_stock_quantity_adjustment_api,
+        check_part_metadata_update_api,
     ]
 
     for check in checks:

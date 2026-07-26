@@ -30,6 +30,7 @@ from app.schemas.parts import (
     PartQuantityAdjustmentRequest,
     PartQuantityAdjustmentResponse,
     PartResponse,
+    PartUpdateRequest,
     StockMovementResponse,
 )
 
@@ -457,6 +458,230 @@ def list_parts(
         offset=offset,
         parts=[_serialize_part(db, part) for part in parts],
     )
+
+
+# PATCH 142: existing-part metadata update service
+def _part_metadata_snapshot(response: PartResponse) -> dict[str, object]:
+    return {
+        "part_type_id": response.part_type_id,
+        "part_type_name": response.part_type_name,
+        "manufacturer_id": response.manufacturer_id,
+        "manufacturer_name": response.manufacturer_name,
+        "part_number": response.part_number,
+        "name": response.name,
+        "description": response.description,
+        "package": response.package,
+        "notes": response.notes,
+        "unit_price": (
+            str(response.unit_price)
+            if response.unit_price is not None
+            else None
+        ),
+        "purchase_link": response.purchase_link,
+        "low_stock_enabled": response.low_stock_enabled,
+        "low_stock_threshold": response.low_stock_threshold,
+        "field_values": [
+            {
+                "field_id": value.field_id,
+                "field_key": value.field_key,
+                "label": value.label,
+                "field_type": value.field_type,
+                "is_required": value.is_required,
+                "value_text": value.value_text,
+                "value_number": (
+                    str(value.value_number)
+                    if value.value_number is not None
+                    else None
+                ),
+                "value_bool": value.value_bool,
+                "unit": value.unit,
+            }
+            for value in response.field_values
+        ],
+    }
+
+
+def update_part_metadata(
+    db: Session,
+    part_id: int,
+    payload: PartUpdateRequest,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> PartResponse:
+    part = db.execute(
+        select(Part)
+        .where(
+            Part.id == part_id,
+            Part.is_deleted.is_(False),
+        )
+        .with_for_update()
+    ).scalar_one_or_none()
+    if part is None:
+        raise PartNotFoundError("Part not found.")
+
+    if payload.part_type_id != part.part_type_id:
+        raise PartValidationError(
+            "Changing a part's type is not supported in this edit workflow."
+        )
+
+    part_type = db.get(PartType, part.part_type_id)
+    if part_type is None:
+        raise PartNotFoundError("Part type not found.")
+
+    manufacturer: Manufacturer | None = None
+    if payload.manufacturer_id is not None:
+        manufacturer = db.get(Manufacturer, payload.manufacturer_id)
+        if manufacturer is None or not manufacturer.is_active:
+            raise PartValidationError("Select an active manufacturer.")
+
+    if payload.part_number:
+        existing_id = db.execute(
+            select(Part.id).where(
+                Part.part_number == payload.part_number,
+                Part.id != part.id,
+            )
+        ).scalar_one_or_none()
+        if existing_id is not None:
+            raise PartConflictError(
+                "A part with this part number already exists."
+            )
+
+    fields = list(
+        db.execute(
+            select(PartTypeField)
+            .where(PartTypeField.part_type_id == part.part_type_id)
+            .order_by(
+                PartTypeField.sort_order.asc(),
+                PartTypeField.id.asc(),
+            )
+        ).scalars()
+    )
+    field_map = {field.id: field for field in fields}
+    submitted_map = {
+        submitted.field_id: submitted
+        for submitted in payload.field_values
+    }
+
+    if set(submitted_map) - set(field_map):
+        raise PartValidationError(
+            "One or more template fields do not belong to this part type."
+        )
+
+    pending_values: list[PartFieldValue] = []
+    for field in fields:
+        submitted = submitted_map.get(field.id)
+        if submitted is None:
+            if field.is_required:
+                raise PartValidationError(f"{field.label} is required.")
+            continue
+
+        value = _validate_and_build_field_value(
+            field=field,
+            submitted=submitted,
+        )
+        if value is not None:
+            pending_values.append(value)
+
+    before_response = _serialize_part(db, part)
+    before_snapshot = _part_metadata_snapshot(before_response)
+    total_quantity_before = part.total_quantity
+    reserved_quantity_before = part.reserved_quantity
+    existing_values = list(
+        db.execute(
+            select(PartFieldValue).where(
+                PartFieldValue.part_id == part.id
+            )
+        ).scalars()
+    )
+
+    try:
+        part.manufacturer_id = payload.manufacturer_id
+        part.part_number = payload.part_number
+        part.name = payload.name
+        part.description = payload.description
+        part.package = payload.package
+        part.notes = payload.notes
+        part.unit_price = payload.unit_price
+        part.purchase_link = payload.purchase_link
+        part.low_stock_enabled = payload.low_stock_enabled
+        part.low_stock_threshold = payload.low_stock_threshold
+
+        for existing_value in existing_values:
+            db.delete(existing_value)
+        db.flush()
+
+        for value in pending_values:
+            value.part_id = part.id
+            db.add(value)
+        db.flush()
+
+        if (
+            part.total_quantity != total_quantity_before
+            or part.reserved_quantity != reserved_quantity_before
+        ):
+            raise PartValidationError(
+                "Metadata editing cannot change stock quantities."
+            )
+
+        after_response = _serialize_part(db, part)
+        after_snapshot = _part_metadata_snapshot(after_response)
+        changed_fields = sorted(
+            key
+            for key in after_snapshot
+            if before_snapshot.get(key) != after_snapshot.get(key)
+        )
+        display_name = (
+            part.name
+            or part.part_number
+            or f"Part {part.id}"
+        )
+
+        db.add(
+            AuditLog(
+                event_type="part.metadata_updated",
+                entity_type="part",
+                entity_id=part.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=f"Updated inventory metadata for {display_name}",
+                before_json=before_snapshot,
+                after_json=after_snapshot,
+                metadata_json={
+                    "part_type_id": part_type.id,
+                    "part_type_name": part_type.name,
+                    "manufacturer_id": payload.manufacturer_id,
+                    "manufacturer_name": (
+                        manufacturer.name
+                        if manufacturer is not None
+                        else None
+                    ),
+                    "changed_fields": changed_fields,
+                    "field_value_count": len(pending_values),
+                },
+            )
+        )
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(part)
+            after_response = _serialize_part(db, part)
+
+    except IntegrityError as exc:
+        db.rollback()
+        raise PartConflictError(
+            "This metadata update conflicts with existing inventory data."
+        ) from exc
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return after_response
+
 
 # PATCH 134: stock quantity adjustment and movement history service
 _ADJUSTMENT_MOVEMENT_TYPES = {

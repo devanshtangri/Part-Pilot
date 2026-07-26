@@ -11,6 +11,7 @@ import { useAuth } from "../auth/AuthContext";
 import "./PartManager.css";
 // PATCH 094: dynamic inventory Add Part modal
 import { AddPartModal } from "../components/AddPartModal";
+import { EditPartModal } from "../components/EditPartModal";
 import {
   createPartType,
   getPartTypes,
@@ -388,6 +389,8 @@ export function PartManager() {
   const [isDeleting, setIsDeleting] = useState(false);
   // PATCH 094: Add Part modal state
   const [isAddingPart, setIsAddingPart] = useState(false);
+  const [partBeingEdited, setPartBeingEdited] =
+    useState<Part | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -548,7 +551,7 @@ export function PartManager() {
     const previousOverflow = document.body.style.overflow;
 
     function handlePartDetailsKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && partBeingEdited === null) {
         setSelectedInventoryPartId(null);
         setSelectedInventoryPart(null);
         setPartDetailsError(null);
@@ -562,7 +565,7 @@ export function PartManager() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handlePartDetailsKeyDown);
     };
-  }, [selectedInventoryPartId]);
+  }, [selectedInventoryPartId, partBeingEdited]);
 
   const filteredTypes = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -656,7 +659,25 @@ export function PartManager() {
     setAdjustmentSuccess(null);
   }
 
+
+  // PATCH 144: close details drawer while metadata editor is open
+  function openPartMetadataEditor(part: Part) {
+    setPartBeingEdited(part);
+    setSelectedInventoryPartId(null);
+    setSelectedInventoryPart(null);
+    setPartDetailsError(null);
+  }
+
+  function closePartMetadataEditor() {
+    if (partBeingEdited) {
+      setSelectedInventoryPart(partBeingEdited);
+      setSelectedInventoryPartId(partBeingEdited.id);
+    }
+    setPartBeingEdited(null);
+  }
+
   function openPartDetails(partId: number) {
+    setPartBeingEdited(null);
     setPartDetailsError(null);
     setPartMovements([]);
     setPartMovementsError(null);
@@ -666,6 +687,7 @@ export function PartManager() {
   }
 
   function closePartDetails() {
+    setPartBeingEdited(null);
     setSelectedInventoryPartId(null);
     setSelectedInventoryPart(null);
     setPartDetailsError(null);
@@ -1177,6 +1199,38 @@ function closeCreator() {
         />
       ) : null}
 
+
+      {/* PATCH 143: focused existing-part metadata edit workflow */}
+      {partBeingEdited && collection && token ? (
+        <EditPartModal
+          token={token}
+          part={partBeingEdited}
+          partType={
+            collection.part_types.find(
+              (item) => item.id === partBeingEdited.part_type_id
+            ) as PartType
+          }
+          onClose={closePartMetadataEditor}
+          onSaved={(updatedPart) => {
+            setPartBeingEdited(null);
+            setSelectedInventoryPart(updatedPart);
+            setSelectedInventoryPartId(updatedPart.id);
+            setInventoryCollection((current) =>
+              current
+                ? {
+                    ...current,
+                    parts: current.parts.map((item) =>
+                      item.id === updatedPart.id
+                        ? updatedPart
+                        : item
+                    )
+                  }
+                : current
+            );
+            setInventoryRefreshSequence((current) => current + 1);
+          }}
+        />
+      ) : null}
       {isCreating ? (
             <div
               className="creator-modal-backdrop"
@@ -2420,11 +2474,23 @@ function closeCreator() {
               ) : null}
             </div>
 
-            <footer className="part-details-footer">
+                        <footer className="part-details-footer">
               <span>Stock changes are recorded in history</span>
-              <button type="button" onClick={closePartDetails}>
-                Close
-              </button>
+              <div className="part-details-footer-actions">
+                {selectedInventoryPart ? (
+                  <button
+                    className="part-details-edit-button"
+                    type="button"
+                    onClick={() =>
+                      openPartMetadataEditor(selectedInventoryPart)}
+                  >
+                    Edit details
+                  </button>
+                ) : null}
+                <button type="button" onClick={closePartDetails}>
+                  Close
+                </button>
+              </div>
             </footer>
           </aside>
         </div>

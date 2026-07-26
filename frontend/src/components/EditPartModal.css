@@ -1,0 +1,72 @@
+/* PATCH 143: EXISTING-PART METADATA EDIT UI */
+
+.edit-part-modal {
+  --part-metadata-edit-v143: 1;
+}
+
+.edit-part-template-summary {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.edit-part-template-summary > span,
+.edit-part-template-summary > small {
+  color: var(--text-muted);
+}
+
+.edit-part-template-summary > span {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.edit-part-template-summary > strong {
+  color: var(--text-primary);
+  font-size: 0.98rem;
+}
+
+.part-manager-page .part-details-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.part-manager-page .part-details-edit-button {
+  border-color: rgba(87, 145, 255, 0.45);
+  background: rgba(87, 145, 255, 0.12);
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.part-manager-page .part-details-edit-button:hover {
+  border-color: rgba(87, 145, 255, 0.7);
+  background: rgba(87, 145, 255, 0.2);
+}
+
+@media (max-width: 720px) {
+  .part-manager-page .part-details-footer {
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .part-manager-page .part-details-footer-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .part-manager-page .part-details-footer-actions > button {
+    flex: 1;
+  }
+
+  .edit-part-template-summary {
+    padding: 12px 14px;
+  }
+}
+
+/* END PATCH 143 */

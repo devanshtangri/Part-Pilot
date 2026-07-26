@@ -12,6 +12,7 @@ from app.schemas.parts import (
     PartQuantityAdjustmentRequest,
     PartQuantityAdjustmentResponse,
     PartResponse,
+    PartUpdateRequest,
 )
 from app.services.parts import (
     PartConflictError,
@@ -22,6 +23,7 @@ from app.services.parts import (
     get_part,
     list_part_movements,
     list_parts,
+    update_part_metadata,
 )
 
 
@@ -127,6 +129,40 @@ def read_part_movements(
     except PartNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+
+# PATCH 142: existing-part metadata update route
+@router.put("/{part_id}", response_model=PartResponse)
+def update_inventory_part(
+    part_id: int,
+    payload: PartUpdateRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PartResponse:
+    try:
+        return update_part_metadata(
+            db,
+            part_id,
+            payload,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except PartNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except PartConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except PartValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
 

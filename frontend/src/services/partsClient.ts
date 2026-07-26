@@ -4,7 +4,8 @@ import type {
   PartCollection,
   PartMovementCollection,
   QuantityAdjustmentPayload,
-  QuantityAdjustmentResponse
+  QuantityAdjustmentResponse,
+  UpdatePartPayload
 } from "../types/parts";
 
 
@@ -149,4 +150,16 @@ export function getPartMovements(
     `/parts/${partId}/movements${query ? `?${query}` : ""}`,
     token
   );
+}
+
+// PATCH 143: existing-part metadata update client
+export function updatePart(
+  token: string,
+  partId: number,
+  payload: UpdatePartPayload
+): Promise<Part> {
+  return requestJson<Part>(`/parts/${partId}`, token, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
 }

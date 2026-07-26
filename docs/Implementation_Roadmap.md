@@ -1231,3 +1231,39 @@ before its checkpoint commit.
 The roadmap remains incremental: diagnostics are read-only, implementation
 patches stay narrow, and each completed slice is browser-tested before its
 checkpoint commit.
+
+<!-- PATCH 149 PART METADATA EDIT ROADMAP CHECKPOINT -->
+
+---
+
+## Current Roadmap Checkpoint — Metadata Editing Complete
+
+### Completed
+
+- [x] Diagnostic 141 target inspection.
+- [x] Authenticated base metadata update.
+- [x] Manufacturer, package, and typed template-field update.
+- [x] Fixed part type and excluded quantity fields.
+- [x] Duplicate protection and atomic audit history.
+- [x] Prefilled responsive Edit details workflow.
+- [x] Correct drawer/editor transition.
+- [x] Immediate detail and list refresh.
+- [x] Decimal display normalisation.
+- [x] Manual browser verification.
+
+### Immediate next slice
+
+- [ ] Diagnostic 150: inspect soft-delete and restoration targets.
+- [ ] Authenticated soft deletion.
+- [ ] Preserve part data, stock movements, and audit history.
+- [ ] Safe restoration with duplicate/conflict handling.
+- [ ] Focused delete confirmation.
+- [ ] Recoverable deleted-parts restoration entry point.
+- [ ] Browser-test before checkpoint commit.
+
+### Following slices
+
+- [ ] Reusable location management.
+- [ ] Low-stock dashboard and out-of-stock grouping.
+- [ ] Reservations and projects.
+- [ ] Full inventory and history pages.
