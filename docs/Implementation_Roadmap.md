@@ -1482,3 +1482,42 @@ are not already established.
 - MCP write tools with confirmation safeguards.
 - Accessibility, responsive, security, and public-alpha polish.
 <!-- PARTPILOT:INVENTORY_PAGE_MODE_ROADMAP:END -->
+
+<!-- PARTPILOT:UNIVERSAL_SEARCH_BACKEND_ROADMAP:START -->
+## Universal search implementation status
+
+| Work item | Status |
+| --- | --- |
+| Read-only architecture diagnostic | Complete through Diagnostic 209 |
+| Protected backend query parameter | Complete through Patch 213 |
+| Metadata search | Complete |
+| Part type, manufacturer, and location search | Complete |
+| Alias and tag search | Complete |
+| Typed custom-field search | Complete |
+| Stable numeric custom-field verification | Complete through Patch 215 |
+| Literal wildcard handling | Complete |
+| Filter and pagination composition | Complete |
+| Deleted-part exclusion | Complete |
+| Duplicate suppression | Complete |
+| Available-before-out-of-stock ordering | Complete |
+| Collision-safe smoke coverage | Complete |
+| Backend checkpoint commit and push | Complete through Patch 216 |
+| Typed frontend search client | Next |
+| Dashboard search input and dialog | Pending |
+| Available/out-of-stock result sections | Pending |
+| Part-details integration | Pending |
+| Mobile and keyboard browser approval | Pending |
+| Stored Parts server-search migration | Pending separate batch |
+
+### Immediate next step
+
+Create the next sequential browser-test implementation for the frontend
+universal-search client and Dashboard experience. Reuse the backend
+`GET /api/parts?search=...` contract and existing part-details presentation.
+Preserve settings-driven out-of-stock visibility, accessibility, responsive
+behaviour, loading, error, empty, available, and out-of-stock states.
+
+Avoid combining the Stored Parts migration into the same patch unless a fresh
+read-only preflight proves that the resulting browser-test scope remains
+small and independently reviewable.
+<!-- PARTPILOT:UNIVERSAL_SEARCH_BACKEND_ROADMAP:END -->

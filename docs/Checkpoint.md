@@ -1673,3 +1673,84 @@ The focused Inventory page and its mobile header polish are complete,
 browser-approved, committed, and pushed. Continue from the remaining Phase 4
 roadmap using the next smallest independently verifiable workflow.
 <!-- PARTPILOT:INVENTORY_PAGE_MODE_CHECKPOINT:END -->
+
+<!-- PARTPILOT:UNIVERSAL_SEARCH_BACKEND_CHECKPOINT:V216 -->
+## Universal-search backend foundation checkpoint
+
+**Status:** Patch 213 implemented and verified the backend search contract.
+Patch 215 made its numeric custom-field smoke fixture deterministic and passed
+the complete verification suite. Patch 216 commits and pushes the independently
+verified backend batch.
+
+### Implemented
+
+- Added an optional, protected `search` parameter to `GET /api/parts`.
+- Preserved existing part-type and location filters.
+- Preserved accurate `total`, `limit`, and `offset` pagination metadata.
+- Excluded soft-deleted parts from active search results.
+- Added case-insensitive partial matching across:
+  - part number;
+  - name;
+  - description;
+  - package;
+  - notes;
+  - part type name and description;
+  - manufacturer;
+  - location;
+  - aliases;
+  - tags;
+  - custom-field keys and labels;
+  - custom text, numeric, JSON, unit, and boolean values.
+- Treated SQL wildcard characters as literal search text.
+- Used correlated existence queries to avoid duplicate part rows when several
+  searchable attributes match.
+- Ordered available parts before zero-available-stock parts.
+- Added deterministic exact/prefix relevance and recency ordering.
+- Added exhaustive authenticated smoke coverage.
+- Stabilised numeric-field search testing with `-7319.25`, avoiding
+  random large-decimal formatting differences during SQLite text casting.
+
+### Real-inventory safety
+
+Patch 213 and Patch 215 recorded the existing inventory before testing and
+isolated fixture queries to a temporary part type. The snapshots reported
+eight active parts and one deleted part. Temporary fixtures were removed after
+testing, and the user's inventory was not modified.
+
+### Verification
+
+- Python compilation: passed.
+- Exact three-file source set: passed.
+- `git diff --check`: passed.
+- Docker build and deployment: passed.
+- Alembic head `0005_packages`: passed.
+- Complete backend smoke suite: passed repeatedly after fixture stabilisation.
+- Search coverage across all supported fields: passed.
+- Stable numeric custom-field matching: passed.
+- Filter composition and pagination: passed.
+- Duplicate suppression: passed.
+- Deleted-record exclusion: passed.
+- Available-first ordering: passed.
+- Protected API checks: passed.
+- SPA route regression checks: passed.
+- Deployed Patch 213 and Patch 215 backend markers: passed.
+
+### Failed attempts retained in history
+
+- Patch 210 failed safely because a format-sensitive source anchor was stale.
+- Patch 211 implemented the feature but used a common `IRFZ44N` smoke query
+  that also matched a real inventory record.
+- Patch 212 isolated tests from real inventory but still treated a shared
+  temporary location as a one-result field.
+- Patch 213 corrected the shared-field expectation and passed completely.
+- Patch 214 safely aborted its checkpoint when a fresh random billion-scale
+  decimal lost trailing precision during SQLite text casting.
+- Patch 215 replaced that unstable fixture with deterministic `-7319.25` and
+  passed the complete suite.
+
+### Next implementation boundary
+
+The backend contract is complete and publishable. The next batch should add a
+typed frontend `search` option and a focused Dashboard universal-search
+experience. Keep Inventory migration from client-only filtering as a separate
+small browser-test batch if combining it would make review too broad.

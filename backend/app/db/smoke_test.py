@@ -5877,6 +5877,737 @@ def check_low_stock_and_search_settings_api() -> None:
     )
 
 
+# PATCH 213: protected universal part search smoke test
+def check_universal_part_search_api() -> None:
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import (
+        Location,
+        Manufacturer,
+        PartAlias,
+        PartFieldValue,
+        PartTag,
+        PartType,
+        PartTypeField,
+        Tag,
+    )
+
+    suffix = uuid4().hex[:10]
+    username = f"smoke_search_{suffix}"
+    password = "universal-search-smoke-password"
+
+    type_name = f"Search Fixture {suffix}"
+    type_slug = f"search-fixture-{suffix}"
+    manufacturer_name = f"Search Manufacturer {suffix}"
+    location_name = f"Search Drawer {suffix}"
+    tag_name = f"Search Tag {suffix}"
+
+    shared_token = f"shared{suffix}"
+    duplicate_token = f"duplicate{suffix}"
+    alias_token = f"alias{suffix}"
+    tag_token = f"tag{suffix}"
+    text_token = f"textvalue{suffix}"
+    description_token = f"nebula{suffix}"
+    package_token = f"package{suffix}"
+    notes_token = f"quasar{suffix}"
+    wildcard_token = f"%_literal{suffix}"
+    # PATCH 215: stable numeric universal-search smoke fixture
+    # -7319.25 is small, unique inside the temporary part type, and exactly
+    # representable when SQLite casts the numeric value back to text.
+    numeric_token = "-7319.25"
+
+    part_ids: list[int] = []
+    field_ids: list[int] = []
+    type_id: int | None = None
+    manufacturer_id: int | None = None
+    location_id: int | None = None
+    tag_id: int | None = None
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            for part_id in part_ids:
+                db.execute(
+                    text("delete from part_tags where part_id = :part_id"),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from aliases where part_id = :part_id"),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+
+            if tag_id is not None:
+                db.execute(
+                    text("delete from tags where id = :tag_id"),
+                    {"tag_id": tag_id},
+                )
+            if manufacturer_id is not None:
+                db.execute(
+                    text(
+                        "delete from manufacturers "
+                        "where id = :manufacturer_id"
+                    ),
+                    {"manufacturer_id": manufacturer_id},
+                )
+            if location_id is not None:
+                db.execute(
+                    text(
+                        "delete from locations "
+                        "where id = :location_id"
+                    ),
+                    {"location_id": location_id},
+                )
+            if type_id is not None:
+                db.execute(
+                    text(
+                        "delete from part_type_fields "
+                        "where part_type_id = :part_type_id"
+                    ),
+                    {"part_type_id": type_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_types "
+                        "where id = :part_type_id"
+                    ),
+                    {"part_type_id": type_id},
+                )
+
+            if user_id is not None:
+                db.execute(
+                    text(
+                        "delete from sessions where user_id = :user_id"
+                    ),
+                    {"user_id": user_id},
+                )
+                db.execute(
+                    text("delete from users where id = :user_id"),
+                    {"user_id": user_id},
+                )
+            else:
+                db.execute(
+                    text(
+                        "delete from sessions where user_id in "
+                        "(select id from users where username = :username)"
+                    ),
+                    {"username": username},
+                )
+                db.execute(
+                    text(
+                        "delete from users where username = :username"
+                    ),
+                    {"username": username},
+                )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Universal Search Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+            part_type = PartType(
+                name=type_name,
+                slug=type_slug,
+                description=f"Unique component subtype {suffix}",
+                is_builtin=False,
+                is_active=True,
+                template_version=1,
+            )
+            manufacturer = Manufacturer(
+                name=manufacturer_name,
+                normalized_name=manufacturer_name.casefold(),
+                is_builtin=False,
+                is_active=True,
+            )
+            location = Location(
+                name=location_name,
+                normalized_name=normalize_location_name(location_name),
+                note="Universal search smoke location",
+            )
+            tag = Tag(
+                name=tag_name,
+                normalized_name=tag_token,
+            )
+            db.add_all([part_type, manufacturer, location, tag])
+            db.flush()
+
+            type_id = part_type.id
+            manufacturer_id = manufacturer.id
+            location_id = location.id
+            tag_id = tag.id
+
+            text_field = PartTypeField(
+                part_type_id=part_type.id,
+                field_key=f"text_key_{suffix}",
+                label=f"Search text field {suffix}",
+                field_type="text",
+                is_required=False,
+                sort_order=0,
+            )
+            number_field = PartTypeField(
+                part_type_id=part_type.id,
+                field_key=f"number_key_{suffix}",
+                label=f"Search numeric field {suffix}",
+                field_type="number",
+                is_required=False,
+                sort_order=1,
+            )
+            bool_field = PartTypeField(
+                part_type_id=part_type.id,
+                field_key=f"bool_key_{suffix}",
+                label=f"Search boolean field {suffix}",
+                field_type="boolean",
+                is_required=False,
+                sort_order=2,
+            )
+            db.add_all([text_field, number_field, bool_field])
+            db.flush()
+            field_ids.extend(
+                [text_field.id, number_field.id, bool_field.id]
+            )
+
+            core = Part(
+                part_type_id=part_type.id,
+                manufacturer_id=manufacturer.id,
+                location_id=location.id,
+                part_number=f"PP213-{suffix}-IRFZ44N",
+                name=f"Avalanche MOSFET {suffix}",
+                description=f"Description {description_token}",
+                package=package_token,
+                notes=f"Gate note {notes_token} {wildcard_token}",
+                total_quantity=9,
+                reserved_quantity=2,
+                is_deleted=False,
+            )
+            shared_available = Part(
+                part_type_id=part_type.id,
+                location_id=location.id,
+                part_number=f"PP213-{suffix}-AVAILABLE",
+                name=f"Available {shared_token}",
+                total_quantity=5,
+                reserved_quantity=0,
+                is_deleted=False,
+            )
+            shared_available_unassigned = Part(
+                part_type_id=part_type.id,
+                location_id=None,
+                part_number=f"PP213-{suffix}-UNASSIGNED",
+                name=f"Unassigned {shared_token}",
+                total_quantity=3,
+                reserved_quantity=1,
+                is_deleted=False,
+            )
+            shared_out = Part(
+                part_type_id=part_type.id,
+                location_id=location.id,
+                part_number=f"PP213-{suffix}-OUT",
+                name=f"Out {shared_token}",
+                total_quantity=0,
+                reserved_quantity=0,
+                is_deleted=False,
+            )
+            deleted = Part(
+                part_type_id=part_type.id,
+                location_id=location.id,
+                part_number=f"PP213-{suffix}-DELETED",
+                name=f"Deleted {shared_token}",
+                total_quantity=4,
+                reserved_quantity=0,
+                is_deleted=True,
+                deleted_at=datetime.now(timezone.utc),
+            )
+            alias_part = Part(
+                part_type_id=part_type.id,
+                part_number=f"PP213-{suffix}-ALIAS",
+                name=f"Alias fixture {suffix}",
+                total_quantity=2,
+                reserved_quantity=0,
+                is_deleted=False,
+            )
+            tag_part = Part(
+                part_type_id=part_type.id,
+                part_number=f"PP213-{suffix}-TAG",
+                name=f"Tag fixture {suffix}",
+                total_quantity=2,
+                reserved_quantity=0,
+                is_deleted=False,
+            )
+            text_part = Part(
+                part_type_id=part_type.id,
+                part_number=f"PP213-{suffix}-TEXT",
+                name=f"Text fixture {suffix}",
+                total_quantity=2,
+                reserved_quantity=0,
+                is_deleted=False,
+            )
+            number_part = Part(
+                part_type_id=part_type.id,
+                part_number=f"PP213-{suffix}-NUMBER",
+                name=f"Number fixture {suffix}",
+                total_quantity=2,
+                reserved_quantity=0,
+                is_deleted=False,
+            )
+            bool_part = Part(
+                part_type_id=part_type.id,
+                part_number=f"PP213-{suffix}-BOOL",
+                name=f"Boolean fixture {suffix}",
+                total_quantity=2,
+                reserved_quantity=0,
+                is_deleted=False,
+            )
+            db.add_all(
+                [
+                    core,
+                    shared_available,
+                    shared_available_unassigned,
+                    shared_out,
+                    deleted,
+                    alias_part,
+                    tag_part,
+                    text_part,
+                    number_part,
+                    bool_part,
+                ]
+            )
+            db.flush()
+
+            fixtures = [
+                core,
+                shared_available,
+                shared_available_unassigned,
+                shared_out,
+                deleted,
+                alias_part,
+                tag_part,
+                text_part,
+                number_part,
+                bool_part,
+            ]
+            part_ids.extend(part.id for part in fixtures)
+
+            db.add_all(
+                [
+                    PartAlias(
+                        part_id=alias_part.id,
+                        alias=alias_token,
+                    ),
+                    PartAlias(
+                        part_id=core.id,
+                        alias=duplicate_token,
+                    ),
+                    PartTag(
+                        part_id=tag_part.id,
+                        tag_id=tag.id,
+                    ),
+                    PartTag(
+                        part_id=core.id,
+                        tag_id=tag.id,
+                    ),
+                    PartFieldValue(
+                        part_id=text_part.id,
+                        field_id=text_field.id,
+                        value_text=text_token,
+                    ),
+                    PartFieldValue(
+                        part_id=core.id,
+                        field_id=text_field.id,
+                        value_text=duplicate_token,
+                    ),
+                    PartFieldValue(
+                        part_id=number_part.id,
+                        field_id=number_field.id,
+                        value_number=Decimal(numeric_token),
+                    ),
+                    PartFieldValue(
+                        part_id=bool_part.id,
+                        field_id=bool_field.id,
+                        value_bool=True,
+                    ),
+                ]
+            )
+            db.commit()
+
+            ids = {
+                "core": core.id,
+                "shared_available": shared_available.id,
+                "shared_available_unassigned": (
+                    shared_available_unassigned.id
+                ),
+                "shared_out": shared_out.id,
+                "deleted": deleted.id,
+                "alias": alias_part.id,
+                "tag": tag_part.id,
+                "text": text_part.id,
+                "number": number_part.id,
+                "bool": bool_part.id,
+            }
+
+        headers = {"Authorization": f"Bearer {session_token.token}"}
+
+        unauthenticated = client.get(
+            "/api/parts",
+            params={"search": suffix},
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Universal search route should require authentication, got "
+                f"{unauthenticated.status_code}: {unauthenticated.text}"
+            )
+
+        def response_for(
+            search: str,
+            *,
+            limit: int = 100,
+            offset: int = 0,
+            selected_type_id: int | None = None,
+            selected_location_id: int | None = None,
+        ):
+            params: dict[str, str | int] = {
+                "search": search,
+                "limit": limit,
+                "offset": offset,
+            }
+            if selected_type_id is not None:
+                params["part_type_id"] = selected_type_id
+            if selected_location_id is not None:
+                params["location_id"] = selected_location_id
+            response = client.get(
+                "/api/parts",
+                params=params,
+                headers=headers,
+            )
+            if response.status_code != 200:
+                fail(
+                    f"Universal search failed for {search!r}: "
+                    f"{response.status_code} {response.text}"
+                )
+            payload = response.json()
+            returned_ids = [
+                item.get("id")
+                for item in payload.get("parts", [])
+            ]
+            if len(returned_ids) != len(set(returned_ids)):
+                fail(
+                    f"Universal search returned duplicate rows for "
+                    f"{search!r}: {returned_ids}"
+                )
+            if payload.get("limit") != limit:
+                fail(
+                    f"Universal search returned the wrong limit for "
+                    f"{search!r}: {payload}"
+                )
+            if payload.get("offset") != offset:
+                fail(
+                    f"Universal search returned the wrong offset for "
+                    f"{search!r}: {payload}"
+                )
+            return payload, returned_ids
+
+        exact_checks = (
+            (f"{suffix}-irfz44n", ids["core"], "part number"),
+            (f"avalanche mosfet {suffix}".upper(), ids["core"], "name"),
+            (description_token.upper(), ids["core"], "description"),
+            (package_token.upper(), ids["core"], "package"),
+            (notes_token.upper(), ids["core"], "notes"),
+            (manufacturer_name.upper(), ids["core"], "manufacturer"),
+            (alias_token.upper(), ids["alias"], "alias"),
+            (text_token.upper(), ids["text"], "custom text value"),
+            (numeric_token, ids["number"], "custom numeric value"),
+            (wildcard_token, ids["core"], "literal SQL wildcard text"),
+        )
+        for query, expected_id, label in exact_checks:
+            payload, returned_ids = response_for(
+                query,
+                selected_type_id=type_id,
+            )
+            if payload.get("total") != 1 or returned_ids != [expected_id]:
+                fail(
+                    f"Universal search {label} coverage is incorrect for "
+                    f"{query!r}: {payload}"
+                )
+
+        location_search_payload, location_search_ids = response_for(
+            location_name.upper(),
+            selected_type_id=type_id,
+        )
+        expected_location_search_ids = {
+            ids["core"],
+            ids["shared_available"],
+            ids["shared_out"],
+        }
+        if (
+            location_search_payload.get("total") != 3
+            or set(location_search_ids) != expected_location_search_ids
+            or location_search_ids[-1] != ids["shared_out"]
+            or ids["shared_available_unassigned"] in location_search_ids
+            or ids["deleted"] in location_search_ids
+        ):
+            fail(
+                "Universal search shared-location coverage, exclusion, or "
+                f"available-first ordering is incorrect: "
+                f"{location_search_payload}"
+            )
+
+        type_payload, type_ids = response_for(
+            type_name.upper(),
+            selected_type_id=type_id,
+        )
+        expected_active_fixture_ids = {
+            value
+            for key, value in ids.items()
+            if key != "deleted"
+        }
+        if (
+            type_payload.get("total") != len(expected_active_fixture_ids)
+            or set(type_ids) != expected_active_fixture_ids
+        ):
+            fail(
+                "Universal search part-type coverage is incorrect: "
+                f"{type_payload}"
+            )
+
+        tag_payload, tag_ids = response_for(
+            tag_token.upper(),
+            selected_type_id=type_id,
+        )
+        if (
+            tag_payload.get("total") != 2
+            or set(tag_ids) != {ids["core"], ids["tag"]}
+        ):
+            fail(
+                "Universal search tag coverage is incorrect: "
+                f"{tag_payload}"
+            )
+
+        duplicate_payload, duplicate_ids = response_for(
+            duplicate_token,
+            selected_type_id=type_id,
+        )
+        if (
+            duplicate_payload.get("total") != 1
+            or duplicate_ids != [ids["core"]]
+        ):
+            fail(
+                "Universal search duplicate suppression is incorrect: "
+                f"{duplicate_payload}"
+            )
+
+        bool_payload, bool_ids = response_for(
+            "true",
+            selected_type_id=type_id,
+        )
+        if (
+            bool_payload.get("total") != 1
+            or bool_ids != [ids["bool"]]
+        ):
+            fail(
+                "Universal search boolean custom-value coverage is incorrect: "
+                f"{bool_payload}"
+            )
+
+        bool_label_payload, bool_label_ids = response_for(
+            f"Search boolean field {suffix}",
+            selected_type_id=type_id,
+        )
+        if (
+            bool_label_payload.get("total") != 1
+            or bool_label_ids != [ids["bool"]]
+        ):
+            fail(
+                "Universal search custom-field label coverage is incorrect: "
+                f"{bool_label_payload}"
+            )
+
+        trimmed_payload, trimmed_ids = response_for(
+            f"   avalanche   mosfet   {suffix}   ",
+            selected_type_id=type_id,
+        )
+        if (
+            trimmed_payload.get("total") != 1
+            or trimmed_ids != [ids["core"]]
+        ):
+            fail(
+                "Universal search whitespace normalization is incorrect: "
+                f"{trimmed_payload}"
+            )
+
+        baseline = client.get(
+            "/api/parts",
+            params={"part_type_id": type_id},
+            headers=headers,
+        )
+        whitespace = client.get(
+            "/api/parts",
+            params={
+                "search": "      ",
+                "part_type_id": type_id,
+            },
+            headers=headers,
+        )
+        if (
+            baseline.status_code != 200
+            or whitespace.status_code != 200
+            or baseline.json().get("total")
+            != whitespace.json().get("total")
+        ):
+            fail(
+                "Whitespace-only universal search should preserve unfiltered "
+                f"totals: baseline={baseline.text} whitespace={whitespace.text}"
+            )
+
+        shared_payload, shared_ids = response_for(
+            shared_token,
+            selected_type_id=type_id,
+        )
+        expected_shared_ids = {
+            ids["shared_available"],
+            ids["shared_available_unassigned"],
+            ids["shared_out"],
+        }
+        if (
+            shared_payload.get("total") != 3
+            or set(shared_ids) != expected_shared_ids
+            or shared_ids[-1] != ids["shared_out"]
+            or ids["deleted"] in shared_ids
+        ):
+            fail(
+                "Universal search available-first ordering or deleted "
+                f"exclusion is incorrect: {shared_payload}"
+            )
+
+        first_page, first_page_ids = response_for(
+            shared_token,
+            limit=2,
+            offset=0,
+            selected_type_id=type_id,
+        )
+        second_page, second_page_ids = response_for(
+            shared_token,
+            limit=2,
+            offset=2,
+            selected_type_id=type_id,
+        )
+        if (
+            first_page.get("total") != 3
+            or second_page.get("total") != 3
+            or len(first_page_ids) != 2
+            or second_page_ids != [ids["shared_out"]]
+            or ids["shared_out"] in first_page_ids
+        ):
+            fail(
+                "Universal search pagination or available-first ordering is "
+                f"incorrect: first={first_page} second={second_page}"
+            )
+
+        location_payload, location_ids = response_for(
+            shared_token,
+            selected_type_id=type_id,
+            selected_location_id=location_id,
+        )
+        if (
+            location_payload.get("total") != 2
+            or set(location_ids)
+            != {ids["shared_available"], ids["shared_out"]}
+        ):
+            fail(
+                "Universal search location-filter composition is incorrect: "
+                f"{location_payload}"
+            )
+
+        type_filter_payload, type_filter_ids = response_for(
+            shared_token,
+            selected_type_id=type_id,
+        )
+        if (
+            type_filter_payload.get("total") != 3
+            or set(type_filter_ids) != expected_shared_ids
+        ):
+            fail(
+                "Universal search part-type filter composition is incorrect: "
+                f"{type_filter_payload}"
+            )
+
+        empty_payload, empty_ids = response_for(
+            f"no-match-{suffix}-absent",
+            selected_type_id=type_id,
+        )
+        if empty_payload.get("total") != 0 or empty_ids != []:
+            fail(
+                "Universal search empty result is incorrect: "
+                f"{empty_payload}"
+            )
+
+        invalid_length = client.get(
+            "/api/parts",
+            params={
+                "search": "x" * 181,
+                "part_type_id": type_id,
+            },
+            headers=headers,
+        )
+        if invalid_length.status_code != 422:
+            fail(
+                "Universal search terms longer than 180 characters should "
+                f"return 422, got {invalid_length.status_code}: "
+                f"{invalid_length.text}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Protected universal part search covers metadata, type, manufacturer, "
+        "location, aliases, tags, custom text/numeric/boolean values and "
+        "field labels; preserves filters, totals, pagination, literal "
+        "wildcards, case-insensitive partial matching, duplicate suppression, "
+        "deleted exclusion, and available-first deterministic ordering"
+    )
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -5902,6 +6633,7 @@ def main() -> None:
         check_part_location_assignment_api,
         check_part_location_list_filter_api,
         check_low_stock_and_search_settings_api,
+        check_universal_part_search_api,
         check_stock_quantity_adjustment_api,
         check_part_metadata_update_api,
         check_part_soft_delete_restore_api,

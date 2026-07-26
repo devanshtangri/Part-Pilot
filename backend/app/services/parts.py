@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from urllib.parse import urlparse
 
-from sqlalchemy import func, select
+from sqlalchemy import String, case, cast, exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -18,10 +18,13 @@ from app.models import (
     AuditLog,
     Manufacturer,
     Part,
+    PartAlias,
     PartFieldValue,
+    PartTag,
     PartType,
     PartTypeField,
     StockMovement,
+    Tag,
     Location,
 )
 from app.schemas.parts import (
@@ -454,12 +457,134 @@ def get_part(db: Session, part_id: int) -> PartResponse:
     return _serialize_part(db, part)
 
 
-# PATCH 169: Stored Parts location filter service
+# PATCH 213: protected universal part search service
+def _normalise_part_search(search: str | None) -> str | None:
+    if search is None:
+        return None
+    normalised = " ".join(search.split()).casefold()
+    return normalised or None
+
+
+def _searchable_text(expression, term: str):
+    return func.lower(func.coalesce(expression, "")).contains(
+        term,
+        autoescape=True,
+    )
+
+
+def _part_search_condition(term: str):
+    custom_value_conditions = [
+        _searchable_text(PartTypeField.field_key, term),
+        _searchable_text(PartTypeField.label, term),
+        _searchable_text(PartFieldValue.value_text, term),
+        _searchable_text(cast(PartFieldValue.value_number, String), term),
+        _searchable_text(cast(PartFieldValue.value_json, String), term),
+        _searchable_text(PartFieldValue.unit, term),
+    ]
+    if term in {"true", "yes", "on", "enabled"}:
+        custom_value_conditions.append(
+            PartFieldValue.value_bool.is_(True)
+        )
+    elif term in {"false", "no", "off", "disabled"}:
+        custom_value_conditions.append(
+            PartFieldValue.value_bool.is_(False)
+        )
+
+    return or_(
+        _searchable_text(Part.part_number, term),
+        _searchable_text(Part.name, term),
+        _searchable_text(Part.description, term),
+        _searchable_text(Part.package, term),
+        _searchable_text(Part.notes, term),
+        exists(
+            select(1)
+            .select_from(PartType)
+            .where(
+                PartType.id == Part.part_type_id,
+                or_(
+                    _searchable_text(PartType.name, term),
+                    _searchable_text(PartType.description, term),
+                ),
+            )
+        ),
+        exists(
+            select(1)
+            .select_from(Manufacturer)
+            .where(
+                Manufacturer.id == Part.manufacturer_id,
+                _searchable_text(Manufacturer.name, term),
+            )
+        ),
+        exists(
+            select(1)
+            .select_from(Location)
+            .where(
+                Location.id == Part.location_id,
+                _searchable_text(Location.name, term),
+            )
+        ),
+        exists(
+            select(1)
+            .select_from(PartAlias)
+            .where(
+                PartAlias.part_id == Part.id,
+                _searchable_text(PartAlias.alias, term),
+            )
+        ),
+        exists(
+            select(1)
+            .select_from(PartTag)
+            .join(Tag, Tag.id == PartTag.tag_id)
+            .where(
+                PartTag.part_id == Part.id,
+                or_(
+                    _searchable_text(Tag.name, term),
+                    _searchable_text(Tag.normalized_name, term),
+                ),
+            )
+        ),
+        exists(
+            select(1)
+            .select_from(PartFieldValue)
+            .join(
+                PartTypeField,
+                PartTypeField.id == PartFieldValue.field_id,
+            )
+            .where(
+                PartFieldValue.part_id == Part.id,
+                or_(*custom_value_conditions),
+            )
+        ),
+    )
+
+
+def _part_search_order(term: str):
+    part_number = func.lower(func.coalesce(Part.part_number, ""))
+    name = func.lower(func.coalesce(Part.name, ""))
+    available_quantity = Part.total_quantity - Part.reserved_quantity
+    return (
+        case((available_quantity > 0, 0), else_=1).asc(),
+        case((part_number == term, 0), else_=1).asc(),
+        case(
+            (part_number.startswith(term, autoescape=True), 0),
+            else_=1,
+        ).asc(),
+        case((name == term, 0), else_=1).asc(),
+        case(
+            (name.startswith(term, autoescape=True), 0),
+            else_=1,
+        ).asc(),
+        Part.updated_at.desc(),
+        Part.id.desc(),
+    )
+
+
 def list_parts(
     db: Session,
     *,
     part_type_id: int | None = None,
     location_id: int | None = None,
+    search: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> PartCollectionResponse:
@@ -469,25 +594,33 @@ def list_parts(
     if location_id is not None:
         conditions.append(Part.location_id == location_id)
 
+    search_term = _normalise_part_search(search)
+    if search_term is not None:
+        conditions.append(_part_search_condition(search_term))
+
     total = int(
         db.execute(
             select(func.count(Part.id)).where(*conditions)
         ).scalar_one()
     )
 
+    order_by = (
+        _part_search_order(search_term)
+        if search_term is not None
+        else (
+            Part.created_at.desc(),
+            Part.id.desc(),
+        )
+    )
     parts = list(
         db.execute(
             select(Part)
             .where(*conditions)
-            .order_by(
-                Part.created_at.desc(),
-                Part.id.desc(),
-            )
+            .order_by(*order_by)
             .limit(limit)
             .offset(offset)
         ).scalars()
     )
-
     return PartCollectionResponse(
         total=total,
         limit=limit,
