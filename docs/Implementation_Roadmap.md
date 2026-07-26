@@ -1307,3 +1307,55 @@ checkpoint commit.
 - [ ] Projects.
 - [ ] Reservation consumption and release.
 - [ ] Full inventory and history pages.
+
+<!-- PATCH 164 REUSABLE LOCATION ROADMAP CHECKPOINT -->
+
+---
+
+## Current Roadmap Checkpoint — Reusable Locations Integrated
+
+### Overall V1 progress
+
+**Estimated completion: 52%**
+
+This estimate covers the complete V1 roadmap, including deferred projects,
+reservations, settings, backups, MCP, dashboard, and release work.
+
+### Completed in this checkpoint
+
+- [x] Protected reusable location catalogue.
+- [x] Normalised duplicate handling.
+- [x] Safe in-use deletion conflicts.
+- [x] Active/deleted part usage counts.
+- [x] Location audit events.
+- [x] Add Part location selection.
+- [x] Inline location creation.
+- [x] Edit details location prefill/change/clear.
+- [x] Location response serialization.
+- [x] Location audit retention through delete/restore.
+- [x] Responsive location-control styling.
+- [x] Correct mobile part-detail action footer.
+- [x] Full automated and browser verification.
+
+### Immediate next slice
+
+- [ ] Read-only preflight for Stored Parts location targets.
+- [ ] Add optional backend `location_id` list filtering.
+- [ ] Add location to desktop inventory rows.
+- [ ] Add location to responsive/mobile inventory cards.
+- [ ] Add location to part details.
+- [ ] Add reusable location filter UI.
+- [ ] Browser-test and commit this slice independently.
+
+### Following V1 work
+
+- [ ] Low-stock dashboard and settings-driven out-of-stock grouping.
+- [ ] Search completion.
+- [ ] Reservations.
+- [ ] Projects.
+- [ ] Reservation consumption and release.
+- [ ] History and audit browsing.
+- [ ] Settings completion.
+- [ ] Backups.
+- [ ] MCP.
+- [ ] Public-alpha readiness.

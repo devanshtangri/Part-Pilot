@@ -1410,3 +1410,74 @@ Start with read-only **Diagnostic 155** to inspect:
 
 The first implementation after the diagnostic should remain narrow and must
 not combine locations with reservations, projects, or dashboard work.
+
+<!-- PATCH 164 REUSABLE LOCATION WORKFLOW CHECKPOINT -->
+
+---
+
+## Implementation Checkpoint — Reusable Location Assignment
+
+Checkpoint status: **terminal verified, browser approved, committed**
+
+### Protected location catalogue
+
+- [x] Added authenticated location list/create/update/delete endpoints.
+- [x] Reused the existing `Location` model and `Part.location_id`.
+- [x] Required no migration.
+- [x] Added normalised duplicate-name protection.
+- [x] Added optional location notes.
+- [x] Added total, active-part, and deleted-part usage counts.
+- [x] Protected locations referenced by active or deleted parts with HTTP 409.
+- [x] Allowed safe deletion of genuinely unused locations.
+- [x] Added `location.created`, `location.updated`, and `location.deleted`
+      audit events.
+- [x] Committed independently as `Add reusable location catalogue API`.
+
+### Part creation and metadata editing
+
+- [x] Added optional `location_id` to part creation and metadata updates.
+- [x] Added `location_id` and `location_name` to active and deleted part
+      responses.
+- [x] Validated selected locations during creation and editing.
+- [x] Added one shared Location selector to Add Part and Edit details.
+- [x] Added inline reusable-location creation.
+- [x] Added existing-location preselection.
+- [x] Added location change and clearing through `Not specified`.
+- [x] Added location to the Part Added confirmation.
+- [x] Added location to creation, metadata, deletion, and restoration audit
+      snapshots.
+- [x] Confirmed location changes do not alter quantities or create stock
+      movements.
+- [x] Confirmed manufacturer, package, quantity, deletion, and restoration
+      workflows remain functional.
+
+### Browser and responsive approval
+
+- [x] Existing reusable locations load in Add Part and Edit details.
+- [x] Inline location creation selects the new record.
+- [x] Location assignment persists.
+- [x] Location changes persist.
+- [x] Location clearing persists.
+- [x] Location action buttons match the Part Pilot control hierarchy.
+- [x] Mobile Delete, Edit details, and Close actions are visible and usable.
+- [x] Mobile action labels remain on one line.
+- [x] The redundant mobile footer helper text is hidden.
+- [x] Desktop behaviour remains intact.
+
+### Overall roadmap estimate
+
+**Part Pilot V1 is approximately 52% complete.**
+
+This is a roadmap-wide working estimate, not a Phase 4-only percentage.
+
+### Next implementation slice
+
+Continue with **Stored Parts location display and filtering**:
+
+1. Inspect exact inventory row/card and filter-state targets.
+2. Add optional protected `location_id` filtering to active parts.
+3. Show location in desktop rows and responsive cards.
+4. Show location in part details.
+5. Add a reusable location filter without replacing part-type filtering.
+6. Preserve deleted-item, metadata-edit, quantity, and lifecycle behaviour.
+7. Preflight every browser-test transformation in memory before source writes.
