@@ -1359,3 +1359,60 @@ reservations, settings, backups, MCP, dashboard, and release work.
 - [ ] Backups.
 - [ ] MCP.
 - [ ] Public-alpha readiness.
+
+<!-- PATCH 173 STORED PARTS LOCATION FILTER ROADMAP CHECKPOINT -->
+
+---
+## Current Roadmap Checkpoint — Location-Aware Inventory Complete
+
+### Overall V1 progress
+
+**Estimated completion: 53%**
+
+This estimate covers the entire V1 roadmap rather than only the current
+inventory phase.
+
+### Completed in this checkpoint
+
+- [x] Read-only Stored Parts location target preflight.
+- [x] Authenticated `location_id` collection filtering.
+- [x] Correct filtered totals and pagination.
+- [x] Combined part-type and location filtering.
+- [x] Deleted-part exclusion and unassigned-part preservation.
+- [x] Frontend location-filter client contract.
+- [x] Reusable **All locations** selector.
+- [x] Backend-driven location filtering in Stored Parts.
+- [x] Location-name text search.
+- [x] Location-aware result counts and empty states.
+- [x] Location column in Stored Parts.
+- [x] Location display in Part Details.
+- [x] Desktop, tablet, and mobile toolbar support.
+- [x] Complete smoke, deployment, bundle, route, and browser verification.
+
+### Immediate next slice
+
+- [ ] Diagnostic 174: inspect low-stock, dashboard, settings, and out-of-stock
+      behaviour targets.
+- [ ] Define one protected settings contract for the relevant behaviour.
+- [ ] Add a trustworthy low-stock inventory summary.
+- [ ] Implement the locked out-of-stock grouping/visibility behaviour.
+- [ ] Preserve existing Stored Parts filters and location filtering.
+- [ ] Add complete automated coverage.
+- [ ] Browser-test before checkpointing.
+
+### Following V1 work
+
+- [ ] Universal search completion.
+- [ ] Reservations.
+- [ ] Projects.
+- [ ] Reservation consumption and release.
+- [ ] History and audit browsing.
+- [ ] Settings and appearance completion.
+- [ ] Backup and restore.
+- [ ] MCP read tools.
+- [ ] MCP write tools with confirmation safeguards.
+- [ ] Accessibility, responsive, security, and public-alpha polish.
+
+The next slice should remain incremental. Diagnostic 174 is read-only, and
+implementation should be divided into independently verifiable backend and
+browser-tested frontend batches.

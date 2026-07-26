@@ -1481,3 +1481,81 @@ Continue with **Stored Parts location display and filtering**:
 5. Add a reusable location filter without replacing part-type filtering.
 6. Preserve deleted-item, metadata-edit, quantity, and lifecycle behaviour.
 7. Preflight every browser-test transformation in memory before source writes.
+
+<!-- PATCH 173 STORED PARTS LOCATION FILTER CHECKPOINT -->
+
+---
+## Implementation Checkpoint — Stored Parts Location Display and Filtering
+
+Checkpoint status: **terminal verified, browser approved, committed**
+
+### Completed backend filtering
+
+- [x] Diagnostic 166 mapped the exact route, service, client, smoke-test, and
+      responsive UI targets without changing source.
+- [x] Added optional positive `location_id` filtering to authenticated
+      `GET /api/parts`.
+- [x] Applied the filter consistently to collection totals and paginated rows.
+- [x] Preserved part-type filtering, active-record filtering, pagination, and
+      deleted-part exclusion.
+- [x] Preserved unassigned parts in the unfiltered collection.
+- [x] Added `locationId` support to the frontend parts client.
+- [x] Added complete authenticated smoke coverage for pagination, combined
+      filters, missing numeric locations, invalid IDs, location serialization,
+      unassigned parts, and soft-deleted rows.
+- [x] Committed independently as `Add Stored Parts location filtering API`.
+
+### Completed Stored Parts workflow
+
+- [x] Added an **All locations** selector backed by the reusable location
+      catalogue.
+- [x] Selecting a location reloads the active collection through the backend
+      filter instead of filtering an incomplete client-side page.
+- [x] Added location names to Stored Parts text search.
+- [x] Added location-aware result counts.
+- [x] Added location to desktop inventory rows.
+- [x] Added location to Part Details.
+- [x] Added correct empty-state behaviour for selected locations with no parts.
+- [x] Clear filters returns the view to **All locations**.
+- [x] Added desktop, tablet, and mobile toolbar styling.
+- [x] Preserved stock filtering, metadata editing, quantity adjustment,
+      movement history, deletion, restoration, manufacturer, and package
+      workflows.
+
+### Manual browser approval
+
+The user’s Patch 171 browser-test response was exactly:
+
+```text
+everything pass
+```
+
+The approved checks covered location selection, filtered results, count text,
+location-name search, clear filters, table display, details display, and
+responsive toolbar usability.
+
+### Overall roadmap estimate
+
+**Part Pilot V1 is approximately 53% complete.**
+
+This remains a roadmap-wide working estimate. Dashboard completion, global
+search behaviour, reservations, projects, settings, backups, MCP, history
+browsing, accessibility, and public-alpha work remain.
+
+### Next implementation slice
+
+Continue with **low-stock and settings-driven out-of-stock behaviour**.
+
+Start the next chat with read-only **Diagnostic 174** to inspect:
+
+1. Existing low-stock calculations and per-part threshold fields.
+2. Current dashboard placeholders and data-loading boundaries.
+3. Existing app-setting storage and missing protected settings APIs.
+4. The locked out-of-stock search/grouping decision.
+5. Stored Parts, dashboard, and future universal-search integration points.
+6. Empty, loading, error, and responsive UI patterns.
+7. Smoke-test cleanup conventions.
+8. A narrow implementation order that avoids combining reservations,
+   projects, backups, or MCP work.
+
+The diagnostic must not modify application source.
