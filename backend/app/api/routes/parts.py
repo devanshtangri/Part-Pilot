@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -43,6 +45,10 @@ def read_parts(
     part_type_id: int | None = Query(default=None, gt=0),
     location_id: int | None = Query(default=None, gt=0),
     search: str | None = Query(default=None, max_length=180),
+    # PATCH 229: PARTPILOT_STORED_PARTS_STOCK_FILTER_V229
+    stock_status: Literal["all", "in", "low", "out"] = Query(
+        default="all"
+    ),
     limit: int = Query(default=100, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
     current_user=Depends(get_current_user),
@@ -54,6 +60,7 @@ def read_parts(
         part_type_id=part_type_id,
         location_id=location_id,
         search=search,
+        stock_status=stock_status,
         limit=limit,
         offset=offset,
     )

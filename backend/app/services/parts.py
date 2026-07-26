@@ -579,12 +579,51 @@ def _part_search_order(term: str):
     )
 
 
+# PATCH 229: PARTPILOT_STORED_PARTS_STOCK_FILTER_V229
+_PART_STOCK_STATUSES = {"all", "in", "low", "out"}
+
+
+def _part_stock_conditions(stock_status: str):
+    if stock_status not in _PART_STOCK_STATUSES:
+        raise PartValidationError(
+            f"Unsupported stock status filter: {stock_status!r}."
+        )
+
+    available_quantity = (
+        Part.total_quantity - Part.reserved_quantity
+    )
+    low_stock_condition = (
+        Part.low_stock_enabled.is_(True)
+        & Part.low_stock_threshold.is_not(None)
+        & (available_quantity <= Part.low_stock_threshold)
+    )
+
+    if stock_status == "all":
+        return ()
+    if stock_status == "out":
+        return (available_quantity <= 0,)
+    if stock_status == "low":
+        return (
+            available_quantity > 0,
+            low_stock_condition,
+        )
+    return (
+        available_quantity > 0,
+        or_(
+            Part.low_stock_enabled.is_(False),
+            Part.low_stock_threshold.is_(None),
+            available_quantity > Part.low_stock_threshold,
+        ),
+    )
+
+
 def list_parts(
     db: Session,
     *,
     part_type_id: int | None = None,
     location_id: int | None = None,
     search: str | None = None,
+    stock_status: str = "all",
     limit: int = 100,
     offset: int = 0,
 ) -> PartCollectionResponse:
@@ -593,6 +632,7 @@ def list_parts(
         conditions.append(Part.part_type_id == part_type_id)
     if location_id is not None:
         conditions.append(Part.location_id == location_id)
+    conditions.extend(_part_stock_conditions(stock_status))
 
     search_term = _normalise_part_search(search)
     if search_term is not None:
@@ -608,6 +648,17 @@ def list_parts(
         _part_search_order(search_term)
         if search_term is not None
         else (
+            case(
+                (
+                    (
+                        Part.total_quantity
+                        - Part.reserved_quantity
+                    )
+                    > 0,
+                    0,
+                ),
+                else_=1,
+            ).asc(),
             Part.created_at.desc(),
             Part.id.desc(),
         )

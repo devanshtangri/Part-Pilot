@@ -1829,3 +1829,25 @@ so Dashboard search remains an independently reviewable checkpoint.
 - Durable workflow instructions are stored in `docs/Part_Pilot_Project_Memory.txt`.
 - The handoff is stored in `docs/Chat9_to_Chat10_Handoff.md`.
 - The ready-to-paste prompt is stored in `docs/Chat10_Starting_Prompt.txt`.
+
+<!-- PARTPILOT:STORED_PARTS_SERVER_STOCK_FILTER:V231 -->
+## Chat 10 checkpoint — server stock-status collection contract
+
+Patch 229 completed and automatically verified the backend prerequisite for
+Stored Parts server search:
+
+- `GET /api/parts` accepts `stock_status=all|in|low|out`;
+- stock status composes with universal search, part-type and location filters;
+- collection totals and pagination are calculated after all active filters;
+- deleted parts remain excluded and duplicate suppression is preserved;
+- available rows precede out-of-stock rows for ordinary collection requests;
+- invalid stock modes return HTTP 422;
+- Alembic remains at `0005_packages`;
+- the complete smoke suite, protected API checks, SPA routes and deployed
+  markers passed;
+- real inventory data was unchanged by verification.
+
+Patch 231 records and pushes this backend checkpoint. The next implementation
+batch should migrate the Stored Parts client contract, then add bounded
+pagination, a part-type filter, debounce and stale-response protection while
+preserving `inventoryOnly` and all existing part workflows.

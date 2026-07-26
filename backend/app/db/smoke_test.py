@@ -6130,6 +6130,8 @@ def check_universal_part_search_api() -> None:
                 name=f"Available {shared_token}",
                 total_quantity=5,
                 reserved_quantity=0,
+                low_stock_enabled=True,
+                low_stock_threshold=5,
                 is_deleted=False,
             )
             shared_available_unassigned = Part(
@@ -6306,9 +6308,11 @@ def check_universal_part_search_api() -> None:
             offset: int = 0,
             selected_type_id: int | None = None,
             selected_location_id: int | None = None,
+            stock_status: str = "all",
         ):
             params: dict[str, str | int] = {
                 "search": search,
+                "stock_status": stock_status,
                 "limit": limit,
                 "offset": offset,
             }
@@ -6572,6 +6576,108 @@ def check_universal_part_search_api() -> None:
                 f"{type_filter_payload}"
             )
 
+        # PATCH 229: PARTPILOT_STORED_PARTS_STOCK_FILTER_V229
+        all_stock_response = client.get(
+            "/api/parts",
+            params={
+                "part_type_id": type_id,
+                "stock_status": "all",
+                "limit": 100,
+            },
+            headers=headers,
+        )
+        all_stock_payload = all_stock_response.json()
+        all_stock_ids = [
+            item.get("id")
+            for item in all_stock_payload.get("parts", [])
+        ]
+        if (
+            all_stock_response.status_code != 200
+            or all_stock_payload.get("total")
+            != len(expected_active_fixture_ids)
+            or set(all_stock_ids) != expected_active_fixture_ids
+            or all_stock_ids[-1] != ids["shared_out"]
+            or ids["deleted"] in all_stock_ids
+        ):
+            fail(
+                "Unsearched stock_status=all totals, exclusion, or "
+                "available-first ordering is incorrect: "
+                f"{all_stock_payload}"
+            )
+
+        low_payload, low_ids = response_for(
+            shared_token,
+            selected_type_id=type_id,
+            stock_status="low",
+        )
+        if (
+            low_payload.get("total") != 1
+            or low_ids != [ids["shared_available"]]
+        ):
+            fail(
+                "Universal search positive low-stock filtering is "
+                f"incorrect: {low_payload}"
+            )
+
+        in_payload, in_ids = response_for(
+            shared_token,
+            selected_type_id=type_id,
+            stock_status="in",
+        )
+        if (
+            in_payload.get("total") != 1
+            or in_ids != [ids["shared_available_unassigned"]]
+        ):
+            fail(
+                "Universal search in-stock filtering is incorrect: "
+                f"{in_payload}"
+            )
+
+        out_payload, out_ids = response_for(
+            shared_token,
+            selected_type_id=type_id,
+            stock_status="out",
+        )
+        if (
+            out_payload.get("total") != 1
+            or out_ids != [ids["shared_out"]]
+        ):
+            fail(
+                "Universal search out-of-stock filtering is incorrect: "
+                f"{out_payload}"
+            )
+
+        combined_payload, combined_ids = response_for(
+            shared_token,
+            selected_type_id=type_id,
+            selected_location_id=location_id,
+            stock_status="low",
+        )
+        if (
+            combined_payload.get("total") != 1
+            or combined_ids != [ids["shared_available"]]
+        ):
+            fail(
+                "Universal search stock, type, and location "
+                "composition is incorrect: "
+                f"{combined_payload}"
+            )
+
+        invalid_stock_status = client.get(
+            "/api/parts",
+            params={
+                "part_type_id": type_id,
+                "stock_status": "missing",
+            },
+            headers=headers,
+        )
+        if invalid_stock_status.status_code != 422:
+            fail(
+                "Invalid stock_status should return 422, got "
+                f"{invalid_stock_status.status_code}: "
+                f"{invalid_stock_status.text}"
+            )
+
         empty_payload, empty_ids = response_for(
             f"no-match-{suffix}-absent",
             selected_type_id=type_id,
@@ -6603,9 +6709,10 @@ def check_universal_part_search_api() -> None:
     ok(
         "Protected universal part search covers metadata, type, manufacturer, "
         "location, aliases, tags, custom text/numeric/boolean values and "
-        "field labels; preserves filters, totals, pagination, literal "
-        "wildcards, case-insensitive partial matching, duplicate suppression, "
-        "deleted exclusion, and available-first deterministic ordering"
+        "field labels; preserves type, location, and stock-status filters, "
+        "totals, pagination, literal wildcards, case-insensitive partial "
+        "matching, duplicate suppression, deleted exclusion, and "
+        "available-first deterministic ordering"
     )
 
 def main() -> None:

@@ -1584,3 +1584,23 @@ Preserve:
 
 Patch 250 is the mandatory final Python file of Chat 10 and must create the Chat 11 handoff and starting prompt.
 <!-- PARTPILOT:CHAT10_STORED_PARTS_SEARCH_ROADMAP:END -->
+
+<!-- PARTPILOT:STORED_PARTS_SERVER_STOCK_FILTER:V231 -->
+### Stored Parts server-search migration — backend prerequisite complete
+
+**Completed in Patch 229 and checkpointed by Patch 230**
+
+- Added protected server-side stock modes: `all`, `in`, `low`, and `out`.
+- Preserved accurate backend totals and pagination after stock filtering.
+- Composed stock mode with universal search, part-type and location filters.
+- Preserved available-before-out-of-stock ordering.
+- Added inventory-safe API smoke coverage and invalid-mode validation.
+
+**Next**
+
+Migrate the frontend Stored Parts request flow away from `limit: 250`,
+`offset: 0` and client-side query/stock filtering. Add bounded pagination,
+part-type filtering, 280 ms search debounce, stale-response protection and
+settings-aware out-of-stock behaviour without disrupting selection, details,
+quantity adjustments, movements, editing, delete/restore, mobile Inventory or
+Part Manager management mode.
