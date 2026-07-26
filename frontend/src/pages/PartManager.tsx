@@ -335,7 +335,14 @@ function quantityOperationHint(
   return "Apply a signed correction, such as -2 or 3. A reason is required.";
 }
 
-export function PartManager() {
+interface PartManagerProps {
+  inventoryOnly?: boolean;
+}
+
+
+export function PartManager({
+  inventoryOnly = false
+}: PartManagerProps) {
   const { token } = useAuth();
   const [collection, setCollection] = useState<PartTypeCollection | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -1412,41 +1419,71 @@ function closeCreator() {
 
   return (
     <div
-      className="page-stack part-manager-page"
+      className={
+        `page-stack part-manager-page${
+          inventoryOnly ? " inventory-page" : ""
+        }`
+      }
+      data-inventory-page-mode={
+        inventoryOnly ? "inventory-page-mode-v202" : undefined
+      }
       data-manufacturer-preset-version="part-manager-manufacturer-preset-v106"
       data-part-lifecycle-version="part-lifecycle-v153"
       data-out-of-stock-grouping-version="stored-parts-out-of-stock-group-v194"
     >
-      <header className="page-header part-manager-header">
-        <div>
-          <p className="eyebrow">Phase 4</p>
-          <h1>Part Manager</h1>
-          <p>
-            Browse built-in electronics templates and create custom part
-            types for the inventory you actually keep.
-          </p>
-        </div>
-        <div className="part-manager-header-actions">
+      {inventoryOnly ? (
+        <header
+          className="page-header part-manager-header inventory-page-header"
+          data-inventory-page-version="inventory-live-page-v202"
+        >
+          <div>
+            <p className="eyebrow">Inventory</p>
+            <h1>Stored parts</h1>
+            <p>
+              Search, filter, inspect, add, edit, adjust, delete, and restore
+              the components kept in this Part Pilot installation.
+            </p>
+          </div>
           <span className="status-pill">
-            {isCreating
-              ? editingTypeId === null
-                ? "Creating custom type"
-                : "Editing custom type"
-              : "Template manager"}
+            {isLoading
+              ? "Loading templates"
+              : collection
+                ? `${collection.total} part types`
+                : "Inventory workspace"}
           </span>
+        </header>
+      ) : (
+              <header className="page-header part-manager-header">
+                <div>
+                  <p className="eyebrow">Phase 4</p>
+                  <h1>Part Manager</h1>
+                  <p>
+                    Browse built-in electronics templates and create custom part
+                    types for the inventory you actually keep.
+                  </p>
+                </div>
+                <div className="part-manager-header-actions">
+                  <span className="status-pill">
+                    {isCreating
+                      ? editingTypeId === null
+                        ? "Creating custom type"
+                        : "Editing custom type"
+                      : "Template manager"}
+                  </span>
 
-          <button
-            className="part-manager-create-button"
-            type="button"
-            onClick={isCreating ? closeCreator : openCreator}
-            disabled={isSaving}
-          >
-            {isCreating ? "Close creator" : "New custom type"}
-          </button>
-        </div>
-      </header>
+                  <button
+                    className="part-manager-create-button"
+                    type="button"
+                    onClick={isCreating ? closeCreator : openCreator}
+                    disabled={isSaving}
+                  >
+                    {isCreating ? "Close creator" : "New custom type"}
+                  </button>
+                </div>
+              </header>
+      )}
 
-      {collection ? (
+      {!inventoryOnly && collection ? (
         <section className="part-manager-stats" aria-label="Part type totals">
           <article className="card">
             <span>Part types</span>
@@ -1941,186 +1978,190 @@ function closeCreator() {
         </div>
       ) : null}
 
-      <section className="search-card">
-        <label>
-          <span>Search part types and fields</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event: ChangeEvent<HTMLInputElement>) =>
-              setQuery(event.target.value)
-            }
-            placeholder="Search types or template fields..."
-          />
-        </label>
-        <div className="filter-tabs" aria-label="Part type filter">
-          {(["all", "builtin", "custom"] as FilterMode[]).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              className={filter === mode ? "active" : ""}
-              onClick={() => setFilter(mode)}
-            >
-              {mode === "all"
-                ? "All"
-                : mode === "builtin"
-                  ? "Built-in"
-                  : "Custom"}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {isLoading ? (
-        <section className="empty-state">
-          <strong>Loading part templates...</strong>
-          <p>Reading seeded part types and their custom fields.</p>
-        </section>
-      ) : null}
-
-      {error ? (
-        <section className="empty-state error-state">
-          <strong>Part Manager could not load</strong>
-          <p>{error}</p>
-        </section>
-      ) : null}
-
-      {!isLoading && !error && collection ? (
-      <section className={`part-manager-layout${filteredTypes.length <= 4 ? " is-compact" : ""}`}>
-          <div className="part-type-list">
-            <div className="part-type-list-heading">
-              <strong>Types</strong>
-              <span>{filteredTypes.length} shown</span>
-            </div>
-            {filteredTypes.length > 0 ? (
-              filteredTypes.map((partType) => (
-                <button
-                  key={partType.id}
-                  type="button"
-                  className={`part-type-item ${
-                    selectedType?.id === partType.id ? "active" : ""
-                  }`}
-                  onClick={() => setSelectedId(partType.id)}
-                >
-                  <span>
-                    <strong>{partType.name}</strong>
-                    <small>{partType.field_count} fields</small>
-                  </span>
-                  <em>{partType.is_builtin ? "Built-in" : "Custom"}</em>
-                </button>
-              ))
-            ) : (
-              <div className="part-type-list-empty">
-                No part types match this filter.
-              </div>
-            )}
-          </div>
-
-          <div className="part-type-detail">
-            {selectedType ? (
-              <>
-                <header className="part-type-detail-header">
-                  <div>
-                    <p className="eyebrow">
-                      {selectedType.is_builtin ? "Built-in" : "Custom"}
-                    </p>
-                    <h2>{selectedType.name}</h2>
-                    <p>
-                      {selectedType.description ||
-                        `Template slug: ${selectedType.slug}`}
-                    </p>
-                  </div>
-                  <div className="part-type-detail-actions">
-                    {!selectedType.is_builtin ? (
-                      <>
-                      <button
-                        className="part-type-edit-button"
-                        type="button"
-                        onClick={() => openEditor(selectedType)}
-                      >
-                        Edit custom type
-                      </button>
-                      <button
-                        className="part-type-delete-button"
-                        type="button"
-                        onClick={() => openDeleteDialog(selectedType)}
-                      >
-                        Delete
-                      </button>
-                    </>
-                    ) : null}
-                    {/* PATCH 118: contextual Add Part action */}
-                    <button
-                      className="part-manager-add-part-button"
-                      data-contextual-add-version="contextual-add-part-v118"
-                      type="button"
-                      onClick={() => setIsAddingPart(true)}
-                      disabled={
-                        !token
-                        || !collection
-                        || isLoading
-                        || isCreating
-                        || !selectedType
+      {!inventoryOnly ? (
+        <>
+                <section className="search-card">
+                  <label>
+                    <span>Search part types and fields</span>
+                    <input
+                      type="search"
+                      value={query}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setQuery(event.target.value)
                       }
-                    >
-                      Add part
-                    </button>
-                    <span className="status-pill">
-                      Template v{selectedType.template_version}
-                    </span>
-                  </div>
-                </header>
-
-                <div className="template-field-heading">
-                  <div>
-                    <strong>Template fields</strong>
-                    <span>
-                      Fields shown when creating a {selectedType.name} part
-                    </span>
-                  </div>
-                  <span>{selectedType.field_count}</span>
-                </div>
-
-                {selectedType.fields.length > 0 ? (
-                  <div className="template-field-list">
-                    {selectedType.fields.map((field) => (
-                      <article className="template-field-row" key={field.id}>
-                        <div className="template-field-copy">
-                          <strong>
-                            {field.label}
-                            {field.is_required ? (
-                              <span className="required-badge">Required</span>
-                            ) : null}
-                          </strong>
-                          <code>{field.field_key}</code>
-                          {field.help_text ? <p>{field.help_text}</p> : null}
-                        </div>
-                        <div className="template-field-meta">
-                          <span>
-                          {isManufacturerEditorField(field)
-                            ? "Manufacturer"
-                            : fieldTypeLabel(field.field_type)}
-                        </span>
-                          {fieldSummary(field) ? (
-                            <small>{fieldSummary(field)}</small>
-                          ) : null}
-                        </div>
-                      </article>
+                      placeholder="Search types or template fields..."
+                    />
+                  </label>
+                  <div className="filter-tabs" aria-label="Part type filter">
+                    {(["all", "builtin", "custom"] as FilterMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className={filter === mode ? "active" : ""}
+                        onClick={() => setFilter(mode)}
+                      >
+                        {mode === "all"
+                          ? "All"
+                          : mode === "builtin"
+                            ? "Built-in"
+                            : "Custom"}
+                      </button>
                     ))}
                   </div>
-                ) : (
-                  <div className="part-type-detail-empty">
-                    This type has no template fields yet.
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="part-type-detail-empty">
-                Select a part type to inspect its template.
-              </div>
-            )}
-          </div>
-        </section>
+                </section>
+
+                {isLoading ? (
+                  <section className="empty-state">
+                    <strong>Loading part templates...</strong>
+                    <p>Reading seeded part types and their custom fields.</p>
+                  </section>
+                ) : null}
+
+                {error ? (
+                  <section className="empty-state error-state">
+                    <strong>Part Manager could not load</strong>
+                    <p>{error}</p>
+                  </section>
+                ) : null}
+
+                {!isLoading && !error && collection ? (
+                <section className={`part-manager-layout${filteredTypes.length <= 4 ? " is-compact" : ""}`}>
+                    <div className="part-type-list">
+                      <div className="part-type-list-heading">
+                        <strong>Types</strong>
+                        <span>{filteredTypes.length} shown</span>
+                      </div>
+                      {filteredTypes.length > 0 ? (
+                        filteredTypes.map((partType) => (
+                          <button
+                            key={partType.id}
+                            type="button"
+                            className={`part-type-item ${
+                              selectedType?.id === partType.id ? "active" : ""
+                            }`}
+                            onClick={() => setSelectedId(partType.id)}
+                          >
+                            <span>
+                              <strong>{partType.name}</strong>
+                              <small>{partType.field_count} fields</small>
+                            </span>
+                            <em>{partType.is_builtin ? "Built-in" : "Custom"}</em>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="part-type-list-empty">
+                          No part types match this filter.
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="part-type-detail">
+                      {selectedType ? (
+                        <>
+                          <header className="part-type-detail-header">
+                            <div>
+                              <p className="eyebrow">
+                                {selectedType.is_builtin ? "Built-in" : "Custom"}
+                              </p>
+                              <h2>{selectedType.name}</h2>
+                              <p>
+                                {selectedType.description ||
+                                  `Template slug: ${selectedType.slug}`}
+                              </p>
+                            </div>
+                            <div className="part-type-detail-actions">
+                              {!selectedType.is_builtin ? (
+                                <>
+                                <button
+                                  className="part-type-edit-button"
+                                  type="button"
+                                  onClick={() => openEditor(selectedType)}
+                                >
+                                  Edit custom type
+                                </button>
+                                <button
+                                  className="part-type-delete-button"
+                                  type="button"
+                                  onClick={() => openDeleteDialog(selectedType)}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                              ) : null}
+                              {/* PATCH 118: contextual Add Part action */}
+                              <button
+                                className="part-manager-add-part-button"
+                                data-contextual-add-version="contextual-add-part-v118"
+                                type="button"
+                                onClick={() => setIsAddingPart(true)}
+                                disabled={
+                                  !token
+                                  || !collection
+                                  || isLoading
+                                  || isCreating
+                                  || !selectedType
+                                }
+                              >
+                                Add part
+                              </button>
+                              <span className="status-pill">
+                                Template v{selectedType.template_version}
+                              </span>
+                            </div>
+                          </header>
+
+                          <div className="template-field-heading">
+                            <div>
+                              <strong>Template fields</strong>
+                              <span>
+                                Fields shown when creating a {selectedType.name} part
+                              </span>
+                            </div>
+                            <span>{selectedType.field_count}</span>
+                          </div>
+
+                          {selectedType.fields.length > 0 ? (
+                            <div className="template-field-list">
+                              {selectedType.fields.map((field) => (
+                                <article className="template-field-row" key={field.id}>
+                                  <div className="template-field-copy">
+                                    <strong>
+                                      {field.label}
+                                      {field.is_required ? (
+                                        <span className="required-badge">Required</span>
+                                      ) : null}
+                                    </strong>
+                                    <code>{field.field_key}</code>
+                                    {field.help_text ? <p>{field.help_text}</p> : null}
+                                  </div>
+                                  <div className="template-field-meta">
+                                    <span>
+                                    {isManufacturerEditorField(field)
+                                      ? "Manufacturer"
+                                      : fieldTypeLabel(field.field_type)}
+                                  </span>
+                                    {fieldSummary(field) ? (
+                                      <small>{fieldSummary(field)}</small>
+                                    ) : null}
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="part-type-detail-empty">
+                              This type has no template fields yet.
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="part-type-detail-empty">
+                          Select a part type to inspect its template.
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+        </>
       ) : null}
       {/* PATCH 110: first inventory browsing slice */}
       <section
@@ -2150,6 +2191,22 @@ function closeCreator() {
                     }`
                   : `${inventoryCollection?.total ?? 0} parts`}
             </span>
+            {inventoryOnly ? (
+              <button
+                className="inventory-add-part-button"
+                data-inventory-add-version="inventory-page-add-part-v202"
+                type="button"
+                onClick={() => setIsAddingPart(true)}
+                disabled={
+                  !token
+                  || !collection
+                  || inventoryLoading
+                  || isLoading
+                }
+              >
+                Add part
+              </button>
+            ) : null}
             <button
               className="inventory-deleted-button"
               type="button"

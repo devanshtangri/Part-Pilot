@@ -206,3 +206,25 @@ section below normal Stored Parts results while the All filter is active.
 Disabling that preference hides the separate section without removing access
 to those parts through the explicit Out filter.
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_STATUS:END -->
+
+<!-- PARTPILOT:INVENTORY_PAGE_MODE_STATUS:START -->
+## Focused Inventory workspace
+
+The `/inventory` route now provides the live Stored Parts experience rather
+than a placeholder. It reuses the same implementation that remains available
+inside Part Manager, avoiding duplicate inventory logic.
+
+The focused Inventory page supports:
+
+- adding and browsing parts;
+- search and location filters;
+- All, In stock, Low, and Out stock filters;
+- settings-driven separation of zero-stock matches;
+- part details and stock movement history;
+- quantity adjustments;
+- metadata editing;
+- recoverable deletion and restoration.
+
+Part-type templates and custom-field management remain under
+`/part-manager`.
+<!-- PARTPILOT:INVENTORY_PAGE_MODE_STATUS:END -->

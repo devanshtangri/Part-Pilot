@@ -1441,3 +1441,36 @@ Inspect the remaining Phase 4 roadmap and current repository state, then begin
 the next smallest independently verifiable inventory workflow. Continue to
 commit and push each approved batch promptly.
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_ROADMAP:END -->
+
+<!-- PARTPILOT:INVENTORY_PAGE_MODE_ROADMAP:START -->
+## Focused Inventory page milestone
+
+| Item | Status |
+| --- | --- |
+| Replace obsolete `/inventory` placeholder | Complete |
+| Reuse the live Stored Parts workflow | Complete |
+| Keep a single inventory implementation | Complete |
+| Hide template management on `/inventory` | Complete |
+| Preserve `/part-manager` template management | Complete |
+| Inventory Add Part action | Complete |
+| Search, locations, and stock filters | Complete |
+| Settings-driven out-of-stock grouping | Complete |
+| Details, quantity adjustment, editing, deletion, restoration | Complete |
+| Automated verification | Complete |
+| Desktop browser approval | Complete |
+| Mobile functional approval | Complete |
+| Mobile part-type status-pill polish | Deferred to next browser-test fix |
+| Commit and push | Complete through Patch 203 |
+
+### Immediate next step
+
+Apply a narrow mobile-only fix for the Inventory page part-type status pill.
+It should remain a compact label instead of stretching horizontally or looking
+vertically compressed. Do not alter desktop behaviour or the approved
+Inventory workflow.
+
+### Following work
+
+After the mobile visual fix is approved and committed, inspect the current
+roadmap and begin the next smallest independently verifiable V1 workflow.
+<!-- PARTPILOT:INVENTORY_PAGE_MODE_ROADMAP:END -->

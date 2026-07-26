@@ -2523,3 +2523,31 @@
 }
 
 /* END PATCH 194 */
+
+/* PATCH 202: FOCUSED INVENTORY PAGE MODE */
+.part-manager-page.inventory-page {
+  --inventory-page-mode-v202: 1;
+}
+
+.part-manager-page .inventory-page-header {
+  align-items: flex-start !important;
+}
+
+.part-manager-page .inventory-add-part-button {
+  border-color: rgba(45, 212, 163, 0.38) !important;
+  background: rgba(6, 78, 59, 0.17) !important;
+  color: #a7f3d0 !important;
+}
+
+.part-manager-page .inventory-add-part-button:hover:not(:disabled) {
+  border-color: rgba(94, 234, 212, 0.58) !important;
+  background: rgba(6, 95, 70, 0.28) !important;
+}
+
+@media (max-width: 760px) {
+  .part-manager-page .inventory-page-header {
+    gap: 12px !important;
+  }
+}
+
+/* END PATCH 202 */

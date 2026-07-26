@@ -1611,3 +1611,55 @@ complete and published. The next implementation batch should be selected from
 the remaining Phase 4 roadmap after a narrow repository and documentation
 inspection.
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_CHECKPOINT:END -->
+
+<!-- PARTPILOT:INVENTORY_PAGE_MODE_CHECKPOINT:START -->
+## Focused Inventory page checkpoint
+
+**Status:** Patch 202 automated verification passed, browser testing was
+approved, and Patch 203 committed and pushed the batch.
+
+### Completed
+
+- Replaced the obsolete `/inventory` placeholder with the existing live
+  Stored Parts workflow.
+- Added a typed `inventoryOnly` mode to `PartManager`.
+- Preserved one source of truth instead of duplicating inventory logic.
+- The `/inventory` route now hides part-type statistics, template search,
+  template lists, custom-type controls, and template-management actions.
+- Added an Inventory-toolbar **Add part** action.
+- Preserved the normal `/part-manager` template-management screen and its
+  contextual Add Part action.
+- Preserved inventory search, location filtering, All/In stock/Low/Out
+  filtering, settings-driven out-of-stock grouping, part details, stock
+  adjustment, movement history, metadata editing, deletion, restoration, and
+  responsive table behaviour.
+- Preserved the approved out-of-stock section width alignment.
+
+### Verification
+
+- Docker image build: passed.
+- Deployment: passed.
+- Alembic head `0005_packages`: passed.
+- Complete backend smoke suite: passed.
+- Protected inventory/settings/location/type routes: passed.
+- Dashboard, Inventory, Part Manager, and Settings SPA routes: passed.
+- Deployed Patch 194, Patch 195, and Patch 202 markers: passed.
+- Desktop browser review: approved.
+- Mobile browser review: functionally approved.
+- Inventory and Part Manager regression checks: approved.
+
+### Deferred mobile polish
+
+On narrow mobile screens, the part-type count status pill such as
+`36 part types` appears vertically compressed and expands nearly the full
+content width. Desktop presentation is correct. This is a visual-only
+follow-up for the next chat and should be handled as the next sequential
+**browser-test fix** without changing approved Inventory behaviour.
+
+### Repository state after this checkpoint
+
+The focused Inventory page is complete and published. The next chat should
+begin from `docs/Inventory_Page_Mode_Handoff.md`, fix the mobile status-pill
+layout, browser-test that narrow change, and then continue with the remaining
+roadmap.
+<!-- PARTPILOT:INVENTORY_PAGE_MODE_CHECKPOINT:END -->
