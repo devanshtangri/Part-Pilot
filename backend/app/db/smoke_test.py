@@ -3830,6 +3830,561 @@ def check_part_soft_delete_restore_api() -> None:
         "retention-safe, duplicate-safe, hidden from active reads, and audited"
     )
 
+
+# PATCH 156: reusable location catalogue API smoke test
+def check_location_catalogue_api() -> None:
+    import json as json_module
+    from datetime import datetime as datetime_type
+    from datetime import timezone as timezone_type
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_location_catalogue_user"
+    password = "location-catalogue-smoke-password"
+    suffix = uuid4().hex[:10]
+    first_name = f"Smoke Drawer {suffix}"
+    updated_first_name = f"Smoke Drawer Updated {suffix}"
+    second_name = f"Smoke Shelf {suffix}"
+    part_number = f"SMOKE-LOCATION-{suffix}"
+
+    first_id: int | None = None
+    second_id: int | None = None
+    part_id: int | None = None
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if part_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+
+            for location_id in (first_id, second_id):
+                if location_id is None:
+                    continue
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'location' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": location_id},
+                )
+                db.execute(
+                    text("delete from locations where id = :location_id"),
+                    {"location_id": location_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated_list = client.get("/api/locations")
+        if unauthenticated_list.status_code not in {401, 403}:
+            fail(
+                "GET /api/locations should require authentication, got "
+                f"{unauthenticated_list.status_code}."
+            )
+
+        unauthenticated_create = client.post(
+            "/api/locations",
+            json={"name": "Unauthenticated location"},
+        )
+        if unauthenticated_create.status_code not in {401, 403}:
+            fail(
+                "POST /api/locations should require authentication, got "
+                f"{unauthenticated_create.status_code}."
+            )
+
+        unauthenticated_update = client.put(
+            "/api/locations/1",
+            json={"name": "Unauthenticated update", "note": None},
+        )
+        if unauthenticated_update.status_code not in {401, 403}:
+            fail(
+                "PUT /api/locations/{id} should require authentication, got "
+                f"{unauthenticated_update.status_code}."
+            )
+
+        unauthenticated_delete = client.delete("/api/locations/1")
+        if unauthenticated_delete.status_code not in {401, 403}:
+            fail(
+                "DELETE /api/locations/{id} should require authentication, "
+                f"got {unauthenticated_delete.status_code}."
+            )
+
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Location Catalogue Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        blank_name = client.post(
+            "/api/locations",
+            headers=headers,
+            json={"name": "   "},
+        )
+        if blank_name.status_code != 422:
+            fail(
+                "Blank location names should return 422, got "
+                f"{blank_name.status_code}: {blank_name.text}"
+            )
+
+        first_create = client.post(
+            "/api/locations",
+            headers=headers,
+            json={
+                "name": f"  {first_name}  ",
+                "note": "  Primary component drawer.  ",
+            },
+        )
+        if first_create.status_code != 201:
+            fail(
+                "First location creation returned "
+                f"{first_create.status_code}: {first_create.text}"
+            )
+        first = first_create.json()
+        first_id = first.get("id")
+        if (
+            not isinstance(first_id, int)
+            or first.get("name") != first_name
+            or first.get("note") != "Primary component drawer."
+            or first.get("part_count") != 0
+            or first.get("active_part_count") != 0
+            or first.get("deleted_part_count") != 0
+        ):
+            fail(f"Unexpected first location response: {first}")
+
+        second_create = client.post(
+            "/api/locations",
+            headers=headers,
+            json={
+                "name": second_name,
+                "note": "Shelf retained for in-use deletion coverage.",
+            },
+        )
+        if second_create.status_code != 201:
+            fail(
+                "Second location creation returned "
+                f"{second_create.status_code}: {second_create.text}"
+            )
+        second = second_create.json()
+        second_id = second.get("id")
+        if not isinstance(second_id, int):
+            fail(f"Unexpected second location response: {second}")
+
+        normalized_duplicate = client.post(
+            "/api/locations",
+            headers=headers,
+            json={
+                "name": f"   {first_name.upper()}   ",
+                "note": None,
+            },
+        )
+        if normalized_duplicate.status_code != 409:
+            fail(
+                "Normalized duplicate location creation should return 409, "
+                f"got {normalized_duplicate.status_code}: "
+                f"{normalized_duplicate.text}"
+            )
+
+        list_response = client.get("/api/locations", headers=headers)
+        if list_response.status_code != 200:
+            fail(
+                "GET /api/locations returned "
+                f"{list_response.status_code}: {list_response.text}"
+            )
+        listed = list_response.json()
+        listed_by_id = {
+            item.get("id"): item
+            for item in listed.get("locations", [])
+        }
+        if (
+            first_id not in listed_by_id
+            or second_id not in listed_by_id
+            or listed.get("total", 0) < 2
+        ):
+            fail(
+                "Created locations were not returned by the catalogue: "
+                f"{listed}"
+            )
+
+        first_update = client.put(
+            f"/api/locations/{first_id}",
+            headers=headers,
+            json={
+                "name": updated_first_name,
+                "note": "Updated drawer note.",
+            },
+        )
+        if first_update.status_code != 200:
+            fail(
+                "Location update returned "
+                f"{first_update.status_code}: {first_update.text}"
+            )
+        updated = first_update.json()
+        if (
+            updated.get("id") != first_id
+            or updated.get("name") != updated_first_name
+            or updated.get("note") != "Updated drawer note."
+            or updated.get("part_count") != 0
+        ):
+            fail(f"Unexpected location update response: {updated}")
+
+        duplicate_update = client.put(
+            f"/api/locations/{first_id}",
+            headers=headers,
+            json={
+                "name": f"  {second_name.upper()}  ",
+                "note": None,
+            },
+        )
+        if duplicate_update.status_code != 409:
+            fail(
+                "Updating to another normalized location name should return "
+                f"409, got {duplicate_update.status_code}: "
+                f"{duplicate_update.text}"
+            )
+
+        missing_update = client.put(
+            "/api/locations/2147483647",
+            headers=headers,
+            json={"name": "Missing location", "note": None},
+        )
+        if missing_update.status_code != 404:
+            fail(
+                "Updating a missing location should return 404, got "
+                f"{missing_update.status_code}: {missing_update.text}"
+            )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text("select id from part_types order by id limit 1")
+            ).scalar()
+            if part_type_id is None:
+                fail("Cannot test location usage without a part type.")
+
+            part = Part(
+                part_type_id=int(part_type_id),
+                location_id=second_id,
+                part_number=part_number,
+                name="Location catalogue smoke part",
+                total_quantity=1,
+                reserved_quantity=0,
+                is_deleted=False,
+                deleted_at=None,
+            )
+            db.add(part)
+            db.commit()
+            db.refresh(part)
+            part_id = part.id
+
+        active_usage_list = client.get(
+            "/api/locations",
+            headers=headers,
+        )
+        active_items = {
+            item.get("id"): item
+            for item in active_usage_list.json().get("locations", [])
+        }
+        second_active = active_items.get(second_id, {})
+        if (
+            second_active.get("part_count") != 1
+            or second_active.get("active_part_count") != 1
+            or second_active.get("deleted_part_count") != 0
+        ):
+            fail(
+                "Active part usage counts are incorrect: "
+                f"{second_active}"
+            )
+
+        in_use_delete = client.delete(
+            f"/api/locations/{second_id}",
+            headers=headers,
+        )
+        if in_use_delete.status_code != 409:
+            fail(
+                "Deleting a location assigned to an active part should return "
+                f"409, got {in_use_delete.status_code}: "
+                f"{in_use_delete.text}"
+            )
+
+        with db_session() as db:
+            part = db.get(Part, part_id)
+            if part is None:
+                fail("Location smoke part disappeared before soft deletion.")
+            part.is_deleted = True
+            part.deleted_at = datetime_type.now(timezone_type.utc)
+            db.commit()
+
+        deleted_usage_list = client.get(
+            "/api/locations",
+            headers=headers,
+        )
+        deleted_items = {
+            item.get("id"): item
+            for item in deleted_usage_list.json().get("locations", [])
+        }
+        second_deleted = deleted_items.get(second_id, {})
+        if (
+            second_deleted.get("part_count") != 1
+            or second_deleted.get("active_part_count") != 0
+            or second_deleted.get("deleted_part_count") != 1
+        ):
+            fail(
+                "Deleted part usage counts are incorrect: "
+                f"{second_deleted}"
+            )
+
+        deleted_part_location_delete = client.delete(
+            f"/api/locations/{second_id}",
+            headers=headers,
+        )
+        if deleted_part_location_delete.status_code != 409:
+            fail(
+                "Deleting a location assigned to a deleted part should return "
+                f"409, got {deleted_part_location_delete.status_code}: "
+                f"{deleted_part_location_delete.text}"
+            )
+
+        unused_delete = client.delete(
+            f"/api/locations/{first_id}",
+            headers=headers,
+        )
+        if unused_delete.status_code != 200:
+            fail(
+                "Deleting an unused location returned "
+                f"{unused_delete.status_code}: {unused_delete.text}"
+            )
+        deleted_location = unused_delete.json()
+        if (
+            deleted_location.get("id") != first_id
+            or deleted_location.get("name") != updated_first_name
+            or deleted_location.get("deleted") is not True
+        ):
+            fail(
+                "Unexpected unused-location deletion response: "
+                f"{deleted_location}"
+            )
+
+        missing_delete = client.delete(
+            "/api/locations/2147483647",
+            headers=headers,
+        )
+        if missing_delete.status_code != 404:
+            fail(
+                "Deleting a missing location should return 404, got "
+                f"{missing_delete.status_code}: {missing_delete.text}"
+            )
+
+        after_delete_list = client.get(
+            "/api/locations",
+            headers=headers,
+        ).json()
+        if any(
+            item.get("id") == first_id
+            for item in after_delete_list.get("locations", [])
+        ):
+            fail("Deleted unused location remained in the catalogue.")
+
+        with db_session() as db:
+            persisted_second = db.execute(
+                text(
+                    "select name, normalized_name, note "
+                    "from locations where id = :location_id"
+                ),
+                {"location_id": second_id},
+            ).one_or_none()
+            part_location = db.execute(
+                text(
+                    "select location_id, is_deleted "
+                    "from parts where id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).one_or_none()
+            audit_rows = db.execute(
+                text(
+                    "select event_type, entity_id, actor_user_id, "
+                    "before_json, after_json, metadata_json "
+                    "from audit_log "
+                    "where entity_type = 'location' "
+                    "and entity_id in (:first_id, :second_id) "
+                    "order by id"
+                ),
+                {
+                    "first_id": first_id,
+                    "second_id": second_id,
+                },
+            ).all()
+
+        if persisted_second is None:
+            fail("In-use location was removed despite deletion conflicts.")
+        if persisted_second[1] != " ".join(second_name.split()).casefold():
+            fail(
+                "Location normalized_name was not persisted correctly: "
+                f"{persisted_second!r}"
+            )
+        if (
+            part_location is None
+            or part_location[0] != second_id
+            or part_location[1] != 1
+        ):
+            fail(
+                "Deleted part did not retain its location reference: "
+                f"{part_location!r}"
+            )
+
+        event_types = [row[0] for row in audit_rows]
+        required_events = {
+            "location.created",
+            "location.updated",
+            "location.deleted",
+        }
+        if not required_events.issubset(set(event_types)):
+            fail(
+                "Location audit events are incomplete: "
+                f"{event_types}"
+            )
+
+        first_audits = [
+            row
+            for row in audit_rows
+            if row[1] == first_id
+        ]
+        if len(first_audits) != 3:
+            fail(
+                "The created, updated, and deleted location should have three "
+                f"audit rows, got {len(first_audits)}: {first_audits!r}"
+            )
+        for row in audit_rows:
+            if row[2] != user_id:
+                fail(
+                    "Location audit actor does not match the authenticated "
+                    f"user: {row!r}"
+                )
+
+        update_audit = next(
+            row
+            for row in first_audits
+            if row[0] == "location.updated"
+        )
+        delete_audit = next(
+            row
+            for row in first_audits
+            if row[0] == "location.deleted"
+        )
+
+        update_before = (
+            json_module.loads(update_audit[3])
+            if isinstance(update_audit[3], str)
+            else update_audit[3]
+        )
+        update_after = (
+            json_module.loads(update_audit[4])
+            if isinstance(update_audit[4], str)
+            else update_audit[4]
+        )
+        update_metadata = (
+            json_module.loads(update_audit[5])
+            if isinstance(update_audit[5], str)
+            else update_audit[5]
+        )
+        delete_before = (
+            json_module.loads(delete_audit[3])
+            if isinstance(delete_audit[3], str)
+            else delete_audit[3]
+        )
+        delete_after = (
+            json_module.loads(delete_audit[4])
+            if isinstance(delete_audit[4], str)
+            else delete_audit[4]
+        )
+        delete_metadata = (
+            json_module.loads(delete_audit[5])
+            if isinstance(delete_audit[5], str)
+            else delete_audit[5]
+        )
+
+        if (
+            update_before.get("name") != first_name
+            or update_after.get("name") != updated_first_name
+            or set(update_metadata.get("changed_fields", []))
+            != {"name", "note"}
+        ):
+            fail(
+                "Location update audit snapshots are incomplete: "
+                f"{update_audit!r}"
+            )
+        if (
+            delete_before.get("part_count") != 0
+            or delete_after.get("deleted") is not True
+            or delete_metadata.get("safe_delete_check") is not True
+        ):
+            fail(
+                "Location deletion audit snapshots are incomplete: "
+                f"{delete_audit!r}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Reusable location catalogue is authenticated, normalized, editable, "
+        "usage-aware, safe for active and deleted part references, and audited"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -3851,6 +4406,7 @@ def main() -> None:
         check_inventory_part_creation_api,
         check_manufacturer_catalogue_api,
         check_package_catalogue_api,
+        check_location_catalogue_api,
         check_stock_quantity_adjustment_api,
         check_part_metadata_update_api,
         check_part_soft_delete_restore_api,
