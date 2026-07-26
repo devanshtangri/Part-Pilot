@@ -1,0 +1,72 @@
+Part Pilot project memory
+
+Project:
+Repository: https://github.com/devanshtangri/Part-Pilot.git
+Local root: /projects/Part Pilot
+Branch: main
+Docker Compose service: partpilot
+Typical host port: 7890
+Frontend: React, Vite, TypeScript
+Backend: FastAPI, SQLAlchemy, Alembic
+Current Alembic head: 0005_packages
+
+Core workflow:
+Every implementation, fix, diagnostic, cleanup, documentation update, checkpoint, commit, push, and handoff must be delivered as one complete downloadable Python file. Never ask the user to find exact lines and copy-paste manual edits.
+
+Use one sequential patch number for every operation. Never reuse a number after the corresponding script has been run. A corrected replacement may keep the same number only when the earlier file was not run.
+
+Every successful script must print exactly:
+Everything PASS
+as its final output line. Never print that line on failure.
+
+Every script must verify the repository, branch, origin, expected source state, and prerequisites. Validate all planned transformations in memory before creating backups or writing files. If source anchors do not match, fail before touching the working tree.
+
+Back up every changed file under:
+/projects/Part Pilot/fixes/backups/
+
+Store logs and diagnostic reports under:
+/projects/Part Pilot/fixes/logs/
+
+Keep terminal output concise. Save full diffs to the log instead of printing large source files. Run git diff --check. Compile relevant Python files. Build and deploy Part Pilot when application source changes. Verify Alembic, run the complete smoke suite, verify relevant protected APIs, verify SPA routes, and verify deployed markers. Restore source and the previous deployment safely if any step fails.
+
+Browser-test workflow:
+Do not include browser-test instructions inside Python scripts.
+First provide the script. The user runs it and reports terminal results. Terminal Everything PASS means automated verification only, not browser approval. Provide browser-test instructions separately when required. Keep browser-test changes uncommitted and unpushed until the user explicitly approves the browser result. Apply feedback through the next sequential Python script. After explicit approval, create a separate checkpoint/commit/push script.
+
+Git workflow:
+Check local git status before assuming GitHub is current. Commit each small independently approved batch and push it promptly. Stage only intended files, verify the exact staged file set, run staged git diff --check, commit with a focused message, push main, fetch, and verify local and origin/main point to the same commit.
+
+Durable secondary memory:
+Treat docs/Checkpoint.md, docs/Implementation_Roadmap.md, README.md at public milestones, and the newest relevant docs/*Handoff* file as durable secondary project memory. Update them at meaningful verified checkpoints, commits, phase boundaries, and chat boundaries, not for every small cosmetic fix. At the start of a new chat, inspect the newest handoff first, then Checkpoint.md, Implementation_Roadmap.md, README.md, and any newer relevant handoff.
+
+Chat naming:
+Use exactly:
+Chat N: descriptive title
+
+The current conversation is Chat 9.
+Patch 225 is the mandatory final Python file of Chat 9.
+The next chat title is exactly:
+Chat 10: Stored Parts Server Search Migration
+Chat 10 starts with Patch 226.
+Patch 250 is the mandatory final Python file of Chat 10.
+
+Every patch number divisible by 25 is a mandatory chat boundary and the final Python file of that chat. That boundary patch must create or update the durable handoff and a ready-to-paste next-chat prompt, explicitly state the next chat title, record the next patch number, update durable memory where appropriate, commit, and push.
+
+If a divisible-by-25 boundary patch fails, do not issue the next numbered Python file in the same chat. The user will paste the failure. Explain the failure and update the next-chat prompt in the chat so it includes the failure, rollback state, and required fix. The next chat then starts with the following patch number.
+
+Inventory-safe testing:
+Never assume the user database is empty. Use generated unique fixture values. Isolate search tests through temporary part types or equivalent filters. Explicitly model attributes shared by several fixtures. Avoid generic one-result assumptions. Avoid large random decimal fixtures whose SQLite text form can lose precision. Clean up temporary records and leave real inventory unchanged.
+
+Current completed state:
+Backend universal search is committed and pushed. It searches part metadata, part type, manufacturer, location, aliases, tags, and typed custom fields. It preserves filters, pagination, deleted-part exclusion, duplicate suppression, and available-before-out-of-stock ordering.
+
+Dashboard universal search is committed and pushed. It has typed frontend search support, 280 ms live search, stale-response protection, loading/error/no-match states, Available and Out of stock result groups, settings-driven hidden out-of-stock behaviour, selected-result details, keyboard shortcuts, responsive mobile layout, a centred SVG close icon, and clearly separated teal/red stock cards. The user browser-approved the final design.
+
+Immediate next work:
+Chat 10 begins with Patch 226. Migrate Stored Parts search from client-side filtering over the currently loaded page to the backend universal-search contract. Preserve part-type and location filters, backend totals and pagination, available-before-out-of-stock ordering, out-of-stock settings, mobile Inventory layout, part selection, quantity changes, movement history, metadata editing, delete/restore, and Part Manager management mode. Use a read-only preflight first if exact source anchors are uncertain.
+
+Design direction:
+Use clean enterprise inventory styling, flat surfaces, subtle borders, restrained radii, dense but readable information, minimal gradients, and responsive desktop/mobile layouts. Do not use glassmorphism or AI-generated visual assets. Prefer simple domain language. Approved search labels are Available and Out of stock. Hide result sections when they contain no rows.
+
+Response format for every script:
+State the classification and patch number, provide the downloadable Python file, SHA-256, exact run command, concise scope, whether source changes, whether build/deploy occurs, whether browser testing is required, whether commit/push occurs, and the expected final line.

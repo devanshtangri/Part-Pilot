@@ -1563,3 +1563,24 @@ Preserve:
 - mobile Inventory layout;
 - existing part selection and editing flows.
 <!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_ROADMAP:END -->
+
+<!-- PARTPILOT:CHAT10_STORED_PARTS_SEARCH_ROADMAP:START -->
+## Chat 10 — Stored Parts server-search migration
+
+Required title: `Chat 10: Stored Parts Server Search Migration`
+
+Starting operation: Patch 226
+
+Immediate boundary: move Stored Parts search from filtering only the currently loaded frontend page to the backend universal-search contract.
+
+Preserve:
+- part-type and location filters;
+- accurate backend totals and pagination;
+- available-before-out-of-stock ordering;
+- configured out-of-stock visibility;
+- responsive Inventory layout;
+- selection, details, quantity, movement, edit, delete, and restore flows;
+- Part Manager management mode.
+
+Patch 250 is the mandatory final Python file of Chat 10 and must create the Chat 11 handoff and starting prompt.
+<!-- PARTPILOT:CHAT10_STORED_PARTS_SEARCH_ROADMAP:END -->

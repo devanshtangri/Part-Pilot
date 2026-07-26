@@ -1816,3 +1816,16 @@ The user approved:
 Migrate Stored Parts from client-only filtering over the loaded page to the
 backend universal-search contract. Keep that as a separate browser-test batch
 so Dashboard search remains an independently reviewable checkpoint.
+
+<!-- PARTPILOT:CHAT9_BOUNDARY_POLICY:V225 -->
+## Chat 9 boundary
+
+- Patch 225 is the final Python file of Chat 9.
+- The next chat title is `Chat 10: Stored Parts Server Search Migration`.
+- Chat 10 starts with Patch 226.
+- Patch 250 is the final Python file of Chat 10.
+- Every patch number divisible by 25 is a mandatory final patch for its chat and creates the next handoff and starting prompt.
+- If a boundary patch fails, no higher-numbered Python file is issued in the same chat.
+- Durable workflow instructions are stored in `docs/Part_Pilot_Project_Memory.txt`.
+- The handoff is stored in `docs/Chat9_to_Chat10_Handoff.md`.
+- The ready-to-paste prompt is stored in `docs/Chat10_Starting_Prompt.txt`.
