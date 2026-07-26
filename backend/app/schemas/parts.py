@@ -40,9 +40,11 @@ class PartFieldValueCreateRequest(BaseModel):
         return self
 
 
+# PATCH 160: reusable part location assignment schemas
 class PartCreateRequest(BaseModel):
     part_type_id: int = Field(gt=0)
     manufacturer_id: int | None = Field(default=None, gt=0)
+    location_id: int | None = Field(default=None, gt=0)
     part_number: str | None = Field(default=None, max_length=160)
     name: str | None = Field(default=None, max_length=220)
     description: str | None = Field(default=None, max_length=5000)
@@ -111,6 +113,7 @@ class PartUpdateRequest(BaseModel):
 
     part_type_id: int = Field(gt=0)
     manufacturer_id: int | None = Field(default=None, gt=0)
+    location_id: int | None = Field(default=None, gt=0)
     part_number: str | None = Field(default=None, max_length=160)
     name: str | None = Field(default=None, max_length=220)
     description: str | None = Field(default=None, max_length=5000)
@@ -193,6 +196,8 @@ class PartResponse(BaseModel):
     part_type_name: str
     manufacturer_id: int | None = None
     manufacturer_name: str | None = None
+    location_id: int | None = None
+    location_name: str | None = None
     part_number: str | None = None
     name: str | None = None
     description: str | None = None

@@ -6,9 +6,11 @@ export interface PartFieldValueCreatePayload {
   unit?: string | null;
 }
 
+// PATCH 160: reusable part location assignment types
 export interface CreatePartPayload {
   part_type_id: number;
   manufacturer_id: number | null;
+  location_id: number | null;
   part_number: string | null;
   name: string | null;
   description: string | null;
@@ -41,6 +43,8 @@ export interface Part {
   part_type_name: string;
   manufacturer_id: number | null;
   manufacturer_name: string | null;
+  location_id: number | null;
+  location_name: string | null;
   part_number: string | null;
   name: string | null;
   description: string | null;
@@ -124,6 +128,7 @@ export interface PartMovementCollection {
 export interface UpdatePartPayload {
   part_type_id: number;
   manufacturer_id: number | null;
+  location_id: number | null;
   part_number: string | null;
   name: string | null;
   description: string | null;

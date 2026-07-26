@@ -26,6 +26,8 @@ import type {
 } from "../types/partTypes";
 
 import { PackageSelector } from "./PackageSelector";
+// PATCH 160: reusable location selector in Add Part
+import { LocationSelector } from "./LocationSelector";
 
 import "./AddPartModal.css";
 
@@ -163,6 +165,8 @@ export function AddPartModal({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [packageName, setPackageName] = useState("");
+  const [locationId, setLocationId] =
+    useState<number | null>(null);
   const [notes, setNotes] = useState("");
   const [quantity, setQuantity] = useState("0");
   const [unitPrice, setUnitPrice] = useState("");
@@ -332,6 +336,7 @@ export function AddPartModal({
     setName("");
     setDescription("");
     setPackageName("");
+    setLocationId(null);
     setNotes("");
     setQuantity("0");
     setUnitPrice("");
@@ -516,6 +521,7 @@ export function AddPartModal({
     return {
       part_type_id: selectedType.id,
       manufacturer_id: manufacturerId,
+      location_id: locationId,
       part_number: partNumber.trim() || null,
       name: name.trim() || null,
       description: description.trim() || null,
@@ -784,6 +790,13 @@ export function AddPartModal({
                   </strong>
                 </div>
                 <div>
+                  <span>Location</span>
+                  <strong>
+                    {createdPart.location_name
+                      || "Not specified"}
+                  </strong>
+                </div>
+                <div>
                   <span>Quantity</span>
                   <strong>{createdPart.total_quantity}</strong>
                 </div>
@@ -991,6 +1004,15 @@ export function AddPartModal({
                     token={token}
                     value={packageName}
                     onChange={setPackageName}
+                    disabled={isSaving}
+                  />
+                  <LocationSelector
+                    token={token}
+                    value={locationId}
+                    onChange={(value) => {
+                      setLocationId(value);
+                      setError(null);
+                    }}
                     disabled={isSaving}
                   />
 

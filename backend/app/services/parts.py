@@ -22,6 +22,7 @@ from app.models import (
     PartType,
     PartTypeField,
     StockMovement,
+    Location,
 )
 from app.schemas.parts import (
     PartCollectionResponse,
@@ -164,6 +165,7 @@ def _validate_and_build_field_value(
     )
 
 
+# PATCH 160: reusable part location assignment service
 def _serialize_part(db: Session, part: Part) -> PartResponse:
     part_type = db.get(PartType, part.part_type_id)
     if part_type is None:
@@ -175,6 +177,11 @@ def _serialize_part(db: Session, part: Part) -> PartResponse:
         else None
     )
 
+    location = (
+        db.get(Location, part.location_id)
+        if part.location_id is not None
+        else None
+    )
     fields = list(
         db.execute(
             select(PartTypeField)
@@ -233,6 +240,12 @@ def _serialize_part(db: Session, part: Part) -> PartResponse:
             if manufacturer is not None
             else None
         ),
+        location_id=part.location_id,
+        location_name=(
+            location.name
+            if location is not None
+            else None
+        ),
         part_number=part.part_number,
         name=part.name,
         description=part.description,
@@ -274,6 +287,13 @@ def create_part(
                 "Select an active manufacturer."
             )
 
+    location: Location | None = None
+    if payload.location_id is not None:
+        location = db.get(Location, payload.location_id)
+        if location is None:
+            raise PartValidationError(
+                "Select an existing location."
+            )
     if payload.part_number:
         existing_id = db.execute(
             select(Part.id).where(
@@ -329,6 +349,7 @@ def create_part(
     part = Part(
         part_type_id=payload.part_type_id,
         manufacturer_id=payload.manufacturer_id,
+        location_id=payload.location_id,
         part_number=payload.part_number,
         name=payload.name,
         description=payload.description,
@@ -382,6 +403,12 @@ def create_part(
                     "manufacturer_name": (
                         manufacturer.name
                         if manufacturer is not None
+                        else None
+                    ),
+                    "location_id": part.location_id,
+                    "location_name": (
+                        location.name
+                        if location is not None
                         else None
                     ),
                     "part_number": part.part_number,
@@ -471,6 +498,8 @@ def _part_metadata_snapshot(response: PartResponse) -> dict[str, object]:
         "part_type_name": response.part_type_name,
         "manufacturer_id": response.manufacturer_id,
         "manufacturer_name": response.manufacturer_name,
+        "location_id": response.location_id,
+        "location_name": response.location_name,
         "part_number": response.part_number,
         "name": response.name,
         "description": response.description,
@@ -539,6 +568,13 @@ def update_part_metadata(
         if manufacturer is None or not manufacturer.is_active:
             raise PartValidationError("Select an active manufacturer.")
 
+    location: Location | None = None
+    if payload.location_id is not None:
+        location = db.get(Location, payload.location_id)
+        if location is None:
+            raise PartValidationError(
+                "Select an existing location."
+            )
     if payload.part_number:
         existing_id = db.execute(
             select(Part.id).where(
@@ -601,6 +637,7 @@ def update_part_metadata(
 
     try:
         part.manufacturer_id = payload.manufacturer_id
+        part.location_id = payload.location_id
         part.part_number = payload.part_number
         part.name = payload.name
         part.description = payload.description
@@ -660,6 +697,12 @@ def update_part_metadata(
                     "manufacturer_name": (
                         manufacturer.name
                         if manufacturer is not None
+                        else None
+                    ),
+                    "location_id": payload.location_id,
+                    "location_name": (
+                        location.name
+                        if location is not None
                         else None
                     ),
                     "changed_fields": changed_fields,
@@ -919,6 +962,8 @@ def _part_lifecycle_snapshot(
         "part_type_name": response.part_type_name,
         "manufacturer_id": response.manufacturer_id,
         "manufacturer_name": response.manufacturer_name,
+        "location_id": response.location_id,
+        "location_name": response.location_name,
         "part_number": response.part_number,
         "name": response.name,
         "total_quantity": response.total_quantity,

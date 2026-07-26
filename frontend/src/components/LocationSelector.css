@@ -1,0 +1,146 @@
+/* PATCH 160: REUSABLE PART LOCATION ASSIGNMENT */
+:root {
+  --location-assignment-v160: 1;
+}
+
+.location-selector {
+  min-width: 0;
+}
+
+.location-selector-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+}
+
+.location-selector-control select {
+  min-width: 0;
+}
+
+.location-selector-control button,
+.location-selector-create button {
+  align-items: center;
+  display: inline-flex;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.location-selector-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.55rem;
+  margin-top: 0.55rem;
+}
+
+.location-selector-create input {
+  min-width: 0;
+}
+
+.location-selector-note {
+  display: block;
+  margin-top: 0.4rem;
+}
+
+.location-selector-error {
+  color: var(--danger, #dc5c5c);
+  display: block;
+  margin-top: 0.45rem;
+}
+
+@media (max-width: 640px) {
+  .location-selector-control,
+  .location-selector-create {
+    grid-template-columns: 1fr;
+  }
+
+  .location-selector-control button,
+  .location-selector-create button {
+    width: 100%;
+  }
+}
+
+/* PATCH 161: CONSOLIDATED LOCATION ACTION BUTTON POLISH */
+:root {
+  --location-button-polish-v161: 2;
+}
+
+.location-selector-control > button,
+.location-selector-create > button {
+  appearance: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 38px !important;
+  margin: 0 !important;
+  padding: 8px 12px !important;
+  border: 1px solid #3a475b !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background: #141e2c !important;
+  color: #dbe7f5 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease !important;
+}
+
+.location-selector-control > button:hover:not(:disabled),
+.location-selector-create > button:not(:first-of-type):hover:not(:disabled) {
+  border-color: #60718d !important;
+  background: #1b293a !important;
+  color: #ffffff !important;
+}
+
+.location-selector-control > button:active:not(:disabled),
+.location-selector-create > button:active:not(:disabled) {
+  transform: translateY(1px) !important;
+}
+
+.location-selector-control > button:focus-visible,
+.location-selector-create > button:focus-visible {
+  outline: 2px solid #2dd4bf !important;
+  outline-offset: 2px !important;
+}
+
+.location-selector-create > button:first-of-type {
+  border-color: #20b8a6 !important;
+  background: #0f766e !important;
+  color: #f0fdfa !important;
+}
+
+.location-selector-create > button:first-of-type:hover:not(:disabled) {
+  border-color: #5eead4 !important;
+  background: #0d9488 !important;
+  color: #ffffff !important;
+}
+
+.location-selector-control > button:disabled,
+.location-selector-create > button:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.58 !important;
+  transform: none !important;
+}
+
+.location-selector-create > button:first-of-type:disabled {
+  border-color: #314057 !important;
+  background: #17212e !important;
+  color: #718197 !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 640px) {
+  .location-selector-control > button,
+  .location-selector-create > button {
+    width: 100% !important;
+    min-height: 40px !important;
+  }
+}

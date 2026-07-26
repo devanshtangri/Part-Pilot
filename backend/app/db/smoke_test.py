@@ -4385,6 +4385,460 @@ def check_location_catalogue_api() -> None:
     )
 
 
+
+# PATCH 160: reusable part location assignment API smoke test
+def check_part_location_assignment_api() -> None:
+    import json as json_module
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+
+    username = "smoke_part_location_user"
+    password = "part-location-smoke-password"
+    suffix = uuid4().hex[:10]
+    first_name = f"Smoke Parts Drawer {suffix}"
+    second_name = f"Smoke Parts Shelf {suffix}"
+    part_number = f"SMOKE-PART-LOCATION-{suffix}"
+
+    first_location_id: int | None = None
+    second_location_id: int | None = None
+    part_id: int | None = None
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if part_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+
+            for location_id in (
+                first_location_id,
+                second_location_id,
+            ):
+                if location_id is None:
+                    continue
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'location' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": location_id},
+                )
+                db.execute(
+                    text("delete from locations where id = :location_id"),
+                    {"location_id": location_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Part Location Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+            part_type_id = db.execute(
+                text(
+                    "select pt.id from part_types pt "
+                    "where pt.is_active = 1 "
+                    "and not exists ("
+                    "select 1 from part_type_fields f "
+                    "where f.part_type_id = pt.id "
+                    "and f.is_required = 1"
+                    ") order by pt.id limit 1"
+                )
+            ).scalar()
+
+        if part_type_id is None:
+            fail(
+                "Part location smoke test requires one active part type "
+                "without required template fields."
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        first_response = client.post(
+            "/api/locations",
+            headers=headers,
+            json={"name": first_name, "note": None},
+        )
+        if first_response.status_code != 201:
+            fail(
+                "Creating the first location returned "
+                f"{first_response.status_code}: {first_response.text}"
+            )
+        first_location_id = first_response.json().get("id")
+        if not isinstance(first_location_id, int):
+            fail(
+                "The first location response did not contain an integer id."
+            )
+
+        second_response = client.post(
+            "/api/locations",
+            headers=headers,
+            json={"name": second_name, "note": None},
+        )
+        if second_response.status_code != 201:
+            fail(
+                "Creating the second location returned "
+                f"{second_response.status_code}: {second_response.text}"
+            )
+        second_location_id = second_response.json().get("id")
+        if not isinstance(second_location_id, int):
+            fail(
+                "The second location response did not contain an integer id."
+            )
+
+        base_payload = {
+            "part_type_id": int(part_type_id),
+            "manufacturer_id": None,
+            "part_number": part_number,
+            "name": "Part location smoke component",
+            "description": None,
+            "package": None,
+            "notes": None,
+            "total_quantity": 4,
+            "unit_price": None,
+            "purchase_link": None,
+            "low_stock_enabled": False,
+            "low_stock_threshold": None,
+            "field_values": [],
+        }
+
+        invalid_create = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                **base_payload,
+                "part_number": f"{part_number}-INVALID",
+                "location_id": 2147483647,
+            },
+        )
+        if invalid_create.status_code != 422:
+            fail(
+                "Creating a part with a missing location should return 422, "
+                f"got {invalid_create.status_code}: {invalid_create.text}"
+            )
+
+        create_response = client.post(
+            "/api/parts",
+            headers=headers,
+            json={
+                **base_payload,
+                "location_id": first_location_id,
+            },
+        )
+        if create_response.status_code != 201:
+            fail(
+                "Creating a located part returned "
+                f"{create_response.status_code}: {create_response.text}"
+            )
+        created = create_response.json()
+        part_id = created.get("id")
+        if (
+            not isinstance(part_id, int)
+            or created.get("location_id") != first_location_id
+            or created.get("location_name") != first_name
+            or created.get("total_quantity") != 4
+            or created.get("reserved_quantity") != 0
+        ):
+            fail(f"Unexpected located-part response: {created}")
+
+        get_response = client.get(
+            f"/api/parts/{part_id}",
+            headers=headers,
+        )
+        if get_response.status_code != 200:
+            fail(
+                "Reading the located part returned "
+                f"{get_response.status_code}: {get_response.text}"
+            )
+        if (
+            get_response.json().get("location_id")
+            != first_location_id
+            or get_response.json().get("location_name") != first_name
+        ):
+            fail(
+                "Part detail did not serialize the created location: "
+                f"{get_response.json()}"
+            )
+
+        update_payload = {
+            "part_type_id": int(part_type_id),
+            "manufacturer_id": None,
+            "location_id": second_location_id,
+            "part_number": part_number,
+            "name": "Part location smoke component",
+            "description": None,
+            "package": None,
+            "notes": None,
+            "unit_price": None,
+            "purchase_link": None,
+            "low_stock_enabled": False,
+            "low_stock_threshold": None,
+            "field_values": [],
+        }
+
+        invalid_update = client.put(
+            f"/api/parts/{part_id}",
+            headers=headers,
+            json={
+                **update_payload,
+                "location_id": 2147483647,
+            },
+        )
+        if invalid_update.status_code != 422:
+            fail(
+                "Updating a part to a missing location should return 422, "
+                f"got {invalid_update.status_code}: {invalid_update.text}"
+            )
+
+        with db_session() as db:
+            movement_count_before = int(
+                db.execute(
+                    text(
+                        "select count(*) from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                ).scalar_one()
+            )
+
+        update_response = client.put(
+            f"/api/parts/{part_id}",
+            headers=headers,
+            json=update_payload,
+        )
+        if update_response.status_code != 200:
+            fail(
+                "Updating a part location returned "
+                f"{update_response.status_code}: {update_response.text}"
+            )
+        updated = update_response.json()
+        if (
+            updated.get("location_id") != second_location_id
+            or updated.get("location_name") != second_name
+            or updated.get("total_quantity") != 4
+            or updated.get("reserved_quantity") != 0
+        ):
+            fail(f"Unexpected updated location response: {updated}")
+
+        clear_response = client.put(
+            f"/api/parts/{part_id}",
+            headers=headers,
+            json={
+                **update_payload,
+                "location_id": None,
+            },
+        )
+        if clear_response.status_code != 200:
+            fail(
+                "Clearing a part location returned "
+                f"{clear_response.status_code}: {clear_response.text}"
+            )
+        cleared = clear_response.json()
+        if (
+            cleared.get("location_id") is not None
+            or cleared.get("location_name") is not None
+            or cleared.get("total_quantity") != 4
+            or cleared.get("reserved_quantity") != 0
+        ):
+            fail(f"Unexpected cleared location response: {cleared}")
+
+        with db_session() as db:
+            persisted = db.execute(
+                text(
+                    "select location_id, total_quantity, reserved_quantity "
+                    "from parts where id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).one_or_none()
+            movement_count_after = int(
+                db.execute(
+                    text(
+                        "select count(*) from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                ).scalar_one()
+            )
+            audits = db.execute(
+                text(
+                    "select event_type, actor_user_id, before_json, "
+                    "after_json, metadata_json from audit_log "
+                    "where entity_type = 'part' "
+                    "and entity_id = :part_id order by id"
+                ),
+                {"part_id": part_id},
+            ).all()
+
+        if (
+            persisted is None
+            or persisted[0] is not None
+            or persisted[1] != 4
+            or persisted[2] != 0
+        ):
+            fail(
+                "Cleared location or quantities were not persisted correctly: "
+                f"{persisted!r}"
+            )
+        if movement_count_after != movement_count_before:
+            fail(
+                "Metadata location changes must not create stock movements: "
+                f"before={movement_count_before}, "
+                f"after={movement_count_after}"
+            )
+
+        creation_audit = next(
+            (row for row in audits if row[0] == "part.created"),
+            None,
+        )
+        metadata_audits = [
+            row
+            for row in audits
+            if row[0] == "part.metadata_updated"
+        ]
+        if creation_audit is None or len(metadata_audits) != 2:
+            fail(
+                "Expected one creation and two metadata audit events, got "
+                f"{[row[0] for row in audits]}"
+            )
+
+        for row in audits:
+            if row[1] != user_id:
+                fail(
+                    "Part location audit actor does not match the "
+                    f"authenticated user: {row!r}"
+                )
+
+        creation_after = (
+            json_module.loads(creation_audit[3])
+            if isinstance(creation_audit[3], str)
+            else creation_audit[3]
+        )
+        if (
+            creation_after.get("location_id") != first_location_id
+            or creation_after.get("location_name") != first_name
+        ):
+            fail(
+                "Part creation audit omitted location data: "
+                f"{creation_after!r}"
+            )
+
+        first_metadata = metadata_audits[0]
+        second_metadata = metadata_audits[1]
+        first_before = (
+            json_module.loads(first_metadata[2])
+            if isinstance(first_metadata[2], str)
+            else first_metadata[2]
+        )
+        first_after = (
+            json_module.loads(first_metadata[3])
+            if isinstance(first_metadata[3], str)
+            else first_metadata[3]
+        )
+        first_meta = (
+            json_module.loads(first_metadata[4])
+            if isinstance(first_metadata[4], str)
+            else first_metadata[4]
+        )
+        second_after = (
+            json_module.loads(second_metadata[3])
+            if isinstance(second_metadata[3], str)
+            else second_metadata[3]
+        )
+        second_meta = (
+            json_module.loads(second_metadata[4])
+            if isinstance(second_metadata[4], str)
+            else second_metadata[4]
+        )
+
+        if (
+            first_before.get("location_id") != first_location_id
+            or first_after.get("location_id") != second_location_id
+            or first_after.get("location_name") != second_name
+            or not {
+                "location_id",
+                "location_name",
+            }.issubset(set(first_meta.get("changed_fields", [])))
+        ):
+            fail(
+                "Location change audit snapshots are incomplete: "
+                f"{first_metadata!r}"
+            )
+        if (
+            second_after.get("location_id") is not None
+            or second_after.get("location_name") is not None
+            or not {
+                "location_id",
+                "location_name",
+            }.issubset(set(second_meta.get("changed_fields", [])))
+        ):
+            fail(
+                "Location clearing audit snapshots are incomplete: "
+                f"{second_metadata!r}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Part creation and metadata editing support reusable location "
+        "assignment, change, clearing, serialization, and complete audits"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -4407,6 +4861,7 @@ def main() -> None:
         check_manufacturer_catalogue_api,
         check_package_catalogue_api,
         check_location_catalogue_api,
+        check_part_location_assignment_api,
         check_stock_quantity_adjustment_api,
         check_part_metadata_update_api,
         check_part_soft_delete_restore_api,

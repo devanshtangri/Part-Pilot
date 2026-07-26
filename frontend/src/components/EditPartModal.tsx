@@ -26,6 +26,8 @@ import type {
 } from "../types/partTypes";
 
 import { PackageSelector } from "./PackageSelector";
+// PATCH 160: reusable location selector in Edit Part
+import { LocationSelector } from "./LocationSelector";
 
 import "./AddPartModal.css";
 import "./EditPartModal.css";
@@ -170,6 +172,8 @@ export function EditPartModal({
   const [description, setDescription] =
     useState(part.description ?? "");
   const [packageName, setPackageName] = useState(part.package ?? "");
+  const [locationId, setLocationId] =
+    useState<number | null>(part.location_id);
   const [notes, setNotes] = useState(part.notes ?? "");
   const [unitPrice, setUnitPrice] = useState(
     trimDecimalInputValue(part.unit_price)
@@ -509,6 +513,7 @@ export function EditPartModal({
     return {
       part_type_id: part.part_type_id,
       manufacturer_id: manufacturerId,
+      location_id: locationId,
       part_number: partNumber.trim() || null,
       name: name.trim() || null,
       description: description.trim() || null,
@@ -906,6 +911,15 @@ export function EditPartModal({
                   value={packageName}
                   onChange={(value) => {
                     setPackageName(value);
+                    setError(null);
+                  }}
+                  disabled={isSaving}
+                />
+                <LocationSelector
+                  token={token}
+                  value={locationId}
+                  onChange={(value) => {
+                    setLocationId(value);
                     setError(null);
                   }}
                   disabled={isSaving}
