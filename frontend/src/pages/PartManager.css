@@ -2323,3 +2323,104 @@
     font-size: 0.67rem !important;
   }
 }
+
+/* PATCH 171: STORED PARTS LOCATION DISPLAY AND FILTER */
+:root {
+  --stored-parts-location-filter-v171: 1;
+}
+
+.part-manager-page .inventory-browser-toolbar {
+  grid-template-columns:
+    minmax(220px, 1fr)
+    minmax(165px, 220px)
+    auto !important;
+}
+
+.part-manager-page .inventory-location-filter {
+  display: block !important;
+  min-width: 0 !important;
+}
+
+.part-manager-page .inventory-location-filter select {
+  appearance: none !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 36px !important;
+  margin: 0 !important;
+  padding: 8px 30px 8px 11px !important;
+  border: 1px solid #334155 !important;
+  border-radius: 7px !important;
+  outline: none !important;
+  background:
+    #0c1522
+    linear-gradient(45deg, transparent 50%, #7f91a7 50%)
+    calc(100% - 14px) calc(50% - 2px) / 5px 5px
+    no-repeat !important;
+  color: #e5edf7 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.77rem !important;
+  line-height: 1.25 !important;
+  cursor: pointer !important;
+}
+
+.part-manager-page
+  .inventory-location-filter
+  select:hover:not(:disabled) {
+  border-color: #475569 !important;
+  background-color: #101b2a !important;
+}
+
+.part-manager-page .inventory-location-filter select:focus {
+  border-color: var(--accent) !important;
+  background-color: #111d2c !important;
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.1) !important;
+}
+
+.part-manager-page .inventory-location-filter select:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.5 !important;
+}
+
+.part-manager-page .inventory-table {
+  min-width: 900px !important;
+}
+
+.part-manager-page .inventory-location-cell {
+  max-width: 190px !important;
+  overflow: hidden !important;
+  color: #cbd5e1 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 980px) {
+  .part-manager-page .inventory-browser-toolbar {
+    grid-template-columns:
+      minmax(190px, 1fr)
+      minmax(150px, 190px) !important;
+  }
+
+  .part-manager-page .inventory-stock-filters {
+    grid-column: 1 / -1 !important;
+    justify-self: end !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .part-manager-page .inventory-browser-toolbar {
+    grid-template-columns: 1fr !important;
+  }
+
+  .part-manager-page .inventory-location-filter,
+  .part-manager-page .inventory-location-filter select {
+    width: 100% !important;
+  }
+
+  .part-manager-page .inventory-stock-filters {
+    grid-column: auto !important;
+    justify-self: stretch !important;
+  }
+}
+
+/* END PATCH 171 */

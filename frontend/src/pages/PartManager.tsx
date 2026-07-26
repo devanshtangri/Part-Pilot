@@ -26,6 +26,8 @@ import {
   getPartMovements,
   getParts
 } from "../services/partsClient";
+import { getLocations } from "../services/locationsClient";
+import type { LocationOption } from "../types/locations";
 import type {
   Part,
   PartCollection,
@@ -350,6 +352,15 @@ export function PartManager() {
   const [inventoryQuery, setInventoryQuery] = useState("");
   const [inventoryStockFilter, setInventoryStockFilter] =
     useState<InventoryStockFilter>("all");
+  // PATCH 171: Stored Parts location display and filtering
+  const [inventoryLocations, setInventoryLocations] =
+    useState<LocationOption[]>([]);
+  const [inventoryLocationsLoading, setInventoryLocationsLoading] =
+    useState(true);
+  const [inventoryLocationsError, setInventoryLocationsError] =
+    useState<string | null>(null);
+  const [inventoryLocationFilter, setInventoryLocationFilter] =
+    useState<number | null>(null);
   // PATCH 124: selected inventory record and drawer state
   const [selectedInventoryPartId, setSelectedInventoryPartId] =
     useState<number | null>(null);
@@ -435,6 +446,54 @@ export function PartManager() {
     };
   }, [token]);
 
+  // PATCH 171: load the reusable location catalogue for Stored Parts
+  useEffect(() => {
+    if (!token) {
+      setInventoryLocations([]);
+      setInventoryLocationsLoading(false);
+      setInventoryLocationsError(null);
+      setInventoryLocationFilter(null);
+      return;
+    }
+
+    let cancelled = false;
+    setInventoryLocationsLoading(true);
+    setInventoryLocationsError(null);
+
+    getLocations(token)
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setInventoryLocations(result.locations);
+        setInventoryLocationFilter((current) =>
+          current !== null
+          && !result.locations.some((location) => location.id === current)
+            ? null
+            : current
+        );
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setInventoryLocations([]);
+          setInventoryLocationsError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load locations"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setInventoryLocationsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, inventoryRefreshSequence]);
+
   // PATCH 110: load the existing inventory collection
   useEffect(() => {
     if (!token) {
@@ -449,7 +508,8 @@ export function PartManager() {
 
     getParts(token, {
       limit: 250,
-      offset: 0
+      offset: 0,
+      locationId: inventoryLocationFilter ?? undefined
     })
       .then((result) => {
         if (!cancelled) {
@@ -474,7 +534,7 @@ export function PartManager() {
     return () => {
       cancelled = true;
     };
-  }, [token, inventoryRefreshSequence]);
+  }, [token, inventoryLocationFilter, inventoryRefreshSequence]);
 
   useEffect(() => {
     if (selectedInventoryPartId === null || !token) {
@@ -611,6 +671,16 @@ export function PartManager() {
   const selectedType: PartType | null =
     collection?.part_types.find((item) => item.id === selectedId) ?? null;
 
+  const selectedInventoryLocation = useMemo(
+    () =>
+      inventoryLocationFilter === null
+        ? null
+        : inventoryLocations.find(
+            (location) => location.id === inventoryLocationFilter
+          ) ?? null,
+    [inventoryLocationFilter, inventoryLocations]
+  );
+
   const filteredInventoryParts = useMemo(() => {
     const normalizedQuery = inventoryQuery.trim().toLowerCase();
     const parts = inventoryCollection?.parts ?? [];
@@ -622,7 +692,8 @@ export function PartManager() {
           part.name,
           part.part_number,
           part.part_type_name,
-          part.manufacturer_name
+          part.manufacturer_name,
+          part.location_name
         ].some(
           (value) =>
             Boolean(
@@ -1922,9 +1993,13 @@ function closeCreator() {
               {inventoryQuery.trim()
                 || inventoryStockFilter !== "all"
                 ? `${filteredInventoryParts.length} of ${
-                    inventoryCollection?.parts.length ?? 0
+                    inventoryCollection?.total ?? 0
                   } shown`
-                : `${inventoryCollection?.total ?? 0} parts`}
+                : selectedInventoryLocation
+                  ? `${inventoryCollection?.total ?? 0} in ${
+                      selectedInventoryLocation.name
+                    }`
+                  : `${inventoryCollection?.total ?? 0} parts`}
             </span>
             <button
               className="inventory-deleted-button"
@@ -1952,6 +2027,7 @@ function closeCreator() {
         <div
           className="inventory-browser-toolbar"
           data-inventory-filter-version="inventory-search-filter-v120"
+          data-location-filter-version="stored-parts-location-filter-v171"
         >
           <label className="inventory-search-control">
             <span className="sr-only">Search stored parts</span>
@@ -1966,6 +2042,43 @@ function closeCreator() {
             />
           </label>
 
+          <label className="inventory-location-filter">
+            <span className="sr-only">Filter inventory by location</span>
+            <select
+              value={inventoryLocationFilter ?? ""}
+              onChange={(
+                event: ChangeEvent<HTMLSelectElement>
+              ) => {
+                const value = event.target.value;
+                setInventoryLocationFilter(
+                  value ? Number(value) : null
+                );
+              }}
+              aria-label="Filter inventory by location"
+              title={
+                inventoryLocationsError
+                  ?? "Filter stored parts by location"
+              }
+              disabled={inventoryLocationsLoading || !token}
+            >
+              <option value="">All locations</option>
+              {inventoryLocationsLoading ? (
+                <option value="" disabled>
+                  Loading locations...
+                </option>
+              ) : null}
+              {inventoryLocationsError ? (
+                <option value="" disabled>
+                  Locations unavailable
+                </option>
+              ) : null}
+              {inventoryLocations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <div
             className="inventory-stock-filters"
             role="group"
@@ -2013,6 +2126,7 @@ function closeCreator() {
         {!inventoryLoading
           && !inventoryError
           && inventoryCollection
+          && inventoryLocationFilter === null
           && inventoryCollection.parts.length === 0 ? (
             <div className="inventory-browser-state">
               No inventory parts yet. Use Add part to create the first one.
@@ -2022,18 +2136,22 @@ function closeCreator() {
         {!inventoryLoading
           && !inventoryError
           && inventoryCollection
-          && inventoryCollection.parts.length > 0
+          && (
+            inventoryLocationFilter !== null
+            || inventoryCollection.parts.length > 0
+          )
           && filteredInventoryParts.length === 0 ? (
             <div className="inventory-browser-state inventory-filter-empty">
               <strong>No stored parts match</strong>
               <p>
-                Try another search or clear the stock filter.
+                Try another search or clear the stock or location filter.
               </p>
               <button
                 type="button"
                 onClick={() => {
                   setInventoryQuery("");
                   setInventoryStockFilter("all");
+                  setInventoryLocationFilter(null);
                 }}
               >
                 Clear filters
@@ -2052,6 +2170,7 @@ function closeCreator() {
                     <th scope="col">Part</th>
                     <th scope="col">Type</th>
                     <th scope="col">Manufacturer</th>
+                    <th scope="col">Location</th>
                     <th scope="col">Available</th>
                     <th scope="col">Total</th>
                     <th scope="col">Status</th>
@@ -2089,6 +2208,12 @@ function closeCreator() {
                       <td>{part.part_type_name}</td>
                       <td>
                         {part.manufacturer_name || "Not specified"}
+                      </td>
+                      <td
+                        className="inventory-location-cell"
+                        title={part.location_name || "Not specified"}
+                      >
+                        {part.location_name || "Not specified"}
                       </td>
                       <td className="inventory-quantity">
                         {part.available_quantity}
@@ -2436,6 +2561,13 @@ function closeCreator() {
                         <dt>Manufacturer</dt>
                         <dd>
                           {selectedInventoryPart.manufacturer_name
+                            || "Not specified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Location</dt>
+                        <dd>
+                          {selectedInventoryPart.location_name
                             || "Not specified"}
                         </dd>
                       </div>
