@@ -4839,6 +4839,427 @@ def check_part_location_assignment_api() -> None:
     )
 
 
+# PATCH 169: Stored Parts location filter API smoke test
+def check_part_location_list_filter_api() -> None:
+    from datetime import datetime, timezone
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Location
+
+    username = "smoke_location_filter_user"
+    password = "location-filter-smoke-password"
+    suffix = uuid4().hex[:10]
+    first_location_name = f"Smoke Filter Drawer {suffix}"
+    second_location_name = f"Smoke Filter Shelf {suffix}"
+    part_ids: list[int] = []
+    location_ids: list[int] = []
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            for part_id in part_ids:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+
+            for location_id in location_ids:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'location' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": location_id},
+                )
+                db.execute(
+                    text(
+                        "delete from locations "
+                        "where id = :location_id"
+                    ),
+                    {"location_id": location_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        with db_session() as db:
+            user = create_user(
+                db,
+                username=username,
+                display_name="Location Filter Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 "
+                    "order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail(
+                    "Location filter smoke test requires an active part type."
+                )
+
+            first_location = Location(
+                name=first_location_name,
+                normalized_name=normalize_location_name(
+                    first_location_name
+                ),
+                note="Location filter smoke test",
+            )
+            second_location = Location(
+                name=second_location_name,
+                normalized_name=normalize_location_name(
+                    second_location_name
+                ),
+                note="Location filter smoke test",
+            )
+            db.add_all([first_location, second_location])
+            db.flush()
+            location_ids.extend(
+                [first_location.id, second_location.id]
+            )
+
+            parts = [
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=first_location.id,
+                    part_number=f"SMOKE-LOC-FILTER-A-{suffix}",
+                    name="Location filter first A",
+                    total_quantity=5,
+                    reserved_quantity=0,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=first_location.id,
+                    part_number=f"SMOKE-LOC-FILTER-B-{suffix}",
+                    name="Location filter first B",
+                    total_quantity=3,
+                    reserved_quantity=0,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=second_location.id,
+                    part_number=f"SMOKE-LOC-FILTER-C-{suffix}",
+                    name="Location filter second",
+                    total_quantity=7,
+                    reserved_quantity=0,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=None,
+                    part_number=f"SMOKE-LOC-FILTER-U-{suffix}",
+                    name="Location filter unassigned",
+                    total_quantity=4,
+                    reserved_quantity=0,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=first_location.id,
+                    part_number=f"SMOKE-LOC-FILTER-D-{suffix}",
+                    name="Location filter deleted",
+                    total_quantity=2,
+                    reserved_quantity=0,
+                    is_deleted=True,
+                    deleted_at=datetime.now(timezone.utc).replace(
+                        tzinfo=None
+                    ),
+                ),
+            ]
+            db.add_all(parts)
+            db.commit()
+            for part in parts:
+                db.refresh(part)
+            part_ids.extend(part.id for part in parts)
+
+            first_location_id = first_location.id
+            second_location_id = second_location.id
+            active_first_ids = {parts[0].id, parts[1].id}
+            active_second_id = parts[2].id
+            unassigned_id = parts[3].id
+            deleted_id = parts[4].id
+
+        unauthenticated = client.get(
+            f"/api/parts?location_id={first_location_id}"
+        )
+        if unauthenticated.status_code not in (401, 403):
+            fail(
+                "Unauthenticated location filtering should be protected, "
+                f"got {unauthenticated.status_code}: "
+                f"{unauthenticated.text}"
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        first_page = client.get(
+            (
+                f"/api/parts?location_id={first_location_id}"
+                "&limit=1&offset=0"
+            ),
+            headers=headers,
+        )
+        if first_page.status_code != 200:
+            fail(
+                "First location filter page returned "
+                f"{first_page.status_code}: {first_page.text}"
+            )
+        first_json = first_page.json()
+        if (
+            first_json.get("total") != 2
+            or first_json.get("limit") != 1
+            or first_json.get("offset") != 0
+            or len(first_json.get("parts", [])) != 1
+        ):
+            fail(
+                "First location filter page metadata is incorrect: "
+                f"{first_json}"
+            )
+
+        second_page = client.get(
+            (
+                f"/api/parts?location_id={first_location_id}"
+                "&limit=1&offset=1"
+            ),
+            headers=headers,
+        )
+        if second_page.status_code != 200:
+            fail(
+                "Second location filter page returned "
+                f"{second_page.status_code}: {second_page.text}"
+            )
+        second_json = second_page.json()
+        if (
+            second_json.get("total") != 2
+            or second_json.get("limit") != 1
+            or second_json.get("offset") != 1
+            or len(second_json.get("parts", [])) != 1
+        ):
+            fail(
+                "Second location filter page metadata is incorrect: "
+                f"{second_json}"
+            )
+
+        first_page_part = first_json["parts"][0]
+        second_page_part = second_json["parts"][0]
+        paged_ids = {
+            first_page_part.get("id"),
+            second_page_part.get("id"),
+        }
+        if paged_ids != active_first_ids:
+            fail(
+                "First-location pagination returned unexpected parts: "
+                f"{paged_ids}, expected {active_first_ids}"
+            )
+
+        for item in (first_page_part, second_page_part):
+            if (
+                item.get("location_id") != first_location_id
+                or item.get("location_name") != first_location_name
+            ):
+                fail(
+                    "First-location response serialization is incorrect: "
+                    f"{item}"
+                )
+            if item.get("id") == deleted_id:
+                fail("Deleted part appeared in location-filter results.")
+
+        second_response = client.get(
+            f"/api/parts?location_id={second_location_id}",
+            headers=headers,
+        )
+        if second_response.status_code != 200:
+            fail(
+                "Second location filter returned "
+                f"{second_response.status_code}: {second_response.text}"
+            )
+        second_location_json = second_response.json()
+        second_parts = second_location_json.get("parts", [])
+        if (
+            second_location_json.get("total") != 1
+            or len(second_parts) != 1
+            or second_parts[0].get("id") != active_second_id
+            or second_parts[0].get("location_id")
+            != second_location_id
+            or second_parts[0].get("location_name")
+            != second_location_name
+        ):
+            fail(
+                "Second location filter returned unexpected data: "
+                f"{second_location_json}"
+            )
+
+        missing_response = client.get(
+            "/api/parts?location_id=2147483647",
+            headers=headers,
+        )
+        if missing_response.status_code != 200:
+            fail(
+                "Missing numeric location filter should return 200, got "
+                f"{missing_response.status_code}: "
+                f"{missing_response.text}"
+            )
+        missing_json = missing_response.json()
+        if (
+            missing_json.get("total") != 0
+            or missing_json.get("parts") != []
+        ):
+            fail(
+                "Missing numeric location filter should be empty: "
+                f"{missing_json}"
+            )
+
+        invalid_response = client.get(
+            "/api/parts?location_id=0",
+            headers=headers,
+        )
+        if invalid_response.status_code != 422:
+            fail(
+                "Non-positive location_id should return 422, got "
+                f"{invalid_response.status_code}: "
+                f"{invalid_response.text}"
+            )
+
+        combined_response = client.get(
+            (
+                f"/api/parts?location_id={first_location_id}"
+                f"&part_type_id={int(part_type_id)}"
+                "&limit=250"
+            ),
+            headers=headers,
+        )
+        if combined_response.status_code != 200:
+            fail(
+                "Combined part-type/location filter returned "
+                f"{combined_response.status_code}: "
+                f"{combined_response.text}"
+            )
+        combined_json = combined_response.json()
+        if (
+            combined_json.get("total") != 2
+            or {
+                item.get("id")
+                for item in combined_json.get("parts", [])
+            }
+            != active_first_ids
+        ):
+            fail(
+                "Combined part-type/location filter is incorrect: "
+                f"{combined_json}"
+            )
+
+        unfiltered_response = client.get(
+            "/api/parts?limit=250",
+            headers=headers,
+        )
+        if unfiltered_response.status_code != 200:
+            fail(
+                "Unfiltered part collection returned "
+                f"{unfiltered_response.status_code}: "
+                f"{unfiltered_response.text}"
+            )
+        unfiltered_json = unfiltered_response.json()
+        returned_ids = {
+            item.get("id")
+            for item in unfiltered_json.get("parts", [])
+        }
+        required_active_ids = active_first_ids | {
+            active_second_id,
+            unassigned_id,
+        }
+        if not required_active_ids.issubset(returned_ids):
+            fail(
+                "Unfiltered collection omitted active located/unassigned "
+                f"smoke parts: returned={returned_ids}, "
+                f"required={required_active_ids}"
+            )
+        if deleted_id in returned_ids:
+            fail("Unfiltered collection included a deleted smoke part.")
+
+        unassigned_row = next(
+            (
+                item
+                for item in unfiltered_json.get("parts", [])
+                if item.get("id") == unassigned_id
+            ),
+            None,
+        )
+        if (
+            unassigned_row is None
+            or unassigned_row.get("location_id") is not None
+            or unassigned_row.get("location_name") is not None
+        ):
+            fail(
+                "Unassigned part serialization is incorrect: "
+                f"{unassigned_row}"
+            )
+
+        if user_id is None:
+            fail("Location filter smoke user id was not recorded.")
+
+    finally:
+        cleanup()
+
+    ok(
+        "Stored Parts supports authenticated location filtering with correct "
+        "totals, pagination, combined filters, serialization, unassigned "
+        "parts, and deleted-part exclusion"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -4862,6 +5283,7 @@ def main() -> None:
         check_package_catalogue_api,
         check_location_catalogue_api,
         check_part_location_assignment_api,
+        check_part_location_list_filter_api,
         check_stock_quantity_adjustment_api,
         check_part_metadata_update_api,
         check_part_soft_delete_restore_api,

@@ -36,8 +36,10 @@ router = APIRouter(prefix="/parts", tags=["parts"])
 
 
 @router.get("", response_model=PartCollectionResponse)
+# PATCH 169: Stored Parts location filter route
 def read_parts(
     part_type_id: int | None = Query(default=None, gt=0),
+    location_id: int | None = Query(default=None, gt=0),
     limit: int = Query(default=100, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
     current_user=Depends(get_current_user),
@@ -47,6 +49,7 @@ def read_parts(
     return list_parts(
         db,
         part_type_id=part_type_id,
+        location_id=location_id,
         limit=limit,
         offset=offset,
     )

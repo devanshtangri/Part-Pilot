@@ -81,10 +81,12 @@ export function createPart(
 }
 
 
+// PATCH 169: Stored Parts location filter client
 export function getParts(
   token: string,
   options?: {
     partTypeId?: number;
+    locationId?: number;
     limit?: number;
     offset?: number;
   }
@@ -95,6 +97,13 @@ export function getParts(
     parameters.set(
       "part_type_id",
       String(options.partTypeId)
+    );
+  }
+
+  if (options?.locationId) {
+    parameters.set(
+      "location_id",
+      String(options.locationId)
     );
   }
 

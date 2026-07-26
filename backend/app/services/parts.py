@@ -453,16 +453,20 @@ def get_part(db: Session, part_id: int) -> PartResponse:
     return _serialize_part(db, part)
 
 
+# PATCH 169: Stored Parts location filter service
 def list_parts(
     db: Session,
     *,
     part_type_id: int | None = None,
+    location_id: int | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> PartCollectionResponse:
     conditions = [Part.is_deleted.is_(False)]
     if part_type_id is not None:
         conditions.append(Part.part_type_id == part_type_id)
+    if location_id is not None:
+        conditions.append(Part.location_id == location_id)
 
     total = int(
         db.execute(
