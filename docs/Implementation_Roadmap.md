@@ -1459,18 +1459,26 @@ commit and push each approved batch promptly.
 | Automated verification | Complete |
 | Desktop browser approval | Complete |
 | Mobile functional approval | Complete |
-| Mobile part-type status-pill polish | Deferred to next browser-test fix |
-| Commit and push | Complete through Patch 203 |
+| Mobile part-type status-pill polish | Complete through Patch 206 |
+| Mobile visual browser approval | Complete |
+| Commit and push | Complete through Patch 207 |
 
 ### Immediate next step
 
-Apply a narrow mobile-only fix for the Inventory page part-type status pill.
-It should remain a compact label instead of stretching horizontally or looking
-vertically compressed. Do not alter desktop behaviour or the approved
-Inventory workflow.
+Inspect the current repository and the remaining Phase 4 roadmap, then select
+the next smallest independently verifiable V1 workflow. Start with a
+read-only diagnostic when exact implementation boundaries or source anchors
+are not already established.
 
-### Following work
+### Remaining major V1 areas
 
-After the mobile visual fix is approved and committed, inspect the current
-roadmap and begin the next smallest independently verifiable V1 workflow.
+- Universal search completion.
+- Reservations and reservation lifecycle.
+- Projects and project-linked inventory.
+- History and audit browsing.
+- Settings and appearance completion.
+- Backup and restore.
+- MCP read tools.
+- MCP write tools with confirmation safeguards.
+- Accessibility, responsive, security, and public-alpha polish.
 <!-- PARTPILOT:INVENTORY_PAGE_MODE_ROADMAP:END -->

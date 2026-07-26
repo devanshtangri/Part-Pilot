@@ -1615,8 +1615,10 @@ inspection.
 <!-- PARTPILOT:INVENTORY_PAGE_MODE_CHECKPOINT:START -->
 ## Focused Inventory page checkpoint
 
-**Status:** Patch 202 automated verification passed, browser testing was
-approved, and Patch 203 committed and pushed the batch.
+**Status:** Patch 202 implemented the focused Inventory mode, Patch 203
+committed and pushed it, Patch 206 completed the narrow mobile status-pill
+fix, the user explicitly approved the browser test, and Patch 207 checkpoints
+and publishes the completed batch.
 
 ### Completed
 
@@ -1624,7 +1626,7 @@ approved, and Patch 203 committed and pushed the batch.
   Stored Parts workflow.
 - Added a typed `inventoryOnly` mode to `PartManager`.
 - Preserved one source of truth instead of duplicating inventory logic.
-- The `/inventory` route now hides part-type statistics, template search,
+- The `/inventory` route hides part-type statistics, template search,
   template lists, custom-type controls, and template-management actions.
 - Added an Inventory-toolbar **Add part** action.
 - Preserved the normal `/part-manager` template-management screen and its
@@ -1634,32 +1636,40 @@ approved, and Patch 203 committed and pushed the batch.
   adjustment, movement history, metadata editing, deletion, restoration, and
   responsive table behaviour.
 - Preserved the approved out-of-stock section width alignment.
+- Kept the Inventory header part-type count pill content-width on screens up
+  to 620 px.
+- Restored comfortable mobile vertical padding, line height, and minimum
+  height without changing the approved desktop presentation.
+- Avoided any Inventory data, behaviour, or workflow changes.
 
 ### Verification
 
-- Docker image build: passed.
-- Deployment: passed.
+- Patch 206 in-memory transformation and exact one-file change set: passed.
+- Docker image build and deployment: passed.
 - Alembic head `0005_packages`: passed.
 - Complete backend smoke suite: passed.
-- Protected inventory/settings/location/type routes: passed.
+- Protected inventory, part-type, and location routes: passed.
 - Dashboard, Inventory, Part Manager, and Settings SPA routes: passed.
-- Deployed Patch 194, Patch 195, and Patch 202 markers: passed.
+- Minification-safe deployed Patch 194, Patch 202, and Patch 206 marker
+  verification: passed.
 - Desktop browser review: approved.
-- Mobile browser review: functionally approved.
+- Narrow mobile browser review: approved.
+- Mobile pill width, padding, line height, and alignment: approved.
 - Inventory and Part Manager regression checks: approved.
 
-### Deferred mobile polish
+### Failed attempts retained in history
 
-On narrow mobile screens, the part-type count status pill such as
-`36 part types` appears vertically compressed and expands nearly the full
-content width. Desktop presentation is correct. This is a visual-only
-follow-up for the next chat and should be handled as the next sequential
-**browser-test fix** without changing approved Inventory behaviour.
+- Patch 204 failed safely during read-only durable-document preflight and did
+  not touch the working tree.
+- Patch 205 applied and verified the intended CSS, but its source-form bundle
+  marker check did not account for Vite minification; it restored source and
+  deployment safely.
+- Patch 206 corrected only the verifier, completed all automated checks, and
+  retained the same narrow CSS fix.
 
 ### Repository state after this checkpoint
 
-The focused Inventory page is complete and published. The next chat should
-begin from `docs/Inventory_Page_Mode_Handoff.md`, fix the mobile status-pill
-layout, browser-test that narrow change, and then continue with the remaining
-roadmap.
+The focused Inventory page and its mobile header polish are complete,
+browser-approved, committed, and pushed. Continue from the remaining Phase 4
+roadmap using the next smallest independently verifiable workflow.
 <!-- PARTPILOT:INVENTORY_PAGE_MODE_CHECKPOINT:END -->

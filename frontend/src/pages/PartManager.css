@@ -2551,3 +2551,27 @@
 }
 
 /* END PATCH 202 */
+
+/* PATCH 206: COMPACT MOBILE INVENTORY STATUS PILL */
+.part-manager-page.inventory-page {
+  --inventory-mobile-status-pill-v206: 1;
+}
+
+@media (max-width: 620px) {
+  .part-manager-page.inventory-page
+    .inventory-page-header
+    > .status-pill {
+    display: inline-flex !important;
+    width: fit-content !important;
+    max-width: 100% !important;
+    height: auto !important;
+    min-height: 30px !important;
+    justify-self: start !important;
+    align-self: start !important;
+    padding: 6px 10px !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* END PATCH 206 */
