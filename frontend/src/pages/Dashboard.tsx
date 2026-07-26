@@ -1,11 +1,24 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import { getHealth } from "../services/apiClient";
-import { getLowStockParts } from "../services/partsClient";
+import {
+  getLowStockParts,
+  getParts
+} from "../services/partsClient";
+import { getSearchSettings } from "../services/settingsClient";
 import type { HealthResponse } from "../types/health";
-import type { LowStockSummary, Part } from "../types/parts";
+import type {
+  LowStockSummary,
+  Part,
+  PartCollection
+} from "../types/parts";
 import "./Dashboard.css";
 
 function partDisplayName(part: Part): string {
@@ -26,6 +39,41 @@ function stockStatusLabel(part: Part): string {
   return part.available_quantity <= 0 ? "Out of stock" : "Low stock";
 }
 
+// PATCH 217: Dashboard universal-search presentation helpers
+function universalSearchStockLabel(part: Part): string {
+  if (part.available_quantity <= 0) {
+    return "Out of stock";
+  }
+  if (part.is_low_stock) {
+    return "Low stock";
+  }
+  return "In stock";
+}
+
+function universalSearchStockClass(part: Part): string {
+  if (part.available_quantity <= 0) {
+    return "is-out";
+  }
+  if (part.is_low_stock) {
+    return "is-low";
+  }
+  return "is-in";
+}
+
+function universalSearchFieldValue(
+  field: Part["field_values"][number]
+): string | null {
+  if (field.value_bool !== null) {
+    return field.value_bool ? "Yes" : "No";
+  }
+  if (field.value_number !== null) {
+    return `${field.value_number.replace(/(?:\.0+|(?<=\.[0-9]*?)0+)$/, "")}${
+      field.unit ? ` ${field.unit}` : ""
+    }`;
+  }
+  return field.value_text;
+}
+
 export function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const { token } = useAuth();
@@ -33,6 +81,22 @@ export function Dashboard() {
   const [lowStockLoading, setLowStockLoading] = useState(true);
   const [lowStockError, setLowStockError] = useState<string | null>(null);
   const [lowStockRefreshSequence, setLowStockRefreshSequence] = useState(0);
+  // PATCH 217: Dashboard universal-search state
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] =
+    useState<PartCollection | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [searchShowOutOfStock, setSearchShowOutOfStock] = useState(true);
+  const [searchSettingsError, setSearchSettingsError] =
+    useState<string | null>(null);
+  const [selectedSearchPart, setSelectedSearchPart] =
+    useState<Part | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  // PATCH 219: invalidate stale live-search responses
+  const searchRequestSequenceRef = useRef(0);
 
   useEffect(() => {
     getHealth()
@@ -86,6 +150,187 @@ export function Dashboard() {
     setLowStockRefreshSequence((current) => current + 1);
   }
 
+  useEffect(() => {
+    if (!token) {
+      setSearchShowOutOfStock(true);
+      setSearchSettingsError(
+        "Search preferences are unavailable without an active session."
+      );
+      return;
+    }
+
+    let cancelled = false;
+    setSearchSettingsError(null);
+    getSearchSettings(token)
+      .then((settings) => {
+        if (!cancelled) {
+          setSearchShowOutOfStock(settings.show_out_of_stock_section);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setSearchShowOutOfStock(true);
+          setSearchSettingsError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load search preferences"
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+
+    function handleSearchKeyboard(event: KeyboardEvent): void {
+      const target = event.target as HTMLElement | null;
+      const isTypingTarget = Boolean(
+        target
+        && (
+          target.tagName === "INPUT"
+          || target.tagName === "TEXTAREA"
+          || target.tagName === "SELECT"
+          || target.isContentEditable
+        )
+      );
+
+      if (
+        event.key === "/"
+        && !searchOpen
+        && !isTypingTarget
+        && !event.metaKey
+        && !event.ctrlKey
+        && !event.altKey
+      ) {
+        event.preventDefault();
+        setSearchOpen(true);
+      }
+
+      if (event.key === "Escape" && searchOpen) {
+        event.preventDefault();
+        setSearchOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleSearchKeyboard);
+
+    if (searchOpen) {
+      document.body.style.overflow = "hidden";
+      window.setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleSearchKeyboard);
+    };
+  }, [searchOpen]);
+
+  const availableSearchResults = useMemo(
+    () =>
+      (searchResults?.parts ?? []).filter(
+        (part) => part.available_quantity > 0
+      ),
+    [searchResults]
+  );
+  const allOutOfStockSearchResults = useMemo(
+    () =>
+      (searchResults?.parts ?? []).filter(
+        (part) => part.available_quantity <= 0
+      ),
+    [searchResults]
+  );
+  const visibleOutOfStockSearchResults = searchShowOutOfStock
+    ? allOutOfStockSearchResults
+    : [];
+
+  function openSearchDialog(): void {
+    setSearchOpen(true);
+  }
+
+  function closeSearchDialog(): void {
+    setSearchOpen(false);
+    setSearchError(null);
+  }
+
+  // PATCH 219: race-safe debounced Dashboard live search
+  useEffect(() => {
+    const requestSequence = ++searchRequestSequenceRef.current;
+
+    if (!searchOpen) {
+      setSearchLoading(false);
+      return;
+    }
+
+    const normalized = searchInput.trim().replace(/\s+/g, " ");
+    if (!normalized) {
+      setSearchTerm("");
+      setSearchResults(null);
+      setSelectedSearchPart(null);
+      setSearchError(null);
+      setSearchLoading(false);
+      return;
+    }
+
+    if (!token) {
+      setSearchTerm(normalized);
+      setSearchResults(null);
+      setSelectedSearchPart(null);
+      setSearchError("Your session is unavailable. Sign in again.");
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchTerm(normalized);
+    setSearchError(null);
+    setSearchLoading(true);
+
+    const timeoutId = window.setTimeout(() => {
+      getParts(token, {
+        search: normalized,
+        limit: 60,
+        offset: 0
+      })
+        .then((result) => {
+          if (requestSequence !== searchRequestSequenceRef.current) {
+            return;
+          }
+          setSearchResults(result);
+          setSelectedSearchPart(
+            result.parts.find((part) => part.available_quantity > 0)
+            ?? result.parts[0]
+            ?? null
+          );
+        })
+        .catch((caught) => {
+          if (requestSequence !== searchRequestSequenceRef.current) {
+            return;
+          }
+          setSearchResults(null);
+          setSelectedSearchPart(null);
+          setSearchError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to search inventory"
+          );
+        })
+        .finally(() => {
+          if (requestSequence === searchRequestSequenceRef.current) {
+            setSearchLoading(false);
+          }
+        });
+    }, 280);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchInput, searchOpen, token]);
+
   return (
     <section className="page-stack dashboard-page">
       <div className="page-header">
@@ -97,10 +342,370 @@ export function Dashboard() {
         </p>
       </div>
 
-      <div className="search-card">
-        <span>Search parts, values, tags, locations...</span>
-        <kbd>Coming with universal search</kbd>
-      </div>
+      <button
+        className="search-card dashboard-search-launcher"
+        type="button"
+        onClick={openSearchDialog}
+        aria-haspopup="dialog"
+      >
+        <span>
+          <strong>Search your inventory</strong>
+          <small>Parts, values, tags, locations, notes, and custom fields</small>
+        </span>
+        <kbd aria-label="Keyboard shortcut slash">/</kbd>
+      </button>
+
+      {searchOpen ? (
+        <div
+          className="dashboard-search-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              closeSearchDialog();
+            }
+          }}
+        >
+          <section
+            className="dashboard-search-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dashboard-search-title"
+            data-dashboard-universal-search-version="dashboard-universal-search-v217"
+          >
+            <header className="dashboard-search-dialog-header">
+              <div>
+                <p className="eyebrow">Universal inventory search</p>
+                <h2 id="dashboard-search-title">Find any stored part</h2>
+                <p>
+                  Search identifiers, specifications, locations, tags, notes,
+                  and custom field values.
+                </p>
+              </div>
+              <button
+                className="dashboard-search-close"
+                type="button"
+                onClick={closeSearchDialog}
+                aria-label="Close universal search"
+              >
+                {/* PATCH 222: geometry-centred search close icon */}
+                <svg
+                  data-dashboard-search-close-icon=
+                    "dashboard-search-close-icon-v222"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path d="M4 4L12 12M12 4L4 12" />
+                </svg>
+              </button>
+            </header>
+
+            <div className="dashboard-search-form">
+              <label htmlFor="dashboard-universal-search-input">
+                Search inventory
+              </label>
+              <div className="dashboard-search-input-row">
+                <input
+                  id="dashboard-universal-search-input"
+                  ref={searchInputRef}
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Try IRFZ44N, TO-220, Drawer 2, 56 V..."
+                  maxLength={180}
+                  autoComplete="off"
+                  aria-describedby="dashboard-live-search-note"
+                />
+                <button
+                  className="dashboard-search-clear"
+                  type="button"
+                  onClick={() => {
+                    setSearchInput("");
+                    searchInputRef.current?.focus();
+                  }}
+                  disabled={!searchInput}
+                >
+                  Clear
+                </button>
+              </div>
+              <span
+                id="dashboard-live-search-note"
+                className="dashboard-search-live-note"
+                aria-live="polite"
+              >
+                {searchLoading
+                  ? "Searching as you type..."
+                  : "Results update automatically after a brief pause."}
+              </span>
+            </div>
+
+            {searchSettingsError ? (
+              <div className="dashboard-search-preference-note" role="status">
+                Out-of-stock preference could not be loaded. Results are
+                temporarily shown using the safe default.
+              </div>
+            ) : null}
+
+            <div
+              className="dashboard-search-workspace"
+              aria-busy={searchLoading}
+            >
+              <div className="dashboard-search-results">
+                {!searchTerm && !searchLoading && !searchError ? (
+                  <div className="dashboard-search-state is-initial">
+                    <strong>Search the complete inventory record</strong>
+                    <p>
+                      Matching includes aliases, tags, notes, packages,
+                      locations, manufacturers, and typed custom values.
+                    </p>
+                  </div>
+                ) : null}
+
+                {searchLoading ? (
+                  <div
+                    className="dashboard-search-state"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <strong>Searching inventory</strong>
+                    <p>Checking all searchable part attributes...</p>
+                  </div>
+                ) : null}
+
+                {!searchLoading && searchError ? (
+                  <div
+                    className="dashboard-search-state is-error"
+                    role="alert"
+                  >
+                    <strong>Search could not be completed</strong>
+                    <p>{searchError}</p>
+                  </div>
+                ) : null}
+
+                {!searchLoading
+                  && !searchError
+                  && searchResults
+                  && searchResults.total === 0 ? (
+                    <div className="dashboard-search-state is-empty">
+                      <strong>No matching parts</strong>
+                      <p>
+                        Nothing matched “{searchTerm}”. Try a shorter term,
+                        another identifier, or a specification value.
+                      </p>
+                      <Link to="/inventory" onClick={closeSearchDialog}>
+                        Browse Inventory
+                      </Link>
+                    </div>
+                  ) : null}
+
+                {!searchLoading
+                  && !searchError
+                  && searchResults
+                  && searchResults.total > 0 ? (
+                    <>
+                      {/* PATCH 221: render only populated search sections */}
+                      {availableSearchResults.length > 0 ? (
+                        <section
+                          className="dashboard-search-section"
+                          data-dashboard-available-match-only=
+                            "dashboard-populated-sections-v221"
+                        >
+                          <header>
+                            {/* PATCH 223: concise separated stock sections */}
+                            <h3>Available</h3>
+                            <span>{availableSearchResults.length}</span>
+                          </header>
+
+                          <div className="dashboard-search-result-list">
+                            {availableSearchResults.map((part) => (
+                              <button
+                                className={`dashboard-search-result ${universalSearchStockClass(
+                                  part
+                                )}${
+                                  selectedSearchPart?.id === part.id
+                                    ? " is-selected"
+                                    : ""
+                                }`}
+                                type="button"
+                                key={part.id}
+                                onClick={() => setSelectedSearchPart(part)}
+                              >
+                                <span className="dashboard-search-result-main">
+                                  <strong>{partDisplayName(part)}</strong>
+                                  <small>
+                                    {partContext(part) || "Inventory part"}
+                                  </small>
+                                </span>
+                                <span className="dashboard-search-result-stock">
+                                  <strong>{part.available_quantity}</strong>
+                                  <small>available</small>
+                                </span>
+                                <span className="dashboard-search-result-badge">
+                                  {universalSearchStockLabel(part)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      ) : null}
+
+                      {/* PATCH 220: render restocking UI only for matching parts */}
+                      {searchShowOutOfStock
+                        && visibleOutOfStockSearchResults.length > 0 ? (
+                        <section
+                          className="dashboard-search-section is-out"
+                          data-dashboard-restocking-match-only=
+                            "dashboard-restocking-match-only-v220"
+                        >
+                          <header>
+                            <h3>Out of stock</h3>
+                            <span>{visibleOutOfStockSearchResults.length}</span>
+                          </header>
+
+                          <div className="dashboard-search-result-list">
+                            {visibleOutOfStockSearchResults.map((part) => (
+                              <button
+                                className={`dashboard-search-result is-out${
+                                  selectedSearchPart?.id === part.id
+                                    ? " is-selected"
+                                    : ""
+                                }`}
+                                type="button"
+                                key={part.id}
+                                onClick={() => setSelectedSearchPart(part)}
+                              >
+                                <span className="dashboard-search-result-main">
+                                  <strong>{partDisplayName(part)}</strong>
+                                  <small>
+                                    {partContext(part) || "Inventory part"}
+                                  </small>
+                                </span>
+                                <span className="dashboard-search-result-stock">
+                                  <strong>0</strong>
+                                  <small>available</small>
+                                </span>
+                                <span className="dashboard-search-result-badge">
+                                  Out of stock
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      ) : !searchShowOutOfStock
+                        && allOutOfStockSearchResults.length > 0 ? (
+                        <div className="dashboard-search-hidden-state">
+                          {allOutOfStockSearchResults.length} out-of-stock
+                          match{allOutOfStockSearchResults.length === 1 ? "" : "es"}
+                          {" "}hidden by your Search settings.
+                          <Link to="/settings" onClick={closeSearchDialog}>
+                            Change setting
+                          </Link>
+                        </div>
+                      ) : null}
+
+                      <footer className="dashboard-search-results-footer">
+                        <span>
+                          Showing {searchResults.parts.length} of{" "}
+                          {searchResults.total} match
+                          {searchResults.total === 1 ? "" : "es"}.
+                        </span>
+                        <Link to="/inventory" onClick={closeSearchDialog}>
+                          Open Inventory
+                        </Link>
+                      </footer>
+                    </>
+                  ) : null}
+              </div>
+
+              <aside className="dashboard-search-details">
+                {selectedSearchPart ? (
+                  <>
+                    <header>
+                      <p className="eyebrow">Selected result</p>
+                      <h3>{partDisplayName(selectedSearchPart)}</h3>
+                      <p>
+                        {partContext(selectedSearchPart) || "Inventory part"}
+                      </p>
+                    </header>
+
+                    <dl className="dashboard-search-detail-grid">
+                      <div>
+                        <dt>Part number</dt>
+                        <dd>{selectedSearchPart.part_number || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>Package</dt>
+                        <dd>{selectedSearchPart.package || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt>Available</dt>
+                        <dd>{selectedSearchPart.available_quantity}</dd>
+                      </div>
+                      <div>
+                        <dt>Reserved</dt>
+                        <dd>{selectedSearchPart.reserved_quantity}</dd>
+                      </div>
+                      <div>
+                        <dt>Total</dt>
+                        <dd>{selectedSearchPart.total_quantity}</dd>
+                      </div>
+                      <div>
+                        <dt>Location</dt>
+                        <dd>{selectedSearchPart.location_name || "Unassigned"}</dd>
+                      </div>
+                    </dl>
+
+                    {selectedSearchPart.description ? (
+                      <div className="dashboard-search-detail-copy">
+                        <span>Description</span>
+                        <p>{selectedSearchPart.description}</p>
+                      </div>
+                    ) : null}
+
+                    {selectedSearchPart.notes ? (
+                      <div className="dashboard-search-detail-copy">
+                        <span>Notes</span>
+                        <p>{selectedSearchPart.notes}</p>
+                      </div>
+                    ) : null}
+
+                    {selectedSearchPart.field_values.length > 0 ? (
+                      <div className="dashboard-search-fields">
+                        <span>Custom fields</span>
+                        <dl>
+                          {selectedSearchPart.field_values.map((field) => {
+                            const value = universalSearchFieldValue(field);
+                            return value ? (
+                              <div key={field.id}>
+                                <dt>{field.label}</dt>
+                                <dd>{value}</dd>
+                              </div>
+                            ) : null;
+                          })}
+                        </dl>
+                      </div>
+                    ) : null}
+
+                    <Link
+                      className="dashboard-search-details-link"
+                      to="/inventory"
+                      onClick={closeSearchDialog}
+                    >
+                      Continue in Inventory
+                    </Link>
+                  </>
+                ) : (
+                  <div className="dashboard-search-state is-initial">
+                    <strong>Select a result</strong>
+                    <p>
+                      Part identity, quantities, location, notes, and custom
+                      fields will appear here.
+                    </p>
+                  </div>
+                )}
+              </aside>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <div className="card-grid dashboard-summary-grid">
         <article className="card">

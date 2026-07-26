@@ -228,3 +228,34 @@ The focused Inventory page supports:
 Part-type templates and custom-field management remain under
 `/part-manager`.
 <!-- PARTPILOT:INVENTORY_PAGE_MODE_STATUS:END -->
+
+<!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_README:START -->
+## Universal inventory search
+
+Part Pilot now includes a responsive Dashboard search experience backed by the
+inventory API.
+
+**Search coverage**
+
+- part numbers and names;
+- descriptions, notes, and packages;
+- part types and manufacturers;
+- storage locations;
+- aliases and tags;
+- custom-field names and typed values.
+
+**Result experience**
+
+- live results after a short pause while typing;
+- available parts shown before out-of-stock parts;
+- separate **Available** and **Out of stock** result cards;
+- result sections appear only when they contain matches;
+- selected-part quantities, location, notes, package, and custom fields;
+- keyboard launch with `/`;
+- responsive desktop and mobile layouts;
+- out-of-stock visibility controlled by Search settings.
+
+The Dashboard search is complete and browser approved. Stored Parts will move
+from loaded-page filtering to the same backend search contract in a separate
+follow-up batch.
+<!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_README:END -->

@@ -1754,3 +1754,65 @@ The backend contract is complete and publishable. The next batch should add a
 typed frontend `search` option and a focused Dashboard universal-search
 experience. Keep Inventory migration from client-only filtering as a separate
 small browser-test batch if combining it would make review too broad.
+
+<!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_CHECKPOINT:V224 -->
+## Dashboard universal-search frontend checkpoint
+
+**Status:** Browser approved through Patch 223. Patch 224 commits and pushes
+the complete frontend batch.
+
+### Implemented
+
+- Replaced the Dashboard search placeholder with a real universal-search
+  launcher and modal workspace.
+- Added typed `search` support to the frontend parts client.
+- Added 280 ms debounced live search.
+- Added stale-response invalidation so older requests cannot replace newer
+  results.
+- Added loading, error, empty, available, hidden-out-of-stock, and out-of-stock
+  states.
+- Respected the protected `show_out_of_stock_section` preference.
+- Added selected-result details for identity, quantities, location, package,
+  notes, description, and custom fields.
+- Added `/` keyboard launch and `Escape` close behaviour.
+- Added a geometrically centred SVG close icon.
+- Rendered Available only when available matches exist.
+- Rendered Out of stock only when visible out-of-stock matches exist.
+- Preserved the hidden-results settings notice.
+- Separated Available and Out of stock into visually distinct teal/red cards.
+- Compacted mobile Dashboard summary cards.
+- Redesigned mobile low-stock rows as native compact cards.
+- Preserved the existing Stored Parts search for a later migration batch.
+
+### Browser approval
+
+The user approved:
+
+- desktop and mobile live search;
+- Clear behaviour;
+- Available-only results;
+- Out-of-stock-only results;
+- mixed results;
+- no-match states;
+- hidden out-of-stock preference behaviour;
+- responsive Dashboard cards;
+- responsive low-stock inventory;
+- centred close icon;
+- final separated stock-section design.
+
+### Verification
+
+- Frontend build and Docker deployment: passed.
+- Alembic head `0005_packages`: passed.
+- Complete backend smoke suite: passed.
+- Protected search APIs: passed.
+- SPA route regressions: passed.
+- Deployed frontend markers: passed.
+- Deployed backend search markers: passed.
+- `git diff --check`: passed.
+
+### Next implementation boundary
+
+Migrate Stored Parts from client-only filtering over the loaded page to the
+backend universal-search contract. Keep that as a separate browser-test batch
+so Dashboard search remains an independently reviewable checkpoint.

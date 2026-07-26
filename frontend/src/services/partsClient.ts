@@ -88,6 +88,7 @@ export function getParts(
   options?: {
     partTypeId?: number;
     locationId?: number;
+    search?: string;
     limit?: number;
     offset?: number;
   }
@@ -106,6 +107,12 @@ export function getParts(
       "location_id",
       String(options.locationId)
     );
+  }
+
+  // PATCH 217: typed backend universal-search option
+  const search = options?.search?.trim();
+  if (search) {
+    parameters.set("search", search);
   }
 
   if (options?.limit !== undefined) {

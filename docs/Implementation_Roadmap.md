@@ -1521,3 +1521,45 @@ Avoid combining the Stored Parts migration into the same patch unless a fresh
 read-only preflight proves that the resulting browser-test scope remains
 small and independently reviewable.
 <!-- PARTPILOT:UNIVERSAL_SEARCH_BACKEND_ROADMAP:END -->
+
+<!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_ROADMAP:START -->
+## Universal search status after Dashboard delivery
+
+| Work item | Status |
+| --- | --- |
+| Backend universal-search contract | Complete |
+| Backend field coverage and ranking | Complete |
+| Collision-safe smoke coverage | Complete |
+| Typed frontend search client | Complete |
+| Dashboard search launcher and modal | Complete |
+| Debounced live search | Complete |
+| Stale-response protection | Complete |
+| Available / Out of stock result groups | Complete |
+| Settings-driven hidden results | Complete |
+| Empty-section suppression | Complete |
+| Selected-result details | Complete |
+| Keyboard interaction | Complete |
+| Mobile Dashboard search | Complete |
+| Mobile Dashboard summary cards | Complete |
+| Mobile low-stock presentation | Complete |
+| Browser approval | Complete |
+| Frontend checkpoint commit and push | Complete through Patch 224 |
+| Stored Parts server-search migration | Next |
+| Search-result direct part-detail route | Future refinement |
+| Search pagination / incremental loading | Future refinement |
+
+### Immediate next step
+
+Create Patch 225 as a read-only preflight or a small browser-test
+implementation for migrating Stored Parts search from client-side filtering to
+`GET /api/parts?search=...`.
+
+Preserve:
+
+- current type and location filters;
+- accurate backend totals and pagination;
+- available-before-out-of-stock ordering;
+- the configured out-of-stock visibility behaviour;
+- mobile Inventory layout;
+- existing part selection and editing flows.
+<!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_ROADMAP:END -->
