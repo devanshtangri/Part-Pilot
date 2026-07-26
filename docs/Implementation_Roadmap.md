@@ -1418,27 +1418,26 @@ implementation should be divided into independently verifiable backend and
 browser-tested frontend batches.
 
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_ROADMAP:START -->
-## Dashboard low-stock milestone
+## Stock visibility milestone
 
 | Item | Status |
 | --- | --- |
 | Protected low-stock summary API | Complete |
-| Search out-of-stock setting API | Complete |
+| Protected search-settings API | Complete |
 | Dashboard low-stock summary UI | Complete |
 | Zero-stock parts without configured thresholds | Complete |
-| Dashboard loading, error, empty, and refresh states | Complete |
-| Complete smoke and focused regression coverage | Complete |
+| Settings control for out-of-stock grouping | Complete |
+| Dedicated Stored Parts out-of-stock section | Complete |
+| Explicit In stock, Low, and Out filters preserved | Complete |
+| Search and location filtering across both result groups | Complete |
+| Responsive width alignment and visual review | Complete |
+| Complete smoke and deployed-asset verification | Complete |
 | Browser approval | Complete |
-| Checkpoint commit | Complete through Patch 190 |
+| Commit and push | Complete through Patch 197 |
 
-### Next planned batch
+### Next planned step
 
-Implement the settings-driven Stored Parts out-of-stock grouping:
-
-- read `search.show_out_of_stock_section`;
-- keep normal in-stock and low-stock results clear;
-- show out-of-stock results in a dedicated section when enabled;
-- hide that dedicated section when disabled;
-- add or expose the corresponding setting control;
-- keep the batch browser-tested and uncommitted until approval.
+Inspect the remaining Phase 4 roadmap and current repository state, then begin
+the next smallest independently verifiable inventory workflow. Continue to
+commit and push each approved batch promptly.
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_ROADMAP:END -->

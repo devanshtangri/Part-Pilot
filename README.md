@@ -185,9 +185,9 @@ This keeps the repository recoverable while larger V1 workflows are built.
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_STATUS:START -->
 ## Current development status
 
-The current development checkpoint includes a live dashboard low-stock summary
-with authenticated data, severity ordering, refresh support, responsive
-presentation, and clear empty/error states.
+The current checkpoint includes authenticated dashboard stock alerts and a
+settings-driven Stored Parts workflow for separating zero-stock matches from
+available inventory.
 
 | Capability | Status |
 | --- | --- |
@@ -195,12 +195,14 @@ presentation, and clear empty/error states.
 | Manufacturer, package, and location catalogues | Available |
 | Stock quantity adjustments and movement history | Available |
 | Soft deletion and restoration | Available |
-| Stored Parts location filtering | Available |
+| Stored Parts search and location filtering | Available |
 | Dashboard low-stock alerts | Available |
 | Unconfigured zero-stock detection | Available |
-| Settings-driven out-of-stock Stored Parts grouping | Planned next |
+| Settings-driven out-of-stock grouping | Available |
+| Explicit In stock, Low, and Out filters | Available |
 
-Zero available stock is treated as out of stock even when the part was created
-without a low-stock threshold. Positive-stock low alerts continue to use each
-part's explicitly enabled threshold.
+When grouping is enabled, matching zero-stock parts appear in a dedicated
+section below normal Stored Parts results while the All filter is active.
+Disabling that preference hides the separate section without removing access
+to those parts through the explicit Out filter.
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_STATUS:END -->

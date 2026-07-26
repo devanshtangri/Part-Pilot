@@ -1,0 +1,139 @@
+/* PATCH 194: SEARCH SETTINGS UI */
+.settings-page {
+  --search-settings-style-v194: 1;
+}
+
+.settings-page .settings-search-section {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-page .settings-search-section h2,
+.settings-page .settings-search-section p {
+  margin: 0;
+}
+
+.settings-page .settings-search-section > p {
+  max-width: 760px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.settings-page .settings-toggle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 15px;
+  border: 1px solid #2a374b;
+  border-radius: 8px;
+  background: #0d1622;
+  cursor: pointer;
+}
+
+.settings-page .settings-toggle-row.is-disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.settings-page .settings-toggle-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-page .settings-toggle-copy strong {
+  color: #e8eef7;
+  font-size: 0.86rem;
+}
+
+.settings-page .settings-toggle-copy span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+.settings-page .settings-toggle-row input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-page .settings-switch {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 1px solid #46556c;
+  border-radius: 999px;
+  background: #182334;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+
+.settings-page .settings-switch::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #9aa9bc;
+  content: "";
+  transition:
+    transform 140ms ease,
+    background 140ms ease;
+}
+
+.settings-page .settings-toggle-row input:checked
+  + .settings-switch {
+  border-color: rgba(45, 212, 163, 0.7);
+  background: rgba(5, 150, 105, 0.24);
+}
+
+.settings-page .settings-toggle-row input:checked
+  + .settings-switch::after {
+  transform: translateX(20px);
+  background: #5eead4;
+}
+
+.settings-page .settings-toggle-row input:focus-visible
+  + .settings-switch {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.settings-page .settings-preference-state {
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid #2a374b;
+  border-radius: 7px;
+  background: #101925;
+  color: #aebdce;
+  font-size: 0.74rem;
+}
+
+.settings-page .settings-preference-state.is-error {
+  border-color: rgba(248, 113, 113, 0.38);
+  background: rgba(127, 29, 29, 0.13);
+  color: #fecaca;
+}
+
+.settings-page .settings-preference-state.is-success {
+  border-color: rgba(45, 212, 163, 0.3);
+  background: rgba(6, 78, 59, 0.13);
+  color: #a7f3d0;
+}
+
+@media (max-width: 620px) {
+  .settings-page .settings-toggle-row {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 13px;
+  }
+}

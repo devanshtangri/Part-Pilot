@@ -2424,3 +2424,102 @@
 }
 
 /* END PATCH 171 */
+
+/* PATCH 194: SETTINGS-DRIVEN OUT-OF-STOCK GROUPING */
+.part-manager-page {
+  --stored-parts-out-of-stock-style-v194: 1;
+  --stored-parts-out-of-stock-width-v195: 1;
+}
+
+.part-manager-page .inventory-out-of-stock-section {
+  display: grid !important;
+  gap: 0 !important;
+  margin: 14px 0 0 !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(239, 68, 68, 0.28) !important;
+  border-radius: 9px !important;
+  background: rgba(127, 29, 29, 0.065) !important;
+}
+
+.part-manager-page .inventory-out-of-stock-header {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 18px !important;
+  padding: 14px 16px !important;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.2) !important;
+  background: rgba(127, 29, 29, 0.11) !important;
+}
+
+.part-manager-page .inventory-out-of-stock-header h3,
+.part-manager-page .inventory-out-of-stock-header p {
+  margin: 0 !important;
+}
+
+.part-manager-page .inventory-out-of-stock-header h3 {
+  margin-top: 3px !important;
+  color: #f8d4d4 !important;
+  font-size: 0.98rem !important;
+}
+
+.part-manager-page .inventory-out-of-stock-header p:last-child {
+  margin-top: 5px !important;
+  color: #b9a4aa !important;
+  font-size: 0.73rem !important;
+}
+
+.part-manager-page .inventory-out-of-stock-header > span {
+  flex: 0 0 auto !important;
+  padding: 5px 8px !important;
+  border: 1px solid rgba(248, 113, 113, 0.3) !important;
+  border-radius: 999px !important;
+  background: rgba(239, 68, 68, 0.09) !important;
+  color: #fca5a5 !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .inventory-out-of-stock-section
+  .inventory-table-wrap {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.part-manager-page .inventory-out-of-stock-section
+  .inventory-table tbody tr:last-child td {
+  border-bottom: 0 !important;
+}
+
+.part-manager-page .inventory-settings-warning {
+  margin: 0 16px 16px !important;
+  padding: 9px 11px !important;
+  border: 1px solid rgba(245, 158, 11, 0.28) !important;
+  border-radius: 7px !important;
+  background: rgba(120, 53, 15, 0.11) !important;
+  color: #fcd34d !important;
+  font-size: 0.72rem !important;
+}
+
+@media (max-width: 760px) {
+  .part-manager-page .inventory-out-of-stock-section {
+    margin: 12px 0 0 !important;
+  }
+
+  .part-manager-page .inventory-out-of-stock-header {
+    align-items: stretch !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+
+  .part-manager-page .inventory-out-of-stock-header > span {
+    width: fit-content !important;
+  }
+
+  .part-manager-page .inventory-settings-warning {
+    margin: 0 10px 12px !important;
+  }
+}
+
+/* END PATCH 194 */

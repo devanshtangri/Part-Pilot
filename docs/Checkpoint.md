@@ -1561,26 +1561,35 @@ Start the next chat with read-only **Diagnostic 174** to inspect:
 The diagnostic must not modify application source.
 
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_CHECKPOINT:START -->
-## Dashboard low-stock checkpoint
+## Dashboard and out-of-stock grouping checkpoint
 
-**Status:** complete, automated verification passed, and browser approval received.
+**Status:** complete, automated verification passed, browser approval received,
+committed, and pushed through Patch 197.
 
 ### Completed
 
 - Added the authenticated dashboard low-stock presentation.
-- Added frontend `LowStockSummary` and `getLowStockParts()` contracts.
-- Added loading, error, empty, refresh, count, severity, threshold, location,
-  and navigation states.
-- Active parts with available stock at or below zero now appear as out of
-  stock even when no low-stock threshold was configured.
-- Positive-stock parts still require an enabled low-stock threshold that is
+- Added dashboard loading, failure, empty, refresh, count, severity,
+  threshold, location, and navigation states.
+- Active parts with available stock at or below zero appear as out of stock
+  even when no low-stock threshold was configured.
+- Positive-stock low alerts continue to require an enabled threshold that is
   being reached.
-- Deleted parts remain excluded.
-- Preserved `is_low_stock` as the configured threshold-alert flag rather than
-  redefining it as a generic zero-stock flag.
-- Corrected the Dashboard Manage Parts action-card spacing.
-- Updated the complete smoke contract for configured and unconfigured
-  zero-stock behaviour.
+- Added typed frontend contracts and client support for
+  `search.show_out_of_stock_section`.
+- Added an Inventory Search control on the Settings page.
+- Persisted setting changes through the protected backend API.
+- Preserved the explicit In stock, Low, and Out filters.
+- With All selected and grouping enabled, positive-stock results stay in the
+  normal Stored Parts table while matching zero-stock parts appear in a
+  dedicated Out of stock section.
+- Disabling grouping hides only the separate section; the explicit Out filter
+  remains available.
+- Search and location filtering apply consistently to both normal and
+  out-of-stock result groups.
+- Aligned the out-of-stock section width with the main Stored Parts table.
+- Preserved part details, quantity updates, deletion/restoration, template
+  management, and database-reset workflows.
 
 ### Verification
 
@@ -1588,14 +1597,17 @@ The diagnostic must not modify application source.
 - Deployment: passed.
 - Alembic head `0005_packages`: passed.
 - Complete backend smoke suite: passed.
-- Focused zero-stock regression verification: passed.
-- Protected low-stock and search-settings API checks: passed.
-- Dashboard and Part Manager SPA route checks: passed.
-- Desktop and browser UI review: approved.
+- Protected search-settings and low-stock routes: passed.
+- Dashboard, Settings, and Part Manager SPA routes: passed.
+- Deployed frontend marker verification: passed.
+- Desktop and responsive browser review: approved.
+- Settings persistence, grouping enabled/disabled, explicit Out filtering,
+  search, location filtering, and row interaction: approved.
 
 ### Current repository state after this checkpoint
 
-The dashboard low-stock batch is ready for normal development to continue.
-The next planned browser-facing batch is the settings-driven out-of-stock
-grouping behaviour in Stored Parts.
+The dashboard stock-alert and Stored Parts out-of-stock grouping work is
+complete and published. The next implementation batch should be selected from
+the remaining Phase 4 roadmap after a narrow repository and documentation
+inspection.
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_CHECKPOINT:END -->
