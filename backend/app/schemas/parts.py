@@ -222,6 +222,15 @@ class PartCollectionResponse(BaseModel):
     offset: int
     parts: list[PartResponse]
 
+
+# PATCH 182: dashboard-ready low-stock summary schema
+class LowStockSummaryResponse(BaseModel):
+    total: int
+    low_stock_count: int
+    out_of_stock_count: int
+    limit: int
+    parts: list[PartResponse]
+
 # PATCH 152: part soft-delete and restoration schemas
 class DeletedPartResponse(PartResponse):
     is_deleted: bool

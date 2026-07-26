@@ -5260,6 +5260,605 @@ def check_part_location_list_filter_api() -> None:
     )
 
 
+# PATCH 182: protected search settings and low-stock summary smoke test
+def check_low_stock_and_search_settings_api() -> None:
+    import json as json_module
+    from datetime import datetime, timezone
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import AppSetting, Location
+
+    setting_key = "search.show_out_of_stock_section"
+    suffix = uuid4().hex[:10]
+    username = f"smoke_low_stock_{suffix}"
+    password = "low-stock-smoke-password"
+    location_name = f"Smoke Low Stock Drawer {suffix}"
+    part_ids: list[int] = []
+    location_id: int | None = None
+    user_id: int | None = None
+
+    with db_session() as db:
+        original_setting_row = (
+            db.query(AppSetting)
+            .filter(AppSetting.key == setting_key)
+            .one_or_none()
+        )
+        original_setting = (
+            None
+            if original_setting_row is None
+            else (
+                original_setting_row.value_json,
+                original_setting_row.value_text,
+            )
+        )
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if user_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where event_type = 'settings.search_updated' "
+                        "and actor_user_id = :actor_user_id"
+                    ),
+                    {"actor_user_id": user_id},
+                )
+            for part_id in part_ids:
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from part_field_values "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+            if location_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'location' "
+                        "and entity_id = :entity_id"
+                    ),
+                    {"entity_id": location_id},
+                )
+                db.execute(
+                    text(
+                        "delete from locations where id = :location_id"
+                    ),
+                    {"location_id": location_id},
+                )
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+
+            setting = (
+                db.query(AppSetting)
+                .filter(AppSetting.key == setting_key)
+                .one_or_none()
+            )
+            if original_setting is None:
+                if setting is not None:
+                    db.delete(setting)
+            elif setting is None:
+                db.add(
+                    AppSetting(
+                        key=setting_key,
+                        value_json=original_setting[0],
+                        value_text=original_setting[1],
+                    )
+                )
+            else:
+                setting.value_json = original_setting[0]
+                setting.value_text = original_setting[1]
+
+            db.commit()
+
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated_settings = client.get(
+            "/api/settings/search"
+        )
+        if unauthenticated_settings.status_code not in {401, 403}:
+            fail(
+                "GET /api/settings/search should require authentication, "
+                f"got {unauthenticated_settings.status_code}: "
+                f"{unauthenticated_settings.text}"
+            )
+        unauthenticated_patch = client.patch(
+            "/api/settings/search",
+            json={"show_out_of_stock_section": False},
+        )
+        if unauthenticated_patch.status_code not in {401, 403}:
+            fail(
+                "PATCH /api/settings/search should require authentication, "
+                f"got {unauthenticated_patch.status_code}: "
+                f"{unauthenticated_patch.text}"
+            )
+        unauthenticated_low_stock = client.get(
+            "/api/parts/low-stock"
+        )
+        if unauthenticated_low_stock.status_code not in {401, 403}:
+            fail(
+                "GET /api/parts/low-stock should require authentication, "
+                f"got {unauthenticated_low_stock.status_code}: "
+                f"{unauthenticated_low_stock.text}"
+            )
+
+        with db_session() as db:
+            set_app_setting(
+                db,
+                setting_key,
+                True,
+                commit=True,
+            )
+            user = create_user(
+                db,
+                username=username,
+                display_name="Low Stock Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail(
+                    "Low-stock smoke test requires an active part type."
+                )
+
+            location = Location(
+                name=location_name,
+                normalized_name=normalize_location_name(
+                    location_name
+                ),
+                note="Patch 182 low-stock smoke isolation",
+            )
+            db.add(location)
+            db.flush()
+            location_id = location.id
+
+            parts = [
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=location.id,
+                    part_number=f"SMOKE-LOW-ZERO-{suffix}",
+                    name="Out of stock smoke part",
+                    total_quantity=0,
+                    reserved_quantity=0,
+                    low_stock_enabled=True,
+                    low_stock_threshold=2,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=location.id,
+                    part_number=f"SMOKE-LOW-RESERVED-{suffix}",
+                    name="Reserved low-stock smoke part",
+                    total_quantity=5,
+                    reserved_quantity=4,
+                    low_stock_enabled=True,
+                    low_stock_threshold=1,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=location.id,
+                    part_number=f"SMOKE-LOW-THRESHOLD-{suffix}",
+                    name="Threshold low-stock smoke part",
+                    total_quantity=5,
+                    reserved_quantity=3,
+                    low_stock_enabled=True,
+                    low_stock_threshold=2,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=location.id,
+                    part_number=f"SMOKE-LOW-DISABLED-{suffix}",
+                    name="Disabled low-stock smoke part",
+                    total_quantity=0,
+                    reserved_quantity=0,
+                    low_stock_enabled=False,
+                    low_stock_threshold=5,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=location.id,
+                    part_number=f"SMOKE-LOW-ABOVE-{suffix}",
+                    name="Above-threshold smoke part",
+                    total_quantity=5,
+                    reserved_quantity=0,
+                    low_stock_enabled=True,
+                    low_stock_threshold=2,
+                    is_deleted=False,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    location_id=location.id,
+                    part_number=f"SMOKE-LOW-DELETED-{suffix}",
+                    name="Deleted low-stock smoke part",
+                    total_quantity=0,
+                    reserved_quantity=0,
+                    low_stock_enabled=True,
+                    low_stock_threshold=2,
+                    is_deleted=True,
+                    deleted_at=datetime.now(
+                        timezone.utc
+                    ).replace(tzinfo=None),
+                ),
+            ]
+            db.add_all(parts)
+            db.commit()
+            for part in parts:
+                db.refresh(part)
+            part_ids.extend(part.id for part in parts)
+
+            zero_id = parts[0].id
+            reserved_id = parts[1].id
+            threshold_id = parts[2].id
+            disabled_id = parts[3].id
+            above_id = parts[4].id
+            deleted_id = parts[5].id
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        initial_settings = client.get(
+            "/api/settings/search",
+            headers=headers,
+        )
+        if initial_settings.status_code != 200:
+            fail(
+                "GET /api/settings/search returned "
+                f"{initial_settings.status_code}: "
+                f"{initial_settings.text}"
+            )
+        if (
+            initial_settings.json().get(
+                "show_out_of_stock_section"
+            )
+            is not True
+        ):
+            fail(
+                "GET /api/settings/search did not return the seeded "
+                f"enabled value: {initial_settings.json()}"
+            )
+
+        disable_response = client.patch(
+            "/api/settings/search",
+            headers=headers,
+            json={"show_out_of_stock_section": False},
+        )
+        if disable_response.status_code != 200:
+            fail(
+                "PATCH /api/settings/search returned "
+                f"{disable_response.status_code}: "
+                f"{disable_response.text}"
+            )
+        if (
+            disable_response.json().get(
+                "show_out_of_stock_section"
+            )
+            is not False
+        ):
+            fail(
+                "PATCH /api/settings/search did not disable the "
+                f"setting: {disable_response.json()}"
+            )
+
+        persisted_disabled = client.get(
+            "/api/settings/search",
+            headers=headers,
+        )
+        if (
+            persisted_disabled.status_code != 200
+            or persisted_disabled.json().get(
+                "show_out_of_stock_section"
+            )
+            is not False
+        ):
+            fail(
+                "Disabled search setting was not persisted: "
+                f"{persisted_disabled.status_code} "
+                f"{persisted_disabled.text}"
+            )
+
+        repeat_disable = client.patch(
+            "/api/settings/search",
+            headers=headers,
+            json={"show_out_of_stock_section": False},
+        )
+        if repeat_disable.status_code != 200:
+            fail(
+                "Idempotent search-setting PATCH returned "
+                f"{repeat_disable.status_code}: "
+                f"{repeat_disable.text}"
+            )
+
+        enable_response = client.patch(
+            "/api/settings/search",
+            headers=headers,
+            json={"show_out_of_stock_section": True},
+        )
+        if (
+            enable_response.status_code != 200
+            or enable_response.json().get(
+                "show_out_of_stock_section"
+            )
+            is not True
+        ):
+            fail(
+                "Re-enabling the search setting failed: "
+                f"{enable_response.status_code} "
+                f"{enable_response.text}"
+            )
+
+        with db_session() as db:
+            setting_row = (
+                db.query(AppSetting)
+                .filter(AppSetting.key == setting_key)
+                .one_or_none()
+            )
+            if (
+                setting_row is None
+                or setting_row.value_json is not True
+            ):
+                fail(
+                    "Search setting database row is incorrect after "
+                    f"re-enable: {setting_row!r}"
+                )
+            audit_rows = db.execute(
+                text(
+                    "select actor_user_id, before_json, after_json, "
+                    "metadata_json from audit_log "
+                    "where event_type = 'settings.search_updated' "
+                    "and actor_user_id = :actor_user_id "
+                    "order by id"
+                ),
+                {"actor_user_id": user_id},
+            ).all()
+
+        if len(audit_rows) != 2:
+            fail(
+                "Search settings should create one audit per actual "
+                f"change and none for idempotent updates, got "
+                f"{len(audit_rows)}."
+            )
+
+        decoded_audits: list[tuple[dict, dict, dict]] = []
+        for row in audit_rows:
+            if row[0] != user_id:
+                fail(
+                    "Search-setting audit actor is incorrect: "
+                    f"{row!r}"
+                )
+            before_json = (
+                json_module.loads(row[1])
+                if isinstance(row[1], str)
+                else row[1]
+            )
+            after_json = (
+                json_module.loads(row[2])
+                if isinstance(row[2], str)
+                else row[2]
+            )
+            metadata_json = (
+                json_module.loads(row[3])
+                if isinstance(row[3], str)
+                else row[3]
+            )
+            decoded_audits.append(
+                (before_json, after_json, metadata_json)
+            )
+
+        if (
+            decoded_audits[0][0].get(
+                "show_out_of_stock_section"
+            )
+            is not True
+            or decoded_audits[0][1].get(
+                "show_out_of_stock_section"
+            )
+            is not False
+            or decoded_audits[1][0].get(
+                "show_out_of_stock_section"
+            )
+            is not False
+            or decoded_audits[1][1].get(
+                "show_out_of_stock_section"
+            )
+            is not True
+        ):
+            fail(
+                "Search-setting audit before/after snapshots are "
+                f"incorrect: {decoded_audits!r}"
+            )
+        for _, _, metadata_json in decoded_audits:
+            if (
+                metadata_json.get("setting_key") != setting_key
+                or "show_out_of_stock_section"
+                not in metadata_json.get("changed_fields", [])
+            ):
+                fail(
+                    "Search-setting audit metadata is incomplete: "
+                    f"{metadata_json!r}"
+                )
+
+        full_response = client.get(
+            (
+                "/api/parts/low-stock"
+                f"?location_id={location_id}"
+                f"&part_type_id={int(part_type_id)}"
+                "&limit=10"
+            ),
+            headers=headers,
+        )
+        if full_response.status_code != 200:
+            fail(
+                "GET /api/parts/low-stock returned "
+                f"{full_response.status_code}: "
+                f"{full_response.text}"
+            )
+        full_json = full_response.json()
+        returned_parts = full_json.get("parts", [])
+        returned_ids = [
+            item.get("id")
+            for item in returned_parts
+        ]
+        if (
+            full_json.get("total") != 3
+            or full_json.get("low_stock_count") != 2
+            or full_json.get("out_of_stock_count") != 1
+            or full_json.get("limit") != 10
+            or returned_ids
+            != [zero_id, reserved_id, threshold_id]
+        ):
+            fail(
+                "Low-stock summary totals or severity ordering are "
+                f"incorrect: {full_json}"
+            )
+
+        expected_available = {
+            zero_id: 0,
+            reserved_id: 1,
+            threshold_id: 2,
+        }
+        for item in returned_parts:
+            item_id = item.get("id")
+            if (
+                item.get("available_quantity")
+                != expected_available.get(item_id)
+                or item.get("is_low_stock") is not True
+                or item.get("location_id") != location_id
+                or item.get("location_name") != location_name
+            ):
+                fail(
+                    "Low-stock part serialization is incorrect: "
+                    f"{item}"
+                )
+
+        excluded_ids = {
+            disabled_id,
+            above_id,
+            deleted_id,
+        }
+        if excluded_ids.intersection(returned_ids):
+            fail(
+                "Low-stock summary included disabled, above-threshold, "
+                f"or deleted rows: {returned_ids}"
+            )
+
+        limited_response = client.get(
+            (
+                "/api/parts/low-stock"
+                f"?location_id={location_id}"
+                "&limit=2"
+            ),
+            headers=headers,
+        )
+        limited_json = limited_response.json()
+        if (
+            limited_response.status_code != 200
+            or limited_json.get("total") != 3
+            or limited_json.get("low_stock_count") != 2
+            or limited_json.get("out_of_stock_count") != 1
+            or [
+                item.get("id")
+                for item in limited_json.get("parts", [])
+            ]
+            != [zero_id, reserved_id]
+        ):
+            fail(
+                "Limited low-stock response should retain full counts "
+                f"and severity order: {limited_response.status_code} "
+                f"{limited_json}"
+            )
+
+        empty_response = client.get(
+            (
+                "/api/parts/low-stock"
+                "?location_id=2147483647"
+            ),
+            headers=headers,
+        )
+        empty_json = empty_response.json()
+        if (
+            empty_response.status_code != 200
+            or empty_json.get("total") != 0
+            or empty_json.get("low_stock_count") != 0
+            or empty_json.get("out_of_stock_count") != 0
+            or empty_json.get("parts") != []
+        ):
+            fail(
+                "Missing-location low-stock response should be empty: "
+                f"{empty_response.status_code} {empty_json}"
+            )
+
+        invalid_location = client.get(
+            "/api/parts/low-stock?location_id=0",
+            headers=headers,
+        )
+        if invalid_location.status_code != 422:
+            fail(
+                "Non-positive low-stock location_id should return 422, "
+                f"got {invalid_location.status_code}: "
+                f"{invalid_location.text}"
+            )
+
+        invalid_limit = client.get(
+            "/api/parts/low-stock?limit=0",
+            headers=headers,
+        )
+        if invalid_limit.status_code != 422:
+            fail(
+                "Non-positive low-stock limit should return 422, got "
+                f"{invalid_limit.status_code}: "
+                f"{invalid_limit.text}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Protected search settings persist and audit actual changes; "
+        "low-stock summary handles zero stock, reservations, thresholds, "
+        "disabled warnings, deleted rows, filters, limits, counts, and "
+        "deterministic severity ordering"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -5284,6 +5883,7 @@ def main() -> None:
         check_location_catalogue_api,
         check_part_location_assignment_api,
         check_part_location_list_filter_api,
+        check_low_stock_and_search_settings_api,
         check_stock_quantity_adjustment_api,
         check_part_metadata_update_api,
         check_part_soft_delete_restore_api,

@@ -15,6 +15,7 @@ from app.schemas.parts import (
     PartUpdateRequest,
     DeletedPartCollectionResponse,
     DeletedPartResponse,
+    LowStockSummaryResponse,
 )
 from app.services.parts import (
     PartConflictError,
@@ -29,6 +30,7 @@ from app.services.parts import (
     list_deleted_parts,
     restore_part,
     soft_delete_part,
+    list_low_stock_parts,
 )
 
 
@@ -53,6 +55,29 @@ def read_parts(
         limit=limit,
         offset=offset,
     )
+
+
+# PATCH 182: protected low-stock summary route
+@router.get(
+    "/low-stock",
+    response_model=LowStockSummaryResponse,
+)
+def read_low_stock_parts(
+    part_type_id: int | None = Query(default=None, gt=0),
+    location_id: int | None = Query(default=None, gt=0),
+    limit: int = Query(default=8, ge=1, le=50),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> LowStockSummaryResponse:
+    del current_user
+    return list_low_stock_parts(
+        db,
+        part_type_id=part_type_id,
+        location_id=location_id,
+        limit=limit,
+    )
+
+
 
 
 @router.post(

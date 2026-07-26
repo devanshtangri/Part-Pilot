@@ -37,6 +37,7 @@ from app.schemas.parts import (
     StockMovementResponse,
     DeletedPartCollectionResponse,
     DeletedPartResponse,
+    LowStockSummaryResponse,
 )
 
 
@@ -493,6 +494,68 @@ def list_parts(
         offset=offset,
         parts=[_serialize_part(db, part) for part in parts],
     )
+
+
+# PATCH 182: dashboard-ready low-stock summary service
+def list_low_stock_parts(
+    db: Session,
+    *,
+    part_type_id: int | None = None,
+    location_id: int | None = None,
+    limit: int = 8,
+) -> LowStockSummaryResponse:
+    available_expression = (
+        Part.total_quantity - Part.reserved_quantity
+    )
+    conditions = [
+        Part.is_deleted.is_(False),
+        Part.low_stock_enabled.is_(True),
+        Part.low_stock_threshold.is_not(None),
+        available_expression <= Part.low_stock_threshold,
+    ]
+    if part_type_id is not None:
+        conditions.append(Part.part_type_id == part_type_id)
+    if location_id is not None:
+        conditions.append(Part.location_id == location_id)
+
+    total = int(
+        db.execute(
+            select(func.count(Part.id)).where(*conditions)
+        ).scalar_one()
+    )
+    out_of_stock_count = int(
+        db.execute(
+            select(func.count(Part.id)).where(
+                *conditions,
+                available_expression <= 0,
+            )
+        ).scalar_one()
+    )
+    parts = list(
+        db.execute(
+            select(Part)
+            .where(*conditions)
+            .order_by(
+                available_expression.asc(),
+                Part.updated_at.desc(),
+                Part.id.desc(),
+            )
+            .limit(limit)
+        ).scalars()
+    )
+
+    return LowStockSummaryResponse(
+        total=total,
+        low_stock_count=total - out_of_stock_count,
+        out_of_stock_count=out_of_stock_count,
+        limit=limit,
+        parts=[
+            _serialize_part(db, part)
+            for part in parts
+        ],
+    )
+
+
 
 
 # PATCH 142: existing-part metadata update service
