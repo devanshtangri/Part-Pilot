@@ -6309,10 +6309,14 @@ def check_universal_part_search_api() -> None:
             selected_type_id: int | None = None,
             selected_location_id: int | None = None,
             stock_status: str = "all",
+            sort_by: str = "default",
+            sort_direction: str = "asc",
         ):
             params: dict[str, str | int] = {
                 "search": search,
                 "stock_status": stock_status,
+                "sort_by": sort_by,
+                "sort_direction": sort_direction,
                 "limit": limit,
                 "offset": offset,
             }
@@ -6663,6 +6667,174 @@ def check_universal_part_search_api() -> None:
                 f"{combined_payload}"
             )
 
+        # PATCH 267: PARTPILOT_STORED_PARTS_SORT_V267
+        def sort_value(item: dict[str, object], sort_by: str):
+            if sort_by == "part":
+                return str(
+                    item.get("name")
+                    or item.get("part_number")
+                    or ""
+                ).casefold()
+            if sort_by == "type":
+                return str(item.get("part_type_name") or "").casefold()
+            if sort_by == "manufacturer":
+                raw = item.get("manufacturer_name")
+                return None if raw is None else str(raw).casefold()
+            if sort_by == "location":
+                raw = item.get("location_name")
+                return None if raw is None else str(raw).casefold()
+            if sort_by == "available":
+                return int(item.get("available_quantity") or 0)
+            if sort_by == "total":
+                return int(item.get("total_quantity") or 0)
+
+            available = int(item.get("available_quantity") or 0)
+            if available <= 0:
+                return 2
+            return 1 if item.get("is_low_stock") is True else 0
+
+        def assert_group_sorted(
+            items: list[dict[str, object]],
+            sort_by: str,
+            direction: str,
+        ) -> None:
+            reverse = direction == "desc"
+            if sort_by in {"manufacturer", "location"}:
+                present: list[object] = []
+                missing_started = False
+                for item in items:
+                    value = sort_value(item, sort_by)
+                    if value is None:
+                        missing_started = True
+                    else:
+                        if missing_started:
+                            fail(
+                                f"Missing {sort_by} values were not placed "
+                                f"last: {items}"
+                            )
+                        present.append(value)
+                if present != sorted(present, reverse=reverse):
+                    fail(
+                        f"Incorrect {sort_by} {direction} ordering: "
+                        f"{items}"
+                    )
+                return
+
+            values = [sort_value(item, sort_by) for item in items]
+            if values != sorted(values, reverse=reverse):
+                fail(
+                    f"Incorrect {sort_by} {direction} ordering: {items}"
+                )
+
+        def assert_sorted_payload(
+            payload: dict[str, object],
+            sort_by: str,
+            direction: str,
+        ) -> None:
+            items = list(payload.get("parts", []))
+            available_items = [
+                item
+                for item in items
+                if int(item.get("available_quantity") or 0) > 0
+            ]
+            out_items = [
+                item
+                for item in items
+                if int(item.get("available_quantity") or 0) <= 0
+            ]
+            if items != available_items + out_items:
+                fail(
+                    "Explicit sorting did not preserve Available-first "
+                    f"grouping: {payload}"
+                )
+            assert_group_sorted(available_items, sort_by, direction)
+            assert_group_sorted(out_items, sort_by, direction)
+
+        for sort_by in (
+            "part",
+            "type",
+            "manufacturer",
+            "location",
+            "available",
+            "total",
+            "status",
+        ):
+            for direction in ("asc", "desc"):
+                sorted_payload, sorted_ids = response_for(
+                    shared_token,
+                    selected_type_id=type_id,
+                    sort_by=sort_by,
+                    sort_direction=direction,
+                )
+                assert_sorted_payload(
+                    sorted_payload,
+                    sort_by,
+                    direction,
+                )
+
+                first_page, first_ids = response_for(
+                    shared_token,
+                    limit=2,
+                    offset=0,
+                    selected_type_id=type_id,
+                    sort_by=sort_by,
+                    sort_direction=direction,
+                )
+                remaining_page, remaining_ids = response_for(
+                    shared_token,
+                    limit=100,
+                    offset=2,
+                    selected_type_id=type_id,
+                    sort_by=sort_by,
+                    sort_direction=direction,
+                )
+                if (
+                    first_page.get("total") != sorted_payload.get("total")
+                    or remaining_page.get("total")
+                    != sorted_payload.get("total")
+                    or first_ids + remaining_ids != sorted_ids
+                ):
+                    fail(
+                        f"Sorted pagination is inconsistent for "
+                        f"{sort_by}/{direction}: "
+                        f"full={sorted_ids}, first={first_ids}, "
+                        f"remaining={remaining_ids}"
+                    )
+
+        invalid_sort_by = client.get(
+            "/api/parts",
+            params={
+                "part_type_id": type_id,
+                "sort_by": "missing",
+            },
+            headers=headers,
+        )
+        if invalid_sort_by.status_code != 422:
+            fail(
+                "Invalid sort_by should return 422, got "
+                f"{invalid_sort_by.status_code}: "
+                f"{invalid_sort_by.text}"
+            )
+
+        invalid_sort_direction = client.get(
+            "/api/parts",
+            params={
+                "part_type_id": type_id,
+                "sort_direction": "sideways",
+            },
+            headers=headers,
+        )
+        if invalid_sort_direction.status_code != 422:
+            fail(
+                "Invalid sort_direction should return 422, got "
+                f"{invalid_sort_direction.status_code}: "
+                f"{invalid_sort_direction.text}"
+            )
+
+        ok(
+            "Stored Parts server-backed sorting covers every supported column, both directions, pagination, and validation"
+        )
+
         invalid_stock_status = client.get(
             "/api/parts",
             params={
@@ -6712,7 +6884,8 @@ def check_universal_part_search_api() -> None:
         "field labels; preserves type, location, and stock-status filters, "
         "totals, pagination, literal wildcards, case-insensitive partial "
         "matching, duplicate suppression, deleted exclusion, and "
-        "available-first deterministic ordering"
+        "available-first deterministic ordering and server-backed "
+        "sortable columns"
     )
 
 def main() -> None:

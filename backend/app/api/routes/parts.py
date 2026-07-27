@@ -49,6 +49,18 @@ def read_parts(
     stock_status: Literal["all", "in", "low", "out"] = Query(
         default="all"
     ),
+    # PATCH 267: PARTPILOT_STORED_PARTS_SORT_V267
+    sort_by: Literal[
+        "default",
+        "part",
+        "type",
+        "manufacturer",
+        "location",
+        "available",
+        "total",
+        "status",
+    ] = Query(default="default"),
+    sort_direction: Literal["asc", "desc"] = Query(default="asc"),
     limit: int = Query(default=100, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
     current_user=Depends(get_current_user),
@@ -61,6 +73,8 @@ def read_parts(
         location_id=location_id,
         search=search,
         stock_status=stock_status,
+        sort_by=sort_by,
+        sort_direction=sort_direction,
         limit=limit,
         offset=offset,
     )
