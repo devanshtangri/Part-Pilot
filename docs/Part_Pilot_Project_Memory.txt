@@ -1,7 +1,8 @@
 Part Pilot project memory
 
 <!-- PARTPILOT:CHAT10_BOUNDARY:V250 -->
-<!-- PARTPILOT:CHAT10_BOUNDARY_RECOVERY:V253 -->
+<!-- PARTPILOT:CHAT10_BOUNDARY_RECOVERY:V252 -->
+<!-- PARTPILOT:CHAT11_DIAGNOSTIC:V266 -->
 
 Project
 - Repository: https://github.com/devanshtangri/Part-Pilot.git
@@ -13,102 +14,142 @@ Project
 - Alembic head: 0005_packages
 
 Patch workflow
-- Deliver every implementation, fix, diagnostic, cleanup, documentation update,
-  checkpoint, commit, push and handoff as one downloadable Python file.
-- Never require manual line edits.
-- Use one sequential patch number; never reuse a number after its script ran.
-- Filenames begin with the number, never `patch_`; filename and run command match.
-- Successful scripts print exactly `Everything PASS` as their final line.
-- Validate repo, branch, origin, source state, prerequisites and all transforms in
-  memory before backup/write. Anchor mismatch must fail without touching source.
+- Every implementation, fix, diagnostic, cleanup, docs update, checkpoint,
+  commit, push and handoff is one complete downloadable Python file.
+- Never require manual edits.
+- Use one sequential patch number. Once run it is consumed, even if it fails
+  before writes; never reuse it.
+- Filenames begin with the number, never `patch_`; filename and command match.
+- Successful scripts end with exactly `Everything PASS`.
+- Validate repo, branch, origin, committed HEAD, exact local source/index state,
+  prerequisites and every transform in memory before backup/write.
+- While browser-test source is uncommitted, local files and the newest committed
+  diagnostic are authoritative; GitHub app source may be behind.
+- Avoid whitespace/adjacency anchors. Scope transforms to verified functions,
+  components or blocks and validate semantics, counts and reversal.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs/reports: /projects/Part Pilot/fixes/logs/
 - Diagnostic Markdown filenames start with exact prefix `diagonostic_`.
-- Failure terminal output includes phase, exception, failing command, useful
-  stdout/stderr, rollback result, final Git state and log path.
-- Run git diff --check. Compile relevant Python. For application changes build,
-  deploy, verify Alembic, complete smoke suite, protected APIs, SPA routes,
-  deployed markers and inventory preservation. Restore source/deployment on fail.
+- Failure output includes phase, exception, actual failing command or
+  `in-memory source transformation`, useful stdout/stderr, rollback result,
+  final Git state and log path.
+- Application changes run git diff --check, compile Python, build/deploy, verify
+  Alembic, full smoke tests, protected APIs, SPA routes, markers and inventory;
+  restore source/deployment on failure.
+
+Diagnostic-first escalation
+- After two consecutive pre-write failures, repeated anchor mismatches, or
+  uncertainty about pending local source, stop implementation.
+- The next sequential patch is diagnostic-only and inspects exact local Git
+  state, index, deployment, database and relevant source.
+- It creates fixes/logs/diagonostic_*.md with HEAD/origin, status/index state,
+  hashes, markers, source excerpts, discovered shapes, anchor counts and a safe
+  implementation plan.
+- Commit/push diagnostic+memory with an explicit documentation-only allowlist
+  while proving pending browser-test app bytes/index are unchanged.
+- Do not resume implementation until the diagnostic passes, is committed and
+  its report is inspected.
 
 Browser workflow
 - Never put browser instructions inside patch scripts.
-- Terminal `Everything PASS` means automated checks only.
-- Give browser instructions separately when required.
+- Terminal `Everything PASS` means automated checks only; browser steps follow
+  separately when required.
 - Keep browser-test source uncommitted/unpushed until explicit approval.
-- Apply feedback in the next sequential script; checkpoint/commit/push separately.
+- Apply feedback in the next sequential script.
+- After approval, issue a separate checkpoint/commit/push script promptly.
 
 Git workflow
-- Check local status before assuming GitHub is current.
+- Check local status/index before assuming GitHub is current.
 - Commit small independently approved batches promptly.
-- Stage only intended files; verify staged file set and staged diff --check.
-- Push main, fetch, and verify local HEAD equals origin/main.
+- Documentation-only commits while app source is pending require a temporary
+  index or explicit allowlist and proof app bytes/index are unchanged.
+- Stage only intended files; verify staged set and staged diff --check.
+- Push main, fetch and verify local HEAD equals origin/main.
 
 Durable memory
 - Maintain docs/Checkpoint.md, docs/Implementation_Roadmap.md,
   docs/Part_Pilot_Project_Memory.txt (maximum 8,000 characters), README.md at
-  public milestones, and the newest relevant *Handoff* file.
-- New chats inspect newest handoff first, then Checkpoint, Roadmap, project
-  memory, README, and newer relevant handoffs.
+  public milestones, newest relevant *Handoff*, and newest fixes/logs/
+  `diagonostic_` report.
+- New chats inspect newest handoff first, then Checkpoint, Roadmap, memory,
+  README, newer handoffs and newest diagnostic.
 
 Chat and boundary rules
 - Chat names use exact format `Chat N: descriptive title`.
-- A divisible-by-25 patch is the planned boundary: update durable docs, handoff,
-  ready prompt, next title/patch, commit and push.
-- If a boundary patch fails, its number is consumed. The next sequential patch
-  may run in the same chat only as a narrow high-safety boundary recovery.
-- Do not send the ready-to-paste prompt until recovery succeeds.
-- Recovery preserves pending app source, deployment, fixtures and real inventory.
-- Chat 10: Stored Parts Server Search Migration
-- Patch 250 failed before writes: starting prompt lacked its V250 marker.
-- Patch 251 failed before writes: handoff had `Patch **275**`, validator expected
-  plain `Patch 275`.
-- Patch 252 failed after staging: validator required obsolete
-  `Boundary-recovery workflow:` instead of generated `Chat and boundary rules`.
-- Patch 253 is the recovery. After success Chat 10 ends.
-- Next: Chat 11: Stored Parts Search Finalization, starting Patch 254.
-- Patch 275 is Chat 11's mandatory final boundary patch.
+- Each chat owns exactly 25 sequential patch numbers from its declared start.
+  Planned boundary = starting patch + 24.
+- Example: a chat starting at Patch 231 ends with Patch 255.
+- Boundary patch updates durable docs, handoff, ready prompt, next title/patch,
+  then commits and pushes.
+- Failed scripts consume their numbers.
+- If a boundary fails, only narrow high-safety recovery may run in that chat;
+  do not send the ready prompt until recovery succeeds.
+- Recovery preserves pending app source, deployment, fixtures and inventory.
+- Chat 10 ended through boundary recovery.
+- Chat 11 started with Patch 254; its boundary is Patch 278, not Patch 275.
 
 Inventory-safe testing
 - Never assume an empty database. Use unique fixtures and isolated filters.
 - Model shared attributes explicitly; avoid generic one-result assumptions and
-  large random decimals that SQLite may stringify imprecisely.
-- Cleanup temporary records by manifest-owned IDs and preserve real inventory.
+  large random decimals SQLite may stringify imprecisely.
+- Cleanup only manifest-owned IDs; preserve real inventory.
 
-Completed
+Completed/current source
 - Backend universal search is committed/pushed: metadata, type, manufacturer,
-  location, aliases, tags and typed custom fields; filters, pagination, deleted
-  exclusion, deduplication and available-first ordering are preserved.
-- Dashboard universal search is committed/pushed and browser approved: 280 ms
+  location, aliases, tags, typed custom fields, filters, pagination, deleted
+  exclusion, deduplication and available-first ordering.
+- Dashboard universal search is committed/pushed/browser approved: 280 ms
   search, stale guards, states, Available/Out of stock groups, settings,
-  selection, keyboard support, mobile layout and separated teal/red cards.
-- Stored Parts backend stock filtering and frontend server-search migration are
+  selection, keyboard support, mobile layout and teal/red cards.
+- Stored Parts stock filtering and frontend server-search migration are
   committed/pushed.
-
-Pending uncommitted Patch 248 source
-- frontend/src/pages/PartManager.tsx
-- frontend/src/pages/PartManager.css
-- Includes backend pagination/totals, part-type/location/stock filters,
-  25/50/100 rows, persistent `partpilot.inventory.page-size` preference, stale guards,
-  responsive pagination and flat out-of-stock separator.
+- Pending browser-test files:
+  frontend/src/pages/PartManager.tsx
+  frontend/src/pages/PartManager.css
+- Pending source contains Patch 248 pagination/totals/search/filtering/page-size
+  preference/stale guards, Patch 257 red Out of stock card and Patch 258 teal
+  Available card with compact separated rows.
+- Patch 257 terminal/browser passed. Patch 258 terminal passed; design was
+  approved with sorting/header refinements requested.
+- Never discard, reset, overwrite, stage or commit pending app files before
+  explicit browser approval.
 
 Temporary fixtures
 - 70 manifest-owned PP241 fixtures remain.
-- Manifest: /projects/Part Pilot/fixes/logs/patch_241_stored_parts_fixture_manifest.json
-- Patch 245 set only their package values to NULL.
-- Keep until final browser approval; real inventory must remain unchanged.
+- Manifest:
+  /projects/Part Pilot/fixes/logs/patch_241_stored_parts_fixture_manifest.json
+- Patch 245 changed only their package values to NULL.
+- Preserve until final browser approval; cleanup by manifest IDs only.
 
-Next application task
-- Make the entire Stored Parts Out of stock card match the approved dashboard
-  search treatment: muted red card background, solid red left accent, red-tinted
-  header/count/table heading; no gradients, glow, glassmorphism or images.
-- Patch 249 failed before writes because validation rejected generic
-  `box-shadow:` despite intended `box-shadow: none !important;`.
-- Next app patch must scope validation to decorative shadows or allow `none`.
+Diagnostic history/current action
+- Patch 259 failed before writes: client transform assumed exact adjacency.
+- Patch 260 fixed it but failed before writes: service helper insertion used
+  another incorrect exact anchor.
+- Patch 261 never executed because of Python f-string syntax.
+- Patch 262 inspected source/deployment/database but staged validation rejected
+  trailing whitespace; rollback removed the report and restored memory.
+- Patch 263 stopped before writes after detecting two deleted committed docs.
+- Patch 264 restored those docs and preserved pending app bytes/index.
+- Patch 265 passed and created the authoritative sanitised report:
+  fixes/logs/diagonostic_patch_265_stored_parts_sorting_local_source.md
+- Patch 266 validates and commits/pushes only that report plus project memory.
+- Next: inspect the committed report, then resume sorting/header implementation
+  using its exact local source shapes.
+
+Pending design task
+- Remove “Stocked results”, “Separate results” and descriptive subtitles.
+- Keep only Available/Out of stock titles and counts.
+- Connect table headings visually to each section card.
+- Add accessible server-backed sorting for Part, Type, Manufacturer, Location,
+  Available, Total and Status across the full filtered result set; preserve
+  pagination and reset to page one on sort changes.
+- Preserve search, filters, stale guards, selection, quantity, history, edit,
+  delete/restore and every Part Manager workflow.
+- Flat enterprise UI: subtle borders, restrained radii, dense/readable,
+  responsive; no gradients, glow, glassmorphism or images.
 
 Design and response
-- Flat enterprise inventory UI, subtle borders, restrained radii, dense/readable,
-  minimal gradients, responsive desktop/mobile; labels: Available, Out of stock;
-  hide empty sections.
-- Response heading: `Patch N - Browser Test` or `Patch N - Fix Only`.
-- Include file, SHA-256, exact command, scope, source/build/browser/commit status,
+- Labels: Available and Out of stock; hide empty sections.
+- Heading: `Patch N - Browser Test` or `Patch N - Fix Only`.
+- Include file, SHA-256, exact command, scope, source/build/browser/commit status
   and expected final line.
