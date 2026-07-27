@@ -1925,3 +1925,42 @@ under the revised same-chat recovery rule.
 - `Chat 11: Stored Parts Search Finalization`
 - First patch: `254`
 - Mandatory final boundary patch: `275`
+
+<!-- PARTPILOT:DURABLE_CONTEXT_POLICY:V285 -->
+## Durable context and chat-boundary policy
+
+`docs/Part_Pilot_Project_Memory.txt` was an unintended duplicate memory file
+and has been removed. Do not recreate it.
+
+Durable project continuity now uses:
+
+1. the newest chat handoff;
+2. `docs/Checkpoint.md`;
+3. `docs/Implementation_Roadmap.md`;
+4. `README.md`;
+5. the newest relevant `diagonostic_` report.
+
+Boundary and prompt rules:
+
+- Do not create or commit next-chat prompt files in any format.
+- Keep the ready-to-paste next-chat prompt only in the current chat response.
+- Provide that prompt only after the boundary or boundary-recovery script has
+  actually run and its terminal output ends with exactly `Everything PASS`.
+- Until then, keep the current chat active for narrow high-safety recovery.
+- Failed boundary and recovery scripts consume their patch numbers.
+- Future chats own 30 sequential patch numbers.
+- A future chat boundary is its starting patch plus 29.
+- Calculate the next chat start and boundary only after the current recovery
+  succeeds.
+- A successful boundary updates durable docs and the handoff, commits and
+  pushes, and only then is the next title and prompt supplied in chat.
+
+Current state:
+
+- Chat 11 Stored Parts Search Finalization application source is committed,
+  pushed, deployed and browser-approved.
+- The 70 PP241 fixtures remain because Patch 278 cleanup was rolled back after
+  `app_settings` drift was detected.
+- Chat 11 boundary recovery remains open.
+- Patch 286 must perform the deferred fixture-cleanup diagnostic against the failed
+  Patch 278 backup.
