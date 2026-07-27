@@ -4,6 +4,7 @@ import type {
   DeletedPartCollection,
   Part,
   PartCollection,
+  PartStockStatus,
   LowStockSummary,
   PartMovementCollection,
   QuantityAdjustmentPayload,
@@ -89,6 +90,7 @@ export function getParts(
     partTypeId?: number;
     locationId?: number;
     search?: string;
+    stockStatus?: PartStockStatus;
     limit?: number;
     offset?: number;
   }
@@ -113,6 +115,11 @@ export function getParts(
   const search = options?.search?.trim();
   if (search) {
     parameters.set("search", search);
+  }
+
+  // PATCH 232: PARTPILOT_STORED_PARTS_SERVER_SEARCH_V233
+  if (options?.stockStatus) {
+    parameters.set("stock_status", options.stockStatus);
   }
 
   if (options?.limit !== undefined) {

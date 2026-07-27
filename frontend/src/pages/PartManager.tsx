@@ -2,6 +2,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState } from "react";
 import type {
   ChangeEvent,
@@ -32,6 +33,7 @@ import type { LocationOption } from "../types/locations";
 import type {
   Part,
   PartCollection,
+  PartStockStatus,
   QuantityAdjustmentOperation,
   StockMovement
 } from "../types/parts";
@@ -46,7 +48,8 @@ import type {
 } from "../types/partTypes";
 
 type FilterMode = "all" | "builtin" | "custom";
-type InventoryStockFilter = "all" | "in" | "low" | "out";
+type InventoryStockFilter = PartStockStatus;
+const STORED_PARTS_SERVER_SEARCH_VERSION = "stored-parts-server-search-v233";
 
 // PATCH 106: editor-only semantic field preset
 type EditorFieldKind = PartTypeFieldKind | "manufacturer";
@@ -356,10 +359,13 @@ export function PartManager({
     useState<string | null>(null);
   const [inventoryRefreshSequence, setInventoryRefreshSequence] =
     useState(0);
-  // PATCH 120: client-side inventory search and stock filter
+  // PATCH 232: PARTPILOT_STORED_PARTS_SERVER_SEARCH_V233
   const [inventoryQuery, setInventoryQuery] = useState("");
+  const [inventoryServerSearch, setInventoryServerSearch] =
+    useState("");
   const [inventoryStockFilter, setInventoryStockFilter] =
     useState<InventoryStockFilter>("all");
+  const inventoryRequestSequence = useRef(0);
   // PATCH 194: settings-driven out-of-stock grouping
   const [showOutOfStockSection, setShowOutOfStockSection] =
     useState(true);
@@ -509,30 +515,52 @@ export function PartManager({
     };
   }, [token, inventoryRefreshSequence]);
 
-  // PATCH 110: load the existing inventory collection
+  // PATCH 233: debounce Stored Parts server search
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setInventoryServerSearch(inventoryQuery.trim());
+    }, 280);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [inventoryQuery]);
+
+  // PATCH 233: PARTPILOT_STORED_PARTS_SERVER_SEARCH_V233
   useEffect(() => {
     if (!token) {
+      inventoryRequestSequence.current += 1;
       setInventoryCollection(null);
       setInventoryLoading(false);
       return;
     }
 
+    const requestId = inventoryRequestSequence.current + 1;
+    inventoryRequestSequence.current = requestId;
     let cancelled = false;
+
     setInventoryLoading(true);
     setInventoryError(null);
-
     getParts(token, {
       limit: 250,
       offset: 0,
-      locationId: inventoryLocationFilter ?? undefined
+      locationId: inventoryLocationFilter ?? undefined,
+      search: inventoryServerSearch || undefined,
+      stockStatus: inventoryStockFilter
     })
       .then((result) => {
-        if (!cancelled) {
+        if (
+          !cancelled
+          && requestId === inventoryRequestSequence.current
+        ) {
           setInventoryCollection(result);
         }
       })
       .catch((caught) => {
-        if (!cancelled) {
+        if (
+          !cancelled
+          && requestId === inventoryRequestSequence.current
+        ) {
           setInventoryError(
             caught instanceof Error
               ? caught.message
@@ -541,7 +569,10 @@ export function PartManager({
         }
       })
       .finally(() => {
-        if (!cancelled) {
+        if (
+          !cancelled
+          && requestId === inventoryRequestSequence.current
+        ) {
           setInventoryLoading(false);
         }
       });
@@ -549,7 +580,13 @@ export function PartManager({
     return () => {
       cancelled = true;
     };
-  }, [token, inventoryLocationFilter, inventoryRefreshSequence]);
+  }, [
+    token,
+    inventoryLocationFilter,
+    inventoryRefreshSequence,
+    inventoryServerSearch,
+    inventoryStockFilter
+  ]);
 
   // PATCH 194: load the Stored Parts grouping preference
   useEffect(() => {
@@ -733,31 +770,12 @@ export function PartManager({
     [inventoryLocationFilter, inventoryLocations]
   );
 
-  // PATCH 194: keep query matching separate from stock grouping
-  const inventoryQueryMatches = useMemo(() => {
-    const normalizedQuery = inventoryQuery.trim().toLowerCase();
-    const parts = inventoryCollection?.parts ?? [];
-
-    return parts.filter((part) =>
-      !normalizedQuery
-      || [
-        part.name,
-        part.part_number,
-        part.part_type_name,
-        part.manufacturer_name,
-        part.location_name
-      ].some(
-        (value) =>
-          Boolean(
-            value
-            && value.toLowerCase().includes(normalizedQuery)
-          )
-      )
-    );
-  }, [inventoryCollection, inventoryQuery]);
-
+  // PATCH 233: PARTPILOT_STORED_PARTS_SERVER_SEARCH_V233
+  // Search and stock filtering now happen on the backend. The local split only
+  // preserves the approved Available / Out of stock presentation for "all".
+  const inventoryServerParts = inventoryCollection?.parts ?? [];
   const filteredInventoryParts = useMemo(() => {
-    return inventoryQueryMatches.filter((part) => {
+    return inventoryServerParts.filter((part) => {
       if (inventoryStockFilter === "in") {
         return part.available_quantity > 0 && !part.is_low_stock;
       }
@@ -772,7 +790,7 @@ export function PartManager({
 
       return part.available_quantity > 0;
     });
-  }, [inventoryQueryMatches, inventoryStockFilter]);
+  }, [inventoryServerParts, inventoryStockFilter]);
 
   const outOfStockInventoryParts = useMemo(() => {
     if (
@@ -782,15 +800,14 @@ export function PartManager({
       return [];
     }
 
-    return inventoryQueryMatches.filter(
+    return inventoryServerParts.filter(
       (part) => part.available_quantity <= 0
     );
   }, [
-    inventoryQueryMatches,
+    inventoryServerParts,
     inventoryStockFilter,
     showOutOfStockSection
   ]);
-
   const visibleInventoryPartCount =
     filteredInventoryParts.length
     + outOfStockInventoryParts.length;
@@ -2233,6 +2250,9 @@ function closeCreator() {
         <div
           className="inventory-browser-toolbar"
           data-inventory-filter-version="inventory-search-filter-v120"
+          data-server-search-version={
+            STORED_PARTS_SERVER_SEARCH_VERSION
+          }
           data-location-filter-version="stored-parts-location-filter-v171"
         >
           <label className="inventory-search-control">
@@ -2244,7 +2264,7 @@ function closeCreator() {
                 event: ChangeEvent<HTMLInputElement>
               ) => setInventoryQuery(event.target.value)}
               placeholder="Search name, model, type, or manufacturer..."
-              disabled={inventoryLoading || !inventoryCollection}
+              disabled={!token}
             />
           </label>
 
@@ -2332,6 +2352,8 @@ function closeCreator() {
         {!inventoryLoading
           && !inventoryError
           && inventoryCollection
+          && !inventoryQuery.trim()
+          && inventoryStockFilter === "all"
           && inventoryLocationFilter === null
           && inventoryCollection.parts.length === 0 ? (
             <div className="inventory-browser-state">
@@ -2343,8 +2365,9 @@ function closeCreator() {
           && !inventoryError
           && inventoryCollection
           && (
-            inventoryLocationFilter !== null
-            || inventoryCollection.parts.length > 0
+            Boolean(inventoryQuery.trim())
+            || inventoryStockFilter !== "all"
+            || inventoryLocationFilter !== null
           )
           && visibleInventoryPartCount === 0 ? (
             <div className="inventory-browser-state inventory-filter-empty">

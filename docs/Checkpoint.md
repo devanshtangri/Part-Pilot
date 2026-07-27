@@ -1851,3 +1851,33 @@ Patch 231 records and pushes this backend checkpoint. The next implementation
 batch should migrate the Stored Parts client contract, then add bounded
 pagination, a part-type filter, debounce and stale-response protection while
 preserving `inventoryOnly` and all existing part workflows.
+
+<!-- PARTPILOT:STORED_PARTS_SERVER_SEARCH_FRONTEND:V234 -->
+## Chat 10 checkpoint — Stored Parts server-search requests
+
+Patch 233 completed automated verification and received explicit browser
+approval on both `/inventory` and `/part-manager`.
+
+Verified behaviour:
+
+- Stored Parts now sends the debounced search text to backend universal search;
+- search debounce is 280 ms;
+- request sequencing prevents stale responses from replacing newer results;
+- `stock_status=all|in|low|out` is sent through the typed frontend client;
+- the old five-field client-side query matcher was removed;
+- Available and Out of stock presentation grouping remains intact;
+- `search.show_out_of_stock_section` behaviour remains intact;
+- zero-result searches use the filtered no-results state rather than the empty
+  inventory message;
+- the search input remains usable while requests are loading;
+- Inventory mobile layout and Part Manager management mode were browser
+  approved;
+- part selection, details, quantity changes, movement history, metadata editing,
+  deletion and restoration were browser approved;
+- Alembic remains at `0005_packages`, the complete smoke suite passed,
+  protected APIs and SPA routes passed, and verification left real inventory
+  unchanged.
+
+Patch 234 records, commits and pushes this approved frontend checkpoint. The
+next batch should add bounded backend pagination and a dedicated part-type
+filter while retaining the approved server-search behaviour.

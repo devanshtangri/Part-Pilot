@@ -63,6 +63,13 @@ export interface Part {
   field_values: PartFieldValue[];
 }
 
+// PATCH 232: PARTPILOT_STORED_PARTS_SERVER_SEARCH_V233
+export type PartStockStatus =
+  | "all"
+  | "in"
+  | "low"
+  | "out";
+
 export interface PartCollection {
   total: number;
   limit: number;

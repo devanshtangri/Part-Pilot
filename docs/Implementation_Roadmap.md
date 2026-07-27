@@ -1604,3 +1604,24 @@ part-type filtering, 280 ms search debounce, stale-response protection and
 settings-aware out-of-stock behaviour without disrupting selection, details,
 quantity adjustments, movements, editing, delete/restore, mobile Inventory or
 Part Manager management mode.
+
+<!-- PARTPILOT:STORED_PARTS_SERVER_SEARCH_FRONTEND:V234 -->
+### Stored Parts server-search migration — request migration approved
+
+**Completed in Patch 233 and checkpointed by Patch 234**
+
+- Added the typed `PartStockStatus` client contract.
+- Sent debounced universal-search and stock-status values to `GET /api/parts`.
+- Added explicit stale-response request sequencing.
+- Removed client-side query matching over the currently loaded page.
+- Preserved Available / Out of stock grouping and out-of-stock settings.
+- Corrected server-search empty states.
+- Browser-approved desktop, mobile Inventory, Part Manager and existing part
+  workflows.
+
+**Next**
+
+Replace `limit: 250` and `offset: 0` with bounded page state and controls, add
+the dedicated part-type selector, reset pagination when filters change, and use
+backend totals for page information. Keep browser-test changes uncommitted
+until explicit approval.
