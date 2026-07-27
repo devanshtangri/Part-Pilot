@@ -1,72 +1,114 @@
 Part Pilot project memory
 
-Project:
-Repository: https://github.com/devanshtangri/Part-Pilot.git
-Local root: /projects/Part Pilot
-Branch: main
-Docker Compose service: partpilot
-Typical host port: 7890
-Frontend: React, Vite, TypeScript
-Backend: FastAPI, SQLAlchemy, Alembic
-Current Alembic head: 0005_packages
+<!-- PARTPILOT:CHAT10_BOUNDARY:V250 -->
+<!-- PARTPILOT:CHAT10_BOUNDARY_RECOVERY:V253 -->
 
-Core workflow:
-Every implementation, fix, diagnostic, cleanup, documentation update, checkpoint, commit, push, and handoff must be delivered as one complete downloadable Python file. Never ask the user to find exact lines and copy-paste manual edits.
+Project
+- Repository: https://github.com/devanshtangri/Part-Pilot.git
+- Root: /projects/Part Pilot
+- Branch: main
+- Compose service: partpilot; usual host port: 7890
+- Frontend: React/Vite/TypeScript
+- Backend: FastAPI/SQLAlchemy/Alembic
+- Alembic head: 0005_packages
 
-Use one sequential patch number for every operation. Never reuse a number after the corresponding script has been run. A corrected replacement may keep the same number only when the earlier file was not run.
+Patch workflow
+- Deliver every implementation, fix, diagnostic, cleanup, documentation update,
+  checkpoint, commit, push and handoff as one downloadable Python file.
+- Never require manual line edits.
+- Use one sequential patch number; never reuse a number after its script ran.
+- Filenames begin with the number, never `patch_`; filename and run command match.
+- Successful scripts print exactly `Everything PASS` as their final line.
+- Validate repo, branch, origin, source state, prerequisites and all transforms in
+  memory before backup/write. Anchor mismatch must fail without touching source.
+- Backups: /projects/Part Pilot/fixes/backups/
+- Logs/reports: /projects/Part Pilot/fixes/logs/
+- Diagnostic Markdown filenames start with exact prefix `diagonostic_`.
+- Failure terminal output includes phase, exception, failing command, useful
+  stdout/stderr, rollback result, final Git state and log path.
+- Run git diff --check. Compile relevant Python. For application changes build,
+  deploy, verify Alembic, complete smoke suite, protected APIs, SPA routes,
+  deployed markers and inventory preservation. Restore source/deployment on fail.
 
-Every successful script must print exactly:
-Everything PASS
-as its final output line. Never print that line on failure.
+Browser workflow
+- Never put browser instructions inside patch scripts.
+- Terminal `Everything PASS` means automated checks only.
+- Give browser instructions separately when required.
+- Keep browser-test source uncommitted/unpushed until explicit approval.
+- Apply feedback in the next sequential script; checkpoint/commit/push separately.
 
-Every script must verify the repository, branch, origin, expected source state, and prerequisites. Validate all planned transformations in memory before creating backups or writing files. If source anchors do not match, fail before touching the working tree.
+Git workflow
+- Check local status before assuming GitHub is current.
+- Commit small independently approved batches promptly.
+- Stage only intended files; verify staged file set and staged diff --check.
+- Push main, fetch, and verify local HEAD equals origin/main.
 
-Back up every changed file under:
-/projects/Part Pilot/fixes/backups/
+Durable memory
+- Maintain docs/Checkpoint.md, docs/Implementation_Roadmap.md,
+  docs/Part_Pilot_Project_Memory.txt (maximum 8,000 characters), README.md at
+  public milestones, and the newest relevant *Handoff* file.
+- New chats inspect newest handoff first, then Checkpoint, Roadmap, project
+  memory, README, and newer relevant handoffs.
 
-Store logs and diagnostic reports under:
-/projects/Part Pilot/fixes/logs/
+Chat and boundary rules
+- Chat names use exact format `Chat N: descriptive title`.
+- A divisible-by-25 patch is the planned boundary: update durable docs, handoff,
+  ready prompt, next title/patch, commit and push.
+- If a boundary patch fails, its number is consumed. The next sequential patch
+  may run in the same chat only as a narrow high-safety boundary recovery.
+- Do not send the ready-to-paste prompt until recovery succeeds.
+- Recovery preserves pending app source, deployment, fixtures and real inventory.
+- Chat 10: Stored Parts Server Search Migration
+- Patch 250 failed before writes: starting prompt lacked its V250 marker.
+- Patch 251 failed before writes: handoff had `Patch **275**`, validator expected
+  plain `Patch 275`.
+- Patch 252 failed after staging: validator required obsolete
+  `Boundary-recovery workflow:` instead of generated `Chat and boundary rules`.
+- Patch 253 is the recovery. After success Chat 10 ends.
+- Next: Chat 11: Stored Parts Search Finalization, starting Patch 254.
+- Patch 275 is Chat 11's mandatory final boundary patch.
 
-Keep terminal output concise. Save full diffs to the log instead of printing large source files. Run git diff --check. Compile relevant Python files. Build and deploy Part Pilot when application source changes. Verify Alembic, run the complete smoke suite, verify relevant protected APIs, verify SPA routes, and verify deployed markers. Restore source and the previous deployment safely if any step fails.
+Inventory-safe testing
+- Never assume an empty database. Use unique fixtures and isolated filters.
+- Model shared attributes explicitly; avoid generic one-result assumptions and
+  large random decimals that SQLite may stringify imprecisely.
+- Cleanup temporary records by manifest-owned IDs and preserve real inventory.
 
-Browser-test workflow:
-Do not include browser-test instructions inside Python scripts.
-First provide the script. The user runs it and reports terminal results. Terminal Everything PASS means automated verification only, not browser approval. Provide browser-test instructions separately when required. Keep browser-test changes uncommitted and unpushed until the user explicitly approves the browser result. Apply feedback through the next sequential Python script. After explicit approval, create a separate checkpoint/commit/push script.
+Completed
+- Backend universal search is committed/pushed: metadata, type, manufacturer,
+  location, aliases, tags and typed custom fields; filters, pagination, deleted
+  exclusion, deduplication and available-first ordering are preserved.
+- Dashboard universal search is committed/pushed and browser approved: 280 ms
+  search, stale guards, states, Available/Out of stock groups, settings,
+  selection, keyboard support, mobile layout and separated teal/red cards.
+- Stored Parts backend stock filtering and frontend server-search migration are
+  committed/pushed.
 
-Git workflow:
-Check local git status before assuming GitHub is current. Commit each small independently approved batch and push it promptly. Stage only intended files, verify the exact staged file set, run staged git diff --check, commit with a focused message, push main, fetch, and verify local and origin/main point to the same commit.
+Pending uncommitted Patch 248 source
+- frontend/src/pages/PartManager.tsx
+- frontend/src/pages/PartManager.css
+- Includes backend pagination/totals, part-type/location/stock filters,
+  25/50/100 rows, persistent `partpilot.inventory.page-size` preference, stale guards,
+  responsive pagination and flat out-of-stock separator.
 
-Durable secondary memory:
-Treat docs/Checkpoint.md, docs/Implementation_Roadmap.md, README.md at public milestones, and the newest relevant docs/*Handoff* file as durable secondary project memory. Update them at meaningful verified checkpoints, commits, phase boundaries, and chat boundaries, not for every small cosmetic fix. At the start of a new chat, inspect the newest handoff first, then Checkpoint.md, Implementation_Roadmap.md, README.md, and any newer relevant handoff.
+Temporary fixtures
+- 70 manifest-owned PP241 fixtures remain.
+- Manifest: /projects/Part Pilot/fixes/logs/patch_241_stored_parts_fixture_manifest.json
+- Patch 245 set only their package values to NULL.
+- Keep until final browser approval; real inventory must remain unchanged.
 
-Chat naming:
-Use exactly:
-Chat N: descriptive title
+Next application task
+- Make the entire Stored Parts Out of stock card match the approved dashboard
+  search treatment: muted red card background, solid red left accent, red-tinted
+  header/count/table heading; no gradients, glow, glassmorphism or images.
+- Patch 249 failed before writes because validation rejected generic
+  `box-shadow:` despite intended `box-shadow: none !important;`.
+- Next app patch must scope validation to decorative shadows or allow `none`.
 
-The current conversation is Chat 9.
-Patch 225 is the mandatory final Python file of Chat 9.
-The next chat title is exactly:
-Chat 10: Stored Parts Server Search Migration
-Chat 10 starts with Patch 226.
-Patch 250 is the mandatory final Python file of Chat 10.
-
-Every patch number divisible by 25 is a mandatory chat boundary and the final Python file of that chat. That boundary patch must create or update the durable handoff and a ready-to-paste next-chat prompt, explicitly state the next chat title, record the next patch number, update durable memory where appropriate, commit, and push.
-
-If a divisible-by-25 boundary patch fails, do not issue the next numbered Python file in the same chat. The user will paste the failure. Explain the failure and update the next-chat prompt in the chat so it includes the failure, rollback state, and required fix. The next chat then starts with the following patch number.
-
-Inventory-safe testing:
-Never assume the user database is empty. Use generated unique fixture values. Isolate search tests through temporary part types or equivalent filters. Explicitly model attributes shared by several fixtures. Avoid generic one-result assumptions. Avoid large random decimal fixtures whose SQLite text form can lose precision. Clean up temporary records and leave real inventory unchanged.
-
-Current completed state:
-Backend universal search is committed and pushed. It searches part metadata, part type, manufacturer, location, aliases, tags, and typed custom fields. It preserves filters, pagination, deleted-part exclusion, duplicate suppression, and available-before-out-of-stock ordering.
-
-Dashboard universal search is committed and pushed. It has typed frontend search support, 280 ms live search, stale-response protection, loading/error/no-match states, Available and Out of stock result groups, settings-driven hidden out-of-stock behaviour, selected-result details, keyboard shortcuts, responsive mobile layout, a centred SVG close icon, and clearly separated teal/red stock cards. The user browser-approved the final design.
-
-Immediate next work:
-Chat 10 begins with Patch 226. Migrate Stored Parts search from client-side filtering over the currently loaded page to the backend universal-search contract. Preserve part-type and location filters, backend totals and pagination, available-before-out-of-stock ordering, out-of-stock settings, mobile Inventory layout, part selection, quantity changes, movement history, metadata editing, delete/restore, and Part Manager management mode. Use a read-only preflight first if exact source anchors are uncertain.
-
-Design direction:
-Use clean enterprise inventory styling, flat surfaces, subtle borders, restrained radii, dense but readable information, minimal gradients, and responsive desktop/mobile layouts. Do not use glassmorphism or AI-generated visual assets. Prefer simple domain language. Approved search labels are Available and Out of stock. Hide result sections when they contain no rows.
-
-Response format for every script:
-State the classification and patch number, provide the downloadable Python file, SHA-256, exact run command, concise scope, whether source changes, whether build/deploy occurs, whether browser testing is required, whether commit/push occurs, and the expected final line.
+Design and response
+- Flat enterprise inventory UI, subtle borders, restrained radii, dense/readable,
+  minimal gradients, responsive desktop/mobile; labels: Available, Out of stock;
+  hide empty sections.
+- Response heading: `Patch N - Browser Test` or `Patch N - Fix Only`.
+- Include file, SHA-256, exact command, scope, source/build/browser/commit status,
+  and expected final line.

@@ -1625,3 +1625,20 @@ Replace `limit: 250` and `offset: 0` with bounded page state and controls, add
 the dedicated part-type selector, reset pagination when filters change, and use
 backend totals for page information. Keep browser-test changes uncommitted
 until explicit approval.
+
+## Chat 11 - Stored Parts Search Finalization
+
+<!-- PARTPILOT:CHAT10_BOUNDARY:V250 -->
+<!-- PARTPILOT:CHAT10_BOUNDARY_RECOVERY:V253 -->
+
+Start with Patch 254.
+
+1. Apply the dashboard-search-like red theme to the complete Stored Parts
+   out-of-stock card.
+2. Correct the Patch 249 validator so `box-shadow: none !important;` is allowed.
+3. Build, deploy, run the complete smoke suite, and obtain browser approval.
+4. Remove only the manifest-owned Patch 241 fixtures after approval.
+5. Verify all real inventory remains unchanged.
+6. Update durable memory and commit/push the approved frontend batch.
+7. Continue remaining finalization work as needed.
+8. Finish Chat 11 with mandatory boundary Patch 275.

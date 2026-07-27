@@ -1881,3 +1881,47 @@ Verified behaviour:
 Patch 234 records, commits and pushes this approved frontend checkpoint. The
 next batch should add bounded backend pagination and a dedicated part-type
 filter while retaining the approved server-search behaviour.
+
+## Chat 10 boundary recovery - Stored Parts migration
+
+<!-- PARTPILOT:CHAT10_BOUNDARY:V250 -->
+<!-- PARTPILOT:CHAT10_BOUNDARY_RECOVERY:V253 -->
+
+Recorded by Patch 253 on `2026-07-27T10:45:09.454380+00:00`.
+
+### Boundary recovery
+
+Patch 250 failed during in-memory documentation generation because
+`docs/Chat11_Starting_Prompt.md` did not contain
+`PARTPILOT:CHAT10_BOUNDARY:V250`. Patch 251 then failed before writes because the
+handoff rendered `Patch **275**` while its validator required plain `Patch 275`.
+Patch 252 generated, wrote and staged the documentation, but its staged-diff
+validator required the obsolete phrase `Boundary-recovery workflow:` while the
+compact memory used `Chat and boundary rules`. Rollback restored the documents
+and index after all three failures. Patch 253 completed the boundary recovery
+under the revised same-chat recovery rule.
+
+### Committed state before recovery
+
+- Commit: `1f93436ad324b45cc5612cf60e463686d3af1a75`
+- Subject: `Migrate Stored Parts search to backend`
+
+### Pending uncommitted source preserved
+
+- `frontend/src/pages/PartManager.tsx`
+- `frontend/src/pages/PartManager.css`
+- Pending diff SHA-256: `8f5ed1acaef4414ea6f8965932456f1d401d7609ca80f41a46e5206cbe8f67b7`
+- Active marker: `stored-parts-preference-v248`
+
+### Temporary fixtures preserved
+
+- Token: `PP241-20260727-075829-0F182174`
+- Count: `70`
+- Package values: `NULL`
+- Cleanup remains pending final browser approval.
+
+### Next chat
+
+- `Chat 11: Stored Parts Search Finalization`
+- First patch: `254`
+- Mandatory final boundary patch: `275`
