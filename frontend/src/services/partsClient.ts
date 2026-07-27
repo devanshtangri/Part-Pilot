@@ -9,7 +9,9 @@ import type {
   PartMovementCollection,
   QuantityAdjustmentPayload,
   QuantityAdjustmentResponse,
-  UpdatePartPayload
+  UpdatePartPayload,
+  PartSortBy,
+  PartSortDirection
 } from "../types/parts";
 
 
@@ -91,6 +93,12 @@ export function getParts(
     locationId?: number;
     search?: string;
     stockStatus?: PartStockStatus;
+    sortBy?: PartSortBy;
+    sortDirection?: PartSortDirection;
+    availableSortBy?: PartSortBy;
+    availableSortDirection?: PartSortDirection;
+    outOfStockSortBy?: PartSortBy;
+    outOfStockSortDirection?: PartSortDirection;
     limit?: number;
     offset?: number;
   }
@@ -120,6 +128,37 @@ export function getParts(
   // PATCH 232: PARTPILOT_STORED_PARTS_SERVER_SEARCH_V233
   if (options?.stockStatus) {
     parameters.set("stock_status", options.stockStatus);
+  }
+
+  // PATCH 269: PARTPILOT_STORED_PARTS_SORT_CLIENT_V270
+  if (options?.sortBy) {
+    parameters.set("sort_by", options.sortBy);
+  }
+  if (options?.sortDirection) {
+    parameters.set("sort_direction", options.sortDirection);
+  }
+
+  // PATCH 273: PARTPILOT_DYNAMIC_SECTION_SORT_CLIENT_V273
+  if (options?.availableSortBy) {
+    parameters.set("available_sort_by", options.availableSortBy);
+  }
+  if (options?.availableSortDirection) {
+    parameters.set(
+      "available_sort_direction",
+      options.availableSortDirection
+    );
+  }
+  if (options?.outOfStockSortBy) {
+    parameters.set(
+      "out_of_stock_sort_by",
+      options.outOfStockSortBy
+    );
+  }
+  if (options?.outOfStockSortDirection) {
+    parameters.set(
+      "out_of_stock_sort_direction",
+      options.outOfStockSortDirection
+    );
   }
 
   if (options?.limit !== undefined) {

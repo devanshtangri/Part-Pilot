@@ -634,109 +634,234 @@ def _part_sort_order(
     *,
     sort_by: str,
     sort_direction: str,
+    available_sort_by: str | None,
+    available_sort_direction: str | None,
+    out_of_stock_sort_by: str | None,
+    out_of_stock_sort_direction: str | None,
     search_term: str | None,
     stock_status: str,
 ):
-    if sort_by not in _PART_SORT_FIELDS:
-        raise PartValidationError(
-            f"Unsupported part sort field: {sort_by!r}."
-        )
-    if sort_direction not in _PART_SORT_DIRECTIONS:
-        raise PartValidationError(
-            f"Unsupported part sort direction: {sort_direction!r}."
-        )
+    # PATCH 271: PARTPILOT_INDEPENDENT_SECTION_SORT_V272
+    requested_fields = (
+        sort_by,
+        available_sort_by,
+        out_of_stock_sort_by,
+    )
+    requested_directions = (
+        sort_direction,
+        available_sort_direction,
+        out_of_stock_sort_direction,
+    )
+    for field in requested_fields:
+        if field is not None and field not in _PART_SORT_FIELDS:
+            raise PartValidationError(
+                f"Unsupported part sort field: {field!r}."
+            )
+    for direction in requested_directions:
+        if (
+            direction is not None
+            and direction not in _PART_SORT_DIRECTIONS
+        ):
+            raise PartValidationError(
+                f"Unsupported part sort direction: {direction!r}."
+            )
+
+    available_field = available_sort_by or sort_by
+    available_direction = (
+        available_sort_direction or sort_direction
+    )
+    out_field = out_of_stock_sort_by or sort_by
+    out_direction = (
+        out_of_stock_sort_direction or sort_direction
+    )
 
     available_quantity = Part.total_quantity - Part.reserved_quantity
-    available_group = case(
-        (available_quantity > 0, 0),
-        else_=1,
-    ).asc()
+    available_predicate = available_quantity > 0
+    out_predicate = available_quantity <= 0
 
-    if sort_by == "default":
-        if search_term is not None:
-            return _part_search_order(search_term)
+    def directed(expression, direction: str):
+        return expression.desc() if direction == "desc" else expression.asc()
+
+    def masked(predicate, expression):
+        return case((predicate, expression), else_=None)
+
+    def default_terms(predicate):
+        if search_term is None:
+            return (
+                masked(predicate, Part.created_at).desc(),
+                masked(predicate, Part.id).desc(),
+            )
+
+        part_number = func.lower(func.coalesce(Part.part_number, ""))
+        name = func.lower(func.coalesce(Part.name, ""))
         return (
-            available_group,
-            Part.created_at.desc(),
-            Part.id.desc(),
+            case(
+                (predicate & (part_number == search_term), 0),
+                (predicate, 1),
+                else_=0,
+            ).asc(),
+            case(
+                (
+                    predicate
+                    & part_number.startswith(
+                        search_term,
+                        autoescape=True,
+                    ),
+                    0,
+                ),
+                (predicate, 1),
+                else_=0,
+            ).asc(),
+            case(
+                (predicate & (name == search_term), 0),
+                (predicate, 1),
+                else_=0,
+            ).asc(),
+            case(
+                (
+                    predicate
+                    & name.startswith(
+                        search_term,
+                        autoescape=True,
+                    ),
+                    0,
+                ),
+                (predicate, 1),
+                else_=0,
+            ).asc(),
+            masked(predicate, Part.updated_at).desc(),
+            masked(predicate, Part.id).desc(),
         )
 
-    prefix = (available_group,) if stock_status == "all" else ()
-    descending = sort_direction == "desc"
+    def explicit_terms(
+        predicate,
+        field: str,
+        direction: str,
+    ):
+        if field == "default":
+            return default_terms(predicate)
 
-    def directed(expression):
-        return expression.desc() if descending else expression.asc()
+        if field == "part":
+            primary = func.lower(
+                func.coalesce(Part.name, Part.part_number, "")
+            )
+            secondary = func.lower(
+                func.coalesce(Part.part_number, "")
+            )
+            return (
+                directed(masked(predicate, primary), direction),
+                directed(masked(predicate, secondary), direction),
+                masked(predicate, Part.id).asc(),
+            )
 
-    if sort_by == "part":
-        primary = func.lower(
-            func.coalesce(Part.name, Part.part_number, "")
-        )
-        secondary = func.lower(func.coalesce(Part.part_number, ""))
-        return (
-            *prefix,
-            directed(primary),
-            directed(secondary),
-            Part.id.asc(),
-        )
+        if field == "type":
+            expression = (
+                select(func.lower(PartType.name))
+                .where(PartType.id == Part.part_type_id)
+                .scalar_subquery()
+            )
+            return (
+                directed(masked(predicate, expression), direction),
+                masked(predicate, Part.id).asc(),
+            )
 
-    if sort_by == "type":
-        expression = (
-            select(func.lower(PartType.name))
-            .where(PartType.id == Part.part_type_id)
-            .scalar_subquery()
-        )
-        return (*prefix, directed(expression), Part.id.asc())
+        if field == "manufacturer":
+            expression = (
+                select(func.lower(Manufacturer.name))
+                .where(Manufacturer.id == Part.manufacturer_id)
+                .scalar_subquery()
+            )
+            missing = case(
+                (
+                    predicate
+                    & Part.manufacturer_id.is_(None),
+                    1,
+                ),
+                (predicate, 0),
+                else_=0,
+            ).asc()
+            return (
+                missing,
+                directed(masked(predicate, expression), direction),
+                masked(predicate, Part.id).asc(),
+            )
 
-    if sort_by == "manufacturer":
-        expression = (
-            select(func.lower(Manufacturer.name))
-            .where(Manufacturer.id == Part.manufacturer_id)
-            .scalar_subquery()
+        if field == "location":
+            expression = (
+                select(func.lower(Location.name))
+                .where(Location.id == Part.location_id)
+                .scalar_subquery()
+            )
+            missing = case(
+                (
+                    predicate
+                    & Part.location_id.is_(None),
+                    1,
+                ),
+                (predicate, 0),
+                else_=0,
+            ).asc()
+            return (
+                missing,
+                directed(masked(predicate, expression), direction),
+                masked(predicate, Part.id).asc(),
+            )
+
+        if field == "available":
+            return (
+                directed(
+                    masked(predicate, available_quantity),
+                    direction,
+                ),
+                masked(predicate, Part.id).asc(),
+            )
+
+        if field == "total":
+            return (
+                directed(
+                    masked(predicate, Part.total_quantity),
+                    direction,
+                ),
+                masked(predicate, Part.id).asc(),
+            )
+
+        low_stock = (
+            available_predicate
+            & Part.low_stock_enabled.is_(True)
+            & Part.low_stock_threshold.is_not(None)
+            & (available_quantity <= Part.low_stock_threshold)
         )
-        missing = case(
-            (Part.manufacturer_id.is_(None), 1),
+        status_rank = case(
+            (available_quantity <= 0, 2),
+            (low_stock, 1),
             else_=0,
-        ).asc()
-        return (*prefix, missing, directed(expression), Part.id.asc())
-
-    if sort_by == "location":
-        expression = (
-            select(func.lower(Location.name))
-            .where(Location.id == Part.location_id)
-            .scalar_subquery()
         )
-        missing = case(
-            (Part.location_id.is_(None), 1),
-            else_=0,
-        ).asc()
-        return (*prefix, missing, directed(expression), Part.id.asc())
-
-    if sort_by == "available":
         return (
-            *prefix,
-            directed(available_quantity),
-            Part.id.asc(),
+            directed(masked(predicate, status_rank), direction),
+            masked(predicate, Part.id).asc(),
         )
 
-    if sort_by == "total":
-        return (
-            *prefix,
-            directed(Part.total_quantity),
-            Part.id.asc(),
-        )
+    available_terms = explicit_terms(
+        available_predicate,
+        available_field,
+        available_direction,
+    )
+    out_terms = explicit_terms(
+        out_predicate,
+        out_field,
+        out_direction,
+    )
 
-    low_stock = (
-        (available_quantity > 0)
-        & Part.low_stock_enabled.is_(True)
-        & Part.low_stock_threshold.is_not(None)
-        & (available_quantity <= Part.low_stock_threshold)
+    if stock_status == "out":
+        return out_terms
+    if stock_status in {"in", "low"}:
+        return available_terms
+
+    return (
+        case((available_predicate, 0), else_=1).asc(),
+        *available_terms,
+        *out_terms,
     )
-    status_rank = case(
-        (available_quantity <= 0, 2),
-        (low_stock, 1),
-        else_=0,
-    )
-    return (*prefix, directed(status_rank), Part.id.asc())
 
 def list_parts(
     db: Session,
@@ -747,6 +872,10 @@ def list_parts(
     stock_status: str = "all",
     sort_by: str = "default",
     sort_direction: str = "asc",
+    available_sort_by: str | None = None,
+    available_sort_direction: str | None = None,
+    out_of_stock_sort_by: str | None = None,
+    out_of_stock_sort_direction: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> PartCollectionResponse:
@@ -770,6 +899,10 @@ def list_parts(
     order_by = _part_sort_order(
         sort_by=sort_by,
         sort_direction=sort_direction,
+        available_sort_by=available_sort_by,
+        available_sort_direction=available_sort_direction,
+        out_of_stock_sort_by=out_of_stock_sort_by,
+        out_of_stock_sort_direction=out_of_stock_sort_direction,
         search_term=search_term,
         stock_status=stock_status,
     )

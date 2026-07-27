@@ -6311,6 +6311,10 @@ def check_universal_part_search_api() -> None:
             stock_status: str = "all",
             sort_by: str = "default",
             sort_direction: str = "asc",
+            available_sort_by: str | None = None,
+            available_sort_direction: str | None = None,
+            out_of_stock_sort_by: str | None = None,
+            out_of_stock_sort_direction: str | None = None,
         ):
             params: dict[str, str | int] = {
                 "search": search,
@@ -6324,6 +6328,18 @@ def check_universal_part_search_api() -> None:
                 params["part_type_id"] = selected_type_id
             if selected_location_id is not None:
                 params["location_id"] = selected_location_id
+            if available_sort_by is not None:
+                params["available_sort_by"] = available_sort_by
+            if available_sort_direction is not None:
+                params[
+                    "available_sort_direction"
+                ] = available_sort_direction
+            if out_of_stock_sort_by is not None:
+                params["out_of_stock_sort_by"] = out_of_stock_sort_by
+            if out_of_stock_sort_direction is not None:
+                params[
+                    "out_of_stock_sort_direction"
+                ] = out_of_stock_sort_direction
             response = client.get(
                 "/api/parts",
                 params=params,
@@ -6800,6 +6816,111 @@ def check_universal_part_search_api() -> None:
                         f"full={sorted_ids}, first={first_ids}, "
                         f"remaining={remaining_ids}"
                     )
+
+        # PATCH 271: PARTPILOT_INDEPENDENT_SECTION_SORT_V272
+        independent_payload, _ = response_for(
+            shared_token,
+            selected_type_id=type_id,
+            available_sort_by="part",
+            available_sort_direction="asc",
+            out_of_stock_sort_by="part",
+            out_of_stock_sort_direction="desc",
+        )
+        independent_items = list(
+            independent_payload.get("parts", [])
+        )
+        independent_available = [
+            item
+            for item in independent_items
+            if int(item.get("available_quantity") or 0) > 0
+        ]
+        independent_out = [
+            item
+            for item in independent_items
+            if int(item.get("available_quantity") or 0) <= 0
+        ]
+        if (
+            independent_items
+            != independent_available + independent_out
+        ):
+            fail(
+                "Independent sorting did not preserve Available-first "
+                f"grouping: {independent_payload}"
+            )
+        assert_group_sorted(
+            independent_available,
+            "part",
+            "asc",
+        )
+        assert_group_sorted(
+            independent_out,
+            "part",
+            "desc",
+        )
+
+        reversed_payload, _ = response_for(
+            shared_token,
+            selected_type_id=type_id,
+            available_sort_by="part",
+            available_sort_direction="desc",
+            out_of_stock_sort_by="part",
+            out_of_stock_sort_direction="asc",
+        )
+        reversed_items = list(reversed_payload.get("parts", []))
+        reversed_available = [
+            item
+            for item in reversed_items
+            if int(item.get("available_quantity") or 0) > 0
+        ]
+        reversed_out = [
+            item
+            for item in reversed_items
+            if int(item.get("available_quantity") or 0) <= 0
+        ]
+        assert_group_sorted(
+            reversed_available,
+            "part",
+            "desc",
+        )
+        assert_group_sorted(
+            reversed_out,
+            "part",
+            "asc",
+        )
+
+        invalid_available_sort = client.get(
+            "/api/parts",
+            params={
+                "part_type_id": type_id,
+                "available_sort_by": "missing",
+            },
+            headers=headers,
+        )
+        if invalid_available_sort.status_code != 422:
+            fail(
+                "Invalid available_sort_by should return 422, got "
+                f"{invalid_available_sort.status_code}: "
+                f"{invalid_available_sort.text}"
+            )
+
+        invalid_out_direction = client.get(
+            "/api/parts",
+            params={
+                "part_type_id": type_id,
+                "out_of_stock_sort_direction": "sideways",
+            },
+            headers=headers,
+        )
+        if invalid_out_direction.status_code != 422:
+            fail(
+                "Invalid out_of_stock_sort_direction should return 422, "
+                f"got {invalid_out_direction.status_code}: "
+                f"{invalid_out_direction.text}"
+            )
+
+        ok(
+            "Stored Parts independently sorts Available and Out of stock sections without changing the other section"
+        )
 
         invalid_sort_by = client.get(
             "/api/parts",

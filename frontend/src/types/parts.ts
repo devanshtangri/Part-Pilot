@@ -70,6 +70,19 @@ export type PartStockStatus =
   | "low"
   | "out";
 
+// PATCH 269: PARTPILOT_STORED_PARTS_SORT_TYPES_V270
+export type PartSortBy =
+  | "default"
+  | "part"
+  | "type"
+  | "manufacturer"
+  | "location"
+  | "available"
+  | "total"
+  | "status";
+
+export type PartSortDirection = "asc" | "desc";
+
 export interface PartCollection {
   total: number;
   limit: number;

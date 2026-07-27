@@ -19,7 +19,7 @@ import {
   getPartTypes,
   updatePartType,
   deletePartType,
-} from "../services/partTypesClient";
+  } from "../services/partTypesClient";
 // PATCH 110: basic inventory browsing collection
 import {
   adjustPartQuantity,
@@ -35,7 +35,9 @@ import type {
   PartCollection,
   PartStockStatus,
   QuantityAdjustmentOperation,
-  StockMovement
+  StockMovement,
+  PartSortBy,
+  PartSortDirection
 } from "../types/parts";
 import type {
   CreatePartTypeFieldPayload,
@@ -50,6 +52,53 @@ import type {
 type FilterMode = "all" | "builtin" | "custom";
 type InventoryStockFilter = PartStockStatus;
 const STORED_PARTS_SERVER_SEARCH_VERSION = "stored-parts-server-search-v233";
+const STORED_PARTS_PAGINATION_VERSION = "stored-parts-pagination-v240";
+const INVENTORY_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
+type InventoryPageSize = (typeof INVENTORY_PAGE_SIZE_OPTIONS)[number];
+const INVENTORY_PAGE_SIZE_STORAGE_KEY = "partpilot.inventory.page-size";
+const STORED_PARTS_PREFERENCE_VERSION = "stored-parts-preference-v248";
+
+function readInventoryPageSizePreference(): InventoryPageSize {
+  if (typeof window === "undefined") {
+    return 25;
+  }
+
+  try {
+    const storedValue = Number(
+      window.localStorage.getItem(
+        INVENTORY_PAGE_SIZE_STORAGE_KEY
+      )
+    );
+    if (
+      INVENTORY_PAGE_SIZE_OPTIONS.includes(
+        storedValue as InventoryPageSize
+      )
+    ) {
+      return storedValue as InventoryPageSize;
+    }
+  } catch {
+    return 25;
+  }
+
+  return 25;
+}
+
+function writeInventoryPageSizePreference(
+  pageSize: InventoryPageSize
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(
+      INVENTORY_PAGE_SIZE_STORAGE_KEY,
+      String(pageSize)
+    );
+  } catch {
+    // Storage can be blocked without breaking pagination.
+  }
+}
 
 // PATCH 106: editor-only semantic field preset
 type EditorFieldKind = PartTypeFieldKind | "manufacturer";
@@ -365,7 +414,30 @@ export function PartManager({
     useState("");
   const [inventoryStockFilter, setInventoryStockFilter] =
     useState<InventoryStockFilter>("all");
+  // PATCH 269: stored-parts-table-sorting-v270
+  // PATCH 273: stored-parts-dynamic-section-sorting-v273
+  const [availableInventorySortBy, setAvailableInventorySortBy] =
+    useState<PartSortBy>("default");
+  const [
+    availableInventorySortDirection,
+    setAvailableInventorySortDirection
+  ] = useState<PartSortDirection>("asc");
+  const [outOfStockInventorySortBy, setOutOfStockInventorySortBy] =
+    useState<PartSortBy>("default");
+  const [
+    outOfStockInventorySortDirection,
+    setOutOfStockInventorySortDirection
+  ] = useState<PartSortDirection>("asc");
+  const [inventoryUpdatingSection, setInventoryUpdatingSection] =
+    useState<"available" | "out-of-stock" | null>(null);
+  // PATCH 240: PARTPILOT_STORED_PARTS_PAGINATION_V240
+  const [inventoryPartTypeFilter, setInventoryPartTypeFilter] =
+    useState<number | null>(null);
+  const [inventoryPageSize, setInventoryPageSize] =
+    useState<InventoryPageSize>(readInventoryPageSizePreference);
+  const [inventoryOffset, setInventoryOffset] = useState(0);
   const inventoryRequestSequence = useRef(0);
+  const inventoryCollectionRef = useRef<PartCollection | null>(null);
   // PATCH 194: settings-driven out-of-stock grouping
   const [showOutOfStockSection, setShowOutOfStockSection] =
     useState(true);
@@ -515,9 +587,15 @@ export function PartManager({
     };
   }, [token, inventoryRefreshSequence]);
 
+  // PATCH 248: PARTPILOT_STORED_PARTS_PREFERENCE_V248
+  useEffect(() => {
+    writeInventoryPageSizePreference(inventoryPageSize);
+  }, [inventoryPageSize]);
+
   // PATCH 233: debounce Stored Parts server search
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
+      setInventoryOffset(0);
       setInventoryServerSearch(inventoryQuery.trim());
     }, 280);
 
@@ -530,8 +608,10 @@ export function PartManager({
   useEffect(() => {
     if (!token) {
       inventoryRequestSequence.current += 1;
+      inventoryCollectionRef.current = null;
       setInventoryCollection(null);
       setInventoryLoading(false);
+      setInventoryUpdatingSection(null);
       return;
     }
 
@@ -539,20 +619,40 @@ export function PartManager({
     inventoryRequestSequence.current = requestId;
     let cancelled = false;
 
-    setInventoryLoading(true);
+    const hasInventorySnapshot =
+      inventoryCollectionRef.current !== null;
+    if (!hasInventorySnapshot) {
+      setInventoryLoading(true);
+    }
     setInventoryError(null);
     getParts(token, {
-      limit: 250,
-      offset: 0,
+      partTypeId: inventoryPartTypeFilter ?? undefined,
       locationId: inventoryLocationFilter ?? undefined,
       search: inventoryServerSearch || undefined,
-      stockStatus: inventoryStockFilter
+      stockStatus: inventoryStockFilter,
+      availableSortBy: availableInventorySortBy,
+      availableSortDirection: availableInventorySortDirection,
+      outOfStockSortBy: outOfStockInventorySortBy,
+      outOfStockSortDirection: outOfStockInventorySortDirection,
+      limit: inventoryPageSize,
+      offset: inventoryOffset
     })
       .then((result) => {
         if (
           !cancelled
           && requestId === inventoryRequestSequence.current
         ) {
+          const lastValidOffset = result.total > 0
+            ? Math.floor((result.total - 1) / inventoryPageSize)
+              * inventoryPageSize
+            : 0;
+
+          if (inventoryOffset > lastValidOffset) {
+            setInventoryOffset(lastValidOffset);
+            return;
+          }
+
+          inventoryCollectionRef.current = result;
           setInventoryCollection(result);
         }
       })
@@ -574,6 +674,7 @@ export function PartManager({
           && requestId === inventoryRequestSequence.current
         ) {
           setInventoryLoading(false);
+          setInventoryUpdatingSection(null);
         }
       });
 
@@ -583,9 +684,16 @@ export function PartManager({
   }, [
     token,
     inventoryLocationFilter,
+    inventoryPartTypeFilter,
     inventoryRefreshSequence,
     inventoryServerSearch,
-    inventoryStockFilter
+    inventoryStockFilter,
+    availableInventorySortBy,
+    availableInventorySortDirection,
+    outOfStockInventorySortBy,
+    outOfStockInventorySortDirection,
+    inventoryPageSize,
+    inventoryOffset
   ]);
 
   // PATCH 194: load the Stored Parts grouping preference
@@ -769,6 +877,15 @@ export function PartManager({
           ) ?? null,
     [inventoryLocationFilter, inventoryLocations]
   );
+  const selectedInventoryPartType = useMemo(
+    () =>
+      inventoryPartTypeFilter === null
+        ? null
+        : collection?.part_types.find(
+            (partType) => partType.id === inventoryPartTypeFilter
+          ) ?? null,
+    [collection, inventoryPartTypeFilter]
+  );
 
   // PATCH 233: PARTPILOT_STORED_PARTS_SERVER_SEARCH_V233
   // Search and stock filtering now happen on the backend. The local split only
@@ -811,6 +928,30 @@ export function PartManager({
   const visibleInventoryPartCount =
     filteredInventoryParts.length
     + outOfStockInventoryParts.length;
+  // PATCH 240: PARTPILOT_STORED_PARTS_PAGINATION_V240
+  const inventoryTotal = inventoryCollection?.total ?? 0;
+  const inventoryRangeStart = inventoryTotal > 0
+    ? inventoryOffset + 1
+    : 0;
+  const inventoryRangeEnd = inventoryTotal > 0
+    ? Math.min(
+        inventoryOffset + inventoryCollection!.parts.length,
+        inventoryTotal
+      )
+    : 0;
+  const inventoryPageNumber = inventoryTotal > 0
+    ? Math.floor(inventoryOffset / inventoryPageSize) + 1
+    : 1;
+  const inventoryPageCount = Math.max(
+    1,
+    Math.ceil(inventoryTotal / inventoryPageSize)
+  );
+  const hasInventoryFilters = Boolean(
+    inventoryQuery.trim()
+    || inventoryStockFilter !== "all"
+    || inventoryLocationFilter !== null
+    || inventoryPartTypeFilter !== null
+  );
 
   function resetQuantityAdjustment() {
     setAdjustmentOperation("add");
@@ -1349,9 +1490,95 @@ function closeCreator() {
     }
   }
 
+  function handleInventorySort(
+    section: "available" | "out-of-stock",
+    sortBy: Exclude<PartSortBy, "default">
+  ) {
+    const currentSortBy =
+      section === "available"
+        ? availableInventorySortBy
+        : outOfStockInventorySortBy;
+    const currentDirection =
+      section === "available"
+        ? availableInventorySortDirection
+        : outOfStockInventorySortDirection;
+    const nextDirection: PartSortDirection =
+      currentSortBy === sortBy && currentDirection === "asc"
+        ? "desc"
+        : "asc";
+
+    setInventoryUpdatingSection(section);
+    if (section === "available") {
+      setAvailableInventorySortBy(sortBy);
+      setAvailableInventorySortDirection(nextDirection);
+      return;
+    }
+
+    setOutOfStockInventorySortBy(sortBy);
+    setOutOfStockInventorySortDirection(nextDirection);
+  }
+
+  function renderInventorySortHeader(
+    label: string,
+    sortBy: Exclude<PartSortBy, "default">,
+    section: "available" | "out-of-stock"
+  ) {
+    const sectionSortBy =
+      section === "available"
+        ? availableInventorySortBy
+        : outOfStockInventorySortBy;
+    const sectionDirection =
+      section === "available"
+        ? availableInventorySortDirection
+        : outOfStockInventorySortDirection;
+    const isActive = sectionSortBy === sortBy;
+    const isUpdating = inventoryUpdatingSection === section;
+    const ariaSort = isActive
+      ? sectionDirection === "asc"
+        ? "ascending"
+        : "descending"
+      : "none";
+    const nextDirection =
+      isActive && sectionDirection === "asc"
+        ? "descending"
+        : "ascending";
+
+    return (
+      <th scope="col" aria-sort={ariaSort}>
+        <button
+          type="button"
+          className={
+            `inventory-sort-button${isActive ? " is-active" : ""}`
+          }
+          onClick={() => handleInventorySort(section, sortBy)}
+          aria-label={`Sort ${section === "available"
+            ? "Available"
+            : "Out of stock"} by ${label} ${nextDirection}`}
+          aria-busy={isUpdating ? "true" : undefined}
+          disabled={isUpdating}
+        >
+          <span>{label}</span>
+          <span
+            className="inventory-sort-indicator"
+            aria-hidden="true"
+          >
+            {isUpdating && isActive ? (
+              <span className="inventory-sort-spinner" />
+            ) : isActive ? (
+              sectionDirection === "asc" ? "↑" : "↓"
+            ) : (
+              "↕"
+            )}
+          </span>
+        </button>
+      </th>
+    );
+  }
+
   function renderInventoryTable(
     parts: Part[],
-    labelledBy?: string
+    labelledBy: string,
+    sortSection: "available" | "out-of-stock"
   ) {
     return (
       <div className="inventory-table-wrap">
@@ -1361,13 +1588,25 @@ function closeCreator() {
         >
           <thead>
             <tr>
-              <th scope="col">Part</th>
-              <th scope="col">Type</th>
-              <th scope="col">Manufacturer</th>
-              <th scope="col">Location</th>
-              <th scope="col">Available</th>
-              <th scope="col">Total</th>
-              <th scope="col">Status</th>
+              {renderInventorySortHeader("Part", "part", sortSection)}
+              {renderInventorySortHeader("Type", "type", sortSection)}
+              {renderInventorySortHeader(
+                "Manufacturer",
+                "manufacturer",
+                sortSection
+              )}
+              {renderInventorySortHeader(
+                "Location",
+                "location",
+                sortSection
+              )}
+              {renderInventorySortHeader(
+                "Available",
+                "available",
+                sortSection
+              )}
+              {renderInventorySortHeader("Total", "total", sortSection)}
+              {renderInventorySortHeader("Status", "status", sortSection)}
             </tr>
           </thead>
           <tbody>
@@ -1447,6 +1686,8 @@ function closeCreator() {
       data-manufacturer-preset-version="part-manager-manufacturer-preset-v106"
       data-part-lifecycle-version="part-lifecycle-v153"
       data-out-of-stock-grouping-version="stored-parts-out-of-stock-group-v194"
+      data-inventory-sorting-version="stored-parts-table-sorting-v270"
+      data-dynamic-section-sorting-version="stored-parts-dynamic-section-sorting-v273"
     >
       {inventoryOnly ? (
         <header
@@ -2196,17 +2437,11 @@ function closeCreator() {
           </div>
           <div className="inventory-browser-actions">
             <span>
-              {inventoryQuery.trim()
-                || inventoryStockFilter !== "all"
-                || !showOutOfStockSection
-                ? `${visibleInventoryPartCount} of ${
-                    inventoryCollection?.total ?? 0
-                  } shown`
-                : selectedInventoryLocation
-                  ? `${inventoryCollection?.total ?? 0} in ${
-                      selectedInventoryLocation.name
-                    }`
-                  : `${inventoryCollection?.total ?? 0} parts`}
+              {inventoryTotal > 0
+                ? `${inventoryRangeStart}–${inventoryRangeEnd} of ${
+                    inventoryTotal
+                  }`
+                : "0 parts"}
             </span>
             {inventoryOnly ? (
               <button
@@ -2253,6 +2488,9 @@ function closeCreator() {
           data-server-search-version={
             STORED_PARTS_SERVER_SEARCH_VERSION
           }
+          data-pagination-version={
+            STORED_PARTS_PAGINATION_VERSION
+          }
           data-location-filter-version="stored-parts-location-filter-v171"
         >
           <label className="inventory-search-control">
@@ -2268,6 +2506,39 @@ function closeCreator() {
             />
           </label>
 
+          <label className="inventory-part-type-filter">
+            <span className="sr-only">
+              Filter inventory by part type
+            </span>
+            <select
+              value={inventoryPartTypeFilter ?? ""}
+              onChange={(
+                event: ChangeEvent<HTMLSelectElement>
+              ) => {
+                const value = event.target.value;
+                setInventoryPartTypeFilter(
+                  value ? Number(value) : null
+                );
+                setInventoryOffset(0);
+              }}
+              aria-label="Filter inventory by part type"
+              title={
+                selectedInventoryPartType
+                  ? `Part type: ${selectedInventoryPartType.name}`
+                  : "Filter stored parts by part type"
+              }
+              disabled={isLoading || !collection || !token}
+            >
+              <option value="">All part types</option>
+              {collection?.part_types
+                .filter((partType) => partType.is_active)
+                .map((partType) => (
+                  <option key={partType.id} value={partType.id}>
+                    {partType.name}
+                  </option>
+                ))}
+            </select>
+          </label>
           <label className="inventory-location-filter">
             <span className="sr-only">Filter inventory by location</span>
             <select
@@ -2279,6 +2550,7 @@ function closeCreator() {
                 setInventoryLocationFilter(
                   value ? Number(value) : null
                 );
+                setInventoryOffset(0);
               }}
               aria-label="Filter inventory by location"
               title={
@@ -2325,7 +2597,10 @@ function closeCreator() {
                   inventoryStockFilter === mode ? "active" : ""
                 }
                 aria-pressed={inventoryStockFilter === mode}
-                onClick={() => setInventoryStockFilter(mode)}
+                onClick={() => {
+                  setInventoryStockFilter(mode);
+                  setInventoryOffset(0);
+                }}
                 disabled={inventoryLoading || !inventoryCollection}
               >
                 {label}
@@ -2355,6 +2630,7 @@ function closeCreator() {
           && !inventoryQuery.trim()
           && inventoryStockFilter === "all"
           && inventoryLocationFilter === null
+          && inventoryPartTypeFilter === null
           && inventoryCollection.parts.length === 0 ? (
             <div className="inventory-browser-state">
               No inventory parts yet. Use Add part to create the first one.
@@ -2364,23 +2640,22 @@ function closeCreator() {
         {!inventoryLoading
           && !inventoryError
           && inventoryCollection
-          && (
-            Boolean(inventoryQuery.trim())
-            || inventoryStockFilter !== "all"
-            || inventoryLocationFilter !== null
-          )
+          && hasInventoryFilters
           && visibleInventoryPartCount === 0 ? (
             <div className="inventory-browser-state inventory-filter-empty">
               <strong>No stored parts match</strong>
               <p>
-                Try another search or clear the stock or location filter.
+                Try another search or clear the stock, part type,
+                or location filter.
               </p>
               <button
                 type="button"
                 onClick={() => {
                   setInventoryQuery("");
                   setInventoryStockFilter("all");
+                  setInventoryPartTypeFilter(null);
                   setInventoryLocationFilter(null);
+                  setInventoryOffset(0);
                 }}
               >
                 Clear filters
@@ -2392,9 +2667,53 @@ function closeCreator() {
           && !inventoryError
           && inventoryCollection
           && filteredInventoryParts.length > 0
-          ? renderInventoryTable(filteredInventoryParts)
+          ? (
+            <section
+              className="inventory-available-section"
+              data-available-card-version="stored-parts-available-card-v258"
+              aria-labelledby="inventory-available-title"
+              aria-busy={
+                inventoryUpdatingSection === "available"
+              }
+            >
+              <header className="inventory-available-header">
+                <h3 id="inventory-available-title">
+                  Available
+                </h3>
+                <span>
+                  {filteredInventoryParts.length}
+                  {" "}
+                  {filteredInventoryParts.length === 1
+                    ? "part"
+                    : "parts"}
+                </span>
+              </header>
+              {renderInventoryTable(
+                filteredInventoryParts,
+                "inventory-available-title",
+                "available"
+              )}
+            </section>
+          )
           : null}
 
+        {!inventoryLoading
+          && !inventoryError
+          && inventoryCollection
+          && outOfStockInventoryParts.length > 0 ? (
+          <div
+            className="inventory-results-separator"
+            data-stock-separator-version="stored-parts-preference-v248"
+            role="separator"
+            aria-label="Out of stock results begin here"
+          >
+            <span className="inventory-results-separator-line" />
+            <span className="inventory-results-separator-badge">
+              Out of stock
+            </span>
+            <span className="inventory-results-separator-line" />
+          </div>
+        ) : null}
         {!inventoryLoading
           && !inventoryError
           && inventoryCollection
@@ -2403,17 +2722,14 @@ function closeCreator() {
               className="inventory-out-of-stock-section"
               data-out-of-stock-grouping-version="stored-parts-out-of-stock-group-v194"
               aria-labelledby="inventory-out-of-stock-title"
+              aria-busy={
+                inventoryUpdatingSection === "out-of-stock"
+              }
             >
               <header className="inventory-out-of-stock-header">
-                <div>
-                  <p className="eyebrow">Separate results</p>
-                  <h3 id="inventory-out-of-stock-title">
-                    Out of stock
-                  </h3>
-                  <p>
-                    These matching parts have no available quantity.
-                  </p>
-                </div>
+                <h3 id="inventory-out-of-stock-title">
+                  Out of stock
+                </h3>
                 <span>
                   {outOfStockInventoryParts.length}
                   {" "}
@@ -2424,11 +2740,86 @@ function closeCreator() {
               </header>
               {renderInventoryTable(
                 outOfStockInventoryParts,
-                "inventory-out-of-stock-title"
+                "inventory-out-of-stock-title",
+                "out-of-stock"
               )}
             </section>
           ) : null}
 
+        {!inventoryLoading
+          && !inventoryError
+          && inventoryCollection
+          && inventoryTotal > 0 ? (
+            <nav
+              className="inventory-pagination"
+              data-pagination-version={
+                STORED_PARTS_PAGINATION_VERSION
+              }
+              aria-label="Stored parts pagination"
+            >
+              <div className="inventory-pagination-summary">
+                <strong>
+                  Page {inventoryPageNumber} of {inventoryPageCount}
+                </strong>
+                <span>
+                  Showing {inventoryRangeStart}–{inventoryRangeEnd} of
+                  {" "}
+                  {inventoryTotal}
+                </span>
+              </div>
+              <label className="inventory-page-size">
+                <span>Rows</span>
+                <select
+                  value={inventoryPageSize}
+                  data-page-size-preference-version={
+                    STORED_PARTS_PREFERENCE_VERSION
+                  }
+                  onChange={(
+                    event: ChangeEvent<HTMLSelectElement>
+                  ) => {
+                    setInventoryPageSize(
+                      Number(event.target.value) as InventoryPageSize
+                    );
+                    setInventoryOffset(0);
+                  }}
+                  disabled={inventoryLoading}
+                >
+                  {INVENTORY_PAGE_SIZE_OPTIONS.map((pageSize) => (
+                    <option key={pageSize} value={pageSize}>
+                      {pageSize}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="inventory-pagination-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setInventoryOffset((current) =>
+                      Math.max(0, current - inventoryPageSize)
+                    )
+                  }
+                  disabled={inventoryLoading || inventoryOffset === 0}
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setInventoryOffset((current) =>
+                      current + inventoryPageSize
+                    )
+                  }
+                  disabled={
+                    inventoryLoading
+                    || inventoryOffset + inventoryPageSize >= inventoryTotal
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            </nav>
+          ) : null}
         {inventorySearchSettingsError ? (
           <div
             className="inventory-settings-warning"
