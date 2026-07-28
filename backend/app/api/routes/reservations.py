@@ -16,6 +16,7 @@ from app.services.reservations import (
     ReservationConflictError,
     ReservationNotFoundError,
     ReservationValidationError,
+    cancel_reservation,
     create_reservation,
     get_reservation,
     list_reservations,
@@ -97,5 +98,34 @@ def create_reservation_record(
     except ReservationValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+# PARTPILOT:RESERVATION_CANCELLATION_ROUTE:V306
+@router.post(
+    "/{reservation_id}/cancel",
+    response_model=ReservationResponse,
+)
+def cancel_reservation_record(
+    reservation_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationResponse:
+    try:
+        return cancel_reservation(
+            db,
+            reservation_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ReservationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ReservationConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc

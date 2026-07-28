@@ -1341,6 +1341,406 @@ def check_reservation_read_create_api() -> None:
     )
 
 
+# PARTPILOT:RESERVATION_CANCELLATION_API_SMOKE:V306
+def check_reservation_cancellation_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part, Reservation
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_reservation_cancel_{suffix}"
+    password = "reservation-cancel-smoke-password"
+    part_number = f"SMOKE-RESERVATION-CANCEL-{suffix}"
+    part_id: int | None = None
+    user_id: int | None = None
+    reservation_ids: list[int] = []
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if reservation_ids:
+                placeholders = ", ".join(
+                    f":reservation_id_{index}"
+                    for index, _value in enumerate(reservation_ids)
+                )
+                parameters = {
+                    f"reservation_id_{index}": value
+                    for index, value in enumerate(reservation_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'reservation' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from reservation_items "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from reservations "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+
+            if part_id is not None:
+                db.execute(
+                    text(
+                        "update parts set reserved_quantity = 0 "
+                        "where id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.post(
+            "/api/reservations/999999999/cancel"
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Reservation cancellation should require authentication, "
+                f"got {unauthenticated.status_code}"
+            )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail(
+                    "Reservation cancellation smoke requires an active "
+                    "part type"
+                )
+
+            user = create_user(
+                db,
+                username=username,
+                display_name="Reservation Cancellation Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+            part = Part(
+                part_type_id=int(part_type_id),
+                part_number=part_number,
+                name="Reservation cancellation smoke part",
+                total_quantity=8,
+                reserved_quantity=0,
+                is_deleted=False,
+                deleted_at=None,
+            )
+            db.add(part)
+            db.commit()
+            db.refresh(part)
+            part_id = part.id
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}"
+        }
+        create_response = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Cancellation smoke reservation",
+                "items": [{"part_id": part_id, "quantity": 3}],
+            },
+        )
+        if create_response.status_code != 201:
+            fail(
+                "Reservation creation before cancellation returned "
+                f"{create_response.status_code}: {create_response.text}"
+            )
+        reservation_id = int(create_response.json()["id"])
+        reservation_ids.append(reservation_id)
+
+        cancel_response = client.post(
+            f"/api/reservations/{reservation_id}/cancel",
+            headers=headers,
+        )
+        if cancel_response.status_code != 200:
+            fail(
+                "Reservation cancellation returned "
+                f"{cancel_response.status_code}: {cancel_response.text}"
+            )
+        cancel_json = cancel_response.json()
+        cancel_items = cancel_json.get("items", [])
+        if (
+            cancel_json.get("status") != "cancelled"
+            or len(cancel_items) != 1
+            or int(cancel_items[0]["total_quantity"]) != 8
+            or int(cancel_items[0]["reserved_quantity"]) != 0
+            or int(cancel_items[0]["available_quantity"]) != 8
+        ):
+            fail(
+                "Reservation cancellation response is incorrect: "
+                f"{cancel_json}"
+            )
+
+        second_cancel = client.post(
+            f"/api/reservations/{reservation_id}/cancel",
+            headers=headers,
+        )
+        if second_cancel.status_code != 409:
+            fail(
+                "Cancelling an already cancelled reservation should "
+                f"return 409, got {second_cancel.status_code}"
+            )
+
+        missing_cancel = client.post(
+            f"/api/reservations/{reservation_id + 999999}/cancel",
+            headers=headers,
+        )
+        if missing_cancel.status_code != 404:
+            fail(
+                "Cancelling a missing reservation should return 404, got "
+                f"{missing_cancel.status_code}"
+            )
+
+        with db_session() as db:
+            for status_name in ("consumed", "expired"):
+                row = Reservation(
+                    project_id=None,
+                    label=f"{status_name.title()} cancellation smoke",
+                    status=status_name,
+                    notes=None,
+                    created_by="manual",
+                    expiry_at=None,
+                    estimated_reserved_value=None,
+                    currency_snapshot=None,
+                )
+                db.add(row)
+                db.flush()
+                reservation_ids.append(row.id)
+            db.commit()
+            consumed_id, expired_id = reservation_ids[-2:]
+
+        for state_name, state_id in (
+            ("consumed", consumed_id),
+            ("expired", expired_id),
+        ):
+            response = client.post(
+                f"/api/reservations/{state_id}/cancel",
+                headers=headers,
+            )
+            if response.status_code != 409:
+                fail(
+                    f"Cancelling a {state_name} reservation should "
+                    f"return 409, got {response.status_code}"
+                )
+
+        inconsistent_create = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Inconsistent cancellation smoke",
+                "items": [{"part_id": part_id, "quantity": 2}],
+            },
+        )
+        if inconsistent_create.status_code != 201:
+            fail(
+                "Inconsistent cancellation fixture creation returned "
+                f"{inconsistent_create.status_code}: "
+                f"{inconsistent_create.text}"
+            )
+        inconsistent_id = int(inconsistent_create.json()["id"])
+        reservation_ids.append(inconsistent_id)
+
+        with db_session() as db:
+            db.execute(
+                text(
+                    "update parts set reserved_quantity = 1 "
+                    "where id = :part_id"
+                ),
+                {"part_id": part_id},
+            )
+            db.commit()
+
+        inconsistent_cancel = client.post(
+            f"/api/reservations/{inconsistent_id}/cancel",
+            headers=headers,
+        )
+        if inconsistent_cancel.status_code != 409:
+            fail(
+                "Cancellation with inconsistent reserved stock should "
+                f"return 409, got {inconsistent_cancel.status_code}: "
+                f"{inconsistent_cancel.text}"
+            )
+
+        with db_session() as db:
+            stored = db.execute(
+                text(
+                    "select status from reservations where id = :id"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            reserved = db.execute(
+                text(
+                    "select reserved_quantity from parts where id = :id"
+                ),
+                {"id": part_id},
+            ).scalar()
+            release_count = db.execute(
+                text(
+                    "select count(*) from stock_movements "
+                    "where reservation_id = :id "
+                    "and movement_type = 'release'"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            cancel_audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where entity_type = 'reservation' "
+                    "and entity_id = :id "
+                    "and event_type = 'reservation.cancelled'"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            if (
+                stored != "active"
+                or reserved != 1
+                or release_count != 0
+                or cancel_audit_count != 0
+            ):
+                fail(
+                    "Failed cancellation did not roll back cleanly: "
+                    f"status={stored}, reserved={reserved}, "
+                    f"release_count={release_count}, "
+                    f"cancel_audit_count={cancel_audit_count}"
+                )
+
+            successful_status = db.execute(
+                text(
+                    "select status from reservations where id = :id"
+                ),
+                {"id": reservation_id},
+            ).scalar()
+            physical = db.execute(
+                text(
+                    "select total_quantity, reserved_quantity "
+                    "from parts where id = :id"
+                ),
+                {"id": part_id},
+            ).mappings().one()
+            release = db.execute(
+                text(
+                    "select movement_type, quantity_delta, "
+                    "quantity_before, quantity_after, "
+                    "reserved_quantity_before, reserved_quantity_after, "
+                    "available_quantity_before, available_quantity_after, "
+                    "actor_user_id "
+                    "from stock_movements "
+                    "where reservation_id = :id "
+                    "and movement_type = 'release'"
+                ),
+                {"id": reservation_id},
+            ).mappings().one()
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where entity_type = 'reservation' "
+                    "and entity_id = :id "
+                    "and event_type = 'reservation.cancelled' "
+                    "and actor_user_id = :user_id"
+                ),
+                {"id": reservation_id, "user_id": user_id},
+            ).scalar()
+
+            if successful_status != "cancelled":
+                fail(
+                    "Successful cancellation status was not persisted: "
+                    f"{successful_status}"
+                )
+            if int(physical["total_quantity"]) != 8:
+                fail("Cancellation changed physical total quantity")
+            if (
+                release["movement_type"] != "release"
+                or int(release["quantity_delta"]) != 0
+                or int(release["quantity_before"]) != 8
+                or int(release["quantity_after"]) != 8
+                or int(release["reserved_quantity_before"]) != 3
+                or int(release["reserved_quantity_after"]) != 0
+                or int(release["available_quantity_before"]) != 5
+                or int(release["available_quantity_after"]) != 8
+                or int(release["actor_user_id"]) != int(user_id)
+            ):
+                fail(
+                    "Cancellation release movement snapshots are "
+                    f"incorrect: {dict(release)}"
+                )
+            if audit_count != 1:
+                fail(
+                    "Cancellation audit attribution is incorrect: "
+                    f"{audit_count}"
+                )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Reservation cancellation is authenticated, state-guarded, "
+        "atomic, inventory-safe, movement-backed, and audited"
+    )
+
+
 def check_phase3_auth_foundation() -> None:
     password_hash = hash_password("partpilot-smoke-password")
 
@@ -8105,6 +8505,7 @@ def main() -> None:
         check_reservation_contract_schema,
         check_reservation_creation_service,
         check_reservation_read_create_api,
+        check_reservation_cancellation_api,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,
