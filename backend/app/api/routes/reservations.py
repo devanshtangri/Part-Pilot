@@ -17,6 +17,7 @@ from app.services.reservations import (
     ReservationNotFoundError,
     ReservationValidationError,
     cancel_reservation,
+    consume_reservation,
     create_reservation,
     get_reservation,
     list_reservations,
@@ -114,6 +115,35 @@ def cancel_reservation_record(
 ) -> ReservationResponse:
     try:
         return cancel_reservation(
+            db,
+            reservation_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ReservationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ReservationConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+
+# PARTPILOT:RESERVATION_CONSUMPTION_ROUTE:V315
+@router.post(
+    "/{reservation_id}/consume",
+    response_model=ReservationResponse,
+)
+def consume_reservation_record(
+    reservation_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationResponse:
+    try:
+        return consume_reservation(
             db,
             reservation_id,
             actor_user_id=current_user.id,

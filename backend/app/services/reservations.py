@@ -9,11 +9,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.constants import (
+    MOVEMENT_TYPE_CONSUME,
     MOVEMENT_TYPE_RELEASE,
     MOVEMENT_TYPE_RESERVE,
     RESERVATION_STATUSES,
     RESERVATION_STATUS_ACTIVE,
     RESERVATION_STATUS_CANCELLED,
+    RESERVATION_STATUS_CONSUMED,
     SOURCE_MANUAL,
 )
 from app.db.settings import get_str_setting
@@ -730,6 +732,249 @@ def cancel_reservation(
         db.rollback()
         raise ReservationConflictError(
             "Reservation cancellation conflicted with current inventory "
+            "data."
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return _serialise_reservation(db, reservation)
+
+
+# PARTPILOT:RESERVATION_CONSUMPTION_SERVICE:V315
+def consume_reservation(
+    db: Session,
+    reservation_id: int,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> ReservationResponse:
+    reservation = db.execute(
+        select(Reservation)
+        .where(Reservation.id == reservation_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if reservation is None:
+        raise ReservationNotFoundError("Reservation not found.")
+    if reservation.status != RESERVATION_STATUS_ACTIVE:
+        raise ReservationConflictError(
+            "Only active reservations can be consumed. "
+            f"Current status: {reservation.status}."
+        )
+
+    items = list(
+        db.execute(
+            select(ReservationItem)
+            .where(ReservationItem.reservation_id == reservation.id)
+            .order_by(ReservationItem.id.asc())
+        ).scalars()
+    )
+    if not items:
+        raise ReservationConflictError(
+            "Active reservation has no items to consume."
+        )
+
+    part_ids = [
+        item.part_id
+        for item in items
+        if item.part_id is not None
+    ]
+    if len(part_ids) != len(items):
+        raise ReservationConflictError(
+            "Reservation contains an item whose part no longer exists."
+        )
+
+    parts = list(
+        db.execute(
+            select(Part)
+            .where(Part.id.in_(part_ids))
+            .with_for_update()
+        ).scalars()
+    )
+    part_map = {part.id: part for part in parts}
+    if len(part_map) != len(set(part_ids)):
+        raise ReservationConflictError(
+            "Reservation contains a part that no longer exists."
+        )
+
+    consume_records: list[dict[str, int]] = []
+    movements: list[StockMovement] = []
+
+    try:
+        for item in items:
+            assert item.part_id is not None
+            part = part_map[item.part_id]
+            quantity = int(item.quantity)
+            total_before = int(part.total_quantity)
+            reserved_before = int(part.reserved_quantity)
+            available_before = total_before - reserved_before
+
+            if total_before < quantity:
+                raise ReservationConflictError(
+                    f"Part {part.id} has only {total_before} physical "
+                    f"units, but reservation item {item.id} requires "
+                    f"consuming {quantity}."
+                )
+            if reserved_before < quantity:
+                raise ReservationConflictError(
+                    f"Part {part.id} has only {reserved_before} reserved "
+                    f"units, but reservation item {item.id} requires "
+                    f"consuming {quantity}."
+                )
+
+            total_after = total_before - quantity
+            reserved_after = reserved_before - quantity
+            available_after = total_after - reserved_after
+            if available_after != available_before:
+                raise ReservationConflictError(
+                    f"Part {part.id} available quantity would change "
+                    "during reserved consumption."
+                )
+
+            changed_at = datetime.now(timezone.utc)
+            result = db.execute(
+                update(Part)
+                .where(
+                    Part.id == part.id,
+                    Part.total_quantity == total_before,
+                    Part.reserved_quantity == reserved_before,
+                    Part.total_quantity >= quantity,
+                    Part.reserved_quantity >= quantity,
+                )
+                .values(
+                    total_quantity=total_after,
+                    reserved_quantity=reserved_after,
+                    updated_at=changed_at,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                raise ReservationConflictError(
+                    f"Part {part.id} stock changed while reservation "
+                    f"{reservation.id} was being consumed."
+                )
+
+            movement = StockMovement(
+                part_id=part.id,
+                reservation_id=reservation.id,
+                movement_type=MOVEMENT_TYPE_CONSUME,
+                quantity_delta=-quantity,
+                quantity_before=total_before,
+                quantity_after=total_after,
+                reserved_quantity_before=reserved_before,
+                reserved_quantity_after=reserved_after,
+                available_quantity_before=available_before,
+                available_quantity_after=available_after,
+                unit_price_snapshot=item.unit_price_snapshot,
+                currency_snapshot=item.currency_snapshot,
+                reason=(f"Consumed from {reservation.label}")[:180],
+                note=item.note,
+                source=SOURCE_MANUAL,
+                actor_user_id=actor_user_id,
+            )
+            db.add(movement)
+            movements.append(movement)
+            consume_records.append(
+                {
+                    "reservation_item_id": item.id,
+                    "part_id": part.id,
+                    "quantity": quantity,
+                    "quantity_before": total_before,
+                    "quantity_after": total_after,
+                    "reserved_quantity_before": reserved_before,
+                    "reserved_quantity_after": reserved_after,
+                    "available_quantity_before": available_before,
+                    "available_quantity_after": available_after,
+                }
+            )
+            db.expire(
+                part,
+                ["total_quantity", "reserved_quantity", "updated_at"],
+            )
+
+        changed_at = datetime.now(timezone.utc)
+        status_result = db.execute(
+            update(Reservation)
+            .where(
+                Reservation.id == reservation.id,
+                Reservation.status == RESERVATION_STATUS_ACTIVE,
+            )
+            .values(
+                status=RESERVATION_STATUS_CONSUMED,
+                updated_at=changed_at,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if status_result.rowcount != 1:
+            raise ReservationConflictError(
+                "Reservation status changed while consumption was in "
+                "progress."
+            )
+        db.expire(reservation, ["status", "updated_at"])
+
+        db.flush()
+        for record, movement in zip(
+            consume_records,
+            movements,
+            strict=True,
+        ):
+            record["stock_movement_id"] = movement.id
+
+        db.add(
+            AuditLog(
+                event_type="reservation.consumed",
+                entity_type="reservation",
+                entity_id=reservation.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=f"Consumed reservation {reservation.label}",
+                before_json={
+                    "status": RESERVATION_STATUS_ACTIVE,
+                    "items": [
+                        {
+                            "reservation_item_id": record[
+                                "reservation_item_id"
+                            ],
+                            "part_id": record["part_id"],
+                            "quantity": record["quantity"],
+                            "total_quantity": record["quantity_before"],
+                            "reserved_quantity": record[
+                                "reserved_quantity_before"
+                            ],
+                            "available_quantity": record[
+                                "available_quantity_before"
+                            ],
+                        }
+                        for record in consume_records
+                    ],
+                },
+                after_json={
+                    "status": RESERVATION_STATUS_CONSUMED,
+                    "consumed_units": sum(
+                        record["quantity"]
+                        for record in consume_records
+                    ),
+                    "items": consume_records,
+                },
+                metadata_json={
+                    "source": SOURCE_MANUAL,
+                    "movement_type": MOVEMENT_TYPE_CONSUME,
+                    "project_id": reservation.project_id,
+                },
+            )
+        )
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(reservation)
+
+    except IntegrityError as exc:
+        db.rollback()
+        raise ReservationConflictError(
+            "Reservation consumption conflicted with current inventory "
             "data."
         ) from exc
     except Exception:

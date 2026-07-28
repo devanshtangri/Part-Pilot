@@ -1741,6 +1741,459 @@ def check_reservation_cancellation_api() -> None:
     )
 
 
+# PARTPILOT:RESERVATION_CONSUMPTION_API_SMOKE:V315
+def check_reservation_consumption_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part, Reservation
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_reservation_consume_{suffix}"
+    password = "reservation-consume-smoke-password"
+    part_numbers = [
+        f"SMOKE-RESERVATION-CONSUME-A-{suffix}",
+        f"SMOKE-RESERVATION-CONSUME-B-{suffix}",
+    ]
+    part_ids: list[int] = []
+    user_id: int | None = None
+    reservation_ids: list[int] = []
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if reservation_ids:
+                placeholders = ", ".join(
+                    f":reservation_id_{index}"
+                    for index, _value in enumerate(reservation_ids)
+                )
+                parameters = {
+                    f"reservation_id_{index}": value
+                    for index, value in enumerate(reservation_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'reservation' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from reservation_items "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from reservations "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+
+            if part_ids:
+                placeholders = ", ".join(
+                    f":part_id_{index}"
+                    for index, _value in enumerate(part_ids)
+                )
+                parameters = {
+                    f"part_id_{index}": value
+                    for index, value in enumerate(part_ids)
+                }
+                db.execute(
+                    text(
+                        "update parts set reserved_quantity = 0 "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where part_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from parts "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.post(
+            "/api/reservations/999999999/consume"
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Reservation consumption should require authentication, "
+                f"got {unauthenticated.status_code}"
+            )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail(
+                    "Reservation consumption smoke requires an active "
+                    "part type"
+                )
+
+            user = create_user(
+                db,
+                username=username,
+                display_name="Reservation Consumption Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+            for index, (part_number, total_quantity) in enumerate(
+                zip(part_numbers, (8, 5), strict=True)
+            ):
+                part = Part(
+                    part_type_id=int(part_type_id),
+                    part_number=part_number,
+                    name=(
+                        "Reservation consumption smoke part "
+                        f"{index + 1}"
+                    ),
+                    total_quantity=total_quantity,
+                    reserved_quantity=0,
+                    is_deleted=False,
+                    deleted_at=None,
+                )
+                db.add(part)
+                db.flush()
+                part_ids.append(part.id)
+            db.commit()
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}"
+        }
+        create_response = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Consumption smoke reservation",
+                "items": [
+                    {"part_id": part_ids[0], "quantity": 3},
+                    {"part_id": part_ids[1], "quantity": 2},
+                ],
+            },
+        )
+        if create_response.status_code != 201:
+            fail(
+                "Reservation creation before consumption returned "
+                f"{create_response.status_code}: "
+                f"{create_response.text}"
+            )
+        reservation_id = int(create_response.json()["id"])
+        reservation_ids.append(reservation_id)
+
+        consume_response = client.post(
+            f"/api/reservations/{reservation_id}/consume",
+            headers=headers,
+        )
+        if consume_response.status_code != 200:
+            fail(
+                "Reservation consumption returned "
+                f"{consume_response.status_code}: "
+                f"{consume_response.text}"
+            )
+        consume_json = consume_response.json()
+        expected_response = {
+            part_ids[0]: (5, 0, 5),
+            part_ids[1]: (3, 0, 3),
+        }
+        if (
+            consume_json.get("status") != "consumed"
+            or len(consume_json.get("items", [])) != 2
+        ):
+            fail(
+                "Reservation consumption response has incorrect "
+                f"status/items: {consume_json}"
+            )
+        for item in consume_json["items"]:
+            part_id = int(item["part_id"])
+            actual = (
+                int(item["total_quantity"]),
+                int(item["reserved_quantity"]),
+                int(item["available_quantity"]),
+            )
+            if expected_response.get(part_id) != actual:
+                fail(
+                    "Reservation consumption response item is "
+                    f"incorrect: {item}"
+                )
+
+        second_consume = client.post(
+            f"/api/reservations/{reservation_id}/consume",
+            headers=headers,
+        )
+        if second_consume.status_code != 409:
+            fail(
+                "Consuming an already consumed reservation should "
+                f"return 409, got {second_consume.status_code}"
+            )
+
+        missing_consume = client.post(
+            f"/api/reservations/{reservation_id + 999999}/consume",
+            headers=headers,
+        )
+        if missing_consume.status_code != 404:
+            fail(
+                "Consuming a missing reservation should return 404, "
+                f"got {missing_consume.status_code}"
+            )
+
+        with db_session() as db:
+            for status_name in ("cancelled", "expired"):
+                row = Reservation(
+                    project_id=None,
+                    label=f"{status_name.title()} consumption smoke",
+                    status=status_name,
+                    notes=None,
+                    created_by="manual",
+                    expiry_at=None,
+                    estimated_reserved_value=None,
+                    currency_snapshot=None,
+                )
+                db.add(row)
+                db.flush()
+                reservation_ids.append(row.id)
+            db.commit()
+            cancelled_id, expired_id = reservation_ids[-2:]
+
+        for state_name, state_id in (
+            ("cancelled", cancelled_id),
+            ("expired", expired_id),
+        ):
+            response = client.post(
+                f"/api/reservations/{state_id}/consume",
+                headers=headers,
+            )
+            if response.status_code != 409:
+                fail(
+                    f"Consuming a {state_name} reservation should "
+                    f"return 409, got {response.status_code}"
+                )
+
+        inconsistent_create = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Inconsistent consumption smoke",
+                "items": [
+                    {"part_id": part_ids[0], "quantity": 1},
+                    {"part_id": part_ids[1], "quantity": 1},
+                ],
+            },
+        )
+        if inconsistent_create.status_code != 201:
+            fail(
+                "Inconsistent consumption fixture creation returned "
+                f"{inconsistent_create.status_code}: "
+                f"{inconsistent_create.text}"
+            )
+        inconsistent_id = int(inconsistent_create.json()["id"])
+        reservation_ids.append(inconsistent_id)
+
+        with db_session() as db:
+            db.execute(
+                text(
+                    "update parts set reserved_quantity = 0 "
+                    "where id = :part_id"
+                ),
+                {"part_id": part_ids[1]},
+            )
+            db.commit()
+
+        inconsistent_consume = client.post(
+            f"/api/reservations/{inconsistent_id}/consume",
+            headers=headers,
+        )
+        if inconsistent_consume.status_code != 409:
+            fail(
+                "Consumption with inconsistent reserved stock should "
+                f"return 409, got {inconsistent_consume.status_code}: "
+                f"{inconsistent_consume.text}"
+            )
+
+        with db_session() as db:
+            inconsistent_status = db.execute(
+                text(
+                    "select status from reservations where id = :id"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            current_parts = {
+                int(row["id"]): (
+                    int(row["total_quantity"]),
+                    int(row["reserved_quantity"]),
+                )
+                for row in db.execute(
+                    text(
+                        "select id, total_quantity, reserved_quantity "
+                        "from parts where id in (:first_id, :second_id)"
+                    ),
+                    {
+                        "first_id": part_ids[0],
+                        "second_id": part_ids[1],
+                    },
+                ).mappings()
+            }
+            inconsistent_movements = db.execute(
+                text(
+                    "select count(*) from stock_movements "
+                    "where reservation_id = :id "
+                    "and movement_type = 'consume'"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            inconsistent_audits = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where entity_type = 'reservation' "
+                    "and entity_id = :id "
+                    "and event_type = 'reservation.consumed'"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            expected_parts = {
+                part_ids[0]: (5, 1),
+                part_ids[1]: (3, 0),
+            }
+            if (
+                inconsistent_status != "active"
+                or current_parts != expected_parts
+                or inconsistent_movements != 0
+                or inconsistent_audits != 0
+            ):
+                fail(
+                    "Failed consumption did not roll back atomically: "
+                    f"status={inconsistent_status}, "
+                    f"parts={current_parts}, "
+                    f"movements={inconsistent_movements}, "
+                    f"audits={inconsistent_audits}"
+                )
+
+            movements = list(
+                db.execute(
+                    text(
+                        "select part_id, movement_type, quantity_delta, "
+                        "quantity_before, quantity_after, "
+                        "reserved_quantity_before, "
+                        "reserved_quantity_after, "
+                        "available_quantity_before, "
+                        "available_quantity_after, actor_user_id "
+                        "from stock_movements "
+                        "where reservation_id = :id "
+                        "and movement_type = 'consume' "
+                        "order by part_id"
+                    ),
+                    {"id": reservation_id},
+                ).mappings()
+            )
+            expected_movements = {
+                part_ids[0]: (-3, 8, 5, 3, 0, 5, 5),
+                part_ids[1]: (-2, 5, 3, 2, 0, 3, 3),
+            }
+            if len(movements) != 2:
+                fail(
+                    "Successful consumption movement count is "
+                    f"incorrect: {movements}"
+                )
+            for movement in movements:
+                part_id = int(movement["part_id"])
+                actual = (
+                    int(movement["quantity_delta"]),
+                    int(movement["quantity_before"]),
+                    int(movement["quantity_after"]),
+                    int(movement["reserved_quantity_before"]),
+                    int(movement["reserved_quantity_after"]),
+                    int(movement["available_quantity_before"]),
+                    int(movement["available_quantity_after"]),
+                )
+                if (
+                    movement["movement_type"] != "consume"
+                    or int(movement["actor_user_id"]) != int(user_id)
+                    or expected_movements.get(part_id) != actual
+                ):
+                    fail(
+                        "Consumption movement snapshot is incorrect: "
+                        f"{dict(movement)}"
+                    )
+
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where entity_type = 'reservation' "
+                    "and entity_id = :id "
+                    "and event_type = 'reservation.consumed' "
+                    "and actor_user_id = :user_id"
+                ),
+                {"id": reservation_id, "user_id": user_id},
+            ).scalar()
+            if audit_count != 1:
+                fail(
+                    "Consumption audit attribution is incorrect: "
+                    f"{audit_count}"
+                )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Reservation consumption is authenticated, state-guarded, atomic, "
+        "availability-preserving, movement-backed, and audited"
+    )
+
+
 def check_phase3_auth_foundation() -> None:
     password_hash = hash_password("partpilot-smoke-password")
 
@@ -8506,6 +8959,7 @@ def main() -> None:
         check_reservation_creation_service,
         check_reservation_read_create_api,
         check_reservation_cancellation_api,
+        check_reservation_consumption_api,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,
