@@ -108,3 +108,10 @@ class ReservationResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     items: list[ReservationItemResponse]
+
+
+class ReservationCollectionResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    reservations: list[ReservationResponse]

@@ -952,6 +952,395 @@ def check_reservation_creation_service() -> None:
     )
 
 
+# PARTPILOT:RESERVATION_READ_CREATE_API_SMOKE:V303
+def check_reservation_read_create_api() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_reservation_api_{suffix}"
+    password = "reservation-api-smoke-password"
+    part_number = f"SMOKE-RESERVATION-API-{suffix}"
+    part_id: int | None = None
+    user_id: int | None = None
+    reservation_ids: list[int] = []
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if reservation_ids:
+                placeholders = ", ".join(
+                    f":reservation_id_{index}"
+                    for index, _value in enumerate(reservation_ids)
+                )
+                parameters = {
+                    f"reservation_id_{index}": value
+                    for index, value in enumerate(reservation_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'reservation' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from reservation_items "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from reservations "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+
+            if part_id is not None:
+                db.execute(
+                    text(
+                        "update parts set reserved_quantity = 0 "
+                        "where id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where part_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        "and entity_id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        for method, path, payload in (
+            ("get", "/api/reservations", None),
+            ("get", "/api/reservations/999999999", None),
+            (
+                "post",
+                "/api/reservations",
+                {
+                    "label": "Unauthenticated reservation",
+                    "items": [{"part_id": 1, "quantity": 1}],
+                },
+            ),
+        ):
+            response = getattr(client, method)(
+                path,
+                **({"json": payload} if payload is not None else {}),
+            )
+            if response.status_code != 401:
+                fail(
+                    f"{method.upper()} {path} should require "
+                    f"authentication, got {response.status_code}"
+                )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail(
+                    "Reservation API smoke requires an active part type"
+                )
+
+            user = create_user(
+                db,
+                username=username,
+                display_name="Reservation API Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+            part = Part(
+                part_type_id=int(part_type_id),
+                part_number=part_number,
+                name="Reservation API smoke part",
+                total_quantity=5,
+                reserved_quantity=0,
+                is_deleted=False,
+                deleted_at=None,
+            )
+            db.add(part)
+            db.commit()
+            db.refresh(part)
+            part_id = part.id
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}"
+        }
+        created_ids: list[int] = []
+        for label, quantity in (
+            ("First API reservation", 2),
+            ("Second API reservation", 1),
+        ):
+            response = client.post(
+                "/api/reservations",
+                headers=headers,
+                json={
+                    "label": label,
+                    "items": [
+                        {
+                            "part_id": part_id,
+                            "quantity": quantity,
+                        }
+                    ],
+                },
+            )
+            if response.status_code != 201:
+                fail(
+                    f"POST /api/reservations returned "
+                    f"{response.status_code}: {response.text}"
+                )
+            payload = response.json()
+            reservation_id = int(payload["id"])
+            reservation_ids.append(reservation_id)
+            created_ids.append(reservation_id)
+
+        first_id, second_id = created_ids
+
+        first_page = client.get(
+            "/api/reservations",
+            headers=headers,
+            params={"status": "active", "limit": 1, "offset": 0},
+        )
+        if first_page.status_code != 200:
+            fail(
+                "GET /api/reservations first page returned "
+                f"{first_page.status_code}: {first_page.text}"
+            )
+        first_page_json = first_page.json()
+        first_items = first_page_json.get("reservations", [])
+        if (
+            first_page_json.get("total") != 2
+            or first_page_json.get("limit") != 1
+            or len(first_items) != 1
+            or int(first_items[0]["id"]) != second_id
+        ):
+            fail(
+                "Reservation list ordering or first-page metadata is "
+                f"incorrect: {first_page_json}"
+            )
+
+        second_page = client.get(
+            "/api/reservations",
+            headers=headers,
+            params={"status": "active", "limit": 1, "offset": 1},
+        )
+        if second_page.status_code != 200:
+            fail(
+                "GET /api/reservations second page returned "
+                f"{second_page.status_code}: {second_page.text}"
+            )
+        second_page_json = second_page.json()
+        second_items = second_page_json.get("reservations", [])
+        if (
+            second_page_json.get("total") != 2
+            or len(second_items) != 1
+            or int(second_items[0]["id"]) != first_id
+        ):
+            fail(
+                "Reservation list pagination is incorrect: "
+                f"{second_page_json}"
+            )
+
+        detail_response = client.get(
+            f"/api/reservations/{first_id}",
+            headers=headers,
+        )
+        if detail_response.status_code != 200:
+            fail(
+                "GET /api/reservations/{id} returned "
+                f"{detail_response.status_code}: "
+                f"{detail_response.text}"
+            )
+        detail_json = detail_response.json()
+        if (
+            int(detail_json.get("id", 0)) != first_id
+            or detail_json.get("label") != "First API reservation"
+            or len(detail_json.get("items", [])) != 1
+        ):
+            fail(
+                "Reservation detail response is incorrect: "
+                f"{detail_json}"
+            )
+
+        missing_response = client.get(
+            f"/api/reservations/{second_id + 999999}",
+            headers=headers,
+        )
+        if missing_response.status_code != 404:
+            fail(
+                "Missing reservation detail should return 404, got "
+                f"{missing_response.status_code}"
+            )
+
+        conflict_response = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Insufficient API reservation",
+                "items": [{"part_id": part_id, "quantity": 3}],
+            },
+        )
+        if conflict_response.status_code != 409:
+            fail(
+                "Insufficient reservation should return 409, got "
+                f"{conflict_response.status_code}: "
+                f"{conflict_response.text}"
+            )
+
+        invalid_part_response = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Missing part API reservation",
+                "items": [
+                    {
+                        "part_id": part_id + 999999,
+                        "quantity": 1,
+                    }
+                ],
+            },
+        )
+        if invalid_part_response.status_code != 422:
+            fail(
+                "Missing reservation part should return 422, got "
+                f"{invalid_part_response.status_code}: "
+                f"{invalid_part_response.text}"
+            )
+
+        with db_session() as db:
+            counts = {
+                "reservations": db.execute(
+                    text(
+                        "select count(*) from reservations "
+                        "where id in (:first_id, :second_id)"
+                    ),
+                    {
+                        "first_id": first_id,
+                        "second_id": second_id,
+                    },
+                ).scalar(),
+                "items": db.execute(
+                    text(
+                        "select count(*) from reservation_items "
+                        "where reservation_id in "
+                        "(:first_id, :second_id)"
+                    ),
+                    {
+                        "first_id": first_id,
+                        "second_id": second_id,
+                    },
+                ).scalar(),
+                "movements": db.execute(
+                    text(
+                        "select count(*) from stock_movements "
+                        "where reservation_id in "
+                        "(:first_id, :second_id)"
+                    ),
+                    {
+                        "first_id": first_id,
+                        "second_id": second_id,
+                    },
+                ).scalar(),
+                "audits": db.execute(
+                    text(
+                        "select count(*) from audit_log "
+                        "where event_type = 'reservation.created' "
+                        "and entity_id in (:first_id, :second_id) "
+                        "and actor_user_id = :user_id"
+                    ),
+                    {
+                        "first_id": first_id,
+                        "second_id": second_id,
+                        "user_id": user_id,
+                    },
+                ).scalar(),
+            }
+            if counts != {
+                "reservations": 2,
+                "items": 2,
+                "movements": 2,
+                "audits": 2,
+            }:
+                fail(
+                    "Reservation API persistence counts are incorrect: "
+                    f"{counts}"
+                )
+
+            reserved_quantity = db.execute(
+                text(
+                    "select reserved_quantity from parts "
+                    "where id = :part_id"
+                ),
+                {"part_id": part_id},
+            ).scalar()
+            if reserved_quantity != 3:
+                fail(
+                    "Failed reservation API requests changed stock: "
+                    f"{reserved_quantity}"
+                )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Protected reservation list, detail, and creation APIs "
+        "enforce authentication, ordering, pagination, validation, "
+        "conflicts, persistence, and cleanup"
+    )
+
+
 def check_phase3_auth_foundation() -> None:
     password_hash = hash_password("partpilot-smoke-password")
 
@@ -7715,6 +8104,7 @@ def main() -> None:
         check_backend_db_helpers,
         check_reservation_contract_schema,
         check_reservation_creation_service,
+        check_reservation_read_create_api,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,

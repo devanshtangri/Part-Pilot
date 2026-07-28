@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.api.routes.auth import get_current_user
+from app.db.session import get_db
+from app.schemas.reservations import (
+    ReservationCollectionResponse,
+    ReservationCreateRequest,
+    ReservationResponse,
+)
+from app.services.reservations import (
+    ReservationConflictError,
+    ReservationNotFoundError,
+    ReservationValidationError,
+    create_reservation,
+    get_reservation,
+    list_reservations,
+)
+
+
+router = APIRouter(
+    prefix="/reservations",
+    tags=["reservations"],
+)
+
+
+@router.get(
+    "",
+    response_model=ReservationCollectionResponse,
+)
+def read_reservations(
+    status_filter: Literal[
+        "active",
+        "consumed",
+        "cancelled",
+        "expired",
+    ] | None = Query(default=None, alias="status"),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationCollectionResponse:
+    del current_user
+    return list_reservations(
+        db,
+        status_filter=status_filter,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/{reservation_id}",
+    response_model=ReservationResponse,
+)
+def read_reservation(
+    reservation_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationResponse:
+    del current_user
+    try:
+        return get_reservation(db, reservation_id)
+    except ReservationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "",
+    response_model=ReservationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_reservation_record(
+    payload: ReservationCreateRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationResponse:
+    try:
+        return create_reservation(
+            db,
+            payload,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ReservationConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except ReservationValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc

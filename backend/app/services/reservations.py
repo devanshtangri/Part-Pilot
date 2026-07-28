@@ -4,12 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.constants import (
     MOVEMENT_TYPE_RESERVE,
+    RESERVATION_STATUSES,
     RESERVATION_STATUS_ACTIVE,
     SOURCE_MANUAL,
 )
@@ -22,6 +23,7 @@ from app.models import (
     StockMovement,
 )
 from app.schemas.reservations import (
+    ReservationCollectionResponse,
     ReservationCreateRequest,
     ReservationItemCreateRequest,
     ReservationItemResponse,
@@ -365,4 +367,153 @@ def create_reservation(
     return _serialise_created_reservation(
         reservation,
         item_parts,
+    )
+
+
+class ReservationNotFoundError(LookupError):
+    pass
+
+
+def _serialise_reservation(
+    db: Session,
+    reservation: Reservation,
+) -> ReservationResponse:
+    items = list(
+        db.execute(
+            select(ReservationItem)
+            .where(
+                ReservationItem.reservation_id == reservation.id
+            )
+            .order_by(ReservationItem.id.asc())
+        ).scalars()
+    )
+    part_ids = [
+        item.part_id
+        for item in items
+        if item.part_id is not None
+    ]
+    parts = (
+        list(
+            db.execute(
+                select(Part).where(Part.id.in_(part_ids))
+            ).scalars()
+        )
+        if part_ids
+        else []
+    )
+    part_map = {part.id: part for part in parts}
+
+    return ReservationResponse(
+        id=reservation.id,
+        project_id=reservation.project_id,
+        label=reservation.label,
+        status=reservation.status,
+        notes=reservation.notes,
+        created_by=reservation.created_by,
+        expiry_at=reservation.expiry_at,
+        estimated_reserved_value=reservation.estimated_reserved_value,
+        currency_snapshot=reservation.currency_snapshot,
+        created_at=reservation.created_at,
+        updated_at=reservation.updated_at,
+        items=[
+            ReservationItemResponse(
+                id=item.id,
+                reservation_id=item.reservation_id,
+                part_id=item.part_id,
+                part_number=(
+                    part_map[item.part_id].part_number
+                    if item.part_id in part_map
+                    else None
+                ),
+                part_name=(
+                    part_map[item.part_id].name
+                    if item.part_id in part_map
+                    else None
+                ),
+                quantity=item.quantity,
+                unit_price_snapshot=item.unit_price_snapshot,
+                currency_snapshot=item.currency_snapshot,
+                note=item.note,
+                total_quantity=(
+                    part_map[item.part_id].total_quantity
+                    if item.part_id in part_map
+                    else None
+                ),
+                reserved_quantity=(
+                    part_map[item.part_id].reserved_quantity
+                    if item.part_id in part_map
+                    else None
+                ),
+                available_quantity=(
+                    part_map[item.part_id].total_quantity
+                    - part_map[item.part_id].reserved_quantity
+                    if item.part_id in part_map
+                    else None
+                ),
+            )
+            for item in items
+        ],
+    )
+
+
+def get_reservation(
+    db: Session,
+    reservation_id: int,
+) -> ReservationResponse:
+    reservation = db.get(Reservation, reservation_id)
+    if reservation is None:
+        raise ReservationNotFoundError("Reservation not found.")
+    return _serialise_reservation(db, reservation)
+
+
+def list_reservations(
+    db: Session,
+    *,
+    status_filter: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> ReservationCollectionResponse:
+    if status_filter is not None and status_filter not in RESERVATION_STATUSES:
+        raise ReservationValidationError(
+            f"Unsupported reservation status: {status_filter}."
+        )
+    if limit < 1 or limit > 100:
+        raise ReservationValidationError(
+            "Reservation limit must be between 1 and 100."
+        )
+    if offset < 0:
+        raise ReservationValidationError(
+            "Reservation offset cannot be negative."
+        )
+
+    conditions = []
+    if status_filter is not None:
+        conditions.append(Reservation.status == status_filter)
+
+    count_query = select(func.count()).select_from(Reservation)
+    list_query = select(Reservation)
+    if conditions:
+        count_query = count_query.where(*conditions)
+        list_query = list_query.where(*conditions)
+
+    total = int(db.execute(count_query).scalar_one())
+    reservations = list(
+        db.execute(
+            list_query
+            .order_by(
+                Reservation.created_at.desc(),
+                Reservation.id.desc(),
+            )
+            .limit(limit)
+            .offset(offset)
+        ).scalars()
+    )
+    return ReservationCollectionResponse(
+        total=total,
+        limit=limit,
+        offset=offset,
+        reservations=[
+            _serialise_reservation(db, reservation)
+            for reservation in reservations
+        ],
     )
