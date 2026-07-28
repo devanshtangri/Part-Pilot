@@ -284,26 +284,129 @@ class PartAlias(Base, TimestampMixin):
 
 
 class StockMovement(Base, TimestampMixin):
+    # PARTPILOT:RESERVATION_MOVEMENT_CONTRACT:V298
     __tablename__ = "stock_movements"
     __table_args__ = (
-        CheckConstraint("quantity_before IS NULL OR quantity_before >= 0", name="ck_stock_movements_quantity_before_nonnegative"),
-        CheckConstraint("quantity_after IS NULL OR quantity_after >= 0", name="ck_stock_movements_quantity_after_nonnegative"),
-        CheckConstraint("unit_price_snapshot IS NULL OR unit_price_snapshot >= 0", name="ck_stock_movements_unit_price_snapshot_nonnegative"),
-        Index("ix_stock_movements_part_created", "part_id", "created_at"),
+        CheckConstraint(
+            "quantity_before IS NULL OR quantity_before >= 0",
+            name="ck_stock_movements_quantity_before_nonnegative",
+        ),
+        CheckConstraint(
+            "quantity_after IS NULL OR quantity_after >= 0",
+            name="ck_stock_movements_quantity_after_nonnegative",
+        ),
+        CheckConstraint(
+            "unit_price_snapshot IS NULL OR unit_price_snapshot >= 0",
+            name="ck_stock_movements_unit_price_snapshot_nonnegative",
+        ),
+        CheckConstraint(
+            "reserved_quantity_before IS NULL OR "
+            "reserved_quantity_before >= 0",
+            name=(
+                "ck_stock_movements_reserved_quantity_before_nonnegative"
+            ),
+        ),
+        CheckConstraint(
+            "reserved_quantity_after IS NULL OR "
+            "reserved_quantity_after >= 0",
+            name=(
+                "ck_stock_movements_reserved_quantity_after_nonnegative"
+            ),
+        ),
+        CheckConstraint(
+            "available_quantity_before IS NULL OR "
+            "available_quantity_before >= 0",
+            name=(
+                "ck_stock_movements_available_quantity_before_nonnegative"
+            ),
+        ),
+        CheckConstraint(
+            "available_quantity_after IS NULL OR "
+            "available_quantity_after >= 0",
+            name=(
+                "ck_stock_movements_available_quantity_after_nonnegative"
+            ),
+        ),
+        Index(
+            "ix_stock_movements_part_created",
+            "part_id",
+            "created_at",
+        ),
+        Index(
+            "ix_stock_movements_reservation_created",
+            "reservation_id",
+            "created_at",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    part_id: Mapped[int | None] = mapped_column(ForeignKey("parts.id", ondelete="SET NULL"), nullable=True, index=True)
-    movement_type: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    part_id: Mapped[int | None] = mapped_column(
+        ForeignKey("parts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    reservation_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "reservations.id",
+            ondelete="SET NULL",
+            name="fk_stock_movements_reservation_id_reservations",
+        ),
+        nullable=True,
+        index=True,
+    )
+    movement_type: Mapped[str] = mapped_column(
+        String(60),
+        nullable=False,
+        index=True,
+    )
     quantity_delta: Mapped[int] = mapped_column(Integer, nullable=False)
-    quantity_before: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    quantity_after: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    unit_price_snapshot: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
-    currency_snapshot: Mapped[str | None] = mapped_column(String(12), nullable=True)
-    reason: Mapped[str | None] = mapped_column(String(180), nullable=True)
+    quantity_before: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    quantity_after: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    reserved_quantity_before: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    reserved_quantity_after: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    available_quantity_before: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    available_quantity_after: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+    unit_price_snapshot: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 4),
+        nullable=True,
+    )
+    currency_snapshot: Mapped[str | None] = mapped_column(
+        String(12),
+        nullable=True,
+    )
+    reason: Mapped[str | None] = mapped_column(
+        String(180),
+        nullable=True,
+    )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    source: Mapped[str] = mapped_column(String(40), default="manual", nullable=False)
-    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    source: Mapped[str] = mapped_column(
+        String(40),
+        default="manual",
+        nullable=False,
+    )
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
 
 
 class Project(Base, TimestampMixin):

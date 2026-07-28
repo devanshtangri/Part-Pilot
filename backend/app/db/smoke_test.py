@@ -34,7 +34,7 @@ from app.schemas.part_types import (
 from app.services.part_types import create_custom_part_type
 
 EXPECTED_PART_TYPES = 34
-EXPECTED_AUTH_SCHEMA_HEAD = "0005_packages"
+EXPECTED_AUTH_SCHEMA_HEAD = "0006_reservation_contract"
 MIN_TEMPLATE_FIELDS = 140
 EXPECTED_SETTINGS = {
     "setup.completed",
@@ -255,6 +255,249 @@ def check_backend_db_helpers() -> None:
 
     ok("Backend DB utilities work")
 
+
+
+# PARTPILOT:RESERVATION_CONTRACT_SMOKE:V298
+def check_reservation_contract_schema() -> None:
+    expected_statuses = {
+        "active",
+        "consumed",
+        "cancelled",
+        "expired",
+    }
+    if RESERVATION_STATUSES != expected_statuses:
+        fail(
+            "RESERVATION_STATUSES does not match the canonical contract: "
+            f"{sorted(RESERVATION_STATUSES)}"
+        )
+
+    required_movement_types = {"reserve", "release", "consume"}
+    if not required_movement_types.issubset(MOVEMENT_TYPES):
+        fail(
+            "MOVEMENT_TYPES is missing reservation lifecycle values: "
+            f"{sorted(required_movement_types - MOVEMENT_TYPES)}"
+        )
+
+    with db_session() as db:
+        reservation_sql = db.execute(
+            text(
+                "select sql from sqlite_master "
+                "where type = 'table' and name = 'reservations'"
+            )
+        ).scalar()
+        item_sql = db.execute(
+            text(
+                "select sql from sqlite_master "
+                "where type = 'table' and name = 'reservation_items'"
+            )
+        ).scalar()
+        movement_sql = db.execute(
+            text(
+                "select sql from sqlite_master "
+                "where type = 'table' and name = 'stock_movements'"
+            )
+        ).scalar()
+
+        if not reservation_sql or not item_sql or not movement_sql:
+            fail("Reservation contract tables are missing")
+
+        for constraint_name in {
+            "ck_reservations_status",
+            "ck_reservations_created_by",
+            "ck_reservations_estimated_reserved_value_nonnegative",
+        }:
+            if constraint_name not in reservation_sql:
+                fail(
+                    "reservations is missing constraint "
+                    f"{constraint_name}"
+                )
+
+        if (
+            "ck_reservation_items_unit_price_snapshot_nonnegative"
+            not in item_sql
+        ):
+            fail(
+                "reservation_items is missing its unit-price constraint"
+            )
+
+        movement_constraints = {
+            "ck_stock_movements_quantity_before_nonnegative",
+            "ck_stock_movements_quantity_after_nonnegative",
+            "ck_stock_movements_unit_price_snapshot_nonnegative",
+            (
+                "ck_stock_movements_reserved_quantity_before_"
+                "nonnegative"
+            ),
+            (
+                "ck_stock_movements_reserved_quantity_after_"
+                "nonnegative"
+            ),
+            (
+                "ck_stock_movements_available_quantity_before_"
+                "nonnegative"
+            ),
+            (
+                "ck_stock_movements_available_quantity_after_"
+                "nonnegative"
+            ),
+        }
+        for constraint_name in movement_constraints:
+            if constraint_name not in movement_sql:
+                fail(
+                    "stock_movements is missing constraint "
+                    f"{constraint_name}"
+                )
+
+        movement_columns = {
+            row[1]
+            for row in db.execute(
+                text("PRAGMA table_info(stock_movements)")
+            ).fetchall()
+        }
+        required_columns = {
+            "reservation_id",
+            "reserved_quantity_before",
+            "reserved_quantity_after",
+            "available_quantity_before",
+            "available_quantity_after",
+        }
+        missing_columns = required_columns - movement_columns
+        if missing_columns:
+            fail(
+                "stock_movements is missing reservation columns: "
+                f"{sorted(missing_columns)}"
+            )
+
+        foreign_keys = db.execute(
+            text("PRAGMA foreign_key_list(stock_movements)")
+        ).fetchall()
+        reservation_foreign_keys = [
+            row
+            for row in foreign_keys
+            if row[2] == "reservations"
+            and row[3] == "reservation_id"
+            and row[4] == "id"
+            and str(row[6]).upper() == "SET NULL"
+        ]
+        if len(reservation_foreign_keys) != 1:
+            fail(
+                "stock_movements reservation foreign key is incorrect: "
+                f"{reservation_foreign_keys}"
+            )
+
+        index_names = {
+            row[1]
+            for row in db.execute(
+                text("PRAGMA index_list(stock_movements)")
+            ).fetchall()
+        }
+        required_indexes = {
+            "ix_stock_movements_reservation_id",
+            "ix_stock_movements_reservation_created",
+        }
+        if not required_indexes.issubset(index_names):
+            fail(
+                "stock_movements is missing reservation indexes: "
+                f"{sorted(required_indexes - index_names)}"
+            )
+
+        composite_columns = [
+            row[2]
+            for row in db.execute(
+                text(
+                    "PRAGMA index_info("
+                    "ix_stock_movements_reservation_created)"
+                )
+            ).fetchall()
+        ]
+        if composite_columns != ["reservation_id", "created_at"]:
+            fail(
+                "Reservation movement index columns are incorrect: "
+                f"{composite_columns}"
+            )
+
+        invalid_status_count = db.execute(
+            text(
+                "select count(*) from reservations "
+                "where status not in ("
+                "'active', 'consumed', 'cancelled', 'expired'"
+                ")"
+            )
+        ).scalar()
+        if invalid_status_count != 0:
+            fail(
+                "Existing reservations contain invalid statuses: "
+                f"{invalid_status_count}"
+            )
+
+        invalid_snapshot_count = db.execute(
+            text(
+                "select count(*) from stock_movements where "
+                "reserved_quantity_before < 0 or "
+                "reserved_quantity_after < 0 or "
+                "available_quantity_before < 0 or "
+                "available_quantity_after < 0"
+            )
+        ).scalar()
+        if invalid_snapshot_count != 0:
+            fail(
+                "Existing movements contain invalid reservation "
+                f"snapshots: {invalid_snapshot_count}"
+            )
+
+    with db_session() as db:
+        try:
+            db.execute(
+                text(
+                    "insert into reservations "
+                    "(label, status, created_by) "
+                    "values (:label, :status, :created_by)"
+                ),
+                {
+                    "label": "Invalid reservation contract smoke row",
+                    "status": "released",
+                    "created_by": "system",
+                },
+            )
+            db.flush()
+        except exc.IntegrityError:
+            db.rollback()
+        else:
+            db.rollback()
+            fail("reservations accepted the obsolete released status")
+
+    with db_session() as db:
+        try:
+            db.execute(
+                text(
+                    "insert into stock_movements ("
+                    "movement_type, quantity_delta, source, "
+                    "reserved_quantity_before"
+                    ") values ("
+                    ":movement_type, :quantity_delta, :source, "
+                    ":reserved_quantity_before"
+                    ")"
+                ),
+                {
+                    "movement_type": "reserve",
+                    "quantity_delta": 0,
+                    "source": "system",
+                    "reserved_quantity_before": -1,
+                },
+            )
+            db.flush()
+        except exc.IntegrityError:
+            db.rollback()
+        else:
+            db.rollback()
+            fail(
+                "stock_movements accepted a negative reserved snapshot"
+            )
+
+    ok(
+        "Reservation lifecycle schema, statuses, movement snapshots, "
+        "constraints, foreign keys, and indexes are aligned"
+    )
 
 
 def check_phase3_auth_foundation() -> None:
@@ -7018,6 +7261,7 @@ def main() -> None:
         check_invalid_part_rejected,
         check_valid_part_insert_rolls_back,
         check_backend_db_helpers,
+        check_reservation_contract_schema,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,
