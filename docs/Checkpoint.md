@@ -2057,3 +2057,75 @@ files that the user runs explicitly.
 - No next-chat prompt file was created.
 - The ready-to-paste prompt is supplied only in chat after Patch 293 ends with
   exactly `Everything PASS`.
+
+
+<!-- PARTPILOT:RESERVATIONS_BACKEND_CHECKPOINT:V310 -->
+## Chat 12 checkpoint — Reservation backend lifecycle foundation
+
+Recorded by Patch 310 after Patch 308 committed and pushed commit `802a5f0` —
+`Add reservation cancellation workflow`.
+
+### Completed backend foundation
+
+- Patch 294 produced the reservation architecture diagnostic before implementation.
+- Alembic `0006_reservation_contract` aligned canonical reservation statuses,
+  movement linkage, reserved/available quantity snapshots, constraints and indexes.
+- Reservation creation is atomic, normalises duplicate part lines and uses guarded
+  stock updates without changing physical `total_quantity`.
+- Protected reservation APIs now provide:
+  - `GET /api/reservations` with status filtering, pagination and deterministic
+    newest-first ordering;
+  - `GET /api/reservations/{reservation_id}`;
+  - `POST /api/reservations`;
+  - `POST /api/reservations/{reservation_id}/cancel`.
+- Missing reservations return 404, invalid reservation semantics return 422, and
+  inventory or lifecycle conflicts return 409.
+- Active reservations can be cancelled atomically.
+- Cancellation releases reserved quantity without changing physical stock,
+  records `release` movement snapshots and writes one structured
+  `reservation.cancelled` audit event.
+- Cancelled, consumed and expired reservations cannot be cancelled again.
+- Inconsistent reserved-stock cancellation rolls back without partial status,
+  stock movement or audit changes.
+
+### Verified commits
+
+- `0e72717` — `Align reservation lifecycle contract`.
+- `9c3dfef` — `Add reservation creation service`.
+- `12ba5e2` — `Expose reservation read and create API`.
+- `802a5f0` — `Add reservation cancellation workflow`.
+
+### Verification and preservation
+
+- Alembic head: `0006_reservation_contract`.
+- Complete backend smoke suite: passed.
+- Protected reservation API checks: passed.
+- Deployed source hashes matched verified source before the Patch 308 checkpoint.
+- SQLite integrity and foreign-key checks: passed.
+- Real inventory remained unchanged.
+- Live reservation and reservation-item tables remained empty after test cleanup.
+- Existing physical stock movements and unrelated audit history were preserved.
+- No browser test was required for these backend-only slices.
+
+### Current implementation order
+
+1. Implement active-reservation consumption atomically.
+2. Implement explicit expiry processing with release semantics.
+3. Build and browser-test the responsive Reservations workspace.
+4. Keep Projects as a separate later implementation boundary.
+
+Consumption must reduce both physical `total_quantity` and `reserved_quantity`,
+preserve available-quantity semantics, record `consume` movement snapshots and
+reject every non-active reservation state.
+
+### Current terminal and patch workflow
+
+The HomeLab Terminal tool is read-only only. The assistant may use it to inspect
+the repository, documentation, source, Git state, runtime, HTTP endpoints, logs
+and databases. It must not create, modify, delete, stage, commit, push, build,
+deploy, restart containers or write database data.
+
+All mutations are delivered as one complete downloadable sequential Python
+patch at a time. The user runs each patch and reports its result before the next
+patch is generated. Commit and push may occur only inside a downloadable patch
+run explicitly by the user.

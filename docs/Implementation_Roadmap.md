@@ -1710,3 +1710,66 @@ downloadable numbered Python patch files run explicitly by the user.
 Patch 323 is the planned final boundary patch for Chat 12. Failed scripts
 consume their patch numbers. If boundary recovery is required, keep Chat 12
 active until a recovery script ends with exactly `Everything PASS`.
+
+
+<!-- PARTPILOT:RESERVATIONS_BACKEND_ROADMAP:V310 -->
+## Reservations implementation status after cancellation delivery
+
+| Work item | Status |
+| --- | --- |
+| Reservation architecture diagnostic | Complete through Patch 294 |
+| Canonical schema and lifecycle contract | Complete through Patch 298 |
+| Atomic reservation creation service | Complete through Patch 301 |
+| Protected list, detail and create APIs | Complete through Patch 303 |
+| Active-to-cancelled lifecycle | Complete through Patch 306 |
+| Cancellation checkpoint commit and push | Complete through Patch 308 |
+| Durable checkpoint and roadmap update | Complete through Patch 310 |
+| Guarded reserved-stock release | Complete |
+| Reserve and release movement snapshots | Complete |
+| Creation and cancellation audit events | Complete |
+| Authentication and HTTP error mapping | Complete |
+| Inventory-safe backend smoke coverage | Complete |
+| Active-reservation consumption | Next |
+| Explicit expiry processing | Pending |
+| Responsive Reservations workspace | Pending after backend lifecycle |
+| Projects and project-linked reservations | Deferred separate boundary |
+
+### Immediate next step
+
+Implement reservation consumption as the next independently verifiable backend
+slice.
+
+Required behaviour:
+
+- only an `active` reservation may be consumed;
+- every reservation item is processed in one atomic transaction;
+- physical `total_quantity` decreases by the consumed quantity;
+- `reserved_quantity` decreases by the same quantity;
+- available quantity remains mathematically consistent;
+- one `consume` movement per item records physical, reserved and available
+  before/after snapshots;
+- the reservation status changes to `consumed` only after all guarded stock
+  updates succeed;
+- one structured `reservation.consumed` audit event records actor and item
+  details;
+- missing reservations return 404;
+- cancelled, consumed and expired reservations return 409;
+- any stale or inconsistent stock state rolls back every stock, movement,
+  status and audit change;
+- tests use unique fixture IDs and remove only fixture-owned rows;
+- real inventory and existing history remain unchanged.
+
+After consumption passes and is checkpointed, implement explicit expiry as a
+separate release-style lifecycle operation. Build the Reservations frontend only
+after creation, cancellation, consumption and expiry contracts are independently
+verified. Projects remain out of scope until that lifecycle is stable.
+
+### Current execution workflow
+
+The HomeLab Terminal tool is read-only only. Every mutation, implementation,
+fix, diagnostic, documentation update, checkpoint, commit and push must be
+delivered as one complete downloadable sequential Python patch.
+
+Only one new patch may be issued at a time. The user runs it and reports the
+result before the next patch number is generated. Failed user-run scripts
+consume their number unless the user explicitly resets the accepted sequence.
