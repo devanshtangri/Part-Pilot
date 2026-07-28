@@ -500,6 +500,458 @@ def check_reservation_contract_schema() -> None:
     )
 
 
+# PARTPILOT:RESERVATION_CREATION_SERVICE_SMOKE:V301
+def check_reservation_creation_service() -> None:
+    from datetime import datetime, timedelta, timezone
+    from decimal import Decimal
+
+    from app.models import Part
+    from app.schemas.reservations import (
+        ReservationCreateRequest,
+        ReservationItemCreateRequest,
+    )
+    from app.services.reservations import (
+        ReservationConflictError,
+        create_reservation,
+    )
+
+    suffix = uuid4().hex[:12]
+    part_number_one = f"SMOKE-RESERVE-A-{suffix}"
+    part_number_two = f"SMOKE-RESERVE-B-{suffix}"
+    part_ids: list[int] = []
+    reservation_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if reservation_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'reservation' "
+                        "and entity_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where reservation_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from reservation_items "
+                        "where reservation_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from reservations "
+                        "where id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+
+            if part_ids:
+                placeholders = ", ".join(
+                    f":part_id_{index}"
+                    for index, _part_id in enumerate(part_ids)
+                )
+                parameters = {
+                    f"part_id_{index}": part_id
+                    for index, part_id in enumerate(part_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where part_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from parts "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+            db.commit()
+
+    cleanup()
+    try:
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 "
+                    "order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail(
+                    "Cannot test reservation creation without an "
+                    "active part type"
+                )
+
+            first = Part(
+                part_type_id=part_type_id,
+                part_number=part_number_one,
+                name="Reservation service smoke part A",
+                total_quantity=7,
+                reserved_quantity=0,
+                unit_price=Decimal("2.5000"),
+                is_deleted=False,
+                deleted_at=None,
+            )
+            second = Part(
+                part_type_id=part_type_id,
+                part_number=part_number_two,
+                name="Reservation service smoke part B",
+                total_quantity=4,
+                reserved_quantity=0,
+                unit_price=None,
+                is_deleted=False,
+                deleted_at=None,
+            )
+            db.add(first)
+            db.add(second)
+            db.commit()
+            db.refresh(first)
+            db.refresh(second)
+            part_ids.extend([first.id, second.id])
+
+        with db_session() as db:
+            response = create_reservation(
+                db,
+                ReservationCreateRequest(
+                    label="  Smoke reservation service  ",
+                    notes="  Atomic allocation smoke test  ",
+                    expiry_at=(
+                        datetime.now(timezone.utc)
+                        + timedelta(days=1)
+                    ),
+                    items=[
+                        ReservationItemCreateRequest(
+                            part_id=part_ids[0],
+                            quantity=1,
+                            note="Primary allocation",
+                        ),
+                        ReservationItemCreateRequest(
+                            part_id=part_ids[0],
+                            quantity=2,
+                            note="Primary allocation",
+                        ),
+                        ReservationItemCreateRequest(
+                            part_id=part_ids[1],
+                            quantity=2,
+                        ),
+                    ],
+                ),
+                commit=True,
+            )
+            reservation_id = response.id
+
+            if response.label != "Smoke reservation service":
+                fail(
+                    "Reservation service did not normalise the label: "
+                    f"{response.label!r}"
+                )
+            if response.notes != "Atomic allocation smoke test":
+                fail(
+                    "Reservation service did not normalise notes: "
+                    f"{response.notes!r}"
+                )
+            if response.status != "active":
+                fail(
+                    "Reservation service returned the wrong status: "
+                    f"{response.status!r}"
+                )
+            if response.project_id is not None:
+                fail(
+                    "Reservation creation unexpectedly attached a project"
+                )
+            if response.estimated_reserved_value is not None:
+                fail(
+                    "Reservation estimate should be unknown when one "
+                    "part has no unit price"
+                )
+            if len(response.items) != 2:
+                fail(
+                    "Reservation service did not merge duplicate parts: "
+                    f"{len(response.items)} items"
+                )
+
+            by_part = {
+                item.part_id: item
+                for item in response.items
+            }
+            if by_part[part_ids[0]].quantity != 3:
+                fail(
+                    "Merged reservation quantity is incorrect for "
+                    "the first part"
+                )
+            if by_part[part_ids[1]].quantity != 2:
+                fail(
+                    "Reservation quantity is incorrect for the "
+                    "second part"
+                )
+            if by_part[part_ids[0]].reserved_quantity != 3:
+                fail(
+                    "First part response has the wrong reserved quantity"
+                )
+            if by_part[part_ids[0]].available_quantity != 4:
+                fail(
+                    "First part response has the wrong available quantity"
+                )
+            if by_part[part_ids[1]].reserved_quantity != 2:
+                fail(
+                    "Second part response has the wrong reserved quantity"
+                )
+            if by_part[part_ids[1]].available_quantity != 2:
+                fail(
+                    "Second part response has the wrong available quantity"
+                )
+
+            stored_parts = db.execute(
+                text(
+                    "select id, total_quantity, reserved_quantity "
+                    "from parts where id in (:first_id, :second_id) "
+                    "order by id"
+                ),
+                {
+                    "first_id": part_ids[0],
+                    "second_id": part_ids[1],
+                },
+            ).mappings().all()
+            stored_by_id = {
+                int(row["id"]): row
+                for row in stored_parts
+            }
+            if int(
+                stored_by_id[part_ids[0]]["total_quantity"]
+            ) != 7:
+                fail(
+                    "Reservation creation changed physical stock for "
+                    "the first part"
+                )
+            if int(
+                stored_by_id[part_ids[1]]["total_quantity"]
+            ) != 4:
+                fail(
+                    "Reservation creation changed physical stock for "
+                    "the second part"
+                )
+            if int(
+                stored_by_id[part_ids[0]]["reserved_quantity"]
+            ) != 3:
+                fail(
+                    "First part reserved quantity was not persisted"
+                )
+            if int(
+                stored_by_id[part_ids[1]]["reserved_quantity"]
+            ) != 2:
+                fail(
+                    "Second part reserved quantity was not persisted"
+                )
+
+            items = db.execute(
+                text(
+                    "select part_id, quantity, note "
+                    "from reservation_items "
+                    "where reservation_id = :reservation_id "
+                    "order by part_id"
+                ),
+                {"reservation_id": reservation_id},
+            ).mappings().all()
+            if len(items) != 2:
+                fail(
+                    "Reservation item row count is incorrect: "
+                    f"{len(items)}"
+                )
+
+            movements = db.execute(
+                text(
+                    "select part_id, movement_type, quantity_delta, "
+                    "quantity_before, quantity_after, "
+                    "reserved_quantity_before, "
+                    "reserved_quantity_after, "
+                    "available_quantity_before, "
+                    "available_quantity_after "
+                    "from stock_movements "
+                    "where reservation_id = :reservation_id "
+                    "order by part_id"
+                ),
+                {"reservation_id": reservation_id},
+            ).mappings().all()
+            if len(movements) != 2:
+                fail(
+                    "Reservation movement row count is incorrect: "
+                    f"{len(movements)}"
+                )
+
+            movement_by_id = {
+                int(row["part_id"]): row
+                for row in movements
+            }
+            expected = {
+                part_ids[0]: {
+                    "total": 7,
+                    "reserved_before": 0,
+                    "reserved_after": 3,
+                    "available_before": 7,
+                    "available_after": 4,
+                },
+                part_ids[1]: {
+                    "total": 4,
+                    "reserved_before": 0,
+                    "reserved_after": 2,
+                    "available_before": 4,
+                    "available_after": 2,
+                },
+            }
+            for part_id, values in expected.items():
+                row = movement_by_id[part_id]
+                if row["movement_type"] != "reserve":
+                    fail(
+                        "Reservation movement type is incorrect: "
+                        f"{row['movement_type']!r}"
+                    )
+                if int(row["quantity_delta"]) != 0:
+                    fail(
+                        "Reservation movement changed physical quantity"
+                    )
+                if (
+                    int(row["quantity_before"]) != values["total"]
+                    or int(row["quantity_after"]) != values["total"]
+                    or int(row["reserved_quantity_before"])
+                    != values["reserved_before"]
+                    or int(row["reserved_quantity_after"])
+                    != values["reserved_after"]
+                    or int(row["available_quantity_before"])
+                    != values["available_before"]
+                    or int(row["available_quantity_after"])
+                    != values["available_after"]
+                ):
+                    fail(
+                        "Reservation movement snapshots are incorrect "
+                        f"for part {part_id}: {dict(row)}"
+                    )
+
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = 'reservation.created' "
+                    "and entity_type = 'reservation' "
+                    "and entity_id = :reservation_id"
+                ),
+                {"reservation_id": reservation_id},
+            ).scalar()
+            if audit_count != 1:
+                fail(
+                    "Reservation creation audit count is incorrect: "
+                    f"{audit_count}"
+                )
+
+        with db_session() as db:
+            before_counts = {
+                "reservations": db.execute(
+                    text(
+                        "select count(*) from reservations"
+                    )
+                ).scalar(),
+                "reservation_items": db.execute(
+                    text(
+                        "select count(*) from reservation_items"
+                    )
+                ).scalar(),
+                "stock_movements": db.execute(
+                    text(
+                        "select count(*) from stock_movements "
+                        "where reservation_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                ).scalar(),
+            }
+            try:
+                create_reservation(
+                    db,
+                    ReservationCreateRequest(
+                        label="Insufficient stock smoke reservation",
+                        items=[
+                            ReservationItemCreateRequest(
+                                part_id=part_ids[1],
+                                quantity=3,
+                            )
+                        ],
+                    ),
+                    commit=True,
+                )
+            except ReservationConflictError:
+                pass
+            else:
+                fail(
+                    "Reservation service accepted more than the "
+                    "available quantity"
+                )
+
+        with db_session() as db:
+            after_counts = {
+                "reservations": db.execute(
+                    text(
+                        "select count(*) from reservations"
+                    )
+                ).scalar(),
+                "reservation_items": db.execute(
+                    text(
+                        "select count(*) from reservation_items"
+                    )
+                ).scalar(),
+                "stock_movements": db.execute(
+                    text(
+                        "select count(*) from stock_movements "
+                        "where reservation_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                ).scalar(),
+            }
+            if after_counts != before_counts:
+                fail(
+                    "Failed reservation creation left partial rows: "
+                    f"before={before_counts}, after={after_counts}"
+                )
+
+            reserved_quantity = db.execute(
+                text(
+                    "select reserved_quantity from parts "
+                    "where id = :part_id"
+                ),
+                {"part_id": part_ids[1]},
+            ).scalar()
+            if reserved_quantity != 2:
+                fail(
+                    "Failed reservation creation changed reserved stock: "
+                    f"{reserved_quantity}"
+                )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Reservation creation service normalises items and reserves "
+        "stock atomically"
+    )
+
+
 def check_phase3_auth_foundation() -> None:
     password_hash = hash_password("partpilot-smoke-password")
 
@@ -7262,6 +7714,7 @@ def main() -> None:
         check_valid_part_insert_rolls_back,
         check_backend_db_helpers,
         check_reservation_contract_schema,
+        check_reservation_creation_service,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,
