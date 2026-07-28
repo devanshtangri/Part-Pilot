@@ -1642,3 +1642,71 @@ Start with Patch 254.
 6. Update durable memory and commit/push the approved frontend batch.
 7. Continue remaining finalization work as needed.
 8. Finish Chat 11 with mandatory boundary Patch 275.
+
+<!-- PARTPILOT:CHAT12_RESERVATIONS_FOUNDATION:V293 -->
+## Chat 11 completion — Stored Parts Search Finalization
+
+Chat 11 is complete after boundary recovery through Patch 293.
+
+Completed:
+
+- backend universal Stored Parts search;
+- stock-status, part-type and location filter composition;
+- accurate server totals and pagination;
+- 25/50/100 page-size preference;
+- stale-response guards;
+- Available-first presentation;
+- separate teal Available and red Out of stock cards;
+- full-result independent section sorting for Part, Type, Manufacturer,
+  Location, Available, Total and Status;
+- responsive desktop and mobile presentation;
+- browser approval;
+- source commit and push;
+- removal of exactly 70 PP241 fixture parts and exactly 70 matching creation
+  audits with real inventory preserved.
+
+## Chat 12 — Reservations Foundation
+
+Required title: `Chat 12: Reservations Foundation`
+
+Patch range: 294 through 323.
+
+Start with **Patch 294 as a read-only diagnostic**. Inspect the exact local
+repository and runtime before implementation:
+
+1. existing `projects`, `project_items`, `reservations` and
+   `reservation_items` models and migration constraints;
+2. current available/reserved/total quantity semantics;
+3. stock movement and audit service patterns;
+4. protected API, schema, service and smoke-test conventions;
+5. the `/reservations` placeholder route and responsive shell;
+6. current inventory selection/search components that may be reused;
+7. inventory-safe fixture strategy for reservation tests;
+8. cancellation, consumption, expiry and project-linking boundaries.
+
+Initial implementation goal:
+
+- establish a protected reservation service and API contract;
+- prevent reservations from exceeding available stock;
+- expose list/detail creation and cancellation in narrow verified slices;
+- update available quantity consistently;
+- create structured audit and history records;
+- add a responsive Reservations workspace only after the backend contract is
+  independently verified.
+
+Keep Projects as a separate implementation boundary until the reservation
+lifecycle and quantity semantics are approved. Do not combine this chat with
+backups, MCP, settings appearance or a full history-page implementation.
+
+### HomeLab inspection policy
+
+The HomeLab Terminal tool may be used only for read-only repository and runtime
+inspection. It must never run commands that mutate files, Git, databases,
+containers, deployment, fixtures or inventory. All changes must remain
+downloadable numbered Python patch files run explicitly by the user.
+
+### Boundary
+
+Patch 323 is the planned final boundary patch for Chat 12. Failed scripts
+consume their patch numbers. If boundary recovery is required, keep Chat 12
+active until a recovery script ends with exactly `Everything PASS`.

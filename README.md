@@ -18,7 +18,12 @@ assistants can understand and act on inventory safely.
 - Create parts from built-in or custom part-type templates.
 - Store typed template values, part numbers, descriptions, pricing, purchase
   links, notes, packages, manufacturers, and locations.
-- Browse and search active inventory.
+- Search active inventory across part metadata, catalogues, locations,
+  aliases, tags and typed custom fields.
+- Use server-backed part-type, location and stock-status filters with
+  accurate totals and pagination.
+- Sort Available and Out of stock sections independently across the
+  complete filtered result set.
 - Filter by stock status and reusable location.
 - View responsive part details.
 - Edit existing part metadata and typed values.
@@ -49,8 +54,6 @@ assistants can understand and act on inventory safely.
 
 Major remaining areas include:
 
-- Low-stock dashboard and settings-driven out-of-stock behaviour.
-- Universal search completion.
 - Reservations and lightweight projects.
 - Full history and audit browsing.
 - Settings and appearance completion.
@@ -195,7 +198,7 @@ available inventory.
 | Manufacturer, package, and location catalogues | Available |
 | Stock quantity adjustments and movement history | Available |
 | Soft deletion and restoration | Available |
-| Stored Parts search and location filtering | Available |
+| Stored Parts universal search, filters, pagination, and sorting | Available |
 | Dashboard low-stock alerts | Available |
 | Unconfigured zero-stock detection | Available |
 | Settings-driven out-of-stock grouping | Available |
@@ -255,7 +258,8 @@ inventory API.
 - responsive desktop and mobile layouts;
 - out-of-stock visibility controlled by Search settings.
 
-The Dashboard search is complete and browser approved. Stored Parts will move
-from loaded-page filtering to the same backend search contract in a separate
-follow-up batch.
+Dashboard and Stored Parts search are complete and browser approved. Stored
+Parts now uses the backend universal-search contract with part-type, location
+and stock-status filters, accurate pagination, stale-response guards, and
+independent full-result sorting for Available and Out of stock sections.
 <!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_README:END -->

@@ -1955,12 +1955,105 @@ Boundary and prompt rules:
 - A successful boundary updates durable docs and the handoff, commits and
   pushes, and only then is the next title and prompt supplied in chat.
 
-Current state:
+Current state after Patch 293:
 
-- Chat 11 Stored Parts Search Finalization application source is committed,
-  pushed, deployed and browser-approved.
-- The 70 PP241 fixtures remain because Patch 278 cleanup was rolled back after
-  `app_settings` drift was detected.
-- Chat 11 boundary recovery remains open.
-- Patch 286 must perform the deferred fixture-cleanup diagnostic against the failed
-  Patch 278 backup.
+- Chat 11 Stored Parts Search Finalization is complete.
+- Approved application source is committed, pushed, deployed and
+  browser-approved.
+- All 70 manifest-owned PP241 fixture parts and their 70 creation-audit rows
+  were removed by Patch 292.
+- Real inventory, settings identities and values, application source and the
+  verified deployment were preserved.
+- Chat 11 boundary recovery is closed.
+- Chat 12 starts with Patch 294 and owns patches 294 through 323.
+
+<!-- PARTPILOT:CHAT11_BOUNDARY_RECOVERY:V293 -->
+<!-- PARTPILOT:HOMELAB_READ_ONLY_POLICY:V293 -->
+## Chat 11 boundary recovery complete — Stored Parts finalization
+
+Recorded by Patch 293 on `2026-07-28T12:36:06.797730+00:00`.
+
+### Completed application checkpoint
+
+- Stored Parts uses backend universal search rather than filtering only a
+  loaded frontend page.
+- Search composes with part-type, location and stock-status filters.
+- Backend totals and pagination remain accurate across the complete filtered
+  result set.
+- Page sizes of 25, 50 and 100 are supported and the preference is retained.
+- Available and Out of stock sections are independently sorted across the full
+  filtered result set.
+- Supported sorting columns are Part, Type, Manufacturer, Location, Available,
+  Total and Status.
+- Sort changes reset to page one; independent section sorting preserves the
+  other section.
+- Available uses the approved teal card and Out of stock uses the approved red
+  card.
+- Empty sections remain hidden and compact mobile headers are browser-approved.
+- Search stale-response guards, selection, part details, quantity adjustment,
+  movement history, metadata editing, deletion and restoration remain intact.
+
+### Source and verification
+
+- Approved source commit: `ba721e5` — `Finalize Stored Parts search and sorting`.
+- Current diagnostic checkpoint before this boundary:
+  `b96e72658a497cbd18c6336b5f409e3d8fdfd501` — `Diagnose duplicate inventory audit event`.
+- Alembic head: `0005_packages`.
+- Complete backend smoke suite: passed.
+- Protected APIs and SPA routes: passed.
+- Browser approval: passed.
+- Application source hashes: unchanged since Patch 292.
+- Running deployment image: unchanged since Patch 292.
+
+### Temporary fixture cleanup
+
+Patch 292 removed only manifest-owned test data:
+
+- PP241 fixture parts removed: 70.
+- Matching PP241 `part.created` audit rows removed: 70.
+- Remaining PP241 fixture parts: 0.
+- Remaining PP241 audit rows: 0.
+- SQLite integrity: `ok`.
+- Foreign-key violations: 0.
+- Default settings: 17.
+- Real inventory and every unrelated database row: preserved.
+
+The cleanup originally failed because deleting fixture parts without deleting
+their historical creation audits allowed SQLite to reuse a deleted part ID.
+The smoke test then counted both the old PP241 audit and the new smoke audit.
+Patch 292 validated and removed the exact audit IDs before the exact part IDs,
+passed an isolated full smoke suite before the live write, and passed the full
+live verification.
+
+### HomeLab Terminal restriction
+
+The assistant may use the HomeLab Terminal tool to scan and inspect the actual
+repository, documentation, source, Git state, logs, runtime and databases.
+
+That tool is **read-only only**:
+
+- allowed: listing, reading, searching, hashing, Git inspection, container
+  inspection, HTTP reads and SQLite read-only queries;
+- forbidden: creating, modifying, deleting, moving or replacing files;
+- forbidden: staging, committing, resetting, checking out, merging, rebasing or
+  pushing Git state;
+- forbidden: writing to databases;
+- forbidden: building, restarting, stopping or recreating containers;
+- forbidden: changing deployment, fixtures, inventory or system configuration.
+
+All mutations continue through complete downloadable numbered Python patch
+files that the user runs explicitly.
+
+### Boundary and next chat
+
+- Chat 11 began with Patch 254.
+- Its planned 30-patch boundary was Patch 283.
+- Failed boundary-recovery scripts consumed their numbers.
+- Narrow recovery continued through successful Patch 293.
+- Next title: `Chat 12: Reservations Foundation`.
+- Chat 12 starts with Patch 294.
+- Chat 12 owns patches 294 through 323.
+- Patch 323 is its planned boundary.
+- No next-chat prompt file was created.
+- The ready-to-paste prompt is supplied only in chat after Patch 293 ends with
+  exactly `Everything PASS`.
