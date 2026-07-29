@@ -1148,6 +1148,24 @@ def check_reservation_read_create_api() -> None:
 
         first_id, second_id = created_ids
 
+        # PARTPILOT:RESERVATION_READ_CREATE_EXISTING_DATA_SAFE:V329
+        with db_session() as db:
+            existing_active_count = int(
+                db.execute(
+                    text(
+                        "select count(*) from reservations "
+                        "where status = 'active' "
+                        "and id not in (:first_id, :second_id)"
+                    ),
+                    {
+                        "first_id": first_id,
+                        "second_id": second_id,
+                    },
+                ).scalar()
+                or 0
+            )
+        expected_active_total = existing_active_count + 2
+
         first_page = client.get(
             "/api/reservations",
             headers=headers,
@@ -1161,7 +1179,7 @@ def check_reservation_read_create_api() -> None:
         first_page_json = first_page.json()
         first_items = first_page_json.get("reservations", [])
         if (
-            first_page_json.get("total") != 2
+            first_page_json.get("total") != expected_active_total
             or first_page_json.get("limit") != 1
             or len(first_items) != 1
             or int(first_items[0]["id"]) != second_id
@@ -1184,7 +1202,7 @@ def check_reservation_read_create_api() -> None:
         second_page_json = second_page.json()
         second_items = second_page_json.get("reservations", [])
         if (
-            second_page_json.get("total") != 2
+            second_page_json.get("total") != expected_active_total
             or len(second_items) != 1
             or int(second_items[0]["id"]) != first_id
         ):
