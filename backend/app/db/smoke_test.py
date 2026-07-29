@@ -2194,6 +2194,462 @@ def check_reservation_consumption_api() -> None:
     )
 
 
+# PARTPILOT:RESERVATION_EXPIRY_API_SMOKE:V320
+def check_reservation_expiry_api() -> None:
+    from datetime import datetime, timedelta, timezone
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part, Reservation
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_reservation_expiry_{suffix}"
+    password = "reservation-expiry-smoke-password"
+    part_ids: list[int] = []
+    reservation_ids: list[int] = []
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if reservation_ids:
+                placeholders = ", ".join(
+                    f":reservation_id_{index}"
+                    for index, _value in enumerate(reservation_ids)
+                )
+                params = {
+                    f"reservation_id_{index}": value
+                    for index, value in enumerate(reservation_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'reservation' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from reservation_items "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from reservations "
+                        f"where id in ({placeholders})"
+                    ),
+                    params,
+                )
+            if part_ids:
+                placeholders = ", ".join(
+                    f":part_id_{index}"
+                    for index, _value in enumerate(part_ids)
+                )
+                params = {
+                    f"part_id_{index}": value
+                    for index, value in enumerate(part_ids)
+                }
+                db.execute(
+                    text(
+                        "update parts set reserved_quantity = 0 "
+                        f"where id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where part_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from parts "
+                        f"where id in ({placeholders})"
+                    ),
+                    params,
+                )
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+    try:
+        unauthenticated = client.post(
+            "/api/reservations/999999999/expire"
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Reservation expiry should require authentication, "
+                f"got {unauthenticated.status_code}"
+            )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail("Expiry smoke requires an active part type")
+            user = create_user(
+                db,
+                username=username,
+                display_name="Reservation Expiry Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            token = create_session(db, user=user, commit=True)
+            for index, total in enumerate((8, 5, 6)):
+                part = Part(
+                    part_type_id=int(part_type_id),
+                    part_number=(
+                        f"SMOKE-RESERVATION-EXPIRY-{index}-{suffix}"
+                    ),
+                    name=f"Reservation expiry smoke part {index + 1}",
+                    total_quantity=total,
+                    reserved_quantity=0,
+                    is_deleted=False,
+                    deleted_at=None,
+                )
+                db.add(part)
+                db.flush()
+                part_ids.append(part.id)
+            db.commit()
+
+        headers = {"Authorization": f"Bearer {token.token}"}
+        future = (
+            datetime.now(timezone.utc) + timedelta(hours=1)
+        ).isoformat()
+        created = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Expiry smoke reservation",
+                "expiry_at": future,
+                "items": [
+                    {"part_id": part_ids[0], "quantity": 3},
+                    {"part_id": part_ids[1], "quantity": 2},
+                ],
+            },
+        )
+        if created.status_code != 201:
+            fail(
+                "Expiry fixture creation failed: "
+                f"{created.status_code}: {created.text}"
+            )
+        reservation_id = int(created.json()["id"])
+        reservation_ids.append(reservation_id)
+        with db_session() as db:
+            row = db.get(Reservation, reservation_id)
+            if row is None:
+                fail("Expiry fixture disappeared")
+            row.expiry_at = (
+                datetime.now(timezone.utc) - timedelta(minutes=5)
+            )
+            db.commit()
+
+        expired = client.post(
+            f"/api/reservations/{reservation_id}/expire",
+            headers=headers,
+        )
+        if expired.status_code != 200:
+            fail(
+                "Reservation expiry failed: "
+                f"{expired.status_code}: {expired.text}"
+            )
+        payload = expired.json()
+        expected = {
+            part_ids[0]: (8, 0, 8),
+            part_ids[1]: (5, 0, 5),
+        }
+        if payload.get("status") != "expired":
+            fail(f"Expiry status is incorrect: {payload}")
+        for item in payload.get("items", []):
+            actual = (
+                int(item["total_quantity"]),
+                int(item["reserved_quantity"]),
+                int(item["available_quantity"]),
+            )
+            if expected.get(int(item["part_id"])) != actual:
+                fail(f"Expiry response item is incorrect: {item}")
+
+        if client.post(
+            f"/api/reservations/{reservation_id}/expire",
+            headers=headers,
+        ).status_code != 409:
+            fail("Second expiry should return 409")
+        if client.post(
+            f"/api/reservations/{reservation_id + 999999}/expire",
+            headers=headers,
+        ).status_code != 404:
+            fail("Missing expiry should return 404")
+
+        no_expiry = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "No-expiry smoke",
+                "items": [{"part_id": part_ids[2], "quantity": 1}],
+            },
+        )
+        if no_expiry.status_code != 201:
+            fail("No-expiry fixture creation failed")
+        no_expiry_id = int(no_expiry.json()["id"])
+        reservation_ids.append(no_expiry_id)
+        if client.post(
+            f"/api/reservations/{no_expiry_id}/expire",
+            headers=headers,
+        ).status_code != 409:
+            fail("Reservation without expiry should return 409")
+
+        future_row = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Future-expiry smoke",
+                "expiry_at": (
+                    datetime.now(timezone.utc) + timedelta(hours=2)
+                ).isoformat(),
+                "items": [{"part_id": part_ids[2], "quantity": 1}],
+            },
+        )
+        if future_row.status_code != 201:
+            fail("Future-expiry fixture creation failed")
+        future_id = int(future_row.json()["id"])
+        reservation_ids.append(future_id)
+        if client.post(
+            f"/api/reservations/{future_id}/expire",
+            headers=headers,
+        ).status_code != 409:
+            fail("Future expiry should return 409")
+
+        with db_session() as db:
+            for state in ("cancelled", "consumed", "expired"):
+                row = Reservation(
+                    project_id=None,
+                    label=f"{state.title()} expiry smoke",
+                    status=state,
+                    notes=None,
+                    created_by="manual",
+                    expiry_at=(
+                        datetime.now(timezone.utc)
+                        - timedelta(minutes=10)
+                    ),
+                    estimated_reserved_value=None,
+                    currency_snapshot=None,
+                )
+                db.add(row)
+                db.flush()
+                reservation_ids.append(row.id)
+            db.commit()
+            terminal_ids = reservation_ids[-3:]
+        for state, row_id in zip(
+            ("cancelled", "consumed", "expired"),
+            terminal_ids,
+            strict=True,
+        ):
+            if client.post(
+                f"/api/reservations/{row_id}/expire",
+                headers=headers,
+            ).status_code != 409:
+                fail(f"{state} expiry should return 409")
+
+        inconsistent = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Inconsistent expiry smoke",
+                "expiry_at": future,
+                "items": [
+                    {"part_id": part_ids[0], "quantity": 1},
+                    {"part_id": part_ids[1], "quantity": 1},
+                ],
+            },
+        )
+        if inconsistent.status_code != 201:
+            fail("Inconsistent expiry fixture creation failed")
+        inconsistent_id = int(inconsistent.json()["id"])
+        reservation_ids.append(inconsistent_id)
+        with db_session() as db:
+            row = db.get(Reservation, inconsistent_id)
+            if row is None:
+                fail("Inconsistent expiry fixture disappeared")
+            row.expiry_at = (
+                datetime.now(timezone.utc) - timedelta(minutes=5)
+            )
+            db.execute(
+                text(
+                    "update parts set reserved_quantity = 0 "
+                    "where id = :part_id"
+                ),
+                {"part_id": part_ids[1]},
+            )
+            db.commit()
+
+        failed = client.post(
+            f"/api/reservations/{inconsistent_id}/expire",
+            headers=headers,
+        )
+        if failed.status_code != 409:
+            fail(
+                "Inconsistent expiry should return 409, got "
+                f"{failed.status_code}: {failed.text}"
+            )
+
+        with db_session() as db:
+            status_name = db.execute(
+                text(
+                    "select status from reservations where id = :id"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            part_state = {
+                int(row["id"]): (
+                    int(row["total_quantity"]),
+                    int(row["reserved_quantity"]),
+                )
+                for row in db.execute(
+                    text(
+                        "select id, total_quantity, reserved_quantity "
+                        "from parts where id in (:a, :b)"
+                    ),
+                    {"a": part_ids[0], "b": part_ids[1]},
+                ).mappings()
+            }
+            failed_movements = db.execute(
+                text(
+                    "select count(*) from stock_movements "
+                    "where reservation_id = :id "
+                    "and movement_type = 'release'"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            failed_audits = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where entity_type = 'reservation' "
+                    "and entity_id = :id "
+                    "and event_type = 'reservation.expired'"
+                ),
+                {"id": inconsistent_id},
+            ).scalar()
+            if (
+                status_name != "active"
+                or part_state != {
+                    part_ids[0]: (8, 1),
+                    part_ids[1]: (5, 0),
+                }
+                or failed_movements != 0
+                or failed_audits != 0
+            ):
+                fail(
+                    "Failed expiry did not roll back atomically: "
+                    f"status={status_name}, parts={part_state}, "
+                    f"movements={failed_movements}, "
+                    f"audits={failed_audits}"
+                )
+
+            movements = list(
+                db.execute(
+                    text(
+                        "select part_id, quantity_delta, "
+                        "quantity_before, quantity_after, "
+                        "reserved_quantity_before, "
+                        "reserved_quantity_after, "
+                        "available_quantity_before, "
+                        "available_quantity_after, source, actor_user_id "
+                        "from stock_movements "
+                        "where reservation_id = :id "
+                        "and movement_type = 'release' "
+                        "order by part_id"
+                    ),
+                    {"id": reservation_id},
+                ).mappings()
+            )
+            expected_movements = {
+                part_ids[0]: (0, 8, 8, 3, 0, 5, 8),
+                part_ids[1]: (0, 5, 5, 2, 0, 3, 5),
+            }
+            if len(movements) != 2:
+                fail(f"Expiry movement count is incorrect: {movements}")
+            for movement in movements:
+                actual = (
+                    int(movement["quantity_delta"]),
+                    int(movement["quantity_before"]),
+                    int(movement["quantity_after"]),
+                    int(movement["reserved_quantity_before"]),
+                    int(movement["reserved_quantity_after"]),
+                    int(movement["available_quantity_before"]),
+                    int(movement["available_quantity_after"]),
+                )
+                if (
+                    expected_movements.get(
+                        int(movement["part_id"])
+                    ) != actual
+                    or movement["source"] != "system"
+                    or int(movement["actor_user_id"]) != int(user_id)
+                ):
+                    fail(
+                        "Expiry movement snapshot is incorrect: "
+                        f"{dict(movement)}"
+                    )
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where entity_type = 'reservation' "
+                    "and entity_id = :id "
+                    "and event_type = 'reservation.expired' "
+                    "and actor_user_id = :user_id"
+                ),
+                {"id": reservation_id, "user_id": user_id},
+            ).scalar()
+            if audit_count != 1:
+                fail(
+                    "Expiry audit attribution is incorrect: "
+                    f"{audit_count}"
+                )
+    finally:
+        cleanup()
+
+    ok(
+        "Reservation expiry is authenticated, due-time-guarded, atomic, "
+        "release-backed, inventory-safe, and audited"
+    )
+
+
 def check_phase3_auth_foundation() -> None:
     password_hash = hash_password("partpilot-smoke-password")
 
@@ -8960,6 +9416,7 @@ def main() -> None:
         check_reservation_read_create_api,
         check_reservation_cancellation_api,
         check_reservation_consumption_api,
+        check_reservation_expiry_api,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,

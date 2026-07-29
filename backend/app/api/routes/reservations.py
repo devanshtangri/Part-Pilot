@@ -18,6 +18,7 @@ from app.services.reservations import (
     ReservationValidationError,
     cancel_reservation,
     consume_reservation,
+    expire_reservation,
     create_reservation,
     get_reservation,
     list_reservations,
@@ -144,6 +145,35 @@ def consume_reservation_record(
 ) -> ReservationResponse:
     try:
         return consume_reservation(
+            db,
+            reservation_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ReservationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ReservationConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+
+# PARTPILOT:RESERVATION_EXPIRY_ROUTE:V320
+@router.post(
+    "/{reservation_id}/expire",
+    response_model=ReservationResponse,
+)
+def expire_reservation_record(
+    reservation_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationResponse:
+    try:
+        return expire_reservation(
             db,
             reservation_id,
             actor_user_id=current_user.id,

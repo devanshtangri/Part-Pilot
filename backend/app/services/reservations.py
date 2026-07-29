@@ -16,7 +16,9 @@ from app.db.constants import (
     RESERVATION_STATUS_ACTIVE,
     RESERVATION_STATUS_CANCELLED,
     RESERVATION_STATUS_CONSUMED,
+    RESERVATION_STATUS_EXPIRED,
     SOURCE_MANUAL,
+    SOURCE_SYSTEM,
 )
 from app.db.settings import get_str_setting
 from app.models import (
@@ -976,6 +978,236 @@ def consume_reservation(
         raise ReservationConflictError(
             "Reservation consumption conflicted with current inventory "
             "data."
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return _serialise_reservation(db, reservation)
+
+
+# PARTPILOT:RESERVATION_EXPIRY_SERVICE:V320
+def expire_reservation(
+    db: Session,
+    reservation_id: int,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> ReservationResponse:
+    reservation = db.execute(
+        select(Reservation)
+        .where(Reservation.id == reservation_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if reservation is None:
+        raise ReservationNotFoundError("Reservation not found.")
+    if reservation.status != RESERVATION_STATUS_ACTIVE:
+        raise ReservationConflictError(
+            "Only active reservations can be expired. "
+            f"Current status: {reservation.status}."
+        )
+
+    stored_expiry_at = reservation.expiry_at
+    if stored_expiry_at is None:
+        raise ReservationConflictError("Reservation has no expiry date.")
+
+    expiry_at = stored_expiry_at
+    if expiry_at.tzinfo is None or expiry_at.utcoffset() is None:
+        expiry_at = expiry_at.replace(tzinfo=timezone.utc)
+    else:
+        expiry_at = expiry_at.astimezone(timezone.utc)
+    if expiry_at > datetime.now(timezone.utc):
+        raise ReservationConflictError(
+            "Reservation is not due to expire yet."
+        )
+
+    items = list(
+        db.execute(
+            select(ReservationItem)
+            .where(ReservationItem.reservation_id == reservation.id)
+            .order_by(ReservationItem.id.asc())
+        ).scalars()
+    )
+    if not items:
+        raise ReservationConflictError(
+            "Active reservation has no items to release."
+        )
+
+    part_ids = [
+        item.part_id
+        for item in items
+        if item.part_id is not None
+    ]
+    if len(part_ids) != len(items):
+        raise ReservationConflictError(
+            "Reservation contains an item whose part no longer exists."
+        )
+
+    parts = list(
+        db.execute(
+            select(Part)
+            .where(Part.id.in_(part_ids))
+            .with_for_update()
+        ).scalars()
+    )
+    part_map = {part.id: part for part in parts}
+    if len(part_map) != len(set(part_ids)):
+        raise ReservationConflictError(
+            "Reservation contains a part that no longer exists."
+        )
+
+    records: list[dict[str, int]] = []
+    movements: list[StockMovement] = []
+    try:
+        for item in items:
+            assert item.part_id is not None
+            part = part_map[item.part_id]
+            quantity = int(item.quantity)
+            total = int(part.total_quantity)
+            reserved_before = int(part.reserved_quantity)
+            available_before = total - reserved_before
+            if reserved_before < quantity:
+                raise ReservationConflictError(
+                    f"Part {part.id} has only {reserved_before} reserved "
+                    f"units, but reservation item {item.id} requires "
+                    f"releasing {quantity}."
+                )
+
+            reserved_after = reserved_before - quantity
+            available_after = total - reserved_after
+            changed_at = datetime.now(timezone.utc)
+            result = db.execute(
+                update(Part)
+                .where(
+                    Part.id == part.id,
+                    Part.total_quantity == total,
+                    Part.reserved_quantity == reserved_before,
+                    Part.reserved_quantity >= quantity,
+                )
+                .values(
+                    reserved_quantity=reserved_after,
+                    updated_at=changed_at,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            if result.rowcount != 1:
+                raise ReservationConflictError(
+                    f"Part {part.id} stock changed while reservation "
+                    f"{reservation.id} was being expired."
+                )
+
+            movement = StockMovement(
+                part_id=part.id,
+                reservation_id=reservation.id,
+                movement_type=MOVEMENT_TYPE_RELEASE,
+                quantity_delta=0,
+                quantity_before=total,
+                quantity_after=total,
+                reserved_quantity_before=reserved_before,
+                reserved_quantity_after=reserved_after,
+                available_quantity_before=available_before,
+                available_quantity_after=available_after,
+                unit_price_snapshot=item.unit_price_snapshot,
+                currency_snapshot=item.currency_snapshot,
+                reason=(f"Expired reservation {reservation.label}")[:180],
+                note=item.note,
+                source=SOURCE_SYSTEM,
+                actor_user_id=actor_user_id,
+            )
+            db.add(movement)
+            movements.append(movement)
+            records.append(
+                {
+                    "reservation_item_id": item.id,
+                    "part_id": part.id,
+                    "quantity": quantity,
+                    "total_quantity": total,
+                    "reserved_quantity_before": reserved_before,
+                    "reserved_quantity_after": reserved_after,
+                    "available_quantity_before": available_before,
+                    "available_quantity_after": available_after,
+                }
+            )
+            db.expire(part, ["reserved_quantity", "updated_at"])
+
+        changed_at = datetime.now(timezone.utc)
+        status_result = db.execute(
+            update(Reservation)
+            .where(
+                Reservation.id == reservation.id,
+                Reservation.status == RESERVATION_STATUS_ACTIVE,
+                Reservation.expiry_at == stored_expiry_at,
+            )
+            .values(
+                status=RESERVATION_STATUS_EXPIRED,
+                updated_at=changed_at,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if status_result.rowcount != 1:
+            raise ReservationConflictError(
+                "Reservation status or expiry changed while expiry "
+                "processing was in progress."
+            )
+        db.expire(reservation, ["status", "updated_at"])
+
+        db.flush()
+        for record, movement in zip(records, movements, strict=True):
+            record["stock_movement_id"] = movement.id
+
+        db.add(
+            AuditLog(
+                event_type="reservation.expired",
+                entity_type="reservation",
+                entity_id=reservation.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=f"Expired reservation {reservation.label}",
+                before_json={
+                    "status": RESERVATION_STATUS_ACTIVE,
+                    "expiry_at": expiry_at.isoformat(),
+                    "items": [
+                        {
+                            "reservation_item_id": row[
+                                "reservation_item_id"
+                            ],
+                            "part_id": row["part_id"],
+                            "quantity": row["quantity"],
+                            "reserved_quantity": row[
+                                "reserved_quantity_before"
+                            ],
+                            "available_quantity": row[
+                                "available_quantity_before"
+                            ],
+                        }
+                        for row in records
+                    ],
+                },
+                after_json={
+                    "status": RESERVATION_STATUS_EXPIRED,
+                    "expired_at": changed_at.isoformat(),
+                    "released_units": sum(
+                        row["quantity"] for row in records
+                    ),
+                    "items": records,
+                },
+                metadata_json={
+                    "source": SOURCE_SYSTEM,
+                    "movement_type": MOVEMENT_TYPE_RELEASE,
+                    "project_id": reservation.project_id,
+                },
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(reservation)
+    except IntegrityError as exc:
+        db.rollback()
+        raise ReservationConflictError(
+            "Reservation expiry conflicted with current inventory data."
         ) from exc
     except Exception:
         db.rollback()
