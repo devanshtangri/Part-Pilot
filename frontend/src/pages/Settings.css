@@ -137,3 +137,223 @@
     padding: 13px;
   }
 }
+
+
+/* PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362 */
+.settings-page {
+  --reservation-expiry-settings-v362: 1;
+}
+
+.settings-page .settings-reservation-section {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-page .settings-reservation-section h2,
+.settings-page .settings-reservation-section p {
+  margin: 0;
+}
+
+.settings-page .settings-reservation-section > p {
+  max-width: 780px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.settings-page .settings-reservation-form {
+  display: grid;
+  max-width: 780px;
+  gap: 13px;
+}
+
+.settings-page .settings-segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #2a374b;
+  border-radius: 8px;
+  background: #0d1622;
+}
+
+.settings-page .settings-segmented-control button {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #9eacc0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 750;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.settings-page .settings-segmented-control button:hover:not(:disabled) {
+  background: #152132;
+  color: #dce5f1;
+}
+
+.settings-page .settings-segmented-control button.is-active {
+  border-color: rgba(45, 212, 163, 0.45);
+  background: rgba(5, 150, 105, 0.22);
+  color: #b7f7e5;
+}
+
+.settings-page .settings-segmented-control button:focus-visible,
+.settings-page .settings-action:focus-visible,
+.settings-page .settings-preference-state button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.settings-page .settings-segmented-control button:disabled,
+.settings-page .settings-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.settings-page .settings-days-field {
+  display: grid;
+  gap: 7px;
+  padding: 13px 14px;
+  border: 1px solid #2a374b;
+  border-radius: 8px;
+  background: #0d1622;
+}
+
+.settings-page .settings-days-field > span:first-child {
+  color: #dce5f1;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.settings-page .settings-days-control {
+  display: grid;
+  grid-template-columns: minmax(0, 150px) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-page .settings-days-control input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #34445a;
+  border-radius: 7px;
+  outline: none;
+  background: #111b29;
+  color: #edf4fc;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-page .settings-days-control input:focus {
+  border-color: rgba(45, 212, 163, 0.78);
+  box-shadow: 0 0 0 3px rgba(45, 212, 163, 0.1);
+}
+
+.settings-page .settings-days-control input[aria-invalid="true"] {
+  border-color: rgba(248, 113, 113, 0.62);
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.08);
+}
+
+.settings-page .settings-days-control strong {
+  color: #aebdce;
+  font-size: 0.76rem;
+}
+
+.settings-page .settings-days-field small {
+  color: var(--muted);
+  font-size: 0.71rem;
+  line-height: 1.45;
+}
+
+.settings-page .settings-reservation-summary {
+  padding: 12px 13px;
+  border: 1px solid #2a374b;
+  border-radius: 8px;
+  background: #0d1622;
+  color: #aebdce !important;
+  font-size: 0.76rem;
+}
+
+.settings-page .settings-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.settings-page .settings-action {
+  min-height: 40px;
+  padding: 8px 13px;
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 780;
+}
+
+.settings-page .settings-action-secondary {
+  border: 1px solid #34445a;
+  background: #111b29;
+  color: #c9d4e2;
+}
+
+.settings-page .settings-action-secondary:hover:not(:disabled) {
+  border-color: #4a5c74;
+  background: #172334;
+}
+
+.settings-page .settings-action-primary {
+  border: 1px solid rgba(45, 212, 163, 0.55);
+  background: rgba(5, 150, 105, 0.24);
+  color: #b7f7e5;
+}
+
+.settings-page .settings-action-primary:hover:not(:disabled) {
+  background: rgba(5, 150, 105, 0.34);
+}
+
+.settings-page .settings-preference-state.is-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-page .settings-preference-state button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid rgba(248, 113, 113, 0.44);
+  border-radius: 6px;
+  background: rgba(127, 29, 29, 0.14);
+  color: #fecaca;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+@media (max-width: 620px) {
+  .settings-page .settings-segmented-control {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-page .settings-days-control {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .settings-page .settings-action-row {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .settings-page .settings-action {
+    width: 100%;
+  }
+}

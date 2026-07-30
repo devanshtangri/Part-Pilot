@@ -13,6 +13,7 @@ import type {
 } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { getReservationSettings } from "../services/settingsClient";
 import {
   cancelReservation,
   consumeReservation,
@@ -25,6 +26,7 @@ import {
   searchReservableParts,
   updateReservation
 } from "../services/reservationsClient";
+import type { ReservationSettings } from "../types/settings";
 import type {
   ReservablePart,
   Reservation,
@@ -121,11 +123,7 @@ function formatDate(value: string | null): string {
   }).format(date);
 }
 
-function toLocalDateTimeInput(value: string | null): string {
-  if (!value) {
-    return "";
-  }
-  const date = parseApiDateTime(value);
+function localDateTimeInputFromDate(date: Date): string {
   if (Number.isNaN(date.getTime())) {
     return "";
   }
@@ -134,6 +132,30 @@ function toLocalDateTimeInput(value: string | null): string {
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
     `${pad(date.getHours())}:${pad(date.getMinutes())}`
   ].join("T");
+}
+
+function toLocalDateTimeInput(value: string | null): string {
+  if (!value) {
+    return "";
+  }
+  return localDateTimeInputFromDate(parseApiDateTime(value));
+}
+
+// PARTPILOT:RESERVATION_DEFAULT_EXPIRY:V362
+function defaultReservationExpiryInput(
+  settings: ReservationSettings
+): string {
+  if (
+    settings.expiry_mode !== "default" ||
+    !Number.isInteger(settings.default_days) ||
+    Number(settings.default_days) < 1 ||
+    Number(settings.default_days) > 3650
+  ) {
+    return "";
+  }
+  return localDateTimeInputFromDate(
+    new Date(Date.now() + Number(settings.default_days) * 24 * 60 * 60 * 1000)
+  );
 }
 
 // PARTPILOT:RESERVATION_NOOP_GUARD:V348
@@ -337,6 +359,11 @@ export function Reservations() {
   const [deleteError, setDeleteError] = useState("");
   const [deletionNotice, setDeletionNotice] = useState("");
 
+  const [reservationSettings, setReservationSettings] =
+    useState<ReservationSettings>({
+      expiry_mode: "none",
+      default_days: null
+    });
   const [createOpen, setCreateOpen] = useState(false);
   const [editingReservationId, setEditingReservationId] = useState<number | null>(
     null
@@ -356,6 +383,36 @@ export function Reservations() {
   const detailRequest = useRef(0);
   const activityRequest = useRef(0);
   const expiryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!token) {
+      setReservationSettings({
+        expiry_mode: "none",
+        default_days: null
+      });
+      return;
+    }
+
+    let cancelled = false;
+    void getReservationSettings(token)
+      .then((result) => {
+        if (!cancelled) {
+          setReservationSettings(result);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setReservationSettings({
+            expiry_mode: "none",
+            default_days: null
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
@@ -657,6 +714,7 @@ useEffect(() => {
 
   const openCreate = () => {
     resetCreateForm();
+    setDraftExpiry(defaultReservationExpiryInput(reservationSettings));
     setEditingReservationId(null);
     setCreateOpen(true);
   };
@@ -953,6 +1011,7 @@ useEffect(() => {
       data-partpilot-reservation-delete="PARTPILOT:RESERVATION_DELETE_FRONTEND:V352"
       data-partpilot-reservation-preference="PARTPILOT:RESERVATION_STATUS_PREFERENCE:V352"
       data-partpilot-reservation-layout="PARTPILOT:RESERVATION_LAYOUT_REFINEMENT:V353"
+      data-partpilot-reservation-default-expiry="PARTPILOT:RESERVATION_DEFAULT_EXPIRY:V362"
     >
       <header className="reservations-header">
         <div className="page-header">
@@ -1539,7 +1598,7 @@ useEffect(() => {
             aria-labelledby="reservation-form-title"
             data-partpilot-marker="PARTPILOT:RESERVATION_EDIT_MODAL:V347"
           >
-            <header>
+            <header data-partpilot-marker="PARTPILOT:RESERVATION_SINGLE_DISMISS_ACTION:V364">
               <div>
                 <p className="eyebrow">
                   {editingReservationId === null
@@ -1557,14 +1616,6 @@ useEffect(() => {
                     : "Adjust the reservation details, parts, quantities, notes, or expiry."}
                 </p>
               </div>
-              <button
-                className="reservations-button"
-                type="button"
-                onClick={closeCreate}
-                disabled={createSubmitting}
-              >
-                Close
-              </button>
             </header>
 
             <form

@@ -7,10 +7,16 @@ import {
   resetApplicationDatabase
 } from "../services/authClient";
 import {
+  getReservationSettings,
   getSearchSettings,
+  updateReservationSettings,
   updateSearchSettings
 } from "../services/settingsClient";
-import type { SearchSettings } from "../types/settings";
+import type {
+  ReservationExpiryMode,
+  ReservationSettings,
+  SearchSettings
+} from "../types/settings";
 import "./Settings.css";
 
 const RESET_CONFIRMATION = "RESET PART PILOT";
@@ -27,12 +33,38 @@ export function Settings() {
     useState<string | null>(null);
   const [searchSettingsSaved, setSearchSettingsSaved] =
     useState(false);
+  const [reservationSettings, setReservationSettings] =
+    useState<ReservationSettings | null>(null);
+  const [reservationDraft, setReservationDraft] =
+    useState<ReservationSettings | null>(null);
+  const [reservationSettingsLoading, setReservationSettingsLoading] =
+    useState(true);
+  const [reservationSettingsSaving, setReservationSettingsSaving] =
+    useState(false);
+  const [reservationSettingsError, setReservationSettingsError] =
+    useState<string | null>(null);
+  const [reservationSettingsSaved, setReservationSettingsSaved] =
+    useState(false);
+  const [reservationReloadVersion, setReservationReloadVersion] = useState(0);
   const [confirmation, setConfirmation] = useState("");
   const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const canReset =
     confirmation === RESET_CONFIRMATION && !isResetting;
+  const reservationSettingsChanged = Boolean(
+    reservationSettings &&
+      reservationDraft &&
+      (reservationSettings.expiry_mode !== reservationDraft.expiry_mode ||
+        reservationSettings.default_days !== reservationDraft.default_days)
+  );
+  const reservationDaysError =
+    reservationDraft?.expiry_mode === "default" &&
+    (!Number.isInteger(reservationDraft.default_days) ||
+      Number(reservationDraft.default_days) < 1 ||
+      Number(reservationDraft.default_days) > 3650)
+      ? "Enter a whole number from 1 to 3650 days."
+      : null;
 
   // PATCH 194: load the out-of-stock grouping preference
   useEffect(() => {
@@ -75,6 +107,105 @@ export function Settings() {
       cancelled = true;
     };
   }, [token]);
+
+  // PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362
+  useEffect(() => {
+    if (!token) {
+      setReservationSettings(null);
+      setReservationDraft(null);
+      setReservationSettingsLoading(false);
+      setReservationSettingsError(
+        "Your session is unavailable. Sign in again."
+      );
+      return;
+    }
+
+    let cancelled = false;
+    setReservationSettingsLoading(true);
+    setReservationSettingsError(null);
+    setReservationSettingsSaved(false);
+
+    getReservationSettings(token)
+      .then((result) => {
+        if (!cancelled) {
+          setReservationSettings(result);
+          setReservationDraft(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setReservationSettings(null);
+          setReservationDraft(null);
+          setReservationSettingsError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load reservation defaults"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setReservationSettingsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reservationReloadVersion, token]);
+
+  function chooseReservationExpiryMode(
+    expiryMode: ReservationExpiryMode
+  ): void {
+    if (!reservationDraft || reservationSettingsSaving) {
+      return;
+    }
+    setReservationDraft({
+      expiry_mode: expiryMode,
+      default_days:
+        expiryMode === "none" ? null : reservationDraft.default_days
+    });
+    setReservationSettingsError(null);
+    setReservationSettingsSaved(false);
+  }
+
+  function resetReservationDraft(): void {
+    if (!reservationSettings || reservationSettingsSaving) {
+      return;
+    }
+    setReservationDraft(reservationSettings);
+    setReservationSettingsError(null);
+    setReservationSettingsSaved(false);
+  }
+
+  async function saveReservationDefaults(): Promise<void> {
+    if (
+      !token ||
+      !reservationDraft ||
+      reservationSettingsSaving ||
+      reservationDaysError
+    ) {
+      return;
+    }
+
+    setReservationSettingsSaving(true);
+    setReservationSettingsError(null);
+    setReservationSettingsSaved(false);
+    try {
+      const saved = await updateReservationSettings(token, reservationDraft);
+      setReservationSettings(saved);
+      setReservationDraft(saved);
+      setReservationSettingsSaved(true);
+    } catch (caught) {
+      setReservationSettingsError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to save reservation defaults"
+      );
+    } finally {
+      setReservationSettingsSaving(false);
+    }
+  }
 
   async function handleOutOfStockPreference(
     nextValue: boolean
@@ -154,6 +285,7 @@ export function Settings() {
     <div
       className="page-stack settings-page"
       data-search-settings-version="search-settings-toggle-v194"
+      data-reservation-settings-version="reservation-expiry-settings-v362"
     >
       <header className="page-header">
         <p className="eyebrow">Application</p>
@@ -225,6 +357,157 @@ export function Settings() {
             role="status"
           >
             Search preference saved.
+          </p>
+        ) : null}
+      </section>
+
+      <section
+        className="card settings-section settings-reservation-section"
+        aria-labelledby="settings-reservation-title"
+        data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362"
+      >
+        <span className="card-label">Reservations</span>
+        <h2 id="settings-reservation-title">Reservation defaults</h2>
+        <p>
+          Choose whether new manual reservations start with an expiry. The
+          suggested value can always be changed or cleared before creation.
+          Existing reservations are never rewritten by this setting.
+        </p>
+
+        {reservationSettingsLoading ? (
+          <p className="settings-preference-state" role="status">
+            Loading reservation defaults...
+          </p>
+        ) : null}
+
+        {!reservationSettingsLoading && reservationDraft ? (
+          <div className="settings-reservation-form">
+            <div
+              className="settings-segmented-control"
+              role="radiogroup"
+              aria-label="Default reservation expiry"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={reservationDraft.expiry_mode === "none"}
+                className={
+                  reservationDraft.expiry_mode === "none" ? "is-active" : ""
+                }
+                onClick={() => chooseReservationExpiryMode("none")}
+                disabled={reservationSettingsSaving}
+              >
+                No automatic expiry
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={reservationDraft.expiry_mode === "default"}
+                className={
+                  reservationDraft.expiry_mode === "default"
+                    ? "is-active"
+                    : ""
+                }
+                onClick={() => chooseReservationExpiryMode("default")}
+                disabled={reservationSettingsSaving}
+              >
+                Default expiry after
+              </button>
+            </div>
+
+            {reservationDraft.expiry_mode === "default" ? (
+              <label className="settings-days-field">
+                <span>Default expiry duration</span>
+                <span className="settings-days-control">
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    step={1}
+                    inputMode="numeric"
+                    value={reservationDraft.default_days ?? ""}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setReservationDraft({
+                        expiry_mode: "default",
+                        default_days: value === "" ? null : Number(value)
+                      });
+                      setReservationSettingsError(null);
+                      setReservationSettingsSaved(false);
+                    }}
+                    aria-invalid={Boolean(reservationDaysError)}
+                    aria-describedby="reservation-default-days-help"
+                    disabled={reservationSettingsSaving}
+                  />
+                  <strong>days</strong>
+                </span>
+                <small id="reservation-default-days-help">
+                  Calculated from the moment New reservation is opened.
+                </small>
+              </label>
+            ) : (
+              <p className="settings-reservation-summary">
+                New reservations will start with no expiry selected.
+              </p>
+            )}
+
+            {reservationDaysError ? (
+              <p className="settings-preference-state is-error" role="alert">
+                {reservationDaysError}
+              </p>
+            ) : null}
+
+            <div className="settings-action-row">
+              <button
+                className="settings-action settings-action-secondary"
+                type="button"
+                onClick={resetReservationDraft}
+                disabled={
+                  !reservationSettingsChanged || reservationSettingsSaving
+                }
+              >
+                Reset changes
+              </button>
+              <button
+                className="settings-action settings-action-primary"
+                type="button"
+                onClick={() => void saveReservationDefaults()}
+                disabled={
+                  !reservationSettingsChanged ||
+                  reservationSettingsSaving ||
+                  Boolean(reservationDaysError)
+                }
+              >
+                {reservationSettingsSaving
+                  ? "Saving reservation defaults..."
+                  : "Save reservation defaults"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {reservationSettingsError && !reservationDaysError ? (
+          <div className="settings-preference-state is-error" role="alert">
+            <span>{reservationSettingsError}</span>
+            {!reservationDraft ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setReservationReloadVersion((value) => value + 1)
+                }
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {reservationSettingsSaved && !reservationSettingsError ? (
+          <p
+            className="settings-preference-state is-success"
+            role="status"
+          >
+            Reservation defaults saved.
           </p>
         ) : null}
       </section>

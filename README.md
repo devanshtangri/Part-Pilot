@@ -54,7 +54,7 @@ assistants can understand and act on inventory safely.
 
 Major remaining areas include:
 
-- Reservation editing/settings completion and lightweight projects.
+- Lightweight Projects and project-linked inventory.
 - Full history and audit browsing.
 - Settings and appearance completion.
 - Backup and restore.
@@ -275,16 +275,20 @@ into physical, reserved and available stock.
 | Multi-part reservation creation | Available |
 | Available/reserved quantity accounting | Available |
 | Cancel, consume and due-time expiry | Available |
-| Status filters and pagination | Available |
-| Responsive list and detail workspace | Available |
+| Active-reservation label, notes, expiry and item editing | Available |
+| Inactive-reservation permanent deletion with exact confirmation | Available |
+| Status filters, pagination and responsive register/detail workspace | Available |
 | Audit and stock-movement activity timeline | Available |
 | Actor, part and quantity-snapshot activity details | Available |
-| Desktop split-view hierarchy | Available |
-| Mobile register cards and register-first landing | Available |
-| Existing reservation editing | Planned next |
+| Installation-wide optional default expiry for new reservations | Available |
+| Desktop split-view and mobile register-first workflow | Available |
 
-The workflow is authenticated, inventory-safe and covered by complete smoke
-tests that preserve pre-existing user reservations. Desktop automatically opens
-the first record in split view; compact layouts land on the register and open
-details only after the user selects a reservation.
+Reservation defaults are non-enforcing: they prefill only newly opened manual
+reservation forms and can be changed or cleared before creation. Existing
+reservations and direct API payloads are never silently rewritten.
+
+The workflow is authenticated, audited, inventory-safe and covered by complete
+smoke tests that preserve pre-existing user reservations. Desktop automatically
+opens the first record in split view; compact layouts land on the register and
+open details only after the user selects a reservation.
 <!-- PARTPILOT:RESERVATIONS_FOUNDATION:END -->

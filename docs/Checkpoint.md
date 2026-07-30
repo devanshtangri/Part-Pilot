@@ -2196,3 +2196,99 @@ preserve stock invariants atomically; record movements/activity; reject edits
 to non-active reservations; and add the Edit UI only after backend smoke
 coverage passes. Keep Projects outside this edit slice.
 <!-- PARTPILOT:RESERVATION_ACTIVITY_EXPERIENCE:V344:END -->
+
+<!-- PARTPILOT:CHAT13_RESERVATION_FINALIZATION_BOUNDARY:V365 -->
+## Chat 13 boundary — Reservation Workflow Finalization complete
+
+**Boundary patch:** 365
+**Browser approval:** confirmed through Patch 364
+**Alembic head:** `0006_reservation_contract`
+**Boundary commit subject:** `Complete reservation workflow finalization`
+
+### Completed reservation workflow
+
+- Authenticated read-only reservation activity combines audit events and linked
+  stock movements with actor, part and quantity snapshots.
+- Desktop uses a stronger register/detail hierarchy; mobile lands on the
+  register and opens details only after explicit selection.
+- Active reservations support atomic edits to label, notes, expiry and items.
+  Stock-affecting edits reconcile reserve/release movements, value snapshots,
+  activity and audit history while rejecting non-active records and no-op saves.
+- Cancelled, consumed and expired reservations can be permanently deleted only
+  after exact-label confirmation. Active reservations cannot be deleted.
+  Immutable stock movements are retained and historical audits remain complete.
+- Reservation defaults are exposed through authenticated
+  `GET/PATCH /api/settings/reservations`. The `none/default` pair is validated,
+  updated atomically and audited only for real changes.
+- New reservation forms may receive a fresh local-time expiry suggestion. Users
+  can clear or change it. Existing reservations and direct API calls are never
+  silently defaulted.
+- The New/Edit modal has aligned controls, one custom calendar action, no
+  redundant native Chromium indicator, and one visible footer Cancel action.
+- The live installation was restored to `none/null` after browser testing.
+
+### Completed view-preference and Part Manager polish
+
+- Inventory stock, part-type, location, page-size and independent Available /
+  Out-of-stock sort preferences persist safely.
+- Invalid or deleted catalogue-backed preferences are removed after catalogue
+  validation without request flashing or stale results.
+- Part Manager All/Built-in/Custom selection persists and matches the approved
+  segmented-filter design.
+- The redundant inventory divider and user-facing template-version badge were
+  removed; destructive Delete remains the final custom-type action.
+
+### Repository and log hygiene
+
+- `.gitignore` explicitly includes `fixes/logs/` while retaining the broader
+  local `fixes/` exclusion.
+- Five historical diagnostic Markdown files under `fixes/logs/` are removed
+  from Git tracking by Patch 365. Their local copies remain ignored and intact.
+- Durable diagnostics belong under `docs/` with the exact `diagonostic_` prefix.
+
+### Verified live data at the boundary
+
+- Weather Station reservation: ID 1, `cancelled`, expiry
+  `2026-07-31 12:22:00.000000`.
+- Active parts: 7.
+- Total quantity: 144.
+- Reserved quantity: 0.
+- Available quantity: 144.
+- Reservation defaults: mode `none`, default days `null`.
+- SQLite integrity and foreign keys: clean.
+
+### Proven HomeLab-assisted patch method
+
+The reliable Chat 13 workflow is now mandatory durable project memory:
+
+1. Use the HomeLab terminal to inspect exact local Git/index state, source,
+   logs, deployment, HTTP contracts and live SQLite values before designing a
+   patch. Local state is authoritative.
+2. Generate proposed targets under `/tmp`; never experiment on pending source.
+3. Validate target generation twice and compare exact SHA-256 bytes.
+4. Overlay those targets onto a clean repository snapshot, run TypeScript/Vite
+   and Docker builds, verify production-bundle contracts, and run the complete
+   smoke suite against a copied database before issuing the patch.
+5. Package the exact tested bytes into one numbered Python script. Runtime
+   transforms must not rediscover brittle anchors.
+6. Patch scripts require exact HEAD/origin, index, pending-file allowlists,
+   source hashes, prerequisite script hashes and successful log evidence.
+7. Use clear `[X/N]` phases, full backups, rollback image/database/source
+   restoration, protected API and SPA checks, Alembic verification and logical
+   live-data preservation.
+8. Keep browser-test files unstaged and uncommitted until explicit approval;
+   checkpoint them in a separate script and push promptly.
+
+### Next phase
+
+- Next title: `Chat 14: Projects Foundation`.
+- Patch range: 366–395 inclusive.
+- Planned boundary: Patch 395.
+- Patch 366 must be diagnostic-only.
+- Projects currently have database models but no protected schemas, services,
+  routes, clients or real UI. `/projects` is a placeholder.
+- The model constraint uses `draft/reserved/consumed/cancelled`, while
+  `PROJECT_STATUSES` currently uses `draft/active/completed/archived`; resolve
+  this contract explicitly before implementation.
+- Preserve Weather Station, all inventory, reservation defaults and every
+  unrelated history row.

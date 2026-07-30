@@ -1,4 +1,6 @@
 import type {
+  ReservationSettings,
+  ReservationSettingsUpdatePayload,
   SearchSettings,
   SearchSettingsUpdatePayload
 } from "../types/settings";
@@ -76,6 +78,24 @@ export function updateSearchSettings(
   payload: SearchSettingsUpdatePayload
 ): Promise<SearchSettings> {
   return requestJson<SearchSettings>("/settings/search", token, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+
+// PARTPILOT:RESERVATION_EXPIRY_SETTINGS_CLIENT:V362
+export function getReservationSettings(
+  token: string
+): Promise<ReservationSettings> {
+  return requestJson<ReservationSettings>("/settings/reservations", token);
+}
+
+export function updateReservationSettings(
+  token: string,
+  payload: ReservationSettingsUpdatePayload
+): Promise<ReservationSettings> {
+  return requestJson<ReservationSettings>("/settings/reservations", token, {
     method: "PATCH",
     body: JSON.stringify(payload)
   });

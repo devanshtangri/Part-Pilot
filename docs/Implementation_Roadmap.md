@@ -1841,3 +1841,86 @@ approximately 82% complete.
 - [ ] MCP read tools and safeguarded write tools.
 - [ ] Accessibility, security and public-alpha release hardening.
 <!-- PARTPILOT:RESERVATION_ACTIVITY_ROADMAP:V344:END -->
+
+<!-- PARTPILOT:CHAT13_RESERVATION_FINALIZATION_ROADMAP:V365 -->
+## Current roadmap checkpoint — Reservation workflow finalized
+
+### Overall progress
+
+**Working V1/public-alpha estimate: approximately 74%.**
+
+The core inventory, search and reservation workflows are now mature. Remaining
+work is concentrated in Projects, system-wide History, broader Settings and
+appearance, backup/restore, MCP and release hardening.
+
+### Completed through Patch 365
+
+- [x] Reservation activity API and responsive timeline.
+- [x] Desktop register hierarchy and mobile register-first workflow.
+- [x] Atomic active-reservation editing with reserve/release reconciliation.
+- [x] No-op edit suppression and date/time control refinement.
+- [x] Exact-confirmation deletion for inactive reservations.
+- [x] Inventory-safe deletion history and movement retention.
+- [x] Authenticated atomic reservation-default settings API.
+- [x] Reservation-default Settings card and new-form expiry prefill.
+- [x] Existing/Edit reservation isolation from installation defaults.
+- [x] Persistent inventory and Part Manager view preferences.
+- [x] Explicit `fixes/logs/` ignore rule and tracked-log cleanup.
+- [x] Complete smoke, protected API, SPA, browser and live-data preservation.
+
+### Chat 14 — Projects Foundation
+
+Required title: `Chat 14: Projects Foundation`
+Patch range: 366–395
+Planned boundary: Patch 395
+
+#### Patch 366 — diagnostic-only
+
+Inspect and document the exact local contract before implementation:
+
+1. `Project` and `ProjectItem` model fields, constraints, indexes and migration
+   history.
+2. The mismatch between the model statuses
+   `draft/reserved/consumed/cancelled` and constants
+   `draft/active/completed/archived`.
+3. Existing live project/project-item counts and foreign-key behavior.
+4. Reservation `project_id` serialization versus absent create/update linkage.
+5. Stock movement, reservation lifecycle and audit conventions that Projects
+   must reuse rather than duplicate.
+6. Protected route/schema/service/smoke-test conventions.
+7. The `/projects` placeholder and reusable Reservations/Inventory UI patterns.
+8. Price/currency snapshot semantics and deleted-part behavior.
+9. An inventory-safe fixture and cleanup plan that never assumes empty tables.
+10. Whether a migration is required before any Projects API is added.
+
+The diagnostic report must use the exact `docs/diagonostic_*.md` naming rule and
+be inspected before implementation begins.
+
+#### Recommended implementation order
+
+1. Resolve canonical statuses and migration requirements.
+2. Add typed project read/create/update contracts and atomic service behavior.
+3. Add authenticated list/detail/create APIs with pagination and validation.
+4. Add project-item reconciliation and price/currency snapshots.
+5. Define reserve, consume and cancel transitions by reusing reservation and
+   stock-movement invariants; never create a competing stock model.
+6. Link project reservations explicitly only after both contracts are stable.
+7. Build a responsive Projects register/detail/create/edit UI after backend
+   smoke coverage passes.
+8. Browser-test, checkpoint approved source, update README/docs, then complete
+   the Patch 395 boundary.
+
+#### Scope limits
+
+Keep system-wide History, backup/restore, appearance and MCP outside the initial
+Projects foundation. Do not silently alter the existing Weather Station
+reservation, reservation defaults, inventory quantities or unrelated audits.
+
+### Mandatory execution method for Chat 14
+
+Use the HomeLab-assisted method established in Chat 13: exact read-only local
+inspection, `/tmp` target generation, deterministic hash comparison, isolated
+clean builds and copied-database smoke tests before packaging, exact-byte patch
+payloads, `[X/N]` runtime phases, full rollback, and separate browser approval /
+checkpoint scripts. Do not return to speculative source anchors or scripts that
+have not been executed against an isolated copy first.

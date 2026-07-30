@@ -2,64 +2,86 @@ Part Pilot project memory
 
 Project
 - Repository: https://github.com/devanshtangri/Part-Pilot.git
-- Root: /projects/Part Pilot
-- Branch: main
+- Root: /projects/Part Pilot; branch: main
 - Compose service: partpilot; host port: 7890
-- Frontend: React/Vite/TypeScript
-- Backend: FastAPI/SQLAlchemy/Alembic
+- React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend
 - Alembic head: 0006_reservation_contract
 
-Patch workflow
-- Every change is one complete sequential Python patch file.
-- The assistant may place patch files directly in /projects/Part Pilot/fixes/;
-  the user executes them.
-- Failed scripts consume their patch number. Never reuse one.
-- Filenames begin directly with the number, never patch_.
-- Success prints exactly `Everything PASS` as the final line.
-- Validate repository, origin, HEAD, index, pending source and transforms before
-  backup/write. Print simple progress phases.
+Patch and chat workflow
+- Every change is one complete sequential Python patch file under fixes/.
+- The assistant may place scripts directly there; the user executes them.
+- Filenames begin with the number, never patch_. Failed user-run scripts consume
+  their number. Successful scripts end with exactly `Everything PASS`.
+- Use headings `Patch N - Browser Test` or `Patch N - Fix Only`.
+- Browser instructions stay outside scripts. Browser-test source stays unstaged
+  and uncommitted until explicit approval, then a separate checkpoint commits
+  and pushes it.
+- Chat 14 is `Chat 14: Projects Foundation`, owns Patch 366-395, and Patch 395
+  is its planned boundary. No next-chat prompt files are created.
+
+Mandatory HomeLab-assisted method
+- Before every patch, inspect exact local Git/index state, source, logs,
+  deployment, HTTP contracts and SQLite values through HomeLab. Local source is
+  authoritative; never assume GitHub represents pending work.
+- Generate proposed targets under /tmp and validate them twice. Overlay exact
+  targets onto a clean repository copy; run TypeScript/Vite and Docker builds,
+  production-bundle checks and the complete smoke suite against a copied DB.
+- Only then package the exact tested bytes into the numbered script. Avoid
+  execution-time brittle source-anchor discovery.
+- Scripts validate repo, branch, origin, HEAD/origin equality, index, pending
+  allowlists, exact hashes, prerequisites and successful prior logs before
+  backup/write. Show clear [X/N] phases.
+- Back up every affected source file, SQLite and rollback image. Validate
+  Alembic, full smoke, protected APIs, SPA routes, runtime markers and logical
+  DB preservation. Failure output includes phase, exception, command, useful
+  output, rollback result, final Git state and log path.
+- After two consecutive pre-write failures, repeated anchor mismatches or local
+  source uncertainty, stop and issue a diagnostic-only patch.
+
+Paths and hygiene
 - Backups: /projects/Part Pilot/fixes/backups/
-- Logs: /projects/Part Pilot/fixes/logs/
-- Diagnostic Markdown filenames start with `diagonostic_`.
-- Failure output includes phase, exception, actual command, useful output,
-  rollback, final Git state and log path.
+- Runtime logs: /projects/Part Pilot/fixes/logs/ (ignored by Git)
+- Durable diagnostics: docs/diagonostic_*.md
+- Keep docs/Part_Pilot_Project_Memory.txt <= 8,000 characters.
+- Maintain Checkpoint, Roadmap, project memory, README at milestones and newest
+  handoff. Stage only exact allowlists; diff --check; push main; fetch and verify
+  local HEAD equals origin/main.
 
-Failure escalation
-- After two consecutive pre-write failures, repeated anchor mismatches, or
-  uncertainty about pending source, issue a diagnostic-only patch.
-- Split unrelated backend, frontend, CSS, smoke and checkpoint work.
-- Never reset, overwrite, stage or commit browser-test source before approval.
+Inventory and user-data safety
+- Never assume an empty database. Use unique fixture-owned IDs and restore exact
+  settings values. Cleanup only fixture-owned records.
+- Preserve real inventory, all unrelated history and the Weather Station
+  reservation: ID 1, cancelled, expiry 2026-07-31 12:22:00.000000.
+- Boundary inventory: 7 active parts; total 144; reserved 0; available 144.
+- Reservation defaults are restored to mode none / default_days null.
 
-Browser and Git workflow
-- Browser instructions never go inside scripts.
-- Terminal `Everything PASS` confirms automated checks only.
-- Commit/push approved batches promptly in a separate checkpoint patch.
-- Stage only intended files; verify staged allowlist and diff --check.
-- Push main, fetch and verify local HEAD equals origin/main.
-- Chat 13 owns Patch 336-365; Patch 365 is the planned boundary.
+Completed product state
+- Auth/setup, dynamic part templates, manufacturer/package/location catalogues.
+- Inventory create/read/edit, stock movements, soft delete/restore and history.
+- Dashboard and Stored Parts universal search, filters, pagination, independent
+  Available/Out-of-stock sorting and persistent view preferences.
+- Reservation create/read/cancel/consume/expire, activity, active editing,
+  inactive deletion, optional default expiry, responsive desktop/mobile UI and
+  existing-data-safe smoke coverage.
+- Part Manager filter persistence and approved visual cleanup.
+- fixes/logs explicitly ignored; old tracked log diagnostics removed at Patch
+  365 while local ignored copies remain.
 
-Inventory safety
-- Never assume an empty database. Use unique isolated fixtures.
-- Cleanup only fixture-owned IDs.
-- Preserve real inventory, settings, history and the Weather Station reservation.
+Chat 13 boundary
+- Patch 365 checkpoints the browser-approved reservation defaults/modal batch,
+  updates durable docs and creates
+  docs/Chat_13_Reservation_Workflow_Finalization_Handoff.md.
+- Boundary commit subject: `Complete reservation workflow finalization`.
 
-Completed
-- Auth/setup, templates and reusable catalogues.
-- Inventory create/read/edit, stock movements, deletion/restoration.
-- Dashboard and Stored Parts universal search, filters, pagination and sorting.
-- Settings-driven low-stock/out-of-stock behavior.
-- Reservation create/read/cancel/consume/expire lifecycle.
-- Responsive Reservations workspace.
-- Read-only reservation activity API and responsive activity timeline.
-- Browser-approved register hierarchy and mobile cards.
-- Mobile lands on the register; desktop selects the first record.
-- Complete existing-data-safe smoke coverage.
-
-Current checkpoint
-- Patch 344 commits/pushes the approved reservation activity/mobile batch and
-  durable docs.
-- V1/public-alpha estimate: 68%; core inventory product: 82%.
-- Next patch: 345.
-- Next work: active-reservation editing. Implement backend semantics and smoke
-  coverage before the Edit reservation UI.
-- Keep Projects, History, backups and MCP as separate later boundaries.
+Next phase: Projects
+- Project and ProjectItem tables/models exist; live counts are zero.
+- /projects is a frontend placeholder. No project schemas, services, routes,
+  client or frontend types exist.
+- Reservation responses expose nullable project_id, but creation/linking is not
+  implemented.
+- Critical mismatch: Project model constraint allows
+  draft/reserved/consumed/cancelled; PROJECT_STATUSES constants contain
+  draft/active/completed/archived. Patch 366 must be diagnostic-only and decide
+  the canonical contract/migration before implementation.
+- Reuse reservation stock, movement, audit, snapshot and rollback conventions.
+  Do not combine initial Projects work with History, backups, appearance or MCP.
