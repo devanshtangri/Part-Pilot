@@ -34,7 +34,7 @@ from app.schemas.part_types import (
 from app.services.part_types import create_custom_part_type
 
 EXPECTED_PART_TYPES = 34
-EXPECTED_AUTH_SCHEMA_HEAD = "0006_reservation_contract"
+EXPECTED_AUTH_SCHEMA_HEAD = "0007_projects_contract"
 MIN_TEMPLATE_FIELDS = 140
 EXPECTED_SETTINGS = {
     "setup.completed",
@@ -227,8 +227,28 @@ def check_backend_db_helpers() -> None:
     if "consume" not in MOVEMENT_TYPES:
         fail("MOVEMENT_TYPES is missing consume")
 
-    if "active" not in PROJECT_STATUSES or "active" not in RESERVATION_STATUSES:
-        fail("Status constants are missing active")
+    expected_project_statuses = {
+        "draft",
+        "reserved",
+        "consumed",
+        "cancelled",
+    }
+    expected_reservation_statuses = {
+        "active",
+        "consumed",
+        "cancelled",
+        "expired",
+    }
+    if PROJECT_STATUSES != expected_project_statuses:
+        fail(
+            "PROJECT_STATUSES does not match the canonical contract: "
+            f"{sorted(PROJECT_STATUSES)}"
+        )
+    if RESERVATION_STATUSES != expected_reservation_statuses:
+        fail(
+            "RESERVATION_STATUSES does not match the canonical contract: "
+            f"{sorted(RESERVATION_STATUSES)}"
+        )
 
     with db_session() as db:
         app_name = get_str_setting(db, "app.display_name")
@@ -258,6 +278,196 @@ def check_backend_db_helpers() -> None:
 
 
 # PARTPILOT:RESERVATION_CONTRACT_SMOKE:V298
+# PARTPILOT:PROJECTS_CONTRACT_SMOKE:V368
+def check_projects_contract_schema() -> None:
+    expected_statuses = {
+        "draft",
+        "reserved",
+        "consumed",
+        "cancelled",
+    }
+    if PROJECT_STATUSES != expected_statuses:
+        fail(
+            "PROJECT_STATUSES does not match the canonical contract: "
+            f"{sorted(PROJECT_STATUSES)}"
+        )
+
+    with db_session() as db:
+        project_sql = db.execute(
+            text(
+                "select sql from sqlite_master "
+                "where type = 'table' and name = 'projects'"
+            )
+        ).scalar()
+        item_sql = db.execute(
+            text(
+                "select sql from sqlite_master "
+                "where type = 'table' and name = 'project_items'"
+            )
+        ).scalar()
+        if not project_sql or not item_sql:
+            fail("Projects contract tables are missing")
+        for name in {
+            "ck_projects_status",
+            "ck_projects_created_by",
+            "ck_projects_estimated_total_value_nonnegative",
+        }:
+            if name not in project_sql:
+                fail(f"projects is missing constraint {name}")
+        for name in {
+            "ck_project_items_quantity_positive",
+            "ck_project_items_unit_price_snapshot_nonnegative",
+        }:
+            if name not in item_sql:
+                fail(f"project_items is missing constraint {name}")
+
+        project_indexes = {
+            row[1] for row in db.execute(text("PRAGMA index_list(projects)"))
+        }
+        expected_project_indexes = {"ix_projects_name", "ix_projects_status"}
+        if not expected_project_indexes.issubset(project_indexes):
+            fail(f"projects indexes are incomplete: {sorted(project_indexes)}")
+        item_indexes = {
+            row[1]
+            for row in db.execute(text("PRAGMA index_list(project_items)"))
+        }
+        expected_item_indexes = {
+            "ix_project_items_project_id",
+            "ix_project_items_part_id",
+            "ix_project_items_project_part",
+        }
+        if not expected_item_indexes.issubset(item_indexes):
+            fail(f"project_items indexes are incomplete: {sorted(item_indexes)}")
+        composite = [
+            row[2]
+            for row in db.execute(
+                text("PRAGMA index_info(ix_project_items_project_part)")
+            )
+        ]
+        if composite != ["project_id", "part_id"]:
+            fail(f"Project item composite index is incorrect: {composite}")
+
+        item_foreign_keys = db.execute(
+            text("PRAGMA foreign_key_list(project_items)")
+        ).fetchall()
+        project_matches = [
+            row
+            for row in item_foreign_keys
+            if row[2] == "projects"
+            and row[3] == "project_id"
+            and row[4] == "id"
+            and str(row[6]).upper() == "CASCADE"
+        ]
+        part_matches = [
+            row
+            for row in item_foreign_keys
+            if row[2] == "parts"
+            and row[3] == "part_id"
+            and row[4] == "id"
+            and str(row[6]).upper() == "SET NULL"
+        ]
+        if len(project_matches) != 1 or len(part_matches) != 1:
+            fail(f"Project item foreign keys are incorrect: {item_foreign_keys}")
+
+        invalid_projects = db.execute(
+            text(
+                "select count(*) from projects where "
+                "status not in ('draft','reserved','consumed','cancelled') "
+                "or created_by not in ('manual','ai','mcp','system') "
+                "or estimated_total_value < 0"
+            )
+        ).scalar()
+        invalid_items = db.execute(
+            text(
+                "select count(*) from project_items where "
+                "quantity <= 0 or unit_price_snapshot < 0"
+            )
+        ).scalar()
+        if invalid_projects or invalid_items:
+            fail(
+                "Existing Projects data violates the canonical contract: "
+                f"projects={invalid_projects}, items={invalid_items}"
+            )
+
+    for column, value in (
+        ("status", "active"),
+        ("created_by", "import"),
+        ("estimated_total_value", -1),
+    ):
+        with db_session() as db:
+            try:
+                db.execute(
+                    text(
+                        "insert into projects "
+                        "(name,status,created_by,estimated_total_value) "
+                        "values (:name,:status,:created_by,:estimated_total_value)"
+                    ),
+                    {
+                        "name": f"Invalid Project {column}",
+                        "status": value if column == "status" else "draft",
+                        "created_by": (
+                            value if column == "created_by" else "system"
+                        ),
+                        "estimated_total_value": (
+                            value if column == "estimated_total_value" else None
+                        ),
+                    },
+                )
+                db.flush()
+            except exc.IntegrityError:
+                db.rollback()
+            else:
+                db.rollback()
+                fail(f"projects accepted invalid {column}: {value!r}")
+
+    with db_session() as db:
+        try:
+            project_id = db.execute(
+                text(
+                    "insert into projects (name,status,created_by) "
+                    "values ('Project item constraint fixture','draft','system') "
+                    "returning id"
+                )
+            ).scalar_one()
+            db.execute(
+                text(
+                    "insert into project_items "
+                    "(project_id,part_id,quantity,unit_price_snapshot) "
+                    "values (:project_id,null,1,-1)"
+                ),
+                {"project_id": project_id},
+            )
+            db.flush()
+        except exc.IntegrityError:
+            db.rollback()
+        else:
+            db.rollback()
+            fail("project_items accepted a negative unit-price snapshot")
+
+    with db_session() as db:
+        try:
+            for project_status in sorted(expected_statuses):
+                db.execute(
+                    text(
+                        "insert into projects (name,status,created_by) "
+                        "values (:name,:status,'system')"
+                    ),
+                    {
+                        "name": f"Valid Project {project_status}",
+                        "status": project_status,
+                    },
+                )
+            db.flush()
+            db.rollback()
+        except Exception:
+            db.rollback()
+            raise
+
+    ok(
+        "Project lifecycle statuses, constraints, foreign keys, and indexes are aligned"
+    )
+
+
 def check_reservation_contract_schema() -> None:
     expected_statuses = {
         "active",
@@ -11329,6 +11539,7 @@ def main() -> None:
         check_invalid_part_rejected,
         check_valid_part_insert_rolls_back,
         check_backend_db_helpers,
+        check_projects_contract_schema,
         check_reservation_contract_schema,
         check_reservation_creation_service,
         check_reservation_read_create_api,
