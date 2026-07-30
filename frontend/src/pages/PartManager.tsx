@@ -9,6 +9,15 @@ import type {
   FormEvent } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import {
+  VIEW_PREFERENCE_KEYS,
+  readEnumViewPreference,
+  readNumberViewPreference,
+  readPositiveIntegerViewPreference,
+  removeViewPreference,
+  writeNullablePositiveIntegerViewPreference,
+  writeViewPreference
+} from "../utils/viewPreferences";
 import "./PartManager.css";
 // PATCH 094: dynamic inventory Add Part modal
 import { AddPartModal } from "../components/AddPartModal";
@@ -55,50 +64,20 @@ const STORED_PARTS_SERVER_SEARCH_VERSION = "stored-parts-server-search-v233";
 const STORED_PARTS_PAGINATION_VERSION = "stored-parts-pagination-v240";
 const INVENTORY_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 type InventoryPageSize = (typeof INVENTORY_PAGE_SIZE_OPTIONS)[number];
-const INVENTORY_PAGE_SIZE_STORAGE_KEY = "partpilot.inventory.page-size";
 const STORED_PARTS_PREFERENCE_VERSION = "stored-parts-preference-v248";
-
-function readInventoryPageSizePreference(): InventoryPageSize {
-  if (typeof window === "undefined") {
-    return 25;
-  }
-
-  try {
-    const storedValue = Number(
-      window.localStorage.getItem(
-        INVENTORY_PAGE_SIZE_STORAGE_KEY
-      )
-    );
-    if (
-      INVENTORY_PAGE_SIZE_OPTIONS.includes(
-        storedValue as InventoryPageSize
-      )
-    ) {
-      return storedValue as InventoryPageSize;
-    }
-  } catch {
-    return 25;
-  }
-
-  return 25;
-}
-
-function writeInventoryPageSizePreference(
-  pageSize: InventoryPageSize
-): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(
-      INVENTORY_PAGE_SIZE_STORAGE_KEY,
-      String(pageSize)
-    );
-  } catch {
-    // Storage can be blocked without breaking pagination.
-  }
-}
+const FILTER_MODE_OPTIONS = ["all", "builtin", "custom"] as const;
+const INVENTORY_STOCK_FILTER_OPTIONS = ["all", "in", "low", "out"] as const;
+const INVENTORY_SORT_BY_OPTIONS = [
+  "default",
+  "part",
+  "type",
+  "manufacturer",
+  "location",
+  "available",
+  "total",
+  "status"
+] as const;
+const INVENTORY_SORT_DIRECTION_OPTIONS = ["asc", "desc"] as const;
 
 // PATCH 106: editor-only semantic field preset
 type EditorFieldKind = PartTypeFieldKind | "manufacturer";
@@ -398,7 +377,13 @@ export function PartManager({
   const { token } = useAuth();
   const [collection, setCollection] = useState<PartTypeCollection | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [filter, setFilter] = useState<FilterMode>("all");
+  const [filter, setFilter] = useState<FilterMode>(() =>
+    readEnumViewPreference(
+      VIEW_PREFERENCE_KEYS.partManagerTypeFilter,
+      FILTER_MODE_OPTIONS,
+      "all"
+    )
+  );
   const [query, setQuery] = useState("");
   // PATCH 110: inventory collection state
   const [inventoryCollection, setInventoryCollection] =
@@ -413,28 +398,70 @@ export function PartManager({
   const [inventoryServerSearch, setInventoryServerSearch] =
     useState("");
   const [inventoryStockFilter, setInventoryStockFilter] =
-    useState<InventoryStockFilter>("all");
+    useState<InventoryStockFilter>(() =>
+      readEnumViewPreference(
+        VIEW_PREFERENCE_KEYS.inventoryStockFilter,
+        INVENTORY_STOCK_FILTER_OPTIONS,
+        "all"
+      )
+    );
   // PATCH 269: stored-parts-table-sorting-v270
   // PATCH 273: stored-parts-dynamic-section-sorting-v273
   const [availableInventorySortBy, setAvailableInventorySortBy] =
-    useState<PartSortBy>("default");
+    useState<PartSortBy>(() =>
+      readEnumViewPreference(
+        VIEW_PREFERENCE_KEYS.inventoryAvailableSortBy,
+        INVENTORY_SORT_BY_OPTIONS,
+        "default"
+      )
+    );
   const [
     availableInventorySortDirection,
     setAvailableInventorySortDirection
-  ] = useState<PartSortDirection>("asc");
+  ] = useState<PartSortDirection>(() =>
+    readEnumViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryAvailableSortDirection,
+      INVENTORY_SORT_DIRECTION_OPTIONS,
+      "asc"
+    )
+  );
   const [outOfStockInventorySortBy, setOutOfStockInventorySortBy] =
-    useState<PartSortBy>("default");
+    useState<PartSortBy>(() =>
+      readEnumViewPreference(
+        VIEW_PREFERENCE_KEYS.inventoryOutOfStockSortBy,
+        INVENTORY_SORT_BY_OPTIONS,
+        "default"
+      )
+    );
   const [
     outOfStockInventorySortDirection,
     setOutOfStockInventorySortDirection
-  ] = useState<PartSortDirection>("asc");
+  ] = useState<PartSortDirection>(() =>
+    readEnumViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryOutOfStockSortDirection,
+      INVENTORY_SORT_DIRECTION_OPTIONS,
+      "asc"
+    )
+  );
   const [inventoryUpdatingSection, setInventoryUpdatingSection] =
     useState<"available" | "out-of-stock" | null>(null);
   // PATCH 240: PARTPILOT_STORED_PARTS_PAGINATION_V240
   const [inventoryPartTypeFilter, setInventoryPartTypeFilter] =
-    useState<number | null>(null);
+    useState<number | null>(() =>
+      readPositiveIntegerViewPreference(
+        VIEW_PREFERENCE_KEYS.inventoryPartTypeFilter
+      )
+    );
+  const [inventoryPartTypePreferenceReady, setInventoryPartTypePreferenceReady] =
+    useState(false);
   const [inventoryPageSize, setInventoryPageSize] =
-    useState<InventoryPageSize>(readInventoryPageSizePreference);
+    useState<InventoryPageSize>(() =>
+      readNumberViewPreference(
+        VIEW_PREFERENCE_KEYS.inventoryPageSize,
+        INVENTORY_PAGE_SIZE_OPTIONS,
+        25
+      )
+    );
   const [inventoryOffset, setInventoryOffset] = useState(0);
   const inventoryRequestSequence = useRef(0);
   const inventoryCollectionRef = useRef<PartCollection | null>(null);
@@ -453,7 +480,13 @@ export function PartManager({
   const [inventoryLocationsError, setInventoryLocationsError] =
     useState<string | null>(null);
   const [inventoryLocationFilter, setInventoryLocationFilter] =
-    useState<number | null>(null);
+    useState<number | null>(() =>
+      readPositiveIntegerViewPreference(
+        VIEW_PREFERENCE_KEYS.inventoryLocationFilter
+      )
+    );
+  const [inventoryLocationPreferenceReady, setInventoryLocationPreferenceReady] =
+    useState(false);
   // PATCH 124: selected inventory record and drawer state
   const [selectedInventoryPartId, setSelectedInventoryPartId] =
     useState<number | null>(null);
@@ -508,6 +541,7 @@ export function PartManager({
       if (!token) {
         setError("Your session is unavailable. Sign in again.");
         setIsLoading(false);
+        setInventoryPartTypePreferenceReady(true);
         return;
       }
 
@@ -517,6 +551,20 @@ export function PartManager({
           return;
         }
         setCollection(result);
+        setInventoryPartTypeFilter((current) => {
+          if (
+            current !== null
+            && !result.part_types.some(
+              (partType) => partType.is_active && partType.id === current
+            )
+          ) {
+            removeViewPreference(
+              VIEW_PREFERENCE_KEYS.inventoryPartTypeFilter
+            );
+            return null;
+          }
+          return current;
+        });
         setSelectedId(result.part_types[0]?.id ?? null);
       } catch (caught) {
         if (!cancelled) {
@@ -529,6 +577,7 @@ export function PartManager({
       } finally {
         if (!cancelled) {
           setIsLoading(false);
+          setInventoryPartTypePreferenceReady(true);
         }
       }
     }
@@ -545,7 +594,7 @@ export function PartManager({
       setInventoryLocations([]);
       setInventoryLocationsLoading(false);
       setInventoryLocationsError(null);
-      setInventoryLocationFilter(null);
+      setInventoryLocationPreferenceReady(true);
       return;
     }
 
@@ -559,12 +608,18 @@ export function PartManager({
           return;
         }
         setInventoryLocations(result.locations);
-        setInventoryLocationFilter((current) =>
-          current !== null
-          && !result.locations.some((location) => location.id === current)
-            ? null
-            : current
-        );
+        setInventoryLocationFilter((current) => {
+          if (
+            current !== null
+            && !result.locations.some((location) => location.id === current)
+          ) {
+            removeViewPreference(
+              VIEW_PREFERENCE_KEYS.inventoryLocationFilter
+            );
+            return null;
+          }
+          return current;
+        });
       })
       .catch((caught) => {
         if (!cancelled) {
@@ -579,6 +634,7 @@ export function PartManager({
       .finally(() => {
         if (!cancelled) {
           setInventoryLocationsLoading(false);
+          setInventoryLocationPreferenceReady(true);
         }
       });
 
@@ -587,9 +643,62 @@ export function PartManager({
     };
   }, [token, inventoryRefreshSequence]);
 
-  // PATCH 248: PARTPILOT_STORED_PARTS_PREFERENCE_V248
+  // PATCH 355: PARTPILOT_DURABLE_VIEW_PREFERENCES_V355
   useEffect(() => {
-    writeInventoryPageSizePreference(inventoryPageSize);
+    writeViewPreference(
+      VIEW_PREFERENCE_KEYS.partManagerTypeFilter,
+      filter
+    );
+  }, [filter]);
+
+  useEffect(() => {
+    writeViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryStockFilter,
+      inventoryStockFilter
+    );
+  }, [inventoryStockFilter]);
+
+  useEffect(() => {
+    writeNullablePositiveIntegerViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryPartTypeFilter,
+      inventoryPartTypeFilter
+    );
+  }, [inventoryPartTypeFilter]);
+
+  useEffect(() => {
+    writeNullablePositiveIntegerViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryLocationFilter,
+      inventoryLocationFilter
+    );
+  }, [inventoryLocationFilter]);
+
+  useEffect(() => {
+    writeViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryAvailableSortBy,
+      availableInventorySortBy
+    );
+    writeViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryAvailableSortDirection,
+      availableInventorySortDirection
+    );
+  }, [availableInventorySortBy, availableInventorySortDirection]);
+
+  useEffect(() => {
+    writeViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryOutOfStockSortBy,
+      outOfStockInventorySortBy
+    );
+    writeViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryOutOfStockSortDirection,
+      outOfStockInventorySortDirection
+    );
+  }, [outOfStockInventorySortBy, outOfStockInventorySortDirection]);
+
+  useEffect(() => {
+    writeViewPreference(
+      VIEW_PREFERENCE_KEYS.inventoryPageSize,
+      inventoryPageSize
+    );
   }, [inventoryPageSize]);
 
   // PATCH 233: debounce Stored Parts server search
@@ -612,6 +721,14 @@ export function PartManager({
       setInventoryCollection(null);
       setInventoryLoading(false);
       setInventoryUpdatingSection(null);
+      return;
+    }
+
+    if (
+      !inventoryPartTypePreferenceReady
+      || !inventoryLocationPreferenceReady
+    ) {
+      setInventoryLoading(true);
       return;
     }
 
@@ -684,7 +801,9 @@ export function PartManager({
   }, [
     token,
     inventoryLocationFilter,
+    inventoryLocationPreferenceReady,
     inventoryPartTypeFilter,
+    inventoryPartTypePreferenceReady,
     inventoryRefreshSequence,
     inventoryServerSearch,
     inventoryStockFilter,
@@ -1508,6 +1627,7 @@ function closeCreator() {
         : "asc";
 
     setInventoryUpdatingSection(section);
+    setInventoryOffset(0);
     if (section === "available") {
       setAvailableInventorySortBy(sortBy);
       setAvailableInventorySortDirection(nextDirection);
@@ -1688,6 +1808,8 @@ function closeCreator() {
       data-out-of-stock-grouping-version="stored-parts-out-of-stock-group-v194"
       data-inventory-sorting-version="stored-parts-table-sorting-v270"
       data-dynamic-section-sorting-version="stored-parts-dynamic-section-sorting-v273"
+      data-view-preferences-version="PARTPILOT:DURABLE_VIEW_PREFERENCES:V355"
+      data-inventory-divider-version="PARTPILOT:INVENTORY_DIVIDER_REMOVED:V355"
     >
       {inventoryOnly ? (
         <header
@@ -2327,9 +2449,12 @@ function closeCreator() {
                                   `Template slug: ${selectedType.slug}`}
                               </p>
                             </div>
-                            <div className="part-type-detail-actions">
+                            <div
+                              className="part-type-detail-actions"
+                              data-part-type-action-order="PARTPILOT:PART_TYPE_ACTION_ORDER:V358"
+                              data-template-version-badge="PARTPILOT:TEMPLATE_VERSION_BADGE_REMOVED:V358"
+                            >
                               {!selectedType.is_builtin ? (
-                                <>
                                 <button
                                   className="part-type-edit-button"
                                   type="button"
@@ -2337,14 +2462,6 @@ function closeCreator() {
                                 >
                                   Edit custom type
                                 </button>
-                                <button
-                                  className="part-type-delete-button"
-                                  type="button"
-                                  onClick={() => openDeleteDialog(selectedType)}
-                                >
-                                  Delete
-                                </button>
-                              </>
                               ) : null}
                               {/* PATCH 118: contextual Add Part action */}
                               <button
@@ -2362,9 +2479,15 @@ function closeCreator() {
                               >
                                 Add part
                               </button>
-                              <span className="status-pill">
-                                Template v{selectedType.template_version}
-                              </span>
+                              {!selectedType.is_builtin ? (
+                                <button
+                                  className="part-type-delete-button"
+                                  type="button"
+                                  onClick={() => openDeleteDialog(selectedType)}
+                                >
+                                  Delete
+                                </button>
+                              ) : null}
                             </div>
                           </header>
 
@@ -2697,23 +2820,6 @@ function closeCreator() {
           )
           : null}
 
-        {!inventoryLoading
-          && !inventoryError
-          && inventoryCollection
-          && outOfStockInventoryParts.length > 0 ? (
-          <div
-            className="inventory-results-separator"
-            data-stock-separator-version="stored-parts-preference-v248"
-            role="separator"
-            aria-label="Out of stock results begin here"
-          >
-            <span className="inventory-results-separator-line" />
-            <span className="inventory-results-separator-badge">
-              Out of stock
-            </span>
-            <span className="inventory-results-separator-line" />
-          </div>
-        ) : null}
         {!inventoryLoading
           && !inventoryError
           && inventoryCollection

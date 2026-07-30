@@ -2785,58 +2785,18 @@
   --stored-parts-preference-v248: 1;
 }
 
-.part-manager-page .inventory-results-separator {
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-  margin: 20px 0 10px !important;
-  padding: 0 !important;
-}
-
-.part-manager-page .inventory-results-separator-line {
-  flex: 1 1 auto !important;
-  min-width: 24px !important;
-  height: 1px !important;
-  background: rgba(239, 68, 68, 0.62) !important;
-}
-
-.part-manager-page .inventory-results-separator-badge {
-  display: block !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: #f1a3a3 !important;
-  font-size: 0.68rem !important;
-  font-weight: 750 !important;
-  letter-spacing: 0.06em !important;
-  line-height: 1.2 !important;
-  text-transform: uppercase !important;
-  white-space: nowrap !important;
-}
-
 .part-manager-page .inventory-out-of-stock-header h3 {
   color: #fca5a5 !important;
 }
 
-@media (max-width: 760px) {
-  .part-manager-page .inventory-results-separator {
-    gap: 8px !important;
-    margin: 17px 0 9px !important;
-  }
-
-  .part-manager-page .inventory-results-separator-line {
-    min-width: 14px !important;
-  }
-
-  .part-manager-page .inventory-results-separator-badge {
-    font-size: 0.64rem !important;
-    letter-spacing: 0.05em !important;
-  }
-}
-
 /* END PATCH 248 */
+
+/* PATCH 355: PARTPILOT_DURABLE_VIEW_PREFERENCES_V355 */
+.part-manager-page {
+  --partpilot-durable-view-preferences-v355: 1;
+  --partpilot-inventory-divider-removed-v355: 1;
+}
+/* END PATCH 355 */
 
 /* PATCH 257: STORED PARTS OUT-OF-STOCK CARD SEPARATION */
 .part-manager-page .inventory-out-of-stock-section {
@@ -3498,3 +3458,69 @@
 }
 
 /* END PATCH 276 */
+
+/* PATCH 356: PART MANAGER TYPE FILTER VISUAL CONSISTENCY */
+.part-manager-page {
+  --partpilot-part-manager-type-filter-v356: 1;
+}
+
+.part-manager-page .search-card .filter-tabs {
+  display: inline-flex !important;
+  gap: 3px !important;
+  align-items: center !important;
+  align-self: end !important;
+  padding: 3px !important;
+  border: 1px solid #293548 !important;
+  border-radius: 8px !important;
+  background: #0b1420 !important;
+}
+
+.part-manager-page .search-card .filter-tabs button {
+  appearance: none !important;
+  min-height: 28px !important;
+  margin: 0 !important;
+  padding: 5px 9px !important;
+  border: 1px solid transparent !important;
+  border-radius: 5px !important;
+  outline: none !important;
+  background: transparent !important;
+  color: #8fa1b6 !important;
+  box-shadow: none !important;
+  font: inherit !important;
+  font-size: 0.69rem !important;
+  font-weight: 750 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+}
+
+.part-manager-page
+  .search-card
+  .filter-tabs
+  button:hover:not(.active) {
+  background: #162132 !important;
+  color: #d7e2ef !important;
+}
+
+.part-manager-page .search-card .filter-tabs button.active {
+  border-color: rgba(45, 212, 191, 0.36) !important;
+  background: rgba(13, 148, 136, 0.18) !important;
+  color: #ccfbf1 !important;
+}
+
+.part-manager-page .search-card .filter-tabs button:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 1px !important;
+}
+
+@media (max-width: 820px) {
+  .part-manager-page .search-card .filter-tabs {
+    width: 100% !important;
+  }
+
+  .part-manager-page .search-card .filter-tabs button {
+    flex: 1 1 0 !important;
+  }
+}
+
+/* END PATCH 356 */
