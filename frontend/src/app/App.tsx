@@ -9,6 +9,7 @@ import { PartManager } from "../pages/PartManager";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
 import { SetupPreferencesScreen } from "../pages/SetupPreferencesScreen";
 import { Settings } from "../pages/Settings";
+import { Reservations } from "../pages/Reservations";
 
 function AppRoutes() {
   const {
@@ -49,10 +50,7 @@ function AppRoutes() {
           path="/projects"
           element={<PlaceholderPage title="Projects" />}
         />
-        <Route
-          path="/reservations"
-          element={<PlaceholderPage title="Reservations" />}
-        />
+        <Route path="/reservations" element={<Reservations />} />
         <Route
           path="/history"
           element={<PlaceholderPage title="History" />}

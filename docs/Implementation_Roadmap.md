@@ -1773,3 +1773,28 @@ delivered as one complete downloadable sequential Python patch.
 Only one new patch may be issued at a time. The user runs it and reports the
 result before the next patch number is generated. Failed user-run scripts
 consume their number unless the user explicitly resets the accepted sequence.
+
+<!-- PARTPILOT:RESERVATIONS_FOUNDATION_ROADMAP:START -->
+## Reservations phase status
+
+### Completed in Chat 12
+
+- Migration and backend reservation contract.
+- Create, read, cancel, consume and due-expiry services/APIs.
+- Inventory-safe movements and audit records.
+- Existing-data-safe smoke coverage.
+- Browser-approved responsive Reservations workspace.
+- Part-picker vertical alignment.
+- Boundary checkpoint and durable handoff.
+
+### Next phase
+
+`Chat 13: Reservation Workflow Finalization` owns Patch 336–365.
+
+Recommended focus:
+
+1. Review project/reservation linkage and history presentation.
+2. Finalise action feedback, accessibility and edge-case UX.
+3. Use isolated manifest-owned fixtures only.
+4. Split unrelated work into separate patches after repeated failures.
+<!-- PARTPILOT:RESERVATIONS_FOUNDATION_ROADMAP:END -->

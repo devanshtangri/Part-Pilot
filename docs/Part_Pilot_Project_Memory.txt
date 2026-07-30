@@ -1,0 +1,71 @@
+Part Pilot project memory
+
+Project
+- Repository: https://github.com/devanshtangri/Part-Pilot.git
+- Root: /projects/Part Pilot
+- Branch: main
+- Compose service: partpilot; host port: 7890
+- Frontend: React/Vite/TypeScript
+- Backend: FastAPI/SQLAlchemy/Alembic
+- Alembic head: 0006_reservation_contract
+
+Patch workflow
+- Every implementation, fix, diagnostic, cleanup, documentation update,
+  checkpoint, commit, push and handoff is one complete downloadable Python file.
+- Never require manual line edits.
+- Patch numbers are sequential and consumed when run, including failures.
+- Filenames begin directly with the number, never patch_.
+- Success prints exactly `Everything PASS` as the final line.
+- Validate repo, branch, origin, HEAD, index, pending source and transforms
+  before backup/write.
+- Backups: /projects/Part Pilot/fixes/backups/
+- Logs: /projects/Part Pilot/fixes/logs/
+- Diagnostic Markdown filenames start with exact prefix `diagonostic_`.
+- Failure output includes phase, exception, command, useful output, rollback,
+  final Git state and log path.
+
+Failure escalation
+- After two consecutive pre-write failures, repeated anchor mismatches, or
+  uncertainty about pending source, issue a diagnostic-only patch.
+- After repeated failures, split work into small independent chunks. Do not
+  combine unrelated smoke, CSS, backend and checkpoint work.
+- Diagnostic commits may include only their report while pending app bytes and
+  index remain unchanged.
+
+Browser workflow
+- Browser instructions never go inside patch scripts.
+- Terminal `Everything PASS` confirms automated checks only.
+- Keep browser-test source uncommitted until explicit approval.
+- Commit/push promptly after approval in a separate checkpoint script.
+- Browser tests requiring create/edit actions include ready-to-copy mock values,
+  expected results and cleanup steps.
+
+Git and boundaries
+- Stage only intended files; verify staged allowlist and diff --check.
+- Push main, fetch and verify local HEAD equals origin/main.
+- No Chat_N_Starting_Prompt files.
+- Ready prompt is provided in chat only after boundary success.
+- New chats own 30 sequential patch numbers; boundary = start + 29.
+- Chat 12 started at Patch 294, planned boundary 323, and completed through
+  boundary recovery Patch 335.
+- Chat 13: Reservation Workflow Finalization starts at Patch 336; boundary Patch 365.
+
+Inventory safety
+- Never assume an empty database.
+- Use unique, isolated, manifest-owned fixtures.
+- Cleanup only owned IDs; preserve real inventory and user data.
+- The Weather Station reservation is user data and must be preserved.
+
+Completed
+- Universal inventory search and Stored Parts server search/sorting.
+- Browser-approved Stored Parts responsive grouping and pagination.
+- Reservation schema and create/read/cancel/consume/expire workflows.
+- Existing-data-safe reservation smoke tests.
+- Browser-approved Reservations workspace with list/detail, filters, pagination,
+  server part search, creation, actions, stale guards and responsive layout.
+- Browser-approved part-picker alignment.
+
+Current handoff
+- Read docs/Chat_12_Reservations_Foundation_Handoff.md first.
+- Patch 335 commits/pushes the approved source and durable docs.
+- Next patch: 336.

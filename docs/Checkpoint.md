@@ -2129,3 +2129,29 @@ All mutations are delivered as one complete downloadable sequential Python
 patch at a time. The user runs each patch and reports its result before the next
 patch is generated. Commit and push may occur only inside a downloadable patch
 run explicitly by the user.
+
+<!-- PARTPILOT:RESERVATIONS_FOUNDATION_CHECKPOINT:START -->
+## Reservations Foundation — complete
+
+**Checkpoint:** Patch 335
+**Browser approval:** confirmed
+**Alembic head:** `0006_reservation_contract`
+
+Completed and verified:
+
+- Reservation schema, items, statuses, constraints and indexes.
+- Atomic creation with stock reservation and duplicate-item normalisation.
+- Authenticated list, detail and create APIs.
+- Cancellation, consumption and due-expiry workflows.
+- Stock movements, audit records and inventory-safe rollback behaviour.
+- Responsive Reservations workspace with list/detail, filters, pagination,
+  server-backed part search and reservation actions.
+- Browser-approved desktop/mobile layout and part-picker alignment.
+- Existing-data-safe complete smoke coverage.
+- Protected APIs, SPA routes and exact inventory preservation.
+
+The browser-created **Weather Station** reservation remains user data and must
+not be removed by automated cleanup.
+
+Next: `Chat 13: Reservation Workflow Finalization`, Patch 336 through Patch 365.
+<!-- PARTPILOT:RESERVATIONS_FOUNDATION_CHECKPOINT:END -->

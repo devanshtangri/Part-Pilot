@@ -263,3 +263,24 @@ Parts now uses the backend universal-search contract with part-type, location
 and stock-status filters, accurate pagination, stale-response guards, and
 independent full-result sorting for Available and Out of stock sections.
 <!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_README:END -->
+
+<!-- PARTPILOT:RESERVATIONS_FOUNDATION:START -->
+## Reservations
+
+Part Pilot can hold inventory against planned work while preserving visibility
+into physical, reserved and available stock.
+
+| Capability | Status |
+|---|---|
+| Multi-part reservation creation | Available |
+| Available/reserved quantity accounting | Available |
+| Cancel and release | Available |
+| Consume reserved parts | Available |
+| Due-time expiry | Available |
+| List, detail, filters and pagination | Available |
+| Responsive Reservations workspace | Available |
+| Stock-movement and audit records | Available |
+
+The workflow is authenticated, inventory-safe and covered by complete smoke
+tests that also support pre-existing user reservations.
+<!-- PARTPILOT:RESERVATIONS_FOUNDATION:END -->
