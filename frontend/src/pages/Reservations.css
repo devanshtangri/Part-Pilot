@@ -739,6 +739,92 @@
   resize: vertical;
 }
 
+/* PARTPILOT:RESERVATION_DATETIME_STYLE:V348 */
+.reservation-expiry-field {
+  --partpilot-reservation-datetime-v348: 1;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.reservation-expiry-field > label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1rem;
+}
+
+.reservation-expiry-field > small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.reservation-datetime-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--bg);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.reservation-datetime-control:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.reservation-datetime-control input {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color-scheme: dark;
+  font-variant-numeric: tabular-nums;
+}
+
+.reservation-datetime-control input:focus {
+  outline: 0;
+}
+
+.reservation-datetime-control input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.72;
+}
+
+.reservation-datetime-button {
+  display: grid;
+  min-width: 42px;
+  place-items: center;
+  border: 0;
+  border-left: 1px solid var(--panel-border);
+  background: var(--panel-soft);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.reservation-datetime-button:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.reservation-datetime-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.reservation-datetime-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
 .reservation-form-wide {
   grid-column: 1 / -1;
 }

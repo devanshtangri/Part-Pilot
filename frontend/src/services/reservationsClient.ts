@@ -6,7 +6,8 @@ import type {
   ReservationActivityCollection,
   ReservationCollection,
   ReservationCreatePayload,
-  ReservationStatus
+  ReservationStatus,
+  ReservationUpdatePayload
 } from "../types/reservations";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -133,6 +134,18 @@ export function createReservation(
 ): Promise<Reservation> {
   return requestJson<Reservation>("/reservations", token, {
     method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+// PARTPILOT:RESERVATION_EDIT_CLIENT:V347
+export function updateReservation(
+  token: string,
+  reservationId: number,
+  payload: ReservationUpdatePayload
+): Promise<Reservation> {
+  return requestJson<Reservation>(`/reservations/${reservationId}`, token, {
+    method: "PUT",
     body: JSON.stringify(payload)
   });
 }

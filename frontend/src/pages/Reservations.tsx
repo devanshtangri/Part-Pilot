@@ -21,7 +21,8 @@ import {
   getReservation,
   getReservationActivity,
   getReservations,
-  searchReservableParts
+  searchReservableParts,
+  updateReservation
 } from "../services/reservationsClient";
 import type {
   ReservablePart,
@@ -30,7 +31,8 @@ import type {
   ReservationActivityEntry,
   ReservationCollection,
   ReservationCreatePayload,
-  ReservationStatus
+  ReservationStatus,
+  ReservationUpdatePayload
 } from "../types/reservations";
 
 import "./Reservations.css";
@@ -52,13 +54,24 @@ interface DraftItem {
   part: ReservablePart;
   quantity: number;
   note: string;
+  maxQuantity: number;
+  originalQuantity: number;
+}
+
+// PARTPILOT:RESERVATION_API_DATETIME_UTC:V348
+function parseApiDateTime(value: string): Date {
+  const normalised = value.trim().replace(" ", "T");
+  const zoned = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalised)
+    ? normalised
+    : `${normalised}Z`;
+  return new Date(zoned);
 }
 
 function formatDate(value: string | null): string {
   if (!value) {
     return "No expiry";
   }
-  const date = new Date(value);
+  const date = parseApiDateTime(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
@@ -66,6 +79,66 @@ function formatDate(value: string | null): string {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(date);
+}
+
+function toLocalDateTimeInput(value: string | null): string {
+  if (!value) {
+    return "";
+  }
+  const date = parseApiDateTime(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return [
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+    `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  ].join("T");
+}
+
+// PARTPILOT:RESERVATION_NOOP_GUARD:V348
+function reservationMatchesPayload(
+  reservation: Reservation,
+  payload: ReservationUpdatePayload
+): boolean {
+  const reservationExpiry = reservation.expiry_at
+    ? parseApiDateTime(reservation.expiry_at).getTime()
+    : null;
+  const payloadExpiry = payload.expiry_at
+    ? parseApiDateTime(payload.expiry_at).getTime()
+    : null;
+  if (
+    reservation.label !== payload.label ||
+    reservation.notes !== (payload.notes ?? null) ||
+    reservationExpiry !== payloadExpiry ||
+    reservation.items.length !== payload.items.length
+  ) {
+    return false;
+  }
+
+  const existingItems = [...reservation.items]
+    .map((item) => ({
+      part_id: item.part_id,
+      quantity: Number(item.quantity),
+      note: item.note ?? null
+    }))
+    .sort((left, right) => Number(left.part_id) - Number(right.part_id));
+  const submittedItems = [...payload.items]
+    .map((item) => ({
+      part_id: item.part_id,
+      quantity: Number(item.quantity),
+      note: item.note ?? null
+    }))
+    .sort((left, right) => left.part_id - right.part_id);
+
+  return existingItems.every((item, index) => {
+    const submitted = submittedItems[index];
+    return (
+      item.part_id === submitted.part_id &&
+      item.quantity === submitted.quantity &&
+      item.note === submitted.note
+    );
+  });
 }
 
 function formatMoney(
@@ -131,6 +204,7 @@ function activityTitle(activity: ReservationActivityEntry): string {
 
   const auditTitles: Record<string, string> = {
     "reservation.created": "Reservation created",
+    "reservation.updated": "Reservation updated",
     "reservation.cancelled": "Reservation cancelled",
     "reservation.consumed": "Reservation consumed",
     "reservation.expired": "Reservation expired"
@@ -219,6 +293,9 @@ export function Reservations() {
   const [actionError, setActionError] = useState("");
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingReservationId, setEditingReservationId] = useState<number | null>(
+    null
+  );
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState("");
   const [draftLabel, setDraftLabel] = useState("");
@@ -233,6 +310,7 @@ export function Reservations() {
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
   const activityRequest = useRef(0);
+  const expiryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!token) {
@@ -438,6 +516,7 @@ useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !createSubmitting) {
         setCreateOpen(false);
+        setEditingReservationId(null);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -491,12 +570,79 @@ useEffect(() => {
 
   const openCreate = () => {
     resetCreateForm();
+    setEditingReservationId(null);
+    setCreateOpen(true);
+  };
+
+  const openEdit = () => {
+    if (!selectedReservation || selectedReservation.status !== "active") {
+      return;
+    }
+    if (selectedReservation.items.some((item) => item.part_id === null)) {
+      setActionError(
+        "This reservation contains a deleted part and cannot be edited."
+      );
+      return;
+    }
+
+    resetCreateForm();
+    setActionError("");
+    setEditingReservationId(selectedReservation.id);
+    setDraftLabel(selectedReservation.label);
+    setDraftNotes(selectedReservation.notes ?? "");
+    setDraftExpiry(toLocalDateTimeInput(selectedReservation.expiry_at));
+    setDraftItems(
+      selectedReservation.items.map((item) => {
+        const partId = item.part_id as number;
+        const availableQuantity = Math.max(
+          0,
+          Number(item.available_quantity ?? 0)
+        );
+        const originalQuantity = Math.max(1, Number(item.quantity));
+        return {
+          part: {
+            id: partId,
+            part_number: item.part_number ?? `Part #${partId}`,
+            name: item.part_name ?? "Part name unavailable",
+            total_quantity: Number(item.total_quantity ?? originalQuantity),
+            reserved_quantity: Number(
+              item.reserved_quantity ?? originalQuantity
+            ),
+            available_quantity: availableQuantity
+          },
+          quantity: originalQuantity,
+          note: item.note ?? "",
+          maxQuantity: availableQuantity + originalQuantity,
+          originalQuantity
+        };
+      })
+    );
     setCreateOpen(true);
   };
 
   const closeCreate = () => {
     if (!createSubmitting) {
       setCreateOpen(false);
+      setEditingReservationId(null);
+    }
+  };
+
+  const openExpiryPicker = () => {
+    const input = expiryInputRef.current;
+    if (!input) {
+      return;
+    }
+    const pickerInput = input as HTMLInputElement & {
+      showPicker?: () => void;
+    };
+    try {
+      if (pickerInput.showPicker) {
+        pickerInput.showPicker();
+      } else {
+        input.focus();
+      }
+    } catch {
+      input.focus();
     }
   };
 
@@ -505,7 +651,16 @@ useEffect(() => {
       if (current.some((item) => item.part.id === part.id)) {
         return current;
       }
-      return [...current, { part, quantity: 1, note: "" }];
+      return [
+        ...current,
+        {
+          part,
+          quantity: 1,
+          note: "",
+          maxQuantity: part.available_quantity,
+          originalQuantity: 0
+        }
+      ];
     });
     setPartQuery("");
     setPartOptions([]);
@@ -521,7 +676,7 @@ useEffect(() => {
                 1,
                 Math.min(
                   Number.isFinite(quantity) ? quantity : 1,
-                  item.part.available_quantity
+                  item.maxQuantity
                 )
               )
             }
@@ -572,7 +727,7 @@ useEffect(() => {
       expiryAt = parsed.toISOString();
     }
 
-    const payload: ReservationCreatePayload = {
+    const payload: ReservationCreatePayload | ReservationUpdatePayload = {
       label: draftLabel.trim(),
       notes: draftNotes.trim() || null,
       expiry_at: expiryAt,
@@ -583,17 +738,38 @@ useEffect(() => {
       }))
     };
 
+    if (
+      editingReservationId !== null &&
+      selectedReservation?.id === editingReservationId &&
+      reservationMatchesPayload(selectedReservation, payload)
+    ) {
+      setCreateOpen(false);
+      setEditingReservationId(null);
+      resetCreateForm();
+      return;
+    }
+
     setCreateSubmitting(true);
     setCreateError("");
     try {
-      const created = await createReservation(token, payload);
+      const saved =
+        editingReservationId === null
+          ? await createReservation(token, payload)
+          : await updateReservation(token, editingReservationId, payload);
+      const wasEditing = editingReservationId !== null;
       setCreateOpen(false);
+      setEditingReservationId(null);
       resetCreateForm();
-      setStatusFilter("active");
-      setPageOffset(0);
-      setSelectedId(created.id);
-      setSelectedReservation(created);
+      if (!wasEditing) {
+        setStatusFilter("active");
+        setPageOffset(0);
+      }
+      setSelectedId(saved.id);
+      setSelectedReservation(saved);
       setReloadVersion((value) => value + 1);
+      if (wasEditing) {
+        setActivityReloadVersion((value) => value + 1);
+      }
     } catch (error: unknown) {
       setCreateError(messageFrom(error));
     } finally {
@@ -644,6 +820,8 @@ useEffect(() => {
       className="page-stack reservations-page"
       data-partpilot-marker="PARTPILOT:RESERVATIONS_WORKSPACE:V322"
       data-partpilot-mobile-landing="PARTPILOT:MOBILE_RESERVATION_LANDING:V343"
+      data-partpilot-reservation-edit="PARTPILOT:RESERVATION_EDIT_FRONTEND:V347"
+      data-partpilot-reservation-noop="PARTPILOT:RESERVATION_NOOP_FIX:V348"
     >
       <header className="reservations-header">
         <div className="page-header">
@@ -1052,6 +1230,14 @@ useEffect(() => {
                     className="reservations-button"
                     type="button"
                     disabled={actionName !== null}
+                    onClick={openEdit}
+                  >
+                    Edit reservation
+                  </button>
+                  <button
+                    className="reservations-button"
+                    type="button"
+                    disabled={actionName !== null}
                     onClick={() => void runAction("cancel")}
                   >
                     {actionName === "cancel" ? "Cancelling…" : "Cancel"}
@@ -1087,15 +1273,25 @@ useEffect(() => {
             className="reservation-modal"
             role="dialog"
             aria-modal="true"
-            aria-labelledby="reservation-create-title"
+            aria-labelledby="reservation-form-title"
+            data-partpilot-marker="PARTPILOT:RESERVATION_EDIT_MODAL:V347"
           >
             <header>
               <div>
-                <p className="eyebrow">Reserve inventory</p>
-                <h2 id="reservation-create-title">New reservation</h2>
+                <p className="eyebrow">
+                  {editingReservationId === null
+                    ? "Reserve inventory"
+                    : "Update reservation"}
+                </p>
+                <h2 id="reservation-form-title">
+                  {editingReservationId === null
+                    ? "New reservation"
+                    : "Edit reservation"}
+                </h2>
                 <p>
-                  Select available parts and reserve quantities without changing
-                  physical stock.
+                  {editingReservationId === null
+                    ? "Select available parts and reserve quantities without changing physical stock."
+                    : "Adjust the reservation details, parts, quantities, notes, or expiry."}
                 </p>
               </div>
               <button
@@ -1126,16 +1322,40 @@ useEffect(() => {
                     placeholder="Prototype controller build"
                   />
                 </label>
-                <label>
-                  <span>Expiry</span>
-                  <input
-                    type="datetime-local"
-                    value={draftExpiry}
-                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                      setDraftExpiry(event.currentTarget.value)
-                    }
-                  />
-                </label>
+                <div
+                  className="reservation-expiry-field"
+                  data-partpilot-marker="PARTPILOT:RESERVATION_DATETIME_CONTROL:V348"
+                >
+                  <label htmlFor="reservation-expiry-input">Expiry</label>
+                  <div className="reservation-datetime-control">
+                    <input
+                      id="reservation-expiry-input"
+                      ref={expiryInputRef}
+                      type="datetime-local"
+                      value={draftExpiry}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setDraftExpiry(event.currentTarget.value)
+                      }
+                    />
+                    <button
+                      className="reservation-datetime-button"
+                      type="button"
+                      onClick={openExpiryPicker}
+                      aria-label="Open date and time picker"
+                      title="Choose date and time"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <path d="M7 2v3M17 2v3M3.5 9h17M5.5 4h13a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+                        <path d="M8 13h3v3H8zM14 13h2" />
+                      </svg>
+                    </button>
+                  </div>
+                  <small>Optional · interpreted in your local time</small>
+                </div>
                 <label className="reservation-form-wide">
                   <span>Notes</span>
                   <textarea
@@ -1211,7 +1431,9 @@ useEffect(() => {
                         <strong>{item.part.part_number}</strong>
                         <span>{item.part.name}</span>
                         <small>
-                          {item.part.available_quantity} available
+                          {item.originalQuantity > 0
+                            ? `${item.part.available_quantity} unreserved · ${item.maxQuantity} max here`
+                            : `${item.part.available_quantity} available`}
                         </small>
                       </div>
                       <label>
@@ -1219,7 +1441,7 @@ useEffect(() => {
                         <input
                           type="number"
                           min={1}
-                          max={item.part.available_quantity}
+                          max={item.maxQuantity}
                           value={item.quantity}
                           onChange={(event: ChangeEvent<HTMLInputElement>) =>
                             updateDraftQuantity(
@@ -1275,7 +1497,13 @@ useEffect(() => {
                   type="submit"
                   disabled={createSubmitting || draftItems.length === 0}
                 >
-                  {createSubmitting ? "Creating…" : "Create reservation"}
+                  {createSubmitting
+                    ? editingReservationId === null
+                      ? "Creating…"
+                      : "Saving…"
+                    : editingReservationId === null
+                      ? "Create reservation"
+                      : "Save changes"}
                 </button>
               </footer>
             </form>

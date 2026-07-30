@@ -96,6 +96,9 @@ export interface ReservationCreatePayload {
   items: ReservationCreateItem[];
 }
 
+// PARTPILOT:RESERVATION_EDIT_TYPES:V347
+export type ReservationUpdatePayload = ReservationCreatePayload;
+
 export interface ReservablePart {
   id: number;
   part_number: string;
