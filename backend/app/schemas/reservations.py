@@ -115,3 +115,44 @@ class ReservationCollectionResponse(BaseModel):
     limit: int
     offset: int
     reservations: list[ReservationResponse]
+
+
+# PARTPILOT:RESERVATION_ACTIVITY_SCHEMA:V338
+ReservationActivityKind = Literal["audit", "stock_movement"]
+
+
+class ReservationActivityEntryResponse(BaseModel):
+    key: str
+    kind: ReservationActivityKind
+    event_type: str
+    occurred_at: datetime
+    summary: str | None = None
+    actor_type: str | None = None
+    actor_user_id: int | None = None
+    actor_display_name: str | None = None
+    part_id: int | None = None
+    part_number: str | None = None
+    part_name: str | None = None
+    movement_type: str | None = None
+    quantity: int | None = None
+    quantity_delta: int | None = None
+    quantity_before: int | None = None
+    quantity_after: int | None = None
+    reserved_quantity_before: int | None = None
+    reserved_quantity_after: int | None = None
+    available_quantity_before: int | None = None
+    available_quantity_after: int | None = None
+    reason: str | None = None
+    note: str | None = None
+    source: str | None = None
+    before_json: dict | list | None = None
+    after_json: dict | list | None = None
+    metadata_json: dict | list | None = None
+
+
+class ReservationActivityCollectionResponse(BaseModel):
+    reservation_id: int
+    total: int
+    limit: int
+    offset: int
+    activities: list[ReservationActivityEntryResponse]

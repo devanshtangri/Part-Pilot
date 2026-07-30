@@ -1214,3 +1214,222 @@ def expire_reservation(
         raise
 
     return _serialise_reservation(db, reservation)
+
+
+# PARTPILOT:RESERVATION_ACTIVITY_SERVICE:V338
+def _reservation_activity_timestamp(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def list_reservation_activity(
+    db: Session,
+    reservation_id: int,
+    *,
+    limit: int = 100,
+    offset: int = 0,
+):
+    from app.models import User
+    from app.schemas.reservations import (
+        ReservationActivityCollectionResponse,
+        ReservationActivityEntryResponse,
+    )
+
+    reservation = db.get(Reservation, reservation_id)
+    if reservation is None:
+        raise ReservationNotFoundError("Reservation not found.")
+    if limit < 1 or limit > 200:
+        raise ReservationValidationError(
+            "Reservation activity limit must be between 1 and 200."
+        )
+    if offset < 0:
+        raise ReservationValidationError(
+            "Reservation activity offset cannot be negative."
+        )
+
+    audits = list(
+        db.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.entity_type == "reservation",
+                AuditLog.entity_id == reservation_id,
+            )
+            .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        ).scalars()
+    )
+    movements = list(
+        db.execute(
+            select(StockMovement)
+            .where(StockMovement.reservation_id == reservation_id)
+            .order_by(
+                StockMovement.created_at.desc(),
+                StockMovement.id.desc(),
+            )
+        ).scalars()
+    )
+
+    actor_ids = {
+        actor_id
+        for actor_id in (
+            [audit.actor_user_id for audit in audits]
+            + [movement.actor_user_id for movement in movements]
+        )
+        if actor_id is not None
+    }
+    users = (
+        list(
+            db.execute(
+                select(User).where(User.id.in_(actor_ids))
+            ).scalars()
+        )
+        if actor_ids
+        else []
+    )
+    actor_names = {
+        user.id: (user.display_name.strip() or user.username)
+        for user in users
+    }
+
+    part_ids = {
+        movement.part_id
+        for movement in movements
+        if movement.part_id is not None
+    }
+    parts = (
+        list(
+            db.execute(
+                select(Part).where(Part.id.in_(part_ids))
+            ).scalars()
+        )
+        if part_ids
+        else []
+    )
+    part_map = {part.id: part for part in parts}
+
+    ordered: list[
+        tuple[datetime, int, int, ReservationActivityEntryResponse]
+    ] = []
+
+    for audit in audits:
+        occurred_at = _reservation_activity_timestamp(audit.created_at)
+        ordered.append(
+            (
+                occurred_at,
+                1,
+                audit.id,
+                ReservationActivityEntryResponse(
+                    key=f"audit:{audit.id}",
+                    kind="audit",
+                    event_type=audit.event_type,
+                    occurred_at=occurred_at,
+                    summary=audit.summary,
+                    actor_type=audit.actor_type,
+                    actor_user_id=audit.actor_user_id,
+                    actor_display_name=actor_names.get(
+                        audit.actor_user_id
+                    ),
+                    before_json=audit.before_json,
+                    after_json=audit.after_json,
+                    metadata_json=audit.metadata_json,
+                ),
+            )
+        )
+
+    for movement in movements:
+        occurred_at = _reservation_activity_timestamp(
+            movement.created_at
+        )
+        part = (
+            part_map.get(movement.part_id)
+            if movement.part_id is not None
+            else None
+        )
+        quantity = None
+        if (
+            movement.reserved_quantity_before is not None
+            and movement.reserved_quantity_after is not None
+        ):
+            quantity = abs(
+                int(movement.reserved_quantity_after)
+                - int(movement.reserved_quantity_before)
+            )
+        if (
+            not quantity
+            and movement.quantity_delta is not None
+        ):
+            quantity = abs(int(movement.quantity_delta))
+
+        ordered.append(
+            (
+                occurred_at,
+                0,
+                movement.id,
+                ReservationActivityEntryResponse(
+                    key=f"movement:{movement.id}",
+                    kind="stock_movement",
+                    event_type=(
+                        f"stock.{movement.movement_type}"
+                    ),
+                    occurred_at=occurred_at,
+                    summary=(
+                        movement.reason
+                        or (
+                            f"{movement.movement_type.title()} "
+                            "inventory movement"
+                        )
+                    ),
+                    actor_type=(
+                        "user"
+                        if movement.actor_user_id is not None
+                        else movement.source
+                    ),
+                    actor_user_id=movement.actor_user_id,
+                    actor_display_name=actor_names.get(
+                        movement.actor_user_id
+                    ),
+                    part_id=movement.part_id,
+                    part_number=(
+                        part.part_number if part is not None else None
+                    ),
+                    part_name=(
+                        part.name if part is not None else None
+                    ),
+                    movement_type=movement.movement_type,
+                    quantity=quantity,
+                    quantity_delta=movement.quantity_delta,
+                    quantity_before=movement.quantity_before,
+                    quantity_after=movement.quantity_after,
+                    reserved_quantity_before=(
+                        movement.reserved_quantity_before
+                    ),
+                    reserved_quantity_after=(
+                        movement.reserved_quantity_after
+                    ),
+                    available_quantity_before=(
+                        movement.available_quantity_before
+                    ),
+                    available_quantity_after=(
+                        movement.available_quantity_after
+                    ),
+                    reason=movement.reason,
+                    note=movement.note,
+                    source=movement.source,
+                ),
+            )
+        )
+
+    ordered.sort(
+        key=lambda item: (item[0], item[1], item[2]),
+        reverse=True,
+    )
+    total = len(ordered)
+    selected = ordered[offset : offset + limit]
+
+    return ReservationActivityCollectionResponse(
+        reservation_id=reservation_id,
+        total=total,
+        limit=limit,
+        offset=offset,
+        activities=[item[3] for item in selected],
+    )

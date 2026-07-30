@@ -2668,6 +2668,436 @@ def check_reservation_expiry_api() -> None:
     )
 
 
+
+# PARTPILOT:RESERVATION_ACTIVITY_API_SMOKE:V338
+def check_reservation_activity_api() -> None:
+    from datetime import datetime
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_reservation_activity_{suffix}"
+    password = "reservation-activity-smoke-password"
+    part_ids: list[int] = []
+    reservation_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if reservation_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'reservation' "
+                        "and entity_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where reservation_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from reservation_items "
+                        "where reservation_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from reservations "
+                        "where id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+
+            if part_ids:
+                placeholders = ", ".join(
+                    f":part_id_{index}"
+                    for index, _value in enumerate(part_ids)
+                )
+                params = {
+                    f"part_id_{index}": value
+                    for index, value in enumerate(part_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where part_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from parts "
+                        f"where id in ({placeholders})"
+                    ),
+                    params,
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    def reservation_rows() -> dict[str, list[dict]]:
+        if reservation_id is None:
+            fail("Reservation activity fixture ID is unresolved")
+        with db_session() as db:
+            return {
+                "reservation": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from reservations "
+                            "where id = :reservation_id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ],
+                "items": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from reservation_items "
+                            "where reservation_id = :reservation_id "
+                            "order by id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ],
+                "movements": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from stock_movements "
+                            "where reservation_id = :reservation_id "
+                            "order by id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ],
+                "audits": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from audit_log "
+                            "where entity_type = 'reservation' "
+                            "and entity_id = :reservation_id "
+                            "order by id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ],
+                "parts": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select id, total_quantity, "
+                            "reserved_quantity, updated_at "
+                            "from parts where id in (:first, :second) "
+                            "order by id"
+                        ),
+                        {
+                            "first": part_ids[0],
+                            "second": part_ids[1],
+                        },
+                    ).mappings()
+                ],
+            }
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.get(
+            "/api/reservations/999999999/activity"
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Reservation activity should require authentication, "
+                f"got {unauthenticated.status_code}"
+            )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail(
+                    "Reservation activity smoke requires an active "
+                    "part type"
+                )
+
+            user = create_user(
+                db,
+                username=username,
+                display_name="Reservation Activity Smoke User",
+                password=password,
+                commit=True,
+            )
+            token = create_session(db, user=user, commit=True)
+
+            first = Part(
+                part_type_id=int(part_type_id),
+                part_number=f"SMOKE-ACTIVITY-A-{suffix}",
+                name="Reservation activity smoke part A",
+                total_quantity=9,
+                reserved_quantity=0,
+                is_deleted=False,
+                deleted_at=None,
+            )
+            second = Part(
+                part_type_id=int(part_type_id),
+                part_number=f"SMOKE-ACTIVITY-B-{suffix}",
+                name="Reservation activity smoke part B",
+                total_quantity=6,
+                reserved_quantity=0,
+                is_deleted=False,
+                deleted_at=None,
+            )
+            db.add(first)
+            db.add(second)
+            db.commit()
+            db.refresh(first)
+            db.refresh(second)
+            part_ids.extend([first.id, second.id])
+
+        headers = {
+            "Authorization": f"Bearer {token.token}"
+        }
+        created = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Reservation activity smoke",
+                "notes": "Read-only activity contract",
+                "items": [
+                    {
+                        "part_id": part_ids[0],
+                        "quantity": 2,
+                        "note": "Primary activity fixture",
+                    },
+                    {
+                        "part_id": part_ids[1],
+                        "quantity": 1,
+                    },
+                ],
+            },
+        )
+        if created.status_code != 201:
+            fail(
+                "Reservation activity fixture creation failed: "
+                f"{created.status_code}: {created.text}"
+            )
+        reservation_id = int(created.json()["id"])
+        before = reservation_rows()
+
+        response = client.get(
+            f"/api/reservations/{reservation_id}/activity",
+            headers=headers,
+        )
+        if response.status_code != 200:
+            fail(
+                "Reservation activity returned "
+                f"{response.status_code}: {response.text}"
+            )
+        payload = response.json()
+        activities = payload.get("activities", [])
+        if (
+            int(payload.get("reservation_id", 0)) != reservation_id
+            or int(payload.get("total", -1)) != 3
+            or int(payload.get("limit", -1)) != 100
+            or int(payload.get("offset", -1)) != 0
+            or len(activities) != 3
+        ):
+            fail(
+                "Reservation activity collection is incorrect: "
+                f"{payload}"
+            )
+
+        keys = [str(item.get("key")) for item in activities]
+        if len(keys) != len(set(keys)):
+            fail(
+                "Reservation activity keys are not unique: "
+                f"{keys}"
+            )
+
+        audit_entries = [
+            item for item in activities
+            if item.get("kind") == "audit"
+        ]
+        movement_entries = [
+            item for item in activities
+            if item.get("kind") == "stock_movement"
+        ]
+        if (
+            len(audit_entries) != 1
+            or len(movement_entries) != 2
+        ):
+            fail(
+                "Reservation activity source counts are incorrect: "
+                f"{activities}"
+            )
+
+        audit = audit_entries[0]
+        if (
+            audit.get("event_type") != "reservation.created"
+            or audit.get("actor_type") != "user"
+            or audit.get("actor_display_name")
+            != "Reservation Activity Smoke User"
+            or not str(audit.get("summary", "")).startswith(
+                "Created reservation Reservation activity smoke"
+            )
+        ):
+            fail(
+                "Reservation activity audit entry is incorrect: "
+                f"{audit}"
+            )
+
+        expected_movements = {
+            part_ids[0]: {
+                "part_number": f"SMOKE-ACTIVITY-A-{suffix}",
+                "quantity": 2,
+                "quantity_before": 9,
+                "quantity_after": 9,
+                "reserved_quantity_before": 0,
+                "reserved_quantity_after": 2,
+                "available_quantity_before": 9,
+                "available_quantity_after": 7,
+                "note": "Primary activity fixture",
+            },
+            part_ids[1]: {
+                "part_number": f"SMOKE-ACTIVITY-B-{suffix}",
+                "quantity": 1,
+                "quantity_before": 6,
+                "quantity_after": 6,
+                "reserved_quantity_before": 0,
+                "reserved_quantity_after": 1,
+                "available_quantity_before": 6,
+                "available_quantity_after": 5,
+                "note": None,
+            },
+        }
+        for movement in movement_entries:
+            part_id = int(movement.get("part_id", 0))
+            expected = expected_movements.get(part_id)
+            actual = {
+                key: movement.get(key)
+                for key in expected
+            } if expected is not None else None
+            if (
+                expected is None
+                or movement.get("event_type") != "stock.reserve"
+                or movement.get("movement_type") != "reserve"
+                or movement.get("quantity_delta") != 0
+                or movement.get("source") != "manual"
+                or movement.get("actor_type") != "user"
+                or movement.get("actor_display_name")
+                != "Reservation Activity Smoke User"
+                or actual != expected
+            ):
+                fail(
+                    "Reservation activity movement entry is incorrect: "
+                    f"{movement}"
+                )
+
+        timestamps = [
+            datetime.fromisoformat(
+                str(item["occurred_at"]).replace("Z", "+00:00")
+            )
+            for item in activities
+        ]
+        if timestamps != sorted(timestamps, reverse=True):
+            fail(
+                "Reservation activity is not newest-first: "
+                f"{timestamps}"
+            )
+
+        paged = client.get(
+            f"/api/reservations/{reservation_id}/activity",
+            headers=headers,
+            params={"limit": 2, "offset": 1},
+        )
+        if paged.status_code != 200:
+            fail(
+                "Reservation activity pagination returned "
+                f"{paged.status_code}: {paged.text}"
+            )
+        paged_payload = paged.json()
+        if (
+            paged_payload.get("total") != 3
+            or paged_payload.get("limit") != 2
+            or paged_payload.get("offset") != 1
+            or paged_payload.get("activities")
+            != activities[1:3]
+        ):
+            fail(
+                "Reservation activity pagination is incorrect: "
+                f"{paged_payload}"
+            )
+
+        missing = client.get(
+            f"/api/reservations/{reservation_id + 999999}/activity",
+            headers=headers,
+        )
+        if missing.status_code != 404:
+            fail(
+                "Missing reservation activity should return 404, got "
+                f"{missing.status_code}: {missing.text}"
+            )
+
+        invalid = client.get(
+            f"/api/reservations/{reservation_id}/activity",
+            headers=headers,
+            params={"limit": 0},
+        )
+        if invalid.status_code != 422:
+            fail(
+                "Invalid reservation activity limit should return 422, "
+                f"got {invalid.status_code}: {invalid.text}"
+            )
+
+        after = reservation_rows()
+        if after != before:
+            fail(
+                "Reservation activity reads changed fixture data"
+            )
+    finally:
+        cleanup()
+
+    ok(
+        "Protected reservation activity is read-only, newest-first, "
+        "paginated, actor-attributed, part-aware, and existing-data-safe"
+    )
+
+
 def check_phase3_auth_foundation() -> None:
     password_hash = hash_password("partpilot-smoke-password")
 
@@ -9435,6 +9865,7 @@ def main() -> None:
         check_reservation_cancellation_api,
         check_reservation_consumption_api,
         check_reservation_expiry_api,
+        check_reservation_activity_api,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,

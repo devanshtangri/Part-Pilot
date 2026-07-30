@@ -189,3 +189,41 @@ def expire_reservation_record(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+
+
+# PARTPILOT:RESERVATION_ACTIVITY_ROUTE:V338
+from app.schemas.reservations import (
+    ReservationActivityCollectionResponse,
+)
+from app.services.reservations import list_reservation_activity
+
+
+@router.get(
+    "/{reservation_id}/activity",
+    response_model=ReservationActivityCollectionResponse,
+)
+def read_reservation_activity(
+    reservation_id: int,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationActivityCollectionResponse:
+    del current_user
+    try:
+        return list_reservation_activity(
+            db,
+            reservation_id,
+            limit=limit,
+            offset=offset,
+        )
+    except ReservationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ReservationValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
