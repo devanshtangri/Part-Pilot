@@ -1935,6 +1935,447 @@ def check_reservation_edit_api() -> None:
     )
 
 
+# PARTPILOT:RESERVATION_DELETE_API_SMOKE:V351
+def check_reservation_delete_api() -> None:
+    import json
+
+    from datetime import datetime, timedelta, timezone
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part, Reservation
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_reservation_delete_{suffix}"
+    password = "reservation-delete-smoke-password"
+    part_number = f"SMOKE-RESERVATION-DELETE-{suffix}"
+    part_id: int | None = None
+    reservation_ids: list[int] = []
+    movement_ids: list[int] = []
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if reservation_ids:
+                placeholders = ", ".join(
+                    f":reservation_id_{index}"
+                    for index, _value in enumerate(reservation_ids)
+                )
+                params = {
+                    f"reservation_id_{index}": value
+                    for index, value in enumerate(reservation_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'reservation' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from reservation_items "
+                        f"where reservation_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from reservations "
+                        f"where id in ({placeholders})"
+                    ),
+                    params,
+                )
+            if movement_ids:
+                placeholders = ", ".join(
+                    f":movement_id_{index}"
+                    for index, _value in enumerate(movement_ids)
+                )
+                params = {
+                    f"movement_id_{index}": value
+                    for index, value in enumerate(movement_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where id in ({placeholders})"
+                    ),
+                    params,
+                )
+            if part_id is not None:
+                db.execute(
+                    text(
+                        "update parts set reserved_quantity = 0 "
+                        "where id = :part_id"
+                    ),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from stock_movements where part_id = :part_id"),
+                    {"part_id": part_id},
+                )
+                db.execute(
+                    text("delete from parts where id = :part_id"),
+                    {"part_id": part_id},
+                )
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    def inventory_snapshot() -> dict[str, int]:
+        with db_session() as db:
+            row = db.execute(
+                text(
+                    "select count(*) active_parts, "
+                    "coalesce(sum(total_quantity), 0) total_quantity, "
+                    "coalesce(sum(reserved_quantity), 0) reserved_quantity, "
+                    "coalesce(sum(total_quantity - reserved_quantity), 0) "
+                    "available_quantity from parts where is_deleted = 0"
+                )
+            ).mappings().one()
+            return {key: int(row[key]) for key in row.keys()}
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.request(
+            "DELETE",
+            "/api/reservations/999999999",
+            json={"confirmation_label": "Unauthenticated"},
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Reservation deletion should require authentication, got "
+                f"{unauthenticated.status_code}"
+            )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail("Reservation deletion smoke requires an active part type")
+            user = create_user(
+                db,
+                username=username,
+                display_name="Reservation Delete Smoke User",
+                password=password,
+                commit=True,
+            )
+            token = create_session(db, user=user, commit=True)
+            fixture = Part(
+                part_type_id=int(part_type_id),
+                part_number=part_number,
+                name="Reservation deletion smoke part",
+                total_quantity=20,
+                reserved_quantity=0,
+                unit_price=Decimal("3.00"),
+                is_deleted=False,
+                deleted_at=None,
+            )
+            db.add(fixture)
+            db.commit()
+            db.refresh(fixture)
+            part_id = fixture.id
+
+        headers = {"Authorization": f"Bearer {token.token}"}
+        fixtures: dict[str, dict[str, object]] = {}
+        for status_name in ("active", "cancelled", "consumed", "expired"):
+            label = f"Reservation delete {status_name} {suffix}"
+            created = client.post(
+                "/api/reservations",
+                headers=headers,
+                json={
+                    "label": label,
+                    "expiry_at": (
+                        datetime.now(timezone.utc) + timedelta(days=2)
+                    ).isoformat() if status_name == "expired" else None,
+                    "items": [{"part_id": part_id, "quantity": 1}],
+                },
+            )
+            if created.status_code != 201:
+                fail(
+                    f"Reservation deletion {status_name} fixture failed: "
+                    f"{created.status_code}: {created.text}"
+                )
+            reservation_id = int(created.json()["id"])
+            reservation_ids.append(reservation_id)
+            fixtures[status_name] = {"id": reservation_id, "label": label}
+
+        cancelled = client.post(
+            f"/api/reservations/{fixtures['cancelled']['id']}/cancel",
+            headers=headers,
+        )
+        if cancelled.status_code != 200:
+            fail(f"Cancellation fixture failed: {cancelled.text}")
+        consumed = client.post(
+            f"/api/reservations/{fixtures['consumed']['id']}/consume",
+            headers=headers,
+        )
+        if consumed.status_code != 200:
+            fail(f"Consumption fixture failed: {consumed.text}")
+        with db_session() as db:
+            expiry_fixture = db.get(
+                Reservation,
+                int(fixtures["expired"]["id"]),
+            )
+            if expiry_fixture is None:
+                fail("Expiry deletion fixture disappeared")
+            expiry_fixture.expiry_at = (
+                datetime.now(timezone.utc) - timedelta(minutes=5)
+            )
+            db.commit()
+        expired = client.post(
+            f"/api/reservations/{fixtures['expired']['id']}/expire",
+            headers=headers,
+        )
+        if expired.status_code != 200:
+            fail(f"Expiry fixture failed: {expired.status_code}: {expired.text}")
+
+        missing = client.request(
+            "DELETE",
+            "/api/reservations/999999999",
+            headers=headers,
+            json={"confirmation_label": "Missing reservation"},
+        )
+        if missing.status_code != 404:
+            fail(
+                "Missing reservation deletion should return 404, got "
+                f"{missing.status_code}: {missing.text}"
+            )
+
+        active_id = int(fixtures["active"]["id"])
+        before_active = inventory_snapshot()
+        active = client.request(
+            "DELETE",
+            f"/api/reservations/{active_id}",
+            headers=headers,
+            json={"confirmation_label": fixtures["active"]["label"]},
+        )
+        if active.status_code != 409:
+            fail(
+                "Active reservation deletion should return 409, got "
+                f"{active.status_code}: {active.text}"
+            )
+        if inventory_snapshot() != before_active:
+            fail("Rejected active reservation deletion changed inventory")
+
+        cancelled_id = int(fixtures["cancelled"]["id"])
+        before_wrong = inventory_snapshot()
+        wrong = client.request(
+            "DELETE",
+            f"/api/reservations/{cancelled_id}",
+            headers=headers,
+            json={"confirmation_label": "Wrong confirmation label"},
+        )
+        if wrong.status_code != 422:
+            fail(
+                "Wrong reservation confirmation should return 422, got "
+                f"{wrong.status_code}: {wrong.text}"
+            )
+        if inventory_snapshot() != before_wrong:
+            fail("Rejected confirmation changed inventory")
+
+        for status_name in ("cancelled", "consumed", "expired"):
+            reservation_id = int(fixtures[status_name]["id"])
+            label = str(fixtures[status_name]["label"])
+            with db_session() as db:
+                before_movements = [
+                    int(value)
+                    for value in db.execute(
+                        text(
+                            "select id from stock_movements "
+                            "where reservation_id = :reservation_id order by id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).scalars()
+                ]
+                movement_ids.extend(before_movements)
+                before_audits = int(
+                    db.execute(
+                        text(
+                            "select count(*) from audit_log "
+                            "where entity_type = 'reservation' "
+                            "and entity_id = :reservation_id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).scalar_one()
+                )
+                before_items = int(
+                    db.execute(
+                        text(
+                            "select count(*) from reservation_items "
+                            "where reservation_id = :reservation_id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).scalar_one()
+                )
+            before_inventory = inventory_snapshot()
+            deleted = client.request(
+                "DELETE",
+                f"/api/reservations/{reservation_id}",
+                headers=headers,
+                json={"confirmation_label": label},
+            )
+            if deleted.status_code != 200:
+                fail(
+                    f"{status_name.title()} reservation deletion failed: "
+                    f"{deleted.status_code}: {deleted.text}"
+                )
+            payload = deleted.json()
+            if (
+                int(payload.get("id", -1)) != reservation_id
+                or payload.get("label") != label
+                or payload.get("previous_status") != status_name
+                or payload.get("deleted") is not True
+                or int(payload.get("removed_item_count", -1)) != before_items
+                or int(payload.get("detached_movement_count", -1))
+                != len(before_movements)
+                or not payload.get("deleted_at")
+            ):
+                fail(f"Reservation deletion response is wrong: {payload}")
+            if inventory_snapshot() != before_inventory:
+                fail(f"Deleting {status_name} reservation changed inventory")
+
+            with db_session() as db:
+                if db.execute(
+                    text("select 1 from reservations where id = :id"),
+                    {"id": reservation_id},
+                ).scalar() is not None:
+                    fail("Deleted reservation row remains")
+                if int(db.execute(
+                    text(
+                        "select count(*) from reservation_items "
+                        "where reservation_id = :id"
+                    ),
+                    {"id": reservation_id},
+                ).scalar_one()) != 0:
+                    fail("Deleted reservation items remain")
+                detached = [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select id, reservation_id from stock_movements "
+                            "where id in ("
+                            + ", ".join(
+                                f":movement_{index}"
+                                for index, _value in enumerate(before_movements)
+                            )
+                            + ") order by id"
+                        ),
+                        {
+                            f"movement_{index}": value
+                            for index, value in enumerate(before_movements)
+                        },
+                    ).mappings()
+                ] if before_movements else []
+                if (
+                    [int(row["id"]) for row in detached] != before_movements
+                    or any(row["reservation_id"] is not None for row in detached)
+                ):
+                    fail(f"Stock movements were not detached: {detached}")
+                audits = [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from audit_log "
+                            "where entity_type = 'reservation' "
+                            "and entity_id = :reservation_id order by id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ]
+                if len(audits) != before_audits + 1:
+                    fail(f"Reservation audit history was not retained: {audits}")
+                deletion_audits = [
+                    row for row in audits
+                    if row["event_type"] == "reservation.deleted"
+                ]
+                if len(deletion_audits) != 1:
+                    fail(f"Deletion audit count is wrong: {audits}")
+                audit = deletion_audits[0]
+                before_json = audit["before_json"]
+                after_json = audit["after_json"]
+                metadata_json = audit["metadata_json"]
+                if isinstance(before_json, str):
+                    before_json = json.loads(before_json)
+                if isinstance(after_json, str):
+                    after_json = json.loads(after_json)
+                if isinstance(metadata_json, str):
+                    metadata_json = json.loads(metadata_json)
+                if (
+                    before_json.get("id") != reservation_id
+                    or before_json.get("status") != status_name
+                    or before_json.get("label") != label
+                    or len(before_json.get("items", [])) != before_items
+                    or before_json.get("movement_ids") != before_movements
+                    or after_json.get("deleted") is not True
+                    or metadata_json.get("retained_stock_movement_ids")
+                    != before_movements
+                    or metadata_json.get("inventory_unchanged") is not True
+                ):
+                    fail(f"Deletion audit is incomplete: {audit}")
+
+            repeated = client.request(
+                "DELETE",
+                f"/api/reservations/{reservation_id}",
+                headers=headers,
+                json={"confirmation_label": label},
+            )
+            if repeated.status_code != 404:
+                fail(
+                    "Repeated reservation deletion should return 404, got "
+                    f"{repeated.status_code}: {repeated.text}"
+                )
+            with db_session() as db:
+                deletion_count = int(
+                    db.execute(
+                        text(
+                            "select count(*) from audit_log "
+                            "where entity_type = 'reservation' "
+                            "and entity_id = :reservation_id "
+                            "and event_type = 'reservation.deleted'"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).scalar_one()
+                )
+                if deletion_count != 1:
+                    fail("Repeated delete created duplicate deletion audit")
+
+        active_cancel = client.post(
+            f"/api/reservations/{active_id}/cancel",
+            headers=headers,
+        )
+        if active_cancel.status_code != 200:
+            fail(f"Active cleanup cancellation failed: {active_cancel.text}")
+
+    finally:
+        cleanup()
+
+    ok(
+        "Protected inactive reservation deletion requires exact confirmation, "
+        "rejects active and missing records, removes items, detaches immutable "
+        "movements, retains complete audit history, preserves inventory, "
+        "supports cancelled/consumed/expired records, and cleans fixture IDs"
+    )
+
+
 # PARTPILOT:RESERVATION_CANCELLATION_API_SMOKE:V306
 def check_reservation_cancellation_api() -> None:
     from fastapi.testclient import TestClient
@@ -10443,6 +10884,7 @@ def main() -> None:
         check_reservation_expiry_api,
         check_reservation_activity_api,
         check_reservation_edit_api,
+        check_reservation_delete_api,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,

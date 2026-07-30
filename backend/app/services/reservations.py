@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,8 @@ from app.models import (
 from app.schemas.reservations import (
     ReservationCollectionResponse,
     ReservationCreateRequest,
+    ReservationDeleteRequest,
+    ReservationDeleteResponse,
     ReservationUpdateRequest,
     ReservationItemCreateRequest,
     ReservationItemResponse,
@@ -1591,6 +1593,250 @@ def expire_reservation(
         raise
 
     return _serialise_reservation(db, reservation)
+
+
+# PARTPILOT:RESERVATION_DELETE_SERVICE:V351
+def _reservation_delete_timestamp(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat()
+
+
+def _reservation_delete_inventory_snapshot(db: Session) -> dict[str, int]:
+    row = db.execute(
+        select(
+            func.count(Part.id),
+            func.coalesce(func.sum(Part.total_quantity), 0),
+            func.coalesce(func.sum(Part.reserved_quantity), 0),
+            func.coalesce(
+                func.sum(Part.total_quantity - Part.reserved_quantity),
+                0,
+            ),
+        ).where(Part.is_deleted.is_(False))
+    ).one()
+    return {
+        "active_parts": int(row[0]),
+        "total_quantity": int(row[1]),
+        "reserved_quantity": int(row[2]),
+        "available_quantity": int(row[3]),
+    }
+
+
+def delete_reservation(
+    db: Session,
+    reservation_id: int,
+    payload: ReservationDeleteRequest,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> ReservationDeleteResponse:
+    reservation = db.execute(
+        select(Reservation)
+        .where(Reservation.id == reservation_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if reservation is None:
+        raise ReservationNotFoundError("Reservation not found.")
+    if reservation.status == RESERVATION_STATUS_ACTIVE:
+        raise ReservationConflictError(
+            "Active reservations cannot be deleted. Cancel, consume, or "
+            "expire the reservation first."
+        )
+    if reservation.status not in {
+        RESERVATION_STATUS_CANCELLED,
+        RESERVATION_STATUS_CONSUMED,
+        RESERVATION_STATUS_EXPIRED,
+    }:
+        raise ReservationConflictError(
+            f"Reservation status {reservation.status!r} cannot be deleted."
+        )
+    if payload.confirmation_label != reservation.label:
+        raise ReservationValidationError(
+            "Confirmation label does not match the reservation label."
+        )
+
+    items = list(
+        db.execute(
+            select(ReservationItem)
+            .where(ReservationItem.reservation_id == reservation.id)
+            .order_by(ReservationItem.id.asc())
+        ).scalars()
+    )
+    movement_ids = list(
+        db.execute(
+            select(StockMovement.id)
+            .where(StockMovement.reservation_id == reservation.id)
+            .order_by(StockMovement.id.asc())
+        ).scalars()
+    )
+    prior_audit_count = int(
+        db.execute(
+            select(func.count(AuditLog.id)).where(
+                AuditLog.entity_type == "reservation",
+                AuditLog.entity_id == reservation.id,
+            )
+        ).scalar_one()
+    )
+    inventory_before = _reservation_delete_inventory_snapshot(db)
+    deleted_at = datetime.now(timezone.utc)
+    previous_status = reservation.status
+    snapshot = {
+        "id": reservation.id,
+        "project_id": reservation.project_id,
+        "label": reservation.label,
+        "status": reservation.status,
+        "notes": reservation.notes,
+        "created_by": reservation.created_by,
+        "expiry_at": _reservation_delete_timestamp(reservation.expiry_at),
+        "estimated_reserved_value": (
+            str(reservation.estimated_reserved_value)
+            if reservation.estimated_reserved_value is not None
+            else None
+        ),
+        "currency_snapshot": reservation.currency_snapshot,
+        "created_at": _reservation_delete_timestamp(reservation.created_at),
+        "updated_at": _reservation_delete_timestamp(reservation.updated_at),
+        "items": [
+            {
+                "id": item.id,
+                "reservation_id": item.reservation_id,
+                "part_id": item.part_id,
+                "quantity": int(item.quantity),
+                "unit_price_snapshot": (
+                    str(item.unit_price_snapshot)
+                    if item.unit_price_snapshot is not None
+                    else None
+                ),
+                "currency_snapshot": item.currency_snapshot,
+                "note": item.note,
+                "created_at": _reservation_delete_timestamp(item.created_at),
+                "updated_at": _reservation_delete_timestamp(item.updated_at),
+            }
+            for item in items
+        ],
+        "movement_ids": movement_ids,
+        "prior_audit_count": prior_audit_count,
+        "inventory": inventory_before,
+    }
+    response = ReservationDeleteResponse(
+        id=reservation.id,
+        label=reservation.label,
+        previous_status=reservation.status,
+        deleted=True,
+        removed_item_count=len(items),
+        detached_movement_count=len(movement_ids),
+        deleted_at=deleted_at,
+    )
+
+    try:
+        db.add(
+            AuditLog(
+                event_type="reservation.deleted",
+                entity_type="reservation",
+                entity_id=reservation.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=f"Deleted {previous_status} reservation {reservation.label}",
+                before_json=snapshot,
+                after_json={
+                    "id": response.id,
+                    "label": response.label,
+                    "previous_status": response.previous_status,
+                    "deleted": True,
+                    "removed_item_count": response.removed_item_count,
+                    "detached_movement_count": response.detached_movement_count,
+                    "deleted_at": deleted_at.isoformat(),
+                },
+                metadata_json={
+                    "source": SOURCE_MANUAL,
+                    "project_id": reservation.project_id,
+                    "retained_prior_audit_count": prior_audit_count,
+                    "retained_stock_movement_ids": movement_ids,
+                    "inventory_unchanged": True,
+                },
+            )
+        )
+        deleted = db.execute(
+            delete(Reservation).where(
+                Reservation.id == reservation.id,
+                Reservation.status == previous_status,
+            )
+        )
+        if deleted.rowcount != 1:
+            raise ReservationConflictError(
+                "Reservation changed while deletion was in progress."
+            )
+        db.flush()
+
+        if db.get(Reservation, response.id) is not None:
+            raise ReservationConflictError(
+                "Reservation row remained after deletion."
+            )
+        remaining_items = int(
+            db.execute(
+                select(func.count(ReservationItem.id)).where(
+                    ReservationItem.reservation_id == response.id
+                )
+            ).scalar_one()
+        )
+        if remaining_items != 0:
+            raise ReservationConflictError(
+                "Reservation items remained after deletion."
+            )
+        if movement_ids:
+            detached = list(
+                db.execute(
+                    select(
+                        StockMovement.id,
+                        StockMovement.reservation_id,
+                    )
+                    .where(StockMovement.id.in_(movement_ids))
+                    .order_by(StockMovement.id.asc())
+                ).all()
+            )
+            if (
+                len(detached) != len(movement_ids)
+                or [int(row[0]) for row in detached] != movement_ids
+                or any(row[1] is not None for row in detached)
+            ):
+                raise ReservationConflictError(
+                    "Reservation stock movements were not safely detached."
+                )
+        audit_count = int(
+            db.execute(
+                select(func.count(AuditLog.id)).where(
+                    AuditLog.entity_type == "reservation",
+                    AuditLog.entity_id == response.id,
+                )
+            ).scalar_one()
+        )
+        if audit_count != prior_audit_count + 1:
+            raise ReservationConflictError(
+                "Reservation audit history was not retained correctly."
+            )
+        if _reservation_delete_inventory_snapshot(db) != inventory_before:
+            raise ReservationConflictError(
+                "Reservation deletion attempted to change inventory."
+            )
+
+        if commit:
+            db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise ReservationConflictError(
+            "Reservation deletion conflicted with current data."
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return response
 
 
 # PARTPILOT:RESERVATION_ACTIVITY_SERVICE:V338

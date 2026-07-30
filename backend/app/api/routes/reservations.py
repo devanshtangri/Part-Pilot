@@ -10,6 +10,8 @@ from app.db.session import get_db
 from app.schemas.reservations import (
     ReservationCollectionResponse,
     ReservationCreateRequest,
+    ReservationDeleteRequest,
+    ReservationDeleteResponse,
     ReservationUpdateRequest,
     ReservationResponse,
 )
@@ -21,6 +23,7 @@ from app.services.reservations import (
     consume_reservation,
     expire_reservation,
     create_reservation,
+    delete_reservation,
     get_reservation,
     list_reservations,
     update_reservation,
@@ -121,6 +124,42 @@ def update_reservation_record(
 ) -> ReservationResponse:
     try:
         return update_reservation(
+            db,
+            reservation_id,
+            payload,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ReservationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ReservationConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except ReservationValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+# PARTPILOT:RESERVATION_DELETE_ROUTE:V351
+@router.delete(
+    "/{reservation_id}",
+    response_model=ReservationDeleteResponse,
+)
+def delete_reservation_record(
+    reservation_id: int,
+    payload: ReservationDeleteRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationDeleteResponse:
+    try:
+        return delete_reservation(
             db,
             reservation_id,
             payload,

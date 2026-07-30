@@ -123,6 +123,31 @@ class ReservationCollectionResponse(BaseModel):
     reservations: list[ReservationResponse]
 
 
+# PARTPILOT:RESERVATION_DELETE_SCHEMA:V351
+class ReservationDeleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirmation_label: str = Field(min_length=1, max_length=180)
+
+    @field_validator("confirmation_label")
+    @classmethod
+    def clean_confirmation_label(cls, value: str) -> str:
+        cleaned = " ".join(value.split())
+        if not cleaned:
+            raise ValueError("Reservation confirmation label is required")
+        return cleaned
+
+
+class ReservationDeleteResponse(BaseModel):
+    id: int
+    label: str
+    previous_status: ReservationStatus
+    deleted: bool
+    removed_item_count: int
+    detached_movement_count: int
+    deleted_at: datetime
+
+
 # PARTPILOT:RESERVATION_ACTIVITY_SCHEMA:V338
 ReservationActivityKind = Literal["audit", "stock_movement"]
 
