@@ -7,9 +7,24 @@
 **HEAD/origin before diagnostic:** `aa31d3bba485514da811dff44f3d023ed86f3f96`
 **Alembic:** `0006_reservation_contract`
 **Application source changed:** no
-**Live database changed:** no
+**Patch 366 live-database result:** three `app_settings.updated_at` timestamps advanced because the smoke override used `DATABASE_URL` instead of `PARTPILOT_DATABASE_URL`; setting values and all protected records were preserved
 **Deployment changed:** no
-**Full smoke suite:** passed against an isolated SQLite copy
+**Full smoke suite:** Patch 366 copy claim superseded; Patch 367 reran the suite against an isolated copy with the correct setting alias
+**Recovery:** Patch 367
+
+## Patch 367 recovery correction
+
+Patch 366's product and schema findings remain valid, but its copied-database
+smoke evidence was incorrect. The command supplied `DATABASE_URL`, while Part
+Pilot reads the Pydantic alias `PARTPILOT_DATABASE_URL`. The smoke suite therefore
+used live SQLite, restored all values and fixture rows, and advanced only three
+`app_settings.updated_at` timestamps during the 17:58:38Z smoke window.
+
+Patch 367 reproduced the smoke suite against a disposable copy using the correct
+alias. Every table except `app_settings` remained logically identical. Within
+`app_settings`, only IDs 7, 9 and 10 advanced `updated_at`; their keys, JSON/text
+values, IDs and created timestamps remained identical. The live database remained
+logically identical throughout Patch 367.
 
 ## Executive decision
 
@@ -595,12 +610,19 @@ Projects UI lifecycle boundaries:
 
 Projects OpenAPI paths: `[]`.
 
-The current full smoke suite passed against a consistent copied database and left
-that copy byte-for-byte unchanged:
+Patch 367 reran the complete suite against a consistent copied database using
+`PARTPILOT_DATABASE_URL`:
 
-- Before SHA-256: `332a01a6a5d84524c48a9d04cd36511a2e34480eb7b2105e9a8b2656e9f4fd31`
-- After SHA-256: `332a01a6a5d84524c48a9d04cd36511a2e34480eb7b2105e9a8b2656e9f4fd31`
+- Before SHA-256: `9f28421f7ea8882f6e3bfdbb22bcafdf7c0ae47703b6fe3ae352d16cdefbecdb`
+- After SHA-256: `d660646bbe1e0a86215d25af399198dbc320fac745dbc629df192315a69a2fa0`
 - PASS markers: 42
+- Copy-only logical deltas: exactly three `app_settings.updated_at` fields:
+  - ID 7 `search.show_out_of_stock_section`: `2026-07-30 17:58:38.776378` -> `2026-07-30 18:10:30.406757`
+  - ID 9 `reservations.expiry.mode`: `2026-07-30 17:58:38.435018` -> `2026-07-30 18:10:30.052520`
+  - ID 10 `reservations.expiry.default_days`: `2026-07-30 17:58:38.435792` -> `2026-07-30 18:10:30.053281`
+- All copied setting values, IDs and created timestamps remained identical.
+- Every other copied table remained logically identical.
+- The live database was logically identical before and after corrected smoke.
 - Current weakness: the suite's Project check only requires `active`, so it does
   not detect the canonical status mismatch or missing live Project constraints.
 
@@ -656,26 +678,29 @@ that copy byte-for-byte unchanged:
 
 ## Recommended Chat 14 implementation sequence
 
-1. **Patch 366 — Fix Only:** this diagnostic report; commit and push only the
-   report.
-2. **Patch 367 — Fix Only:** `0007_projects_contract`, canonical constants,
+1. **Patch 366 — Fix Only:** initial Projects diagnostic report; its product and
+   schema findings remain valid, while its smoke-target claim is superseded by
+   Patch 367.
+2. **Patch 367 — Fix Only:** narrow diagnostic recovery, corrected copied-smoke
+   evidence, corrected report, and dedicated recovery report only.
+3. **Patch 368 — Fix Only:** `0007_projects_contract`, canonical constants,
    model/migration alignment, optional approved identity snapshots, exact schema
    smoke, copied-database upgrade/downgrade, deploy, commit, and push.
-3. **Patch 368 — Fix Only:** typed Project schemas and read/create service with
+4. **Patch 369 — Fix Only:** typed Project schemas and read/create service with
    snapshot totals, normalization, audit, and no inventory effects.
-4. **Patch 369 — Fix Only:** protected list/detail/create APIs plus OpenAPI,
+5. **Patch 370 — Fix Only:** protected list/detail/create APIs plus OpenAPI,
    authentication, pagination, and existing-data-safe smoke.
-5. **Patch 370 — Fix Only:** complete Draft edit/reconciliation service and API,
+6. **Patch 371 — Fix Only:** complete Draft edit/reconciliation service and API,
    no-op suppression, snapshot retention, and rollback tests.
-6. **Patch 371 — Fix Only:** refactor reservation creation/consume/cancel into
+7. **Patch 372 — Fix Only:** refactor reservation creation/consume/cancel into
    transaction-aware shared internals without changing standalone behavior.
-7. **Patch 372 — Fix Only:** Project Reserve orchestration and one-linked-
+8. **Patch 373 — Fix Only:** Project Reserve orchestration and one-linked-
    reservation invariant.
-8. **Patch 373 — Fix Only:** Project Consume/Cancel orchestration and activity
+9. **Patch 374 — Fix Only:** Project Consume/Cancel orchestration and activity
    contract.
-9. **Following Browser Test patches:** responsive Projects workspace, extracted
-   shared picker, create/edit modal, lifecycle actions, and refinements.
-10. Checkpoint approved frontend promptly, update durable docs, and reserve Patch
+10. **Following Browser Test patches:** responsive Projects workspace, extracted
+    shared picker, create/edit modal, lifecycle actions, and refinements.
+11. Checkpoint approved frontend promptly, update durable docs, and reserve Patch
     395 for the Chat 14 boundary.
 
 Do not combine Projects with system-wide History, backup/restore, broader theme
