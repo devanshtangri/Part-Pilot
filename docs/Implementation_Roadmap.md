@@ -1798,3 +1798,46 @@ Recommended focus:
 3. Use isolated manifest-owned fixtures only.
 4. Split unrelated work into separate patches after repeated failures.
 <!-- PARTPILOT:RESERVATIONS_FOUNDATION_ROADMAP:END -->
+
+<!-- PARTPILOT:RESERVATION_ACTIVITY_ROADMAP:V344:START -->
+## Current roadmap checkpoint — Reservation activity finalized
+
+### Overall V1 progress
+
+**Estimated completion: 68%**
+
+This estimate covers the complete polished V1/public-alpha target rather than
+stale historical checkbox counts. The core inventory/search product is
+approximately 82% complete.
+
+### Completed through Patch 344
+
+- [x] Inventory creation, browsing, editing, stock movement and recovery.
+- [x] Reusable manufacturer, package and location catalogues.
+- [x] Dashboard and Stored Parts universal search, filters and sorting.
+- [x] Settings-driven low-stock and out-of-stock visibility.
+- [x] Reservation create, list, detail, cancel, consume and expiry lifecycles.
+- [x] Reservation activity API and responsive activity timeline.
+- [x] Desktop register hierarchy and mobile reservation cards.
+- [x] Mobile register landing without automatic detail opening.
+- [x] Existing-data-safe smoke coverage and browser approval.
+
+### Immediate next slice
+
+- [ ] Define active-reservation update semantics.
+- [ ] Support label, notes and expiry editing.
+- [ ] Implement guarded item add/remove/quantity changes.
+- [ ] Record movement and audit/activity entries for stock-affecting edits.
+- [ ] Add accessible Edit reservation UI after backend verification.
+- [ ] Browser-test and checkpoint independently.
+
+### Remaining major V1 areas
+
+- [ ] Reservation defaults, expiry settings and remaining action feedback.
+- [ ] Lightweight Projects and project-linked reservations.
+- [ ] System-wide History and audit browsing.
+- [ ] Settings and appearance completion.
+- [ ] Backup and restore.
+- [ ] MCP read tools and safeguarded write tools.
+- [ ] Accessibility, security and public-alpha release hardening.
+<!-- PARTPILOT:RESERVATION_ACTIVITY_ROADMAP:V344:END -->

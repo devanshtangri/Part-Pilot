@@ -1,4 +1,4 @@
-// PARTPILOT:RESERVATIONS_WORKSPACE:V322
+// PARTPILOT:RESERVATIONS_WORKSPACE:V340
 
 import {
   useEffect,
@@ -19,12 +19,15 @@ import {
   createReservation,
   expireReservation,
   getReservation,
+  getReservationActivity,
   getReservations,
   searchReservableParts
 } from "../services/reservationsClient";
 import type {
   ReservablePart,
   Reservation,
+  ReservationActivityCollection,
+  ReservationActivityEntry,
   ReservationCollection,
   ReservationCreatePayload,
   ReservationStatus
@@ -112,6 +115,71 @@ function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected request failure.";
 }
 
+function activityTitle(activity: ReservationActivityEntry): string {
+  if (activity.kind === "stock_movement") {
+    if (activity.movement_type === "reserve") {
+      return "Stock reserved";
+    }
+    if (activity.movement_type === "release") {
+      return "Reserved stock released";
+    }
+    if (activity.movement_type === "consume") {
+      return "Reserved stock consumed";
+    }
+    return "Inventory movement";
+  }
+
+  const auditTitles: Record<string, string> = {
+    "reservation.created": "Reservation created",
+    "reservation.cancelled": "Reservation cancelled",
+    "reservation.consumed": "Reservation consumed",
+    "reservation.expired": "Reservation expired"
+  };
+  return auditTitles[activity.event_type] ?? "Reservation updated";
+}
+
+function activityActor(activity: ReservationActivityEntry): string {
+  if (activity.actor_display_name) {
+    return activity.actor_display_name;
+  }
+  if (activity.actor_type === "system") {
+    return "System";
+  }
+  if (activity.actor_type) {
+    return activity.actor_type.charAt(0).toUpperCase() + activity.actor_type.slice(1);
+  }
+  return "Unknown actor";
+}
+
+function activityPart(activity: ReservationActivityEntry): string | null {
+  if (!activity.part_id) {
+    return null;
+  }
+  return activity.part_number ?? activity.part_name ?? `Part #${activity.part_id}`;
+}
+
+function activityStockSummary(
+  activity: ReservationActivityEntry
+): string | null {
+  if (activity.kind !== "stock_movement") {
+    return null;
+  }
+  if (
+    activity.reserved_quantity_before === null ||
+    activity.reserved_quantity_after === null ||
+    activity.available_quantity_before === null ||
+    activity.available_quantity_after === null
+  ) {
+    return activity.quantity === null
+      ? null
+      : `${activity.quantity} units`;
+  }
+  return [
+    `Reserved ${activity.reserved_quantity_before} → ${activity.reserved_quantity_after}`,
+    `Available ${activity.available_quantity_before} → ${activity.available_quantity_after}`
+  ].join(" · ");
+}
+
 export function Reservations() {
   const { token } = useAuth();
 
@@ -129,6 +197,17 @@ export function Reservations() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectedReservation, setSelectedReservation] =
     useState<Reservation | null>(null);
+  const [activityCollection, setActivityCollection] =
+    useState<ReservationActivityCollection>({
+      reservation_id: 0,
+      total: 0,
+      limit: 100,
+      offset: 0,
+      activities: []
+    });
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState("");
+  const [activityReloadVersion, setActivityReloadVersion] = useState(0);
 
   const [listLoading, setListLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -153,6 +232,7 @@ export function Reservations() {
 
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
+  const activityRequest = useRef(0);
 
   useEffect(() => {
     if (!token) {
@@ -192,6 +272,9 @@ export function Reservations() {
             )
           ) {
             return current;
+          }
+          if (window.matchMedia("(max-width: 900px)").matches) {
+            return null;
           }
           return nextCollection.reservations[0]?.id ?? null;
         });
@@ -255,6 +338,58 @@ export function Reservations() {
 
     return () => controller.abort();
   }, [selectedId, token]);
+
+useEffect(() => {
+    if (!token || selectedId === null) {
+      setActivityCollection({
+        reservation_id: 0,
+        total: 0,
+        limit: 100,
+        offset: 0,
+        activities: []
+      });
+      setActivityLoading(false);
+      setActivityError("");
+      return;
+    }
+
+    const controller = new AbortController();
+    const requestId = ++activityRequest.current;
+    setActivityLoading(true);
+    setActivityError("");
+
+    void getReservationActivity(token, selectedId, controller.signal)
+      .then((nextActivity) => {
+        if (requestId === activityRequest.current) {
+          setActivityCollection(nextActivity);
+        }
+      })
+      .catch((error: unknown) => {
+        if (
+          controller.signal.aborted ||
+          (error instanceof DOMException && error.name === "AbortError")
+        ) {
+          return;
+        }
+        if (requestId === activityRequest.current) {
+          setActivityError(messageFrom(error));
+          setActivityCollection({
+            reservation_id: selectedId,
+            total: 0,
+            limit: 100,
+            offset: 0,
+            activities: []
+          });
+        }
+      })
+      .finally(() => {
+        if (requestId === activityRequest.current) {
+          setActivityLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [activityReloadVersion, selectedId, token]);
 
   useEffect(() => {
     if (!createOpen || !token) {
@@ -496,6 +631,7 @@ export function Reservations() {
             : await expireReservation(token, selectedReservation.id);
       setSelectedReservation(updated);
       setReloadVersion((value) => value + 1);
+      setActivityReloadVersion((value) => value + 1);
     } catch (error: unknown) {
       setActionError(messageFrom(error));
     } finally {
@@ -507,6 +643,7 @@ export function Reservations() {
     <section
       className="page-stack reservations-page"
       data-partpilot-marker="PARTPILOT:RESERVATIONS_WORKSPACE:V322"
+      data-partpilot-mobile-landing="PARTPILOT:MOBILE_RESERVATION_LANDING:V343"
     >
       <header className="reservations-header">
         <div className="page-header">
@@ -814,6 +951,84 @@ export function Reservations() {
                   </article>
                 ))}
               </div>
+
+<section
+                className="reservation-activity"
+                aria-labelledby={`reservation-${selectedReservation.id}-activity-title`}
+                data-partpilot-marker="PARTPILOT:RESERVATION_ACTIVITY_PANEL:V340"
+              >
+                <header className="reservation-activity-heading">
+                  <div>
+                    <strong
+                      id={`reservation-${selectedReservation.id}-activity-title`}
+                    >
+                      Activity
+                    </strong>
+                    <span>
+                      {activityCollection.total}{" "}
+                      {activityCollection.total === 1 ? "event" : "events"}
+                    </span>
+                  </div>
+                </header>
+
+                {activityLoading ? (
+                  <div className="reservation-activity-state" aria-live="polite">
+                    Loading reservation activity…
+                  </div>
+                ) : activityError ? (
+                  <div
+                    className="reservation-activity-state is-error"
+                    role="alert"
+                  >
+                    <strong>Activity could not be loaded.</strong>
+                    <span>{activityError}</span>
+                    <button
+                      className="reservations-button"
+                      type="button"
+                      onClick={() =>
+                        setActivityReloadVersion((value) => value + 1)
+                      }
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : activityCollection.activities.length === 0 ? (
+                  <div className="reservation-activity-state">
+                    No activity has been recorded for this reservation.
+                  </div>
+                ) : (
+                  <ol className="reservation-activity-list">
+                    {activityCollection.activities.map((activity) => {
+                      const partLabel = activityPart(activity);
+                      const stockSummary = activityStockSummary(activity);
+                      return (
+                        <li key={activity.key}>
+                          <article className="reservation-activity-entry">
+                            <div className="reservation-activity-entry-header">
+                              <strong>{activityTitle(activity)}</strong>
+                              <time dateTime={activity.occurred_at}>
+                                {formatDate(activity.occurred_at)}
+                              </time>
+                            </div>
+                            {activity.summary ? (
+                              <p>{activity.summary}</p>
+                            ) : null}
+                            <div className="reservation-activity-meta">
+                              <span>{activityActor(activity)}</span>
+                              {partLabel ? <span>{partLabel}</span> : null}
+                            </div>
+                            {stockSummary ? (
+                              <div className="reservation-activity-stock">
+                                {stockSummary}
+                              </div>
+                            ) : null}
+                          </article>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </section>
 
               {actionError ? (
                 <div className="reservations-notice is-error" role="alert">

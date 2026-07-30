@@ -2155,3 +2155,44 @@ not be removed by automated cleanup.
 
 Next: `Chat 13: Reservation Workflow Finalization`, Patch 336 through Patch 365.
 <!-- PARTPILOT:RESERVATIONS_FOUNDATION_CHECKPOINT:END -->
+
+<!-- PARTPILOT:RESERVATION_ACTIVITY_EXPERIENCE:V344:START -->
+## Reservation activity and mobile workflow checkpoint
+
+**Checkpoint:** Patch 344
+**Browser approval:** confirmed
+**Alembic head:** `0006_reservation_contract`
+**Commit:** `Finalize reservation activity experience`
+
+Completed and verified:
+
+- Authenticated read-only reservation activity endpoint combining audit events
+  and reservation-linked stock movements.
+- Newest-first ordering, pagination, actor attribution, part metadata and stock
+  snapshots.
+- Responsive Activity panel with loading, empty, error, retry and stale guards.
+- Activity refresh after cancel, consume and expire actions.
+- Stronger desktop register hierarchy and separated compact mobile cards.
+- Mobile Reservations lands on the register without opening the first record;
+  desktop still selects the first reservation in split view.
+- Manual mobile selection survives refresh and closes back to the register.
+- Complete smoke, SPA, protected API, bundle and browser verification.
+- The Weather Station reservation and all real inventory were preserved.
+
+### Roadmap estimate
+
+**Part Pilot is approximately 68% complete toward the full V1/public-alpha
+roadmap.** The core inventory product is approximately **82% complete**.
+
+Remaining work is concentrated in reservation editing/settings completion,
+Projects, system-wide History, Settings and appearance, backup/restore, MCP,
+and final accessibility/security/public-alpha hardening.
+
+### Next implementation boundary
+
+Implement editing for existing active reservations in separate backend and
+frontend slices. Define guarded label, notes, expiry and item-change semantics;
+preserve stock invariants atomically; record movements/activity; reject edits
+to non-active reservations; and add the Edit UI only after backend smoke
+coverage passes. Keep Projects outside this edit slice.
+<!-- PARTPILOT:RESERVATION_ACTIVITY_EXPERIENCE:V344:END -->

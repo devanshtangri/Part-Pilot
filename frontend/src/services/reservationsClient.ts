@@ -1,8 +1,9 @@
-// PARTPILOT:RESERVATIONS_CLIENT:V322
+// PARTPILOT:RESERVATIONS_CLIENT:V340
 
 import type {
   ReservablePart,
   Reservation,
+  ReservationActivityCollection,
   ReservationCollection,
   ReservationCreatePayload,
   ReservationStatus
@@ -108,6 +109,19 @@ export function getReservation(
 ): Promise<Reservation> {
   return requestJson<Reservation>(
     `/reservations/${reservationId}`,
+    token,
+    { signal }
+  );
+}
+
+// PARTPILOT:RESERVATION_ACTIVITY_CLIENT:V340
+export function getReservationActivity(
+  token: string,
+  reservationId: number,
+  signal?: AbortSignal
+): Promise<ReservationActivityCollection> {
+  return requestJson<ReservationActivityCollection>(
+    `/reservations/${reservationId}/activity`,
     token,
     { signal }
   );

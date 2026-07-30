@@ -10,62 +10,56 @@ Project
 - Alembic head: 0006_reservation_contract
 
 Patch workflow
-- Every implementation, fix, diagnostic, cleanup, documentation update,
-  checkpoint, commit, push and handoff is one complete downloadable Python file.
-- Never require manual line edits.
-- Patch numbers are sequential and consumed when run, including failures.
+- Every change is one complete sequential Python patch file.
+- The assistant may place patch files directly in /projects/Part Pilot/fixes/;
+  the user executes them.
+- Failed scripts consume their patch number. Never reuse one.
 - Filenames begin directly with the number, never patch_.
 - Success prints exactly `Everything PASS` as the final line.
-- Validate repo, branch, origin, HEAD, index, pending source and transforms
-  before backup/write.
+- Validate repository, origin, HEAD, index, pending source and transforms before
+  backup/write. Print simple progress phases.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs: /projects/Part Pilot/fixes/logs/
-- Diagnostic Markdown filenames start with exact prefix `diagonostic_`.
-- Failure output includes phase, exception, command, useful output, rollback,
-  final Git state and log path.
+- Diagnostic Markdown filenames start with `diagonostic_`.
+- Failure output includes phase, exception, actual command, useful output,
+  rollback, final Git state and log path.
 
 Failure escalation
 - After two consecutive pre-write failures, repeated anchor mismatches, or
   uncertainty about pending source, issue a diagnostic-only patch.
-- After repeated failures, split work into small independent chunks. Do not
-  combine unrelated smoke, CSS, backend and checkpoint work.
-- Diagnostic commits may include only their report while pending app bytes and
-  index remain unchanged.
+- Split unrelated backend, frontend, CSS, smoke and checkpoint work.
+- Never reset, overwrite, stage or commit browser-test source before approval.
 
-Browser workflow
-- Browser instructions never go inside patch scripts.
+Browser and Git workflow
+- Browser instructions never go inside scripts.
 - Terminal `Everything PASS` confirms automated checks only.
-- Keep browser-test source uncommitted until explicit approval.
-- Commit/push promptly after approval in a separate checkpoint script.
-- Browser tests requiring create/edit actions include ready-to-copy mock values,
-  expected results and cleanup steps.
-
-Git and boundaries
+- Commit/push approved batches promptly in a separate checkpoint patch.
 - Stage only intended files; verify staged allowlist and diff --check.
 - Push main, fetch and verify local HEAD equals origin/main.
-- No Chat_N_Starting_Prompt files.
-- Ready prompt is provided in chat only after boundary success.
-- New chats own 30 sequential patch numbers; boundary = start + 29.
-- Chat 12 started at Patch 294, planned boundary 323, and completed through
-  boundary recovery Patch 335.
-- Chat 13: Reservation Workflow Finalization starts at Patch 336; boundary Patch 365.
+- Chat 13 owns Patch 336-365; Patch 365 is the planned boundary.
 
 Inventory safety
-- Never assume an empty database.
-- Use unique, isolated, manifest-owned fixtures.
-- Cleanup only owned IDs; preserve real inventory and user data.
-- The Weather Station reservation is user data and must be preserved.
+- Never assume an empty database. Use unique isolated fixtures.
+- Cleanup only fixture-owned IDs.
+- Preserve real inventory, settings, history and the Weather Station reservation.
 
 Completed
-- Universal inventory search and Stored Parts server search/sorting.
-- Browser-approved Stored Parts responsive grouping and pagination.
-- Reservation schema and create/read/cancel/consume/expire workflows.
-- Existing-data-safe reservation smoke tests.
-- Browser-approved Reservations workspace with list/detail, filters, pagination,
-  server part search, creation, actions, stale guards and responsive layout.
-- Browser-approved part-picker alignment.
+- Auth/setup, templates and reusable catalogues.
+- Inventory create/read/edit, stock movements, deletion/restoration.
+- Dashboard and Stored Parts universal search, filters, pagination and sorting.
+- Settings-driven low-stock/out-of-stock behavior.
+- Reservation create/read/cancel/consume/expire lifecycle.
+- Responsive Reservations workspace.
+- Read-only reservation activity API and responsive activity timeline.
+- Browser-approved register hierarchy and mobile cards.
+- Mobile lands on the register; desktop selects the first record.
+- Complete existing-data-safe smoke coverage.
 
-Current handoff
-- Read docs/Chat_12_Reservations_Foundation_Handoff.md first.
-- Patch 335 commits/pushes the approved source and durable docs.
-- Next patch: 336.
+Current checkpoint
+- Patch 344 commits/pushes the approved reservation activity/mobile batch and
+  durable docs.
+- V1/public-alpha estimate: 68%; core inventory product: 82%.
+- Next patch: 345.
+- Next work: active-reservation editing. Implement backend semantics and smoke
+  coverage before the Edit reservation UI.
+- Keep Projects, History, backups and MCP as separate later boundaries.

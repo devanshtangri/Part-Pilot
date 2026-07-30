@@ -1,4 +1,4 @@
-// PARTPILOT:RESERVATIONS_TYPES:V322
+// PARTPILOT:RESERVATIONS_TYPES:V340
 
 export type ReservationStatus =
   | "active"
@@ -41,6 +41,46 @@ export interface ReservationCollection {
   limit: number;
   offset: number;
   reservations: Reservation[];
+}
+
+// PARTPILOT:RESERVATION_ACTIVITY_TYPES:V340
+export type ReservationActivityKind = "audit" | "stock_movement";
+
+export interface ReservationActivityEntry {
+  key: string;
+  kind: ReservationActivityKind;
+  event_type: string;
+  occurred_at: string;
+  summary: string | null;
+  actor_type: string | null;
+  actor_user_id: number | null;
+  actor_display_name: string | null;
+  part_id: number | null;
+  part_number: string | null;
+  part_name: string | null;
+  movement_type: string | null;
+  quantity: number | null;
+  quantity_delta: number | null;
+  quantity_before: number | null;
+  quantity_after: number | null;
+  reserved_quantity_before: number | null;
+  reserved_quantity_after: number | null;
+  available_quantity_before: number | null;
+  available_quantity_after: number | null;
+  reason: string | null;
+  note: string | null;
+  source: string | null;
+  before_json: Record<string, unknown> | unknown[] | null;
+  after_json: Record<string, unknown> | unknown[] | null;
+  metadata_json: Record<string, unknown> | unknown[] | null;
+}
+
+export interface ReservationActivityCollection {
+  reservation_id: number;
+  total: number;
+  limit: number;
+  offset: number;
+  activities: ReservationActivityEntry[];
 }
 
 export interface ReservationCreateItem {

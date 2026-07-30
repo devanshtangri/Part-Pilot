@@ -54,7 +54,7 @@ assistants can understand and act on inventory safely.
 
 Major remaining areas include:
 
-- Reservations and lightweight projects.
+- Reservation editing/settings completion and lightweight projects.
 - Full history and audit browsing.
 - Settings and appearance completion.
 - Backup and restore.
@@ -274,13 +274,17 @@ into physical, reserved and available stock.
 |---|---|
 | Multi-part reservation creation | Available |
 | Available/reserved quantity accounting | Available |
-| Cancel and release | Available |
-| Consume reserved parts | Available |
-| Due-time expiry | Available |
-| List, detail, filters and pagination | Available |
-| Responsive Reservations workspace | Available |
-| Stock-movement and audit records | Available |
+| Cancel, consume and due-time expiry | Available |
+| Status filters and pagination | Available |
+| Responsive list and detail workspace | Available |
+| Audit and stock-movement activity timeline | Available |
+| Actor, part and quantity-snapshot activity details | Available |
+| Desktop split-view hierarchy | Available |
+| Mobile register cards and register-first landing | Available |
+| Existing reservation editing | Planned next |
 
 The workflow is authenticated, inventory-safe and covered by complete smoke
-tests that also support pre-existing user reservations.
+tests that preserve pre-existing user reservations. Desktop automatically opens
+the first record in split view; compact layouts land on the register and open
+details only after the user selects a reservation.
 <!-- PARTPILOT:RESERVATIONS_FOUNDATION:END -->
