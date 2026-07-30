@@ -6,6 +6,8 @@ import type {
   ReservationActivityCollection,
   ReservationCollection,
   ReservationCreatePayload,
+  ReservationDeletePayload,
+  ReservationDeleteResult,
   ReservationStatus,
   ReservationUpdatePayload
 } from "../types/reservations";
@@ -148,6 +150,23 @@ export function updateReservation(
     method: "PUT",
     body: JSON.stringify(payload)
   });
+}
+
+
+// PARTPILOT:RESERVATION_DELETE_CLIENT:V352
+export function deleteReservation(
+  token: string,
+  reservationId: number,
+  payload: ReservationDeletePayload
+): Promise<ReservationDeleteResult> {
+  return requestJson<ReservationDeleteResult>(
+    `/reservations/${reservationId}`,
+    token,
+    {
+      method: "DELETE",
+      body: JSON.stringify(payload)
+    }
+  );
 }
 
 function runLifecycleAction(

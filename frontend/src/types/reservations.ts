@@ -99,6 +99,21 @@ export interface ReservationCreatePayload {
 // PARTPILOT:RESERVATION_EDIT_TYPES:V347
 export type ReservationUpdatePayload = ReservationCreatePayload;
 
+// PARTPILOT:RESERVATION_DELETE_TYPES:V352
+export interface ReservationDeletePayload {
+  confirmation_label: string;
+}
+
+export interface ReservationDeleteResult {
+  id: number;
+  label: string;
+  previous_status: ReservationStatus;
+  deleted: boolean;
+  removed_item_count: number;
+  detached_movement_count: number;
+  deleted_at: string;
+}
+
 export interface ReservablePart {
   id: number;
   part_number: string;

@@ -17,6 +17,7 @@ import {
   cancelReservation,
   consumeReservation,
   createReservation,
+  deleteReservation,
   expireReservation,
   getReservation,
   getReservationActivity,
@@ -38,6 +39,8 @@ import type {
 import "./Reservations.css";
 
 const PAGE_SIZE = 25;
+const RESERVATION_STATUS_STORAGE_KEY =
+  "partpilot.reservations.status-filter";
 
 const STATUS_OPTIONS: Array<{
   value: ReservationStatus | "all";
@@ -49,6 +52,43 @@ const STATUS_OPTIONS: Array<{
   { value: "cancelled", label: "Cancelled" },
   { value: "expired", label: "Expired" }
 ];
+
+// PARTPILOT:RESERVATION_STATUS_PREFERENCE:V352
+function readReservationStatusPreference(): ReservationStatus | "all" {
+  if (typeof window === "undefined") {
+    return "active";
+  }
+
+  try {
+    const stored = window.localStorage.getItem(
+      RESERVATION_STATUS_STORAGE_KEY
+    );
+    if (STATUS_OPTIONS.some((option) => option.value === stored)) {
+      return stored as ReservationStatus | "all";
+    }
+    if (stored !== null) {
+      window.localStorage.removeItem(RESERVATION_STATUS_STORAGE_KEY);
+    }
+  } catch {
+    // Blocked storage must not prevent the Reservations workspace from loading.
+  }
+
+  return "active";
+}
+
+function writeReservationStatusPreference(
+  value: ReservationStatus | "all"
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(RESERVATION_STATUS_STORAGE_KEY, value);
+  } catch {
+    // The selected tab still works for the current session without storage.
+  }
+}
 
 interface DraftItem {
   part: ReservablePart;
@@ -264,7 +304,7 @@ export function Reservations() {
     reservations: []
   });
   const [statusFilter, setStatusFilter] =
-    useState<ReservationStatus | "all">("all");
+    useState<ReservationStatus | "all">(readReservationStatusPreference);
   const [searchQuery, setSearchQuery] = useState("");
   const [pageOffset, setPageOffset] = useState(0);
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -291,6 +331,11 @@ export function Reservations() {
     "cancel" | "consume" | "expire" | null
   >(null);
   const [actionError, setActionError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Reservation | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deletionNotice, setDeletionNotice] = useState("");
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingReservationId, setEditingReservationId] = useState<number | null>(
@@ -523,6 +568,22 @@ useEffect(() => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [createOpen, createSubmitting]);
 
+
+  useEffect(() => {
+    if (!deleteTarget) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !deleteSubmitting) {
+        setDeleteTarget(null);
+        setDeleteConfirmation("");
+        setDeleteError("");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [deleteSubmitting, deleteTarget]);
+
   const visibleReservations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
@@ -556,6 +617,32 @@ useEffect(() => {
   const pageReservedUnits = collection.reservations
     .filter((reservation) => reservation.status === "active")
     .reduce((total, reservation) => total + reservationUnits(reservation), 0);
+
+  const chooseStatusFilter = (value: ReservationStatus | "all") => {
+    writeReservationStatusPreference(value);
+    setStatusFilter(value);
+    setPageOffset(0);
+    setSelectedId(null);
+    setDeletionNotice("");
+  };
+
+  const openDelete = () => {
+    if (!selectedReservation || selectedReservation.status === "active") {
+      return;
+    }
+    setDeleteTarget(selectedReservation);
+    setDeleteConfirmation("");
+    setDeleteError("");
+    setDeletionNotice("");
+  };
+
+  const closeDelete = () => {
+    if (!deleteSubmitting) {
+      setDeleteTarget(null);
+      setDeleteConfirmation("");
+      setDeleteError("");
+    }
+  };
 
   const resetCreateForm = () => {
     setDraftLabel("");
@@ -761,8 +848,7 @@ useEffect(() => {
       setEditingReservationId(null);
       resetCreateForm();
       if (!wasEditing) {
-        setStatusFilter("active");
-        setPageOffset(0);
+        chooseStatusFilter("active");
       }
       setSelectedId(saved.id);
       setSelectedReservation(saved);
@@ -774,6 +860,48 @@ useEffect(() => {
       setCreateError(messageFrom(error));
     } finally {
       setCreateSubmitting(false);
+    }
+  };
+
+  const submitDelete = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!token || !deleteTarget || deleteSubmitting) {
+      return;
+    }
+    if (deleteTarget.status === "active") {
+      setDeleteError("Active reservations must be completed or cancelled first.");
+      return;
+    }
+    if (deleteConfirmation.trim() !== deleteTarget.label) {
+      setDeleteError("Type the reservation label exactly to confirm deletion.");
+      return;
+    }
+
+    setDeleteSubmitting(true);
+    setDeleteError("");
+    try {
+      const deleted = await deleteReservation(token, deleteTarget.id, {
+        confirmation_label: deleteConfirmation
+      });
+      setDeleteTarget(null);
+      setDeleteConfirmation("");
+      setSelectedId(null);
+      setSelectedReservation(null);
+      setDeletionNotice(
+        `Deleted "${deleted.label}". ${deleted.removed_item_count} ` +
+          `${deleted.removed_item_count === 1 ? "item" : "items"} removed; ` +
+          `${deleted.detached_movement_count} inventory ` +
+          `${deleted.detached_movement_count === 1 ? "movement" : "movements"} retained.`
+      );
+      if (collection.reservations.length <= 1 && pageOffset > 0) {
+        setPageOffset((value) => Math.max(0, value - PAGE_SIZE));
+      } else {
+        setReloadVersion((value) => value + 1);
+      }
+    } catch (error: unknown) {
+      setDeleteError(messageFrom(error));
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -822,6 +950,9 @@ useEffect(() => {
       data-partpilot-mobile-landing="PARTPILOT:MOBILE_RESERVATION_LANDING:V343"
       data-partpilot-reservation-edit="PARTPILOT:RESERVATION_EDIT_FRONTEND:V347"
       data-partpilot-reservation-noop="PARTPILOT:RESERVATION_NOOP_FIX:V348"
+      data-partpilot-reservation-delete="PARTPILOT:RESERVATION_DELETE_FRONTEND:V352"
+      data-partpilot-reservation-preference="PARTPILOT:RESERVATION_STATUS_PREFERENCE:V352"
+      data-partpilot-reservation-layout="PARTPILOT:RESERVATION_LAYOUT_REFINEMENT:V353"
     >
       <header className="reservations-header">
         <div className="page-header">
@@ -875,11 +1006,7 @@ useEffect(() => {
               }
               key={option.value}
               type="button"
-              onClick={() => {
-                setStatusFilter(option.value);
-                setPageOffset(0);
-                setSelectedId(null);
-              }}
+              onClick={() => chooseStatusFilter(option.value)}
             >
               {option.label}
             </button>
@@ -910,6 +1037,13 @@ useEffect(() => {
         <div className="reservations-notice is-error" role="alert">
           <strong>Reservations could not be loaded.</strong>
           <span>{listError}</span>
+        </div>
+      ) : null}
+
+      {deletionNotice ? (
+        <div className="reservations-notice is-success" role="status">
+          <strong>Reservation deleted.</strong>
+          <span>{deletionNotice}</span>
         </div>
       ) : null}
 
@@ -1030,12 +1164,36 @@ useEffect(() => {
               <span>{detailError}</span>
             </div>
           ) : !selectedReservation ? (
-            <div className="reservation-detail-state">
-              <strong>Select a reservation</strong>
-              <span>
-                Item quantities, expiry, value, notes, and lifecycle actions
-                will appear here.
-              </span>
+            <div
+              className="reservation-detail-empty"
+              data-partpilot-marker="PARTPILOT:RESERVATION_DETAIL_EMPTY:V353"
+            >
+              <div className="reservation-detail-empty-copy">
+                <span>Reservation detail</span>
+                <h2>No reservation selected</h2>
+                <p>
+                  Choose a record from the register to inspect its committed
+                  inventory, timing, value, activity, and available actions.
+                </p>
+              </div>
+              <dl className="reservation-detail-empty-map" aria-hidden="true">
+                <div>
+                  <dt>Parts</dt>
+                  <dd>Committed quantities</dd>
+                </div>
+                <div>
+                  <dt>Timing</dt>
+                  <dd>Creation and expiry</dd>
+                </div>
+                <div>
+                  <dt>Value</dt>
+                  <dd>Reserved cost snapshot</dd>
+                </div>
+                <div>
+                  <dt>Activity</dt>
+                  <dd>Lifecycle and stock events</dd>
+                </div>
+              </dl>
             </div>
           ) : (
             <>
@@ -1253,11 +1411,116 @@ useEffect(() => {
                     </button>
                   ) : null}
                 </div>
-              ) : null}
+              ) : (
+                <div className="reservation-actions">
+                  <button
+                    className="reservations-button reservations-button-danger"
+                    type="button"
+                    onClick={openDelete}
+                  >
+                    Delete reservation
+                  </button>
+                </div>
+              )}
             </>
           )}
         </aside>
       </div>
+
+      {deleteTarget ? (
+        <div
+          className="reservation-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
+            if (event.target === event.currentTarget) {
+              closeDelete();
+            }
+          }}
+        >
+          <section
+            className="reservation-modal reservation-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservation-delete-title"
+            aria-describedby="reservation-delete-description"
+            data-partpilot-marker="PARTPILOT:RESERVATION_DELETE_MODAL:V352"
+          >
+            <header>
+              <div>
+                <p className="eyebrow">Permanent record removal</p>
+                <h2 id="reservation-delete-title">Delete reservation</h2>
+                <p id="reservation-delete-description">
+                  This removes the reservation and its item records. Inventory
+                  movements and audit history are retained for History.
+                </p>
+              </div>
+              <button
+                className="reservations-button"
+                type="button"
+                onClick={closeDelete}
+                disabled={deleteSubmitting}
+              >
+                Close
+              </button>
+            </header>
+
+            <form onSubmit={(event) => void submitDelete(event)}>
+              <div className="reservation-delete-warning">
+                <strong>This action cannot be undone.</strong>
+                <span>
+                  {statusLabel(deleteTarget.status)} reservation #{deleteTarget.id}
+                </span>
+              </div>
+
+              <label className="reservation-delete-confirmation">
+                <span>
+                  Type <strong>{deleteTarget.label}</strong> to confirm
+                </span>
+                <input
+                  autoFocus
+                  required
+                  maxLength={180}
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={deleteConfirmation}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                    setDeleteConfirmation(event.currentTarget.value);
+                    setDeleteError("");
+                  }}
+                  placeholder={deleteTarget.label}
+                />
+              </label>
+
+              {deleteError ? (
+                <div className="reservations-notice is-error" role="alert">
+                  <span>{deleteError}</span>
+                </div>
+              ) : null}
+
+              <footer>
+                <button
+                  className="reservations-button"
+                  type="button"
+                  onClick={closeDelete}
+                  disabled={deleteSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="reservations-button reservations-button-danger"
+                  type="submit"
+                  disabled={
+                    deleteSubmitting ||
+                    deleteConfirmation.trim() !== deleteTarget.label
+                  }
+                >
+                  {deleteSubmitting ? "Deleting…" : "Delete permanently"}
+                </button>
+              </footer>
+            </form>
+          </section>
+        </div>
+      ) : null}
 
       {createOpen ? (
         <div
