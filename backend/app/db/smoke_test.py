@@ -9119,6 +9119,459 @@ def check_part_location_list_filter_api() -> None:
 
 
 # PATCH 182: protected search settings and low-stock summary smoke test
+# PARTPILOT:RESERVATION_SETTINGS_SMOKE:V361
+def check_reservation_settings_api() -> None:
+    import json as json_module
+    from unittest.mock import patch
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import AppSetting
+    from app.schemas.app_settings import ReservationSettingsUpdateRequest
+    from app.services import app_settings as app_settings_service
+
+    mode_key = "reservations.expiry.mode"
+    days_key = "reservations.expiry.default_days"
+    setting_keys = (mode_key, days_key)
+    suffix = uuid4().hex[:10]
+    username = f"smoke_reservation_settings_{suffix}"
+    password = "reservation-settings-smoke-password"
+    user_id: int | None = None
+
+    with db_session() as db:
+        original_settings: dict[str, tuple[object, str | None] | None] = {}
+        for key in setting_keys:
+            row = (
+                db.query(AppSetting)
+                .filter(AppSetting.key == key)
+                .one_or_none()
+            )
+            original_settings[key] = (
+                None
+                if row is None
+                else (row.value_json, row.value_text)
+            )
+
+    def restore_settings(db) -> None:
+        for key in setting_keys:
+            original = original_settings[key]
+            row = (
+                db.query(AppSetting)
+                .filter(AppSetting.key == key)
+                .one_or_none()
+            )
+            if original is None:
+                if row is not None:
+                    db.delete(row)
+            elif row is None:
+                db.add(
+                    AppSetting(
+                        key=key,
+                        value_json=original[0],
+                        value_text=original[1],
+                    )
+                )
+            else:
+                row.value_json = original[0]
+                row.value_text = original[1]
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if user_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where event_type = 'settings.reservations_updated' "
+                        "and actor_user_id = :actor_user_id"
+                    ),
+                    {"actor_user_id": user_id},
+                )
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            restore_settings(db)
+            db.commit()
+
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated_get = client.get("/api/settings/reservations")
+        if unauthenticated_get.status_code not in {401, 403}:
+            fail(
+                "GET /api/settings/reservations should require authentication, "
+                f"got {unauthenticated_get.status_code}: "
+                f"{unauthenticated_get.text}"
+            )
+        unauthenticated_patch = client.patch(
+            "/api/settings/reservations",
+            json={"expiry_mode": "none", "default_days": None},
+        )
+        if unauthenticated_patch.status_code not in {401, 403}:
+            fail(
+                "PATCH /api/settings/reservations should require authentication, "
+                f"got {unauthenticated_patch.status_code}: "
+                f"{unauthenticated_patch.text}"
+            )
+
+        openapi = client.get("/openapi.json")
+        openapi_methods = (
+            openapi.json()
+            .get("paths", {})
+            .get("/api/settings/reservations", {})
+        )
+        if (
+            openapi.status_code != 200
+            or "get" not in openapi_methods
+            or "patch" not in openapi_methods
+        ):
+            fail(
+                "Reservation settings GET/PATCH routes are missing from OpenAPI: "
+                f"{openapi.status_code} {openapi_methods}"
+            )
+
+        with db_session() as db:
+            set_app_setting(db, mode_key, "none", text_value="none", commit=False)
+            set_app_setting(db, days_key, None, text_value=None, commit=False)
+            user = create_user(
+                db,
+                username=username,
+                display_name="Reservation Settings Smoke User",
+                password=password,
+                commit=False,
+            )
+            db.commit()
+            db.refresh(user)
+            user_id = user.id
+            session_token = create_session(db, user=user, commit=True)
+
+        headers = {"Authorization": f"Bearer {session_token.token}"}
+
+        seeded = client.get("/api/settings/reservations", headers=headers)
+        if (
+            seeded.status_code != 200
+            or seeded.json()
+            != {"expiry_mode": "none", "default_days": None}
+        ):
+            fail(
+                "Seeded reservation settings should read as none/null: "
+                f"{seeded.status_code} {seeded.text}"
+            )
+
+        with db_session() as db:
+            set_app_setting(
+                db, mode_key, "legacy-corrupt", text_value="legacy-corrupt",
+                commit=False,
+            )
+            set_app_setting(db, days_key, 44, text_value=None, commit=False)
+            db.commit()
+        corrupt_read = client.get(
+            "/api/settings/reservations", headers=headers
+        )
+        if (
+            corrupt_read.status_code != 200
+            or corrupt_read.json()
+            != {"expiry_mode": "none", "default_days": None}
+        ):
+            fail(
+                "Corrupt reservation settings should defensively read as "
+                f"none/null: {corrupt_read.status_code} {corrupt_read.text}"
+            )
+        with db_session() as db:
+            raw_mode = get_str_setting(db, mode_key, "")
+            raw_days = db.query(AppSetting).filter(
+                AppSetting.key == days_key
+            ).one().value_json
+            if raw_mode != "legacy-corrupt" or raw_days != 44:
+                fail(
+                    "Reservation settings GET silently rewrote corrupt values: "
+                    f"{raw_mode!r}/{raw_days!r}"
+                )
+            set_app_setting(db, mode_key, "none", text_value="none", commit=False)
+            set_app_setting(db, days_key, None, text_value=None, commit=False)
+            db.commit()
+
+        invalid_payloads = [
+            {"expiry_mode": "invalid", "default_days": None},
+            {"expiry_mode": "default"},
+            {"expiry_mode": "default", "default_days": 0},
+            {"expiry_mode": "default", "default_days": -1},
+            {"expiry_mode": "default", "default_days": 1.5},
+            {"expiry_mode": "default", "default_days": True},
+            {"expiry_mode": "default", "default_days": "7"},
+            {"expiry_mode": "default", "default_days": 3651},
+            {
+                "expiry_mode": "none",
+                "default_days": None,
+                "unexpected": True,
+            },
+        ]
+        for payload in invalid_payloads:
+            response = client.patch(
+                "/api/settings/reservations",
+                headers=headers,
+                json=payload,
+            )
+            if response.status_code != 422:
+                fail(
+                    "Invalid reservation settings payload should return 422, "
+                    f"got {response.status_code}: {payload!r} {response.text}"
+                )
+
+        default_one = client.patch(
+            "/api/settings/reservations",
+            headers=headers,
+            json={"expiry_mode": "default", "default_days": 1},
+        )
+        if (
+            default_one.status_code != 200
+            or default_one.json()
+            != {"expiry_mode": "default", "default_days": 1}
+        ):
+            fail(
+                "Reservation default day lower boundary failed: "
+                f"{default_one.status_code} {default_one.text}"
+            )
+
+        repeat_one = client.patch(
+            "/api/settings/reservations",
+            headers=headers,
+            json={"expiry_mode": "default", "default_days": 1},
+        )
+        if repeat_one.status_code != 200:
+            fail(
+                "Idempotent reservation settings PATCH failed: "
+                f"{repeat_one.status_code} {repeat_one.text}"
+            )
+
+        default_max = client.patch(
+            "/api/settings/reservations",
+            headers=headers,
+            json={"expiry_mode": "default", "default_days": 3650},
+        )
+        if (
+            default_max.status_code != 200
+            or default_max.json()
+            != {"expiry_mode": "default", "default_days": 3650}
+        ):
+            fail(
+                "Reservation default day upper boundary failed: "
+                f"{default_max.status_code} {default_max.text}"
+            )
+
+        with db_session() as db:
+            mode_row = db.query(AppSetting).filter(
+                AppSetting.key == mode_key
+            ).one()
+            days_row = db.query(AppSetting).filter(
+                AppSetting.key == days_key
+            ).one()
+            if (
+                mode_row.value_json != "default"
+                or mode_row.value_text != "default"
+                or days_row.value_json != 3650
+                or days_row.value_text is not None
+            ):
+                fail(
+                    "Reservation settings database values are incorrect: "
+                    f"{mode_row.value_json!r}/{mode_row.value_text!r}/"
+                    f"{days_row.value_json!r}/{days_row.value_text!r}"
+                )
+
+        none_with_stale_days = client.patch(
+            "/api/settings/reservations",
+            headers=headers,
+            json={"expiry_mode": "none", "default_days": 99},
+        )
+        if (
+            none_with_stale_days.status_code != 200
+            or none_with_stale_days.json()
+            != {"expiry_mode": "none", "default_days": None}
+        ):
+            fail(
+                "None mode should normalize stale default_days to null: "
+                f"{none_with_stale_days.status_code} "
+                f"{none_with_stale_days.text}"
+            )
+
+        repeat_none = client.patch(
+            "/api/settings/reservations",
+            headers=headers,
+            json={"expiry_mode": "none", "default_days": 123},
+        )
+        if repeat_none.status_code != 200:
+            fail(
+                "Normalized idempotent none-mode PATCH failed: "
+                f"{repeat_none.status_code} {repeat_none.text}"
+            )
+
+        with db_session() as db:
+            mode_setting_id = db.query(AppSetting).filter(
+                AppSetting.key == mode_key
+            ).one().id
+            audit_rows = db.execute(
+                text(
+                    "select entity_id, actor_type, actor_user_id, "
+                    "before_json, after_json, metadata_json "
+                    "from audit_log "
+                    "where event_type = 'settings.reservations_updated' "
+                    "and actor_user_id = :actor_user_id order by id"
+                ),
+                {"actor_user_id": user_id},
+            ).all()
+
+        if len(audit_rows) != 3:
+            fail(
+                "Reservation settings should create one audit per real change "
+                f"and none for no-op updates, got {len(audit_rows)}."
+            )
+
+        decoded_audits: list[tuple[dict, dict, dict]] = []
+        for row in audit_rows:
+            if (
+                row[0] != mode_setting_id
+                or row[1] != "user"
+                or row[2] != user_id
+            ):
+                fail(
+                    "Reservation settings audit attribution is incorrect: "
+                    f"{row!r}"
+                )
+            before_json = (
+                json_module.loads(row[3])
+                if isinstance(row[3], str)
+                else row[3]
+            )
+            after_json = (
+                json_module.loads(row[4])
+                if isinstance(row[4], str)
+                else row[4]
+            )
+            metadata_json = (
+                json_module.loads(row[5])
+                if isinstance(row[5], str)
+                else row[5]
+            )
+            decoded_audits.append(
+                (before_json, after_json, metadata_json)
+            )
+
+        expected_snapshots = [
+            (
+                {"expiry_mode": "none", "default_days": None},
+                {"expiry_mode": "default", "default_days": 1},
+                ["expiry_mode", "default_days"],
+            ),
+            (
+                {"expiry_mode": "default", "default_days": 1},
+                {"expiry_mode": "default", "default_days": 3650},
+                ["default_days"],
+            ),
+            (
+                {"expiry_mode": "default", "default_days": 3650},
+                {"expiry_mode": "none", "default_days": None},
+                ["expiry_mode", "default_days"],
+            ),
+        ]
+        for decoded, expected in zip(decoded_audits, expected_snapshots):
+            before_json, after_json, metadata_json = decoded
+            expected_before, expected_after, expected_fields = expected
+            if before_json != expected_before or after_json != expected_after:
+                fail(
+                    "Reservation settings audit snapshots are incorrect: "
+                    f"{decoded_audits!r}"
+                )
+            if (
+                metadata_json.get("setting_keys")
+                != [mode_key, days_key]
+                or metadata_json.get("changed_fields") != expected_fields
+            ):
+                fail(
+                    "Reservation settings audit metadata is incorrect: "
+                    f"{metadata_json!r}"
+                )
+
+        real_set_app_setting = app_settings_service.set_app_setting
+        call_count = 0
+
+        def fail_second_setting_write(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise RuntimeError("injected second reservation setting failure")
+            return real_set_app_setting(*args, **kwargs)
+
+        with db_session() as db:
+            try:
+                with patch.object(
+                    app_settings_service,
+                    "set_app_setting",
+                    side_effect=fail_second_setting_write,
+                ):
+                    app_settings_service.update_reservation_settings(
+                        db,
+                        ReservationSettingsUpdateRequest(
+                            expiry_mode="default",
+                            default_days=30,
+                        ),
+                        actor_user_id=user_id,
+                        commit=True,
+                    )
+            except RuntimeError as exc:
+                if "injected second reservation setting failure" not in str(exc):
+                    raise
+            else:
+                fail("Injected reservation settings failure did not raise")
+
+        with db_session() as db:
+            after_failure = app_settings_service.get_reservation_settings(db)
+            audit_count_after_failure = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = 'settings.reservations_updated' "
+                    "and actor_user_id = :actor_user_id"
+                ),
+                {"actor_user_id": user_id},
+            ).scalar()
+            mode_row = db.query(AppSetting).filter(
+                AppSetting.key == mode_key
+            ).one()
+            days_row = db.query(AppSetting).filter(
+                AppSetting.key == days_key
+            ).one()
+        if (
+            after_failure.model_dump()
+            != {"expiry_mode": "none", "default_days": None}
+            or mode_row.value_json != "none"
+            or mode_row.value_text != "none"
+            or days_row.value_json is not None
+            or days_row.value_text is not None
+            or audit_count_after_failure != 3
+        ):
+            fail(
+                "Injected reservation settings failure was not atomic: "
+                f"{after_failure.model_dump()} audits={audit_count_after_failure}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Protected reservation defaults validate none/default modes, strict day "
+        "boundaries, corrupt-read normalization, atomic two-key persistence, "
+        "no-op suppression, actor-attributed audit snapshots, injected rollback, "
+        "OpenAPI exposure, authentication, and exact fixture cleanup"
+    )
+
+
 def check_low_stock_and_search_settings_api() -> None:
     import json as json_module
     from datetime import datetime, timezone
@@ -10900,6 +11353,7 @@ def main() -> None:
         check_location_catalogue_api,
         check_part_location_assignment_api,
         check_part_location_list_filter_api,
+        check_reservation_settings_api,
         check_low_stock_and_search_settings_api,
         check_universal_part_search_api,
         check_stock_quantity_adjustment_api,
