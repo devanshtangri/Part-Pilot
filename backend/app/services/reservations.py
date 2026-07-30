@@ -31,6 +31,7 @@ from app.models import (
 from app.schemas.reservations import (
     ReservationCollectionResponse,
     ReservationCreateRequest,
+    ReservationUpdateRequest,
     ReservationItemCreateRequest,
     ReservationItemResponse,
     ReservationResponse,
@@ -523,6 +524,382 @@ def list_reservations(
             for reservation in reservations
         ],
     )
+
+
+
+
+# PARTPILOT:RESERVATION_EDIT_SERVICE:V346
+def _reservation_edit_expiry(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _reservation_edit_item_snapshot(
+    item: ReservationItem,
+) -> dict[str, object]:
+    return {
+        "reservation_item_id": item.id,
+        "part_id": item.part_id,
+        "quantity": int(item.quantity),
+        "unit_price_snapshot": (
+            str(item.unit_price_snapshot)
+            if item.unit_price_snapshot is not None
+            else None
+        ),
+        "currency_snapshot": item.currency_snapshot,
+        "note": item.note,
+    }
+
+
+def update_reservation(
+    db: Session,
+    reservation_id: int,
+    payload: ReservationUpdateRequest,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> ReservationResponse:
+    reservation = db.execute(
+        select(Reservation)
+        .where(Reservation.id == reservation_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if reservation is None:
+        raise ReservationNotFoundError("Reservation not found.")
+    if reservation.status != RESERVATION_STATUS_ACTIVE:
+        raise ReservationConflictError(
+            "Only active reservations can be edited. "
+            f"Current status: {reservation.status}."
+        )
+
+    submitted_items = _normalise_items(payload.items)
+    if not submitted_items:
+        raise ReservationValidationError(
+            "A reservation must contain at least one part."
+        )
+    expiry_at = _normalise_expiry(payload.expiry_at)
+
+    existing_items = list(
+        db.execute(
+            select(ReservationItem)
+            .where(ReservationItem.reservation_id == reservation.id)
+            .order_by(ReservationItem.id.asc())
+        ).scalars()
+    )
+    if not existing_items:
+        raise ReservationConflictError(
+            "Active reservation has no items to edit."
+        )
+    if any(item.part_id is None for item in existing_items):
+        raise ReservationConflictError(
+            "Reservation contains an item whose part no longer exists."
+        )
+
+    existing_by_part: dict[int, ReservationItem] = {}
+    for item in existing_items:
+        assert item.part_id is not None
+        if item.part_id in existing_by_part:
+            raise ReservationConflictError(
+                "Reservation contains duplicate stored items for the same part."
+            )
+        existing_by_part[item.part_id] = item
+
+    submitted_by_part = {
+        item.part_id: item
+        for item in submitted_items
+    }
+    all_part_ids = sorted(set(existing_by_part) | set(submitted_by_part))
+    parts = list(
+        db.execute(
+            select(Part)
+            .where(Part.id.in_(all_part_ids))
+            .with_for_update()
+        ).scalars()
+    )
+    part_map = {part.id: part for part in parts}
+
+    for part_id in existing_by_part:
+        part = part_map.get(part_id)
+        if part is None or part.is_deleted:
+            raise ReservationConflictError(
+                f"Reservation part {part_id} is no longer editable."
+            )
+    for part_id in submitted_by_part:
+        part = part_map.get(part_id)
+        if part is None or part.is_deleted:
+            raise ReservationValidationError(
+                f"Part {part_id} is not available for reservation."
+            )
+
+    current_expiry = _reservation_edit_expiry(reservation.expiry_at)
+    unchanged_items = (
+        set(existing_by_part) == set(submitted_by_part)
+        and all(
+            int(existing_by_part[part_id].quantity)
+            == int(submitted_by_part[part_id].quantity)
+            and existing_by_part[part_id].note
+            == submitted_by_part[part_id].note
+            for part_id in existing_by_part
+        )
+    )
+    if (
+        reservation.label == payload.label
+        and reservation.notes == payload.notes
+        and current_expiry == expiry_at
+        and unchanged_items
+    ):
+        return _serialise_reservation(db, reservation)
+
+    before_items = [
+        _reservation_edit_item_snapshot(item)
+        for item in existing_items
+    ]
+    before_snapshot = {
+        "id": reservation.id,
+        "label": reservation.label,
+        "status": reservation.status,
+        "notes": reservation.notes,
+        "expiry_at": (
+            current_expiry.isoformat()
+            if current_expiry is not None
+            else None
+        ),
+        "estimated_reserved_value": (
+            str(reservation.estimated_reserved_value)
+            if reservation.estimated_reserved_value is not None
+            else None
+        ),
+        "currency_snapshot": reservation.currency_snapshot,
+        "total_reserved_units": sum(
+            int(item.quantity) for item in existing_items
+        ),
+        "items": before_items,
+    }
+
+    movements: list[StockMovement] = []
+    increased_part_ids: list[int] = []
+    released_part_ids: list[int] = []
+    retained_items: list[ReservationItem] = []
+
+    try:
+        for part_id in all_part_ids:
+            part = part_map[part_id]
+            existing = existing_by_part.get(part_id)
+            submitted = submitted_by_part.get(part_id)
+            old_quantity = int(existing.quantity) if existing is not None else 0
+            new_quantity = int(submitted.quantity) if submitted is not None else 0
+            delta = new_quantity - old_quantity
+            total_quantity = int(part.total_quantity)
+            reserved_before = int(part.reserved_quantity)
+            available_before = total_quantity - reserved_before
+
+            if existing is not None and reserved_before < old_quantity:
+                raise ReservationConflictError(
+                    f"Part {part.id} has only {reserved_before} reserved units, "
+                    f"but reservation item {existing.id} requires {old_quantity}."
+                )
+            if delta > 0 and delta > available_before:
+                raise ReservationConflictError(
+                    f"Part {part.id} has only {available_before} available "
+                    f"units; editing requires {delta} additional units."
+                )
+
+            reserved_after = reserved_before + delta
+            if reserved_after < 0 or reserved_after > total_quantity:
+                raise ReservationConflictError(
+                    f"Part {part.id} stock cannot support the edited reservation."
+                )
+
+            if delta != 0:
+                changed_at = datetime.now(timezone.utc)
+                conditions = [
+                    Part.id == part.id,
+                    Part.is_deleted.is_(False),
+                    Part.reserved_quantity == reserved_before,
+                ]
+                if delta > 0:
+                    conditions.append(
+                        Part.total_quantity - Part.reserved_quantity >= delta
+                    )
+                else:
+                    conditions.append(Part.reserved_quantity >= -delta)
+                result = db.execute(
+                    update(Part)
+                    .where(*conditions)
+                    .values(
+                        reserved_quantity=reserved_after,
+                        updated_at=changed_at,
+                    )
+                    .execution_options(synchronize_session=False)
+                )
+                if result.rowcount != 1:
+                    raise ReservationConflictError(
+                        f"Part {part.id} stock changed while reservation "
+                        f"{reservation.id} was being edited."
+                    )
+                part.reserved_quantity = reserved_after
+                part.updated_at = changed_at
+
+                movement_type = (
+                    MOVEMENT_TYPE_RESERVE
+                    if delta > 0
+                    else MOVEMENT_TYPE_RELEASE
+                )
+                movement_note = (
+                    submitted.note
+                    if submitted is not None
+                    else existing.note if existing is not None else None
+                )
+                movement = StockMovement(
+                    part_id=part.id,
+                    reservation_id=reservation.id,
+                    movement_type=movement_type,
+                    quantity_delta=0,
+                    quantity_before=total_quantity,
+                    quantity_after=total_quantity,
+                    reserved_quantity_before=reserved_before,
+                    reserved_quantity_after=reserved_after,
+                    available_quantity_before=available_before,
+                    available_quantity_after=(
+                        total_quantity - reserved_after
+                    ),
+                    unit_price_snapshot=(
+                        existing.unit_price_snapshot
+                        if existing is not None
+                        else part.unit_price
+                    ),
+                    currency_snapshot=reservation.currency_snapshot,
+                    reason=(
+                        (
+                            f"Increased reservation for {payload.label}"
+                            if delta > 0
+                            else f"Released from reservation {payload.label}"
+                        )[:180]
+                    ),
+                    note=movement_note,
+                    source=SOURCE_MANUAL,
+                    actor_user_id=actor_user_id,
+                )
+                db.add(movement)
+                movements.append(movement)
+                if delta > 0:
+                    increased_part_ids.append(part.id)
+                else:
+                    released_part_ids.append(part.id)
+
+        for submitted in submitted_items:
+            existing = existing_by_part.get(submitted.part_id)
+            if existing is None:
+                part = part_map[submitted.part_id]
+                existing = ReservationItem(
+                    reservation_id=reservation.id,
+                    part_id=part.id,
+                    quantity=submitted.quantity,
+                    unit_price_snapshot=part.unit_price,
+                    currency_snapshot=reservation.currency_snapshot,
+                    note=submitted.note,
+                )
+                db.add(existing)
+            else:
+                existing.quantity = submitted.quantity
+                existing.note = submitted.note
+            retained_items.append(existing)
+
+        for part_id, existing in existing_by_part.items():
+            if part_id not in submitted_by_part:
+                db.delete(existing)
+
+        all_prices_known = all(
+            item.unit_price_snapshot is not None
+            for item in retained_items
+        )
+        estimated_value = (
+            sum(
+                Decimal(item.unit_price_snapshot) * int(item.quantity)
+                for item in retained_items
+            )
+            if all_prices_known
+            else None
+        )
+
+        reservation.label = payload.label
+        reservation.notes = payload.notes
+        reservation.expiry_at = expiry_at
+        reservation.estimated_reserved_value = estimated_value
+        db.flush()
+
+        after_items = [
+            _reservation_edit_item_snapshot(item)
+            for item in retained_items
+        ]
+        after_snapshot = {
+            "id": reservation.id,
+            "label": reservation.label,
+            "status": reservation.status,
+            "notes": reservation.notes,
+            "expiry_at": (
+                expiry_at.isoformat() if expiry_at is not None else None
+            ),
+            "estimated_reserved_value": (
+                str(reservation.estimated_reserved_value)
+                if reservation.estimated_reserved_value is not None
+                else None
+            ),
+            "currency_snapshot": reservation.currency_snapshot,
+            "total_reserved_units": sum(
+                int(item.quantity) for item in retained_items
+            ),
+            "items": after_items,
+        }
+
+        db.add(
+            AuditLog(
+                event_type="reservation.updated",
+                entity_type="reservation",
+                entity_id=reservation.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=(
+                    f"Updated reservation {reservation.label} "
+                    f"with {len(retained_items)} parts"
+                ),
+                before_json=before_snapshot,
+                after_json=after_snapshot,
+                metadata_json={
+                    "source": SOURCE_MANUAL,
+                    "movement_types": sorted(
+                        {movement.movement_type for movement in movements}
+                    ),
+                    "movement_ids": [
+                        movement.id for movement in movements
+                    ],
+                    "increased_part_ids": increased_part_ids,
+                    "released_part_ids": released_part_ids,
+                    "project_id": reservation.project_id,
+                },
+            )
+        )
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(reservation)
+
+    except IntegrityError as exc:
+        db.rollback()
+        raise ReservationConflictError(
+            "Reservation edit conflicted with current inventory data."
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return _serialise_reservation(db, reservation)
 
 
 # PARTPILOT:RESERVATION_CANCELLATION_SERVICE:V306

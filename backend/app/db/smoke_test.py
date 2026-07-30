@@ -1359,6 +1359,582 @@ def check_reservation_read_create_api() -> None:
     )
 
 
+
+
+# PARTPILOT:RESERVATION_EDIT_API_SMOKE:V346
+def check_reservation_edit_api() -> None:
+    import json
+    from datetime import datetime, timedelta, timezone
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_reservation_edit_{suffix}"
+    password = "reservation-edit-smoke-password"
+    part_ids: list[int] = []
+    reservation_id: int | None = None
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if reservation_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'reservation' "
+                        "and entity_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        "where reservation_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from reservation_items "
+                        "where reservation_id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+                db.execute(
+                    text(
+                        "delete from reservations "
+                        "where id = :reservation_id"
+                    ),
+                    {"reservation_id": reservation_id},
+                )
+
+            if part_ids:
+                placeholders = ", ".join(
+                    f":part_id_{index}"
+                    for index, _value in enumerate(part_ids)
+                )
+                params = {
+                    f"part_id_{index}": value
+                    for index, value in enumerate(part_ids)
+                }
+                db.execute(
+                    text(
+                        "update parts set reserved_quantity = 0 "
+                        f"where id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where part_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    params,
+                )
+                db.execute(
+                    text(
+                        "delete from parts "
+                        f"where id in ({placeholders})"
+                    ),
+                    params,
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    def fixture_state() -> dict[str, object]:
+        if reservation_id is None:
+            fail("Reservation edit fixture ID is unresolved")
+        with db_session() as db:
+            return {
+                "reservation": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from reservations "
+                            "where id = :reservation_id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ],
+                "items": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from reservation_items "
+                            "where reservation_id = :reservation_id "
+                            "order by id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ],
+                "movements": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from stock_movements "
+                            "where reservation_id = :reservation_id "
+                            "order by id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ],
+                "audits": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select * from audit_log "
+                            "where entity_type = 'reservation' "
+                            "and entity_id = :reservation_id "
+                            "order by id"
+                        ),
+                        {"reservation_id": reservation_id},
+                    ).mappings()
+                ],
+                "parts": [
+                    dict(row)
+                    for row in db.execute(
+                        text(
+                            "select id, total_quantity, reserved_quantity, "
+                            "updated_at from parts "
+                            "where id in (:first, :second, :third) "
+                            "order by id"
+                        ),
+                        {
+                            "first": part_ids[0],
+                            "second": part_ids[1],
+                            "third": part_ids[2],
+                        },
+                    ).mappings()
+                ],
+            }
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated = client.put(
+            "/api/reservations/999999999",
+            json={
+                "label": "Unauthenticated edit",
+                "items": [{"part_id": 1, "quantity": 1}],
+            },
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Reservation editing should require authentication, got "
+                f"{unauthenticated.status_code}"
+            )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail("Reservation edit smoke requires an active part type")
+
+            user = create_user(
+                db,
+                username=username,
+                display_name="Reservation Edit Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            token = create_session(db, user=user, commit=True)
+
+            fixtures = [
+                Part(
+                    part_type_id=int(part_type_id),
+                    part_number=f"SMOKE-EDIT-A-{suffix}",
+                    name="Reservation edit smoke part A",
+                    total_quantity=10,
+                    reserved_quantity=0,
+                    unit_price=Decimal("2.50"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    part_number=f"SMOKE-EDIT-B-{suffix}",
+                    name="Reservation edit smoke part B",
+                    total_quantity=8,
+                    reserved_quantity=0,
+                    unit_price=Decimal("4.00"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    part_number=f"SMOKE-EDIT-C-{suffix}",
+                    name="Reservation edit smoke part C",
+                    total_quantity=1,
+                    reserved_quantity=0,
+                    unit_price=Decimal("6.00"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+            ]
+            db.add_all(fixtures)
+            db.commit()
+            for fixture in fixtures:
+                db.refresh(fixture)
+                part_ids.append(fixture.id)
+
+        headers = {"Authorization": f"Bearer {token.token}"}
+        created = client.post(
+            "/api/reservations",
+            headers=headers,
+            json={
+                "label": "Reservation edit original",
+                "notes": "Original reservation notes",
+                "items": [
+                    {
+                        "part_id": part_ids[0],
+                        "quantity": 2,
+                        "note": "Original A note",
+                    },
+                    {
+                        "part_id": part_ids[1],
+                        "quantity": 2,
+                        "note": "Original B note",
+                    },
+                ],
+            },
+        )
+        if created.status_code != 201:
+            fail(
+                "Reservation edit fixture creation failed: "
+                f"{created.status_code}: {created.text}"
+            )
+        reservation_id = int(created.json()["id"])
+
+        expiry = datetime.now(timezone.utc) + timedelta(days=4)
+        edit_payload = {
+            "label": "Reservation edit updated",
+            "notes": "Updated reservation notes",
+            "expiry_at": expiry.isoformat(),
+            "items": [
+                {
+                    "part_id": part_ids[0],
+                    "quantity": 1,
+                    "note": "Updated A note",
+                },
+                {
+                    "part_id": part_ids[0],
+                    "quantity": 3,
+                    "note": "Updated A note",
+                },
+                {
+                    "part_id": part_ids[2],
+                    "quantity": 1,
+                    "note": "New C note",
+                },
+            ],
+        }
+        updated = client.put(
+            f"/api/reservations/{reservation_id}",
+            headers=headers,
+            json=edit_payload,
+        )
+        if updated.status_code != 200:
+            fail(
+                "Reservation edit returned "
+                f"{updated.status_code}: {updated.text}"
+            )
+        payload = updated.json()
+        items = payload.get("items", [])
+        item_by_part = {
+            int(item["part_id"]): item for item in items
+        }
+        if (
+            payload.get("label") != "Reservation edit updated"
+            or payload.get("notes") != "Updated reservation notes"
+            or payload.get("status") != "active"
+            or len(items) != 2
+            or set(item_by_part) != {part_ids[0], part_ids[2]}
+            or int(item_by_part[part_ids[0]]["quantity"]) != 4
+            or item_by_part[part_ids[0]].get("note") != "Updated A note"
+            or int(item_by_part[part_ids[2]]["quantity"]) != 1
+            or item_by_part[part_ids[2]].get("note") != "New C note"
+            or Decimal(str(payload.get("estimated_reserved_value")))
+            != Decimal("16.0000")
+        ):
+            fail(f"Reservation edit response is incorrect: {payload}")
+
+        with db_session() as db:
+            stocks = {
+                int(row["id"]): int(row["reserved_quantity"])
+                for row in db.execute(
+                    text(
+                        "select id, reserved_quantity from parts "
+                        "where id in (:first, :second, :third)"
+                    ),
+                    {
+                        "first": part_ids[0],
+                        "second": part_ids[1],
+                        "third": part_ids[2],
+                    },
+                ).mappings()
+            }
+            if stocks != {
+                part_ids[0]: 4,
+                part_ids[1]: 0,
+                part_ids[2]: 1,
+            }:
+                fail(f"Reservation edit stock reconciliation is wrong: {stocks}")
+
+            edit_movements = [
+                dict(row)
+                for row in db.execute(
+                    text(
+                        "select * from stock_movements "
+                        "where reservation_id = :reservation_id "
+                        "order by id desc limit 3"
+                    ),
+                    {"reservation_id": reservation_id},
+                ).mappings()
+            ]
+            expected_movement = {
+                (part_ids[0], "reserve"): (2, 4, 8, 6),
+                (part_ids[1], "release"): (2, 0, 6, 8),
+                (part_ids[2], "reserve"): (0, 1, 1, 0),
+            }
+            actual_movement = {
+                (int(row["part_id"]), str(row["movement_type"])): (
+                    int(row["reserved_quantity_before"]),
+                    int(row["reserved_quantity_after"]),
+                    int(row["available_quantity_before"]),
+                    int(row["available_quantity_after"]),
+                )
+                for row in edit_movements
+            }
+            if actual_movement != expected_movement:
+                fail(
+                    "Reservation edit movements are incorrect: "
+                    f"{actual_movement}"
+                )
+
+            audits = [
+                dict(row)
+                for row in db.execute(
+                    text(
+                        "select * from audit_log "
+                        "where entity_type = 'reservation' "
+                        "and entity_id = :reservation_id "
+                        "and event_type = 'reservation.updated'"
+                    ),
+                    {"reservation_id": reservation_id},
+                ).mappings()
+            ]
+            if len(audits) != 1:
+                fail(f"Reservation edit audit count is incorrect: {audits}")
+            audit = audits[0]
+            before_json = audit["before_json"]
+            after_json = audit["after_json"]
+            if isinstance(before_json, str):
+                before_json = json.loads(before_json)
+            if isinstance(after_json, str):
+                after_json = json.loads(after_json)
+            if (
+                user_id is None
+                or int(audit["actor_user_id"]) != int(user_id)
+                or audit["actor_type"] != "user"
+                or not str(audit["summary"]).startswith(
+                    "Updated reservation Reservation edit updated"
+                )
+                or before_json.get("label")
+                != "Reservation edit original"
+                or after_json.get("label")
+                != "Reservation edit updated"
+            ):
+                fail(f"Reservation edit audit is incorrect: {audit}")
+
+        activity = client.get(
+            f"/api/reservations/{reservation_id}/activity",
+            headers=headers,
+        )
+        if activity.status_code != 200:
+            fail(
+                "Edited reservation activity returned "
+                f"{activity.status_code}: {activity.text}"
+            )
+        activity_payload = activity.json()
+        if activity_payload.get("total") != 7:
+            fail(
+                "Edited reservation activity count is incorrect: "
+                f"{activity_payload}"
+            )
+        event_types = [
+            entry.get("event_type")
+            for entry in activity_payload.get("activities", [])
+        ]
+        if "reservation.updated" not in event_types:
+            fail(
+                "Edited reservation activity lacks reservation.updated: "
+                f"{event_types}"
+            )
+
+        before_noop = fixture_state()
+        noop = client.put(
+            f"/api/reservations/{reservation_id}",
+            headers=headers,
+            json=edit_payload,
+        )
+        if noop.status_code != 200:
+            fail(
+                f"No-op reservation edit failed: {noop.status_code}: {noop.text}"
+            )
+        if fixture_state() != before_noop:
+            fail("No-op reservation edit changed fixture data")
+
+        invalid_requests = [
+            (
+                "insufficient stock",
+                {
+                    **edit_payload,
+                    "items": [
+                        {
+                            "part_id": part_ids[0],
+                            "quantity": 4,
+                            "note": "Updated A note",
+                        },
+                        {
+                            "part_id": part_ids[2],
+                            "quantity": 2,
+                            "note": "New C note",
+                        },
+                    ],
+                },
+                409,
+            ),
+            (
+                "missing part",
+                {
+                    **edit_payload,
+                    "items": [
+                        {"part_id": part_ids[0], "quantity": 4},
+                        {"part_id": part_ids[2] + 999999, "quantity": 1},
+                    ],
+                },
+                422,
+            ),
+            (
+                "conflicting duplicate notes",
+                {
+                    **edit_payload,
+                    "items": [
+                        {
+                            "part_id": part_ids[0],
+                            "quantity": 2,
+                            "note": "First note",
+                        },
+                        {
+                            "part_id": part_ids[0],
+                            "quantity": 2,
+                            "note": "Second note",
+                        },
+                    ],
+                },
+                422,
+            ),
+            (
+                "past expiry",
+                {
+                    **edit_payload,
+                    "expiry_at": (
+                        datetime.now(timezone.utc) - timedelta(days=1)
+                    ).isoformat(),
+                },
+                422,
+            ),
+        ]
+        for name, request_payload, expected_status in invalid_requests:
+            before_invalid = fixture_state()
+            response = client.put(
+                f"/api/reservations/{reservation_id}",
+                headers=headers,
+                json=request_payload,
+            )
+            if response.status_code != expected_status:
+                fail(
+                    f"Reservation edit {name} should return "
+                    f"{expected_status}, got {response.status_code}: "
+                    f"{response.text}"
+                )
+            if fixture_state() != before_invalid:
+                fail(f"Reservation edit {name} changed fixture data")
+
+        missing = client.put(
+            f"/api/reservations/{reservation_id + 999999}",
+            headers=headers,
+            json=edit_payload,
+        )
+        if missing.status_code != 404:
+            fail(
+                "Missing reservation edit should return 404, got "
+                f"{missing.status_code}: {missing.text}"
+            )
+
+        cancelled = client.post(
+            f"/api/reservations/{reservation_id}/cancel",
+            headers=headers,
+        )
+        if cancelled.status_code != 200:
+            fail(
+                "Reservation edit fixture cancellation failed: "
+                f"{cancelled.status_code}: {cancelled.text}"
+            )
+        before_non_active = fixture_state()
+        non_active = client.put(
+            f"/api/reservations/{reservation_id}",
+            headers=headers,
+            json=edit_payload,
+        )
+        if non_active.status_code != 409:
+            fail(
+                "Non-active reservation edit should return 409, got "
+                f"{non_active.status_code}: {non_active.text}"
+            )
+        if fixture_state() != before_non_active:
+            fail("Rejected non-active reservation edit changed fixture data")
+
+    finally:
+        cleanup()
+
+    ok(
+        "Protected active reservation editing reconciles metadata, expiry, "
+        "items, reserve/release movements, value snapshots, audit history, "
+        "conflicts, authentication, no-op requests, and cleanup"
+    )
+
+
 # PARTPILOT:RESERVATION_CANCELLATION_API_SMOKE:V306
 def check_reservation_cancellation_api() -> None:
     from fastapi.testclient import TestClient
@@ -9866,6 +10442,7 @@ def main() -> None:
         check_reservation_consumption_api,
         check_reservation_expiry_api,
         check_reservation_activity_api,
+        check_reservation_edit_api,
         check_phase3_auth_foundation,
         check_phase3_auth_service,
         check_phase3_auth_api_routes,

@@ -80,6 +80,12 @@ class ReservationCreateRequest(BaseModel):
         return self
 
 
+# PARTPILOT:RESERVATION_EDIT_SCHEMA:V346
+class ReservationUpdateRequest(ReservationCreateRequest):
+    # Complete replacement payload for an existing active reservation.
+    pass
+
+
 class ReservationItemResponse(BaseModel):
     id: int
     reservation_id: int

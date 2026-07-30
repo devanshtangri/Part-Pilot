@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.schemas.reservations import (
     ReservationCollectionResponse,
     ReservationCreateRequest,
+    ReservationUpdateRequest,
     ReservationResponse,
 )
 from app.services.reservations import (
@@ -22,6 +23,7 @@ from app.services.reservations import (
     create_reservation,
     get_reservation,
     list_reservations,
+    update_reservation,
 )
 
 
@@ -92,6 +94,44 @@ def create_reservation_record(
             actor_user_id=current_user.id,
             commit=True,
         )
+    except ReservationConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except ReservationValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+
+
+# PARTPILOT:RESERVATION_EDIT_ROUTE:V346
+@router.put(
+    "/{reservation_id}",
+    response_model=ReservationResponse,
+)
+def update_reservation_record(
+    reservation_id: int,
+    payload: ReservationUpdateRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReservationResponse:
+    try:
+        return update_reservation(
+            db,
+            reservation_id,
+            payload,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ReservationNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     except ReservationConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
