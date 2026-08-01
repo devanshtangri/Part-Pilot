@@ -48,6 +48,20 @@ RESTORE_OPERATION_MARKER_CONTENT = (
 RESTORE_ARCHIVE_FILENAME = "upload.ppbackup"
 RESTORE_DATABASE_FILENAME = "candidate.db"
 RESTORE_STATE_FILENAME = "state.json"
+RESTORE_COMMIT_FILENAME = "commit.json"
+RESTORE_RESULT_FILENAME = "result.json"
+RESTORE_ROLLBACK_FILENAME = "rollback.db"
+RESTORE_PREVIOUS_FILENAME = "previous.db"
+RESTORE_FAILED_DATABASE_FILENAME = "failed.db"
+RESTORE_BOOTSTRAP_EXTRA_FILES = frozenset(
+    {
+        RESTORE_COMMIT_FILENAME,
+        RESTORE_RESULT_FILENAME,
+        RESTORE_ROLLBACK_FILENAME,
+        RESTORE_PREVIOUS_FILENAME,
+        RESTORE_FAILED_DATABASE_FILENAME,
+    }
+)
 RESTORE_TOKEN_BYTES = 32
 RESTORE_TOKEN_RE = re.compile(
     RESTORE_TOKEN_PATTERN
@@ -826,6 +840,8 @@ def load_staged_restore(
     actor_username: str,
     staging_root: Path,
     now: datetime | None = None,
+    require_unexpired: bool = True,
+    allowed_extra_files: frozenset[str] = frozenset(),
 ) -> StagedRestore:
     _validate_token(
         validation_token
@@ -870,11 +886,20 @@ def load_staged_restore(
         if now is not None
         else _utc_now()
     )
-    if _parse_utc(
-        state.expires_at_utc
-    ) <= current:
+    if (
+        require_unexpired
+        and _parse_utc(
+            state.expires_at_utc
+        ) <= current
+    ):
         raise RestoreStagingStateError(
             "Restore validation token has expired."
+        )
+    if not allowed_extra_files.issubset(
+        RESTORE_BOOTSTRAP_EXTRA_FILES
+    ):
+        raise RestoreStagingStateError(
+            "Restore staging extra-file allowlist is invalid."
         )
 
     expected_files = {
@@ -882,6 +907,7 @@ def load_staged_restore(
         RESTORE_ARCHIVE_FILENAME,
         RESTORE_DATABASE_FILENAME,
         RESTORE_STATE_FILENAME,
+        *allowed_extra_files,
     }
     actual_files = {
         child.name

@@ -105,3 +105,80 @@ class RestoreStageState(RestoreContractModel):
     )
     sessions_present: bool
     warnings: tuple[str, ...]
+
+
+class RestoreCommitJob(RestoreContractModel):
+    job_version: Literal[1]
+    status: Literal["pending"]
+    validation_token: str = Field(
+        pattern=RESTORE_TOKEN_PATTERN
+    )
+    token_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$"
+    )
+    actor_user_id: int = Field(
+        ge=1,
+    )
+    actor_username: str = Field(
+        min_length=1,
+        max_length=80,
+    )
+    requested_at_utc: str
+    expected_live_database_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$"
+    )
+    expected_live_database_size_bytes: int = Field(
+        ge=1,
+    )
+    staged_archive_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$"
+    )
+    staged_database_sha256: str = Field(
+        pattern=r"^[0-9a-f]{64}$"
+    )
+    result_filename: Literal["result.json"]
+
+
+class RestoreBootstrapResult(RestoreContractModel):
+    result_version: Literal[1]
+    status: Literal["succeeded", "failed"]
+    validation_token: str = Field(
+        pattern=RESTORE_TOKEN_PATTERN
+    )
+    started_at_utc: str
+    finished_at_utc: str
+    event_type: Literal[
+        "backup.restored",
+        "backup.restore_failed",
+    ]
+    actor_type: Literal["user", "system"]
+    actor_user_id: int | None = Field(
+        default=None,
+        ge=1,
+    )
+    live_database_sha256_before: str = Field(
+        pattern=r"^[0-9a-f]{64}$"
+    )
+    live_database_sha256_after: str = Field(
+        pattern=r"^[0-9a-f]{64}$"
+    )
+    restored_snapshot_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    rollback_snapshot_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    rollback_verified: bool
+    sessions_invalidated: int = Field(
+        ge=0,
+    )
+    audit_id: int | None = Field(
+        default=None,
+        ge=1,
+    )
+    error_code: str | None = Field(
+        default=None,
+        max_length=80,
+    )
