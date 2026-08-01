@@ -13115,6 +13115,318 @@ def check_project_reservation_api() -> None:
         "stock movements, audits, status guards, and inventory-safe rollback"
     )
 
+# PARTPILOT:PROJECT_CONSUMPTION_SMOKE:V394
+def check_project_consumption_api() -> None:
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import func, select
+
+    from app.db.constants import (
+        MOVEMENT_TYPE_CONSUME,
+        PROJECT_STATUS_CONSUMED,
+        PROJECT_STATUS_DRAFT,
+        PROJECT_STATUS_RESERVED,
+        RESERVATION_STATUS_ACTIVE,
+        RESERVATION_STATUS_CONSUMED,
+    )
+    from app.db.session import SessionLocal
+    from app.main import app
+    from app.models import (
+        AuditLog,
+        Part,
+        PartType,
+        Project,
+        ProjectItem,
+        Reservation,
+        StockMovement,
+    )
+    from app.services.projects import (
+        ProjectConflictError,
+        consume_project,
+        reserve_project,
+    )
+
+    client = TestClient(app)
+    unauthenticated = client.post(
+        "/api/projects/999999999/consume"
+    )
+    if unauthenticated.status_code not in (401, 403):
+        fail(
+            "Unauthenticated Project consumption should return 401/403, "
+            f"got {unauthenticated.status_code}: "
+            f"{unauthenticated.text}"
+        )
+
+    openapi = client.get("/openapi.json")
+    consume_methods = set(
+        openapi.json()
+        .get("paths", {})
+        .get("/api/projects/{project_id}/consume", {})
+    )
+    if openapi.status_code != 200 or consume_methods != {"post"}:
+        fail(
+            "Project consumption OpenAPI contract is incorrect: "
+            f"{openapi.status_code}, {sorted(consume_methods)}"
+        )
+
+    db = SessionLocal()
+    suffix = uuid4().hex[:12]
+    try:
+        part_type_id = db.execute(
+            select(PartType.id)
+            .where(PartType.is_active.is_(True))
+            .order_by(PartType.id.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if part_type_id is None:
+            fail(
+                "Project consumption smoke requires an active part type"
+            )
+
+        part = Part(
+            part_type_id=part_type_id,
+            part_number=f"PP394-{suffix}",
+            name=f"Project consumption smoke {suffix}",
+            total_quantity=7,
+            reserved_quantity=0,
+            unit_price=Decimal("3.2500"),
+            is_deleted=False,
+        )
+        project = Project(
+            name=f"Project consumption {suffix}",
+            description="Atomic Project consumption smoke fixture",
+            status=PROJECT_STATUS_DRAFT,
+            notes="Consume this linked Project reservation",
+            created_by="manual",
+            estimated_total_value=Decimal("6.5000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([part, project])
+        db.flush()
+        db.add(
+            ProjectItem(
+                project_id=project.id,
+                part_id=part.id,
+                quantity=2,
+                unit_price_snapshot=Decimal("3.2500"),
+                currency_snapshot="USD",
+                note="Consume this exact Project quantity",
+            )
+        )
+        db.flush()
+
+        reserve_project(
+            db,
+            project.id,
+            actor_user_id=None,
+            commit=False,
+        )
+        db.flush()
+
+        reservation = db.execute(
+            select(Reservation).where(
+                Reservation.project_id == project.id
+            )
+        ).scalar_one_or_none()
+        if reservation is None:
+            fail(
+                "Project consumption fixture has no linked Reservation"
+            )
+        if reservation.status != RESERVATION_STATUS_ACTIVE:
+            fail(
+                "Project consumption fixture Reservation is not active"
+            )
+
+        total_before = int(part.total_quantity)
+        reserved_before = int(part.reserved_quantity)
+        available_before = total_before - reserved_before
+        if reserved_before != 2:
+            fail(
+                "Project consumption fixture did not reserve two units"
+            )
+
+        response = consume_project(
+            db,
+            project.id,
+            actor_user_id=None,
+            commit=False,
+        )
+        db.flush()
+        db.refresh(project)
+        db.refresh(reservation)
+        db.refresh(part)
+
+        if response.status != PROJECT_STATUS_CONSUMED:
+            fail(
+                "Project consume response did not transition to consumed"
+            )
+        if project.status != PROJECT_STATUS_CONSUMED:
+            fail(
+                "Project persistence did not transition to consumed"
+            )
+        if reservation.status != RESERVATION_STATUS_CONSUMED:
+            fail(
+                "Linked Reservation did not transition to consumed"
+            )
+        if int(part.total_quantity) != total_before - 2:
+            fail(
+                "Project consumption did not reduce physical total quantity"
+            )
+        if int(part.reserved_quantity) != reserved_before - 2:
+            fail(
+                "Project consumption did not reduce reserved quantity"
+            )
+        if (
+            int(part.total_quantity) - int(part.reserved_quantity)
+            != available_before
+        ):
+            fail(
+                "Project consumption changed available quantity"
+            )
+
+        movement = db.execute(
+            select(StockMovement).where(
+                StockMovement.reservation_id == reservation.id,
+                StockMovement.movement_type == MOVEMENT_TYPE_CONSUME,
+            )
+        ).scalar_one_or_none()
+        if (
+            movement is None
+            or int(movement.quantity_delta) != -2
+            or int(movement.quantity_before) != total_before
+            or int(movement.quantity_after) != total_before - 2
+            or int(movement.reserved_quantity_before)
+            != reserved_before
+            or int(movement.reserved_quantity_after)
+            != reserved_before - 2
+            or int(movement.available_quantity_before)
+            != available_before
+            or int(movement.available_quantity_after)
+            != available_before
+        ):
+            fail(
+                f"Project consume movement is incorrect: {movement}"
+            )
+
+        project_audit = db.execute(
+            select(AuditLog).where(
+                AuditLog.event_type == "project.consumed",
+                AuditLog.entity_type == "project",
+                AuditLog.entity_id == project.id,
+            )
+        ).scalar_one_or_none()
+        reservation_audit_count = int(
+            db.execute(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(
+                    AuditLog.event_type == "reservation.consumed",
+                    AuditLog.entity_type == "reservation",
+                    AuditLog.entity_id == reservation.id,
+                )
+            ).scalar_one()
+        )
+        if project_audit is None or reservation_audit_count != 1:
+            fail(
+                "Project consumption did not create exactly one Project "
+                "and one Reservation consumption audit"
+            )
+        if (
+            project_audit.before_json.get("status")
+            != PROJECT_STATUS_RESERVED
+            or project_audit.after_json.get("status")
+            != PROJECT_STATUS_CONSUMED
+            or project_audit.after_json.get("reservation_id")
+            != reservation.id
+            or project_audit.after_json.get("consumed_units") != 2
+            or project_audit.metadata_json.get("movement_type")
+            != MOVEMENT_TYPE_CONSUME
+        ):
+            fail(
+                "Project consumption audit payload is incorrect: "
+                f"{project_audit.after_json}"
+            )
+
+        try:
+            consume_project(
+                db,
+                project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail(
+                "Already-consumed Project accepted a second consumption"
+            )
+
+        db.rollback()
+
+        orphan_part = Part(
+            part_type_id=part_type_id,
+            part_number=f"PP394-ORPHAN-{suffix}",
+            name=f"Project consumption orphan {suffix}",
+            total_quantity=3,
+            reserved_quantity=1,
+            unit_price=Decimal("1.0000"),
+            is_deleted=False,
+        )
+        orphan_project = Project(
+            name=f"Project consumption orphan {suffix}",
+            status=PROJECT_STATUS_RESERVED,
+            created_by="manual",
+            estimated_total_value=Decimal("1.0000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([orphan_part, orphan_project])
+        db.flush()
+        db.add(
+            ProjectItem(
+                project_id=orphan_project.id,
+                part_id=orphan_part.id,
+                quantity=1,
+                unit_price_snapshot=Decimal("1.0000"),
+                currency_snapshot="USD",
+            )
+        )
+        db.flush()
+
+        try:
+            consume_project(
+                db,
+                orphan_project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail(
+                "Reserved Project without a linked Reservation was consumed"
+            )
+
+        if (
+            orphan_project.status != PROJECT_STATUS_RESERVED
+            or int(orphan_part.total_quantity) != 3
+            or int(orphan_part.reserved_quantity) != 1
+        ):
+            fail(
+                "Rejected orphan Project consumption changed Project "
+                "or inventory state"
+            )
+        db.rollback()
+    finally:
+        db.close()
+
+    ok(
+        "Reserved Projects consume atomically through their linked "
+        "Reservations, preserving available quantity, synchronising terminal "
+        "statuses, movements, audits, guards, and rollback"
+    )
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -13129,6 +13441,7 @@ def main() -> None:
         check_project_read_create_api,
         check_project_draft_update_api,
         check_project_reservation_api,
+        check_project_consumption_api,
         check_reservation_contract_schema,
         check_reservation_creation_service,
         check_reservation_read_create_api,

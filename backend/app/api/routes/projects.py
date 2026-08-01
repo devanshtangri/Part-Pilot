@@ -169,3 +169,33 @@ def reserve_project_record(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
+
+# PARTPILOT:PROJECT_CONSUMPTION_ROUTE:V394
+@router.post(
+    "/{project_id}/consume",
+    response_model=ProjectResponse,
+)
+def consume_project_record(
+    project_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProjectResponse:
+    from app.services.projects import consume_project
+
+    try:
+        return consume_project(
+            db,
+            project_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ProjectConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc

@@ -817,3 +817,181 @@ def reserve_project(
         raise
 
     return _serialise_project(db, project)
+
+# PARTPILOT:PROJECT_CONSUMPTION_SERVICE:V394
+def consume_project(
+    db: Session,
+    project_id: int,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> ProjectResponse:
+    from app.db.constants import (
+        MOVEMENT_TYPE_CONSUME,
+        PROJECT_STATUS_CONSUMED,
+        RESERVATION_STATUS_CONSUMED,
+    )
+    from app.services.reservations import (
+        ReservationConflictError,
+        ReservationNotFoundError,
+        consume_reservation,
+    )
+
+    project = db.execute(
+        select(Project)
+        .where(Project.id == project_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if project is None:
+        raise ProjectNotFoundError("Project not found.")
+    if project.status != PROJECT_STATUS_RESERVED:
+        raise ProjectConflictError(
+            "Only Reserved Projects can be consumed. "
+            f"Current status: {project.status}."
+        )
+
+    linked_reservations = list(
+        db.execute(
+            select(Reservation)
+            .where(Reservation.project_id == project.id)
+            .order_by(Reservation.id.asc())
+            .with_for_update()
+        ).scalars()
+    )
+    if not linked_reservations:
+        raise ProjectConflictError(
+            "Reserved Project has no linked Reservation to consume."
+        )
+    if len(linked_reservations) != 1:
+        raise ProjectConflictError(
+            "Reserved Project has multiple linked Reservations and cannot "
+            "be consumed safely."
+        )
+
+    reservation = linked_reservations[0]
+    if reservation.status != RESERVATION_STATUS_ACTIVE:
+        raise ProjectConflictError(
+            "The linked Reservation must be active before Project "
+            f"consumption. Current status: {reservation.status}."
+        )
+
+    reservation_items = list(
+        db.execute(
+            select(ReservationItem)
+            .where(ReservationItem.reservation_id == reservation.id)
+            .order_by(ReservationItem.id.asc())
+        ).scalars()
+    )
+    if not reservation_items:
+        raise ProjectConflictError(
+            "The linked Reservation has no items to consume."
+        )
+
+    try:
+        try:
+            consumed_reservation = consume_reservation(
+                db,
+                reservation.id,
+                actor_user_id=actor_user_id,
+                commit=False,
+            )
+        except (ReservationConflictError, ReservationNotFoundError) as exc:
+            raise ProjectConflictError(
+                f"Linked Reservation could not be consumed: {exc}"
+            ) from exc
+
+        if consumed_reservation.status != RESERVATION_STATUS_CONSUMED:
+            raise ProjectConflictError(
+                "Linked Reservation did not transition to consumed."
+            )
+
+        changed_at = datetime.now(timezone.utc)
+        project_status_result = db.execute(
+            update(Project)
+            .where(
+                Project.id == project.id,
+                Project.status == PROJECT_STATUS_RESERVED,
+            )
+            .values(
+                status=PROJECT_STATUS_CONSUMED,
+                updated_at=changed_at,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if project_status_result.rowcount != 1:
+            raise ProjectConflictError(
+                "Project status changed while consumption was in progress."
+            )
+        db.expire(project, ["status", "updated_at"])
+
+        db.flush()
+        consume_movements = list(
+            db.execute(
+                select(StockMovement)
+                .where(
+                    StockMovement.reservation_id == reservation.id,
+                    StockMovement.movement_type == MOVEMENT_TYPE_CONSUME,
+                )
+                .order_by(StockMovement.id.asc())
+            ).scalars()
+        )
+        if len(consume_movements) != len(reservation_items):
+            raise ProjectConflictError(
+                "Project consumption did not create one consume movement "
+                "for every linked Reservation item."
+            )
+
+        consumed_units = sum(
+            int(item.quantity) for item in reservation_items
+        )
+        db.add(
+            AuditLog(
+                event_type="project.consumed",
+                entity_type="project",
+                entity_id=project.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=(
+                    f"Consumed Project {project.name} with "
+                    f"{len(reservation_items)} parts"
+                ),
+                before_json={
+                    "status": PROJECT_STATUS_RESERVED,
+                    "reservation_id": reservation.id,
+                    "reservation_status": RESERVATION_STATUS_ACTIVE,
+                    "total_units": consumed_units,
+                },
+                after_json={
+                    "status": PROJECT_STATUS_CONSUMED,
+                    "reservation_id": reservation.id,
+                    "reservation_status": RESERVATION_STATUS_CONSUMED,
+                    "consumed_units": consumed_units,
+                    "stock_movement_ids": [
+                        movement.id for movement in consume_movements
+                    ],
+                },
+                metadata_json={
+                    "source": SOURCE_MANUAL,
+                    "movement_type": MOVEMENT_TYPE_CONSUME,
+                    "reservation_id": reservation.id,
+                },
+            )
+        )
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(project)
+            db.refresh(reservation)
+    except IntegrityError as exc:
+        db.rollback()
+        raise ProjectConflictError(
+            "Project consumption conflicted with current inventory data."
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return _serialise_project(db, project)

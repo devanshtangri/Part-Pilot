@@ -270,12 +270,16 @@ independent full-result sorting for Available and Out of stock sections.
 Part Pilot separates **planning** from **operational inventory commitments**.
 
 Users create a Draft Project for a build, repair, prototype or other planned
-work. A Project stores its parts, quantities, notes and price snapshots without
-changing stock. Reserving the Project then creates one linked active Reservation
-and atomically commits the planned quantities.
+work. A Project stores parts, quantities, notes and price snapshots without
+changing stock. Reserving the Project creates one linked active Reservation and
+atomically commits its planned quantities.
 
 ```text
-Draft Project → Reserve Project → Active Reservation → Consume / Cancel / Expire
+Draft Project
+    ↓ Reserve
+Reserved Project + Active Reservation
+    ├─ Consume → Consumed Project + Consumed Reservation
+    └─ Cancel  → Cancelled Project + Cancelled Reservation
 ```
 
 | Capability | Status |
@@ -284,13 +288,18 @@ Draft Project → Reserve Project → Active Reservation → Consume / Cancel / 
 | Server-backed multi-result part search (up to 50 matches) | Available |
 | Price, currency and current-availability snapshots | Available |
 | Atomic Project reservation with linked Reservation | Available |
-| Available/reserved quantity accounting | Available |
-| Reserve/release/consume stock movements and audits | Available |
-| Active-Reservation editing | Available |
-| Cancel, consume and due-time expiry | Available |
-| Inactive-Reservation deletion with exact confirmation | Available |
+| Atomic Project consumption API | Available |
+| Project cancellation/release API | Planned |
+| Project consume/cancel frontend actions | Planned |
+| Available/reserved/physical quantity accounting | Available |
+| Reserve/release/consume movements and audits | Available |
+| Active-Reservation editing and lifecycle actions | Available |
 | Reservation activity timeline | Available |
 | Responsive desktop and mobile workflows | Available |
+
+Project consumption reuses the linked Reservation transaction: physical and
+reserved quantities decrease together, available quantity remains unchanged,
+both records become `consumed`, and paired audits are written.
 
 The Reservations page is the operational queue for committed inventory. Manual
 Reservation creation is intentionally absent from the frontend so users have

@@ -1977,3 +1977,77 @@ security and public-alpha hardening.
 - [ ] Backup and restore.
 - [ ] MCP read tools and safeguarded write tools.
 - [ ] Accessibility, security and public-alpha release hardening.
+
+<!-- PARTPILOT:CHAT14_PROJECTS_FOUNDATION_ROADMAP:V396 -->
+## Current roadmap checkpoint — Projects foundation complete
+
+### Overall progress
+
+**Working V1/public-alpha estimate: approximately 82%.**
+
+Inventory, universal search, the complete Reservation workflow and the core
+Projects planning/reservation foundation are operational. Reserved Projects now
+also have a verified backend consumption transition. Remaining work is
+concentrated in Project cancellation and terminal-action UI, system-wide
+History, broader Settings and appearance, backup/restore, MCP, accessibility,
+security and public-alpha hardening.
+
+### Completed through Patch 394
+
+- [x] Canonical Project lifecycle contract and migration.
+- [x] Protected Project list/detail/create/update APIs.
+- [x] Draft item reconciliation and price/currency snapshots.
+- [x] Responsive Project register/detail/create/edit workspace.
+- [x] Atomic Draft Project reservation through one linked active Reservation.
+- [x] Paired Project/Reservation reserve audits and stock movements.
+- [x] Project-derived Reservation product model.
+- [x] Multi-result Project and Reservation part pickers.
+- [x] Manual Reservation creation removed from the frontend.
+- [x] Atomic Reserved Project consumption through the linked Reservation.
+- [x] Project/Reservation `consumed` status synchronization.
+- [x] Consume movements, audits, concurrency guards and rollback.
+- [x] Complete copied-database smoke and live-data preservation.
+- [x] Diagnostic recovery for the Patch 391/392 pre-write failures.
+
+### Chat 15 — Project Lifecycle Completion
+
+Required title: `Chat 15: Project Lifecycle Completion`
+Patch range: 397–426
+Planned boundary: Patch 426
+
+#### Boundary recovery
+
+Patch 395 failed before writes on generated Markdown trailing whitespace. Patch 396 completes the boundary recovery, so Chat 15 owns Patch 397–426 and Patch 426 is its boundary.
+
+#### Immediate implementation order
+
+1. Add atomic Reserved Project cancellation by reusing
+   `cancel_reservation(..., commit=False)`.
+2. Require exactly one linked active Reservation and synchronize
+   `Project.cancelled` with `Reservation.cancelled`.
+3. Add paired release movements and `project.cancelled` audit verification.
+4. Add typed frontend client methods for Project consume and cancel.
+5. Add accessible confirmation actions, pending states and conflict feedback.
+6. Refresh Project, Reservation and inventory views after terminal actions.
+7. Browser-test desktop/mobile layouts, repeated-action guards and linked status
+   behavior.
+8. Checkpoint each approved lifecycle slice before broadening scope.
+
+### Remaining major V1 areas
+
+- [ ] Complete Project cancellation/release backend.
+- [ ] Add Project consume/cancel frontend actions and activity feedback.
+- [ ] System-wide History and audit browsing.
+- [ ] Settings and appearance completion.
+- [ ] Backup and restore.
+- [ ] MCP read tools and safeguarded write tools.
+- [ ] Add the authenticated MCP server enable/disable Settings control during
+  the MCP phase.
+- [ ] Accessibility, security and public-alpha release hardening.
+
+### Scope discipline
+
+Do not combine Project cancellation, system-wide History, backup/restore or MCP
+in one patch. Preserve existing inventory, Reservations, Projects, movements,
+audits and settings. The backend manual Reservation-create API remains until an
+explicit API/MCP compatibility decision is made.
