@@ -11,92 +11,87 @@ Project
 
 Patch and chat workflow
 - Every implementation, fix, diagnostic, checkpoint, cleanup and documentation
-  update is one complete downloadable Python file supplied in chat. The assistant
-  does not place or execute numbered patches on HomeLab unless explicitly asked.
+  update is one complete downloadable Python file supplied in chat. The
+  assistant does not place or execute numbered patches on HomeLab unless
+  explicitly asked.
 - Filenames start directly with the sequential patch number, never patch_.
   Failed user-run scripts consume their number.
 - Successful scripts print exactly `Everything PASS` as their final line.
 - Response headings are `Patch N - Browser Test` or `Patch N - Fix Only`.
 - Chat 15 is `Chat 15: Project Lifecycle Completion`, owns Patch 397-426, and
-  Patch 426 is its planned boundary. Patch 405 checkpoints the browser-approved
-  lifecycle source; Patch 406 is next after successful execution.
-- No next-chat starting-prompt files are created. A ready prompt is posted in
-  chat only after a successful boundary.
-- Browser-test source remains unstaged/uncommitted until explicit approval, then
-  a separate checkpoint script stages, commits and pushes the approved allowlist.
-- After two consecutive pre-write failures, repeated anchor mismatches or source
-  uncertainty, stop implementation and issue a diagnostic-only patch creating
+  Patch 426 is its planned boundary. Patch 410 checkpoints browser-approved
+  History; Patch 411 is next after successful execution.
+- Browser-test source remains unstaged/uncommitted until explicit approval,
+  followed by a separate checkpoint/commit/push script.
+- No next-chat prompt file is created. A ready prompt is posted only after a
+  successful boundary.
+- After two consecutive pre-write failures, repeated anchor mismatches or
+  source uncertainty, issue the next diagnostic-only patch and create
   docs/diagonostic_*.md.
 
 HomeLab-assisted safeguards
-- Inspect exact local Git/index state, hashes, successful logs, deployment,
-  OpenAPI/bundle markers and live SQLite values before high-risk patches.
-- Local source and the newest diagnostic/handoff are authoritative.
-- Generate all transformations in memory before backup/write. Prefer exact hashes,
+- Inspect exact Git/index state, hashes, logs, deployment, OpenAPI/bundle
+  markers and live SQLite values before high-risk patches.
+- Local source and newest durable diagnostic/handoff are authoritative.
+- Generate transformations in memory before backup/write; prefer exact hashes,
   scoped functions/markers and semantic validation over adjacency.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs: /projects/Part Pilot/fixes/logs/ and ignored by Git.
-- Application changes compile Python/TypeScript, run git diff --check, build and
-  deploy, verify Alembic/protected APIs/SPA markers, run the complete smoke suite
-  on a copied database, and preserve live data.
+- Application changes compile, run git diff --check, build/deploy, verify
+  Alembic/protected APIs/SPA markers, run complete smoke on a copied database
+  and preserve live data.
 - Failure output includes phase, exception, actual command or in-memory
   transformation, rollback result, final Git state and log path.
-- Checkpoints stage only explicit allowlists, validate staged diff, push main,
+- Checkpoints stage explicit allowlists only, validate staged diff, push main,
   fetch and verify local HEAD equals origin/main.
 - Keep this memory at or below 8,000 characters.
 
 Inventory and fixture safety
-- Never assume an empty database. Use unique manifest-owned fixtures and clean up
-  only recorded IDs.
-- Preserve users, catalogues, real inventory, Projects, Reservations, movements,
-  audits and settings.
-- SQLite integrity and foreign-key checks must pass.
+- Never assume an empty database. Use unique manifest-owned fixtures and clean
+  up only recorded IDs.
+- Preserve users, catalogues, inventory, Projects, Reservations, movements,
+  audits and settings. SQLite integrity and foreign-key checks must pass.
 - Six realistic Patch 401 test parts remain intentionally in the test database.
   Manifest: /projects/Part Pilot/fixes/logs/patch_401_test_fixture_manifest.json
 - The user plans to reset the database before production use. Do not silently
-  remove or rewrite fixtures/history before an explicit cleanup or reset.
+  remove fixtures/history before explicit cleanup or reset.
 
-Completed product state through Patch 403
-- Authentication/setup, dynamic part templates and manufacturer/package/location
-  catalogues.
-- Inventory create/read/edit, adjustments, soft delete/restore, universal search,
-  filters, pagination, Available/Out-of-stock sections and persistent preferences.
-- Part history shows Physical, Reserved and Available before/after snapshots and
-  meaningful reserve/release deltas.
+Completed product state through Patch 409
+- Authentication/setup, dynamic part templates, reusable manufacturer/package/
+  location catalogues and typed custom fields.
+- Inventory create/read/edit, quantity adjustment, soft delete/restore,
+  universal search, filters, pagination, Available/Out-of-stock sections and
+  persistent preferences.
+- Part history shows Physical, Reserved and Available snapshots with meaningful
+  reserve/release deltas.
 - Reservation read/edit/cancel/consume/expire/delete, activity, expiry settings,
-  custom lifecycle dialogs, stale-state refresh and responsive workspace.
-- Canonical Project statuses: draft, reserved, consumed and cancelled.
-- Protected Project list/detail/create/update/reserve/consume/cancel APIs.
-- Draft Projects store item/price/currency snapshots without changing inventory.
-- Reserving creates exactly one linked active Reservation with matching items,
-  reserve movements and paired audits.
-- Reserved Projects edit atomically through the linked Reservation. Quantity
-  increases reserve only the delta; decreases release only the delta.
-- Project-linked active Reservations are editable from Projects or Reservations.
-  Names, notes, items, quantities, values, stock deltas and audits synchronize;
-  Project descriptions remain Project-owned.
-- Project consumption reduces physical and reserved quantities together,
-  preserves available quantity, synchronizes both terminal statuses and records
-  paired movements/audits.
-- Project cancellation releases reserved quantity to available stock without
-  changing physical totals and synchronizes both terminal statuses.
-- Direct Reservation consume/cancel/expiry synchronizes linked Projects.
-- Terminal verification uses only movement IDs created by the current
-  transaction, preserving historical edit movements.
-- Projects/Reservations use register-first mobile behavior, compact two-by-two
-  summaries and accessible non-browser-native confirmation dialogs.
-- Browser approval is complete through Patch 403. Patch 404 failed before writes
-  on generated Markdown trailing whitespace; Patch 405 is the narrow checkpoint
-  recovery. Patch 403 passed build, deploy,
-  OpenAPI, bundle-marker and complete copied-database smoke verification.
+  custom dialogs, stale refresh and responsive workspace.
+- Project draft/create/update/reserve/consume/cancel lifecycle with atomic linked
+  Reservation synchronization, two-way Reserved editing, delta stock movements,
+  paired audits and historical-movement-safe terminal verification.
+- Projects and Reservations use accessible in-app confirmations, register-first
+  mobile behavior and compact summaries.
+- Protected system-wide History merges audit and stock-movement events with
+  deterministic newest-first pagination.
+- History supports 280 ms literal search, Kind/Entity/Event/Actor/User/Movement/
+  date filters, counted facets, stale-response guards and page resets.
+- History detail resolves actors/entities/Parts/Reservations/Projects, stock
+  snapshots, reasons/notes, structured Before/After and metadata.
+- Desktop History uses register/detail; mobile is register-first with explicit
+  closeable detail. Browser approval is complete through Patch 409.
+- History intentionally has no general column sorting. Chronology is primary;
+  filters support investigation. Oldest-first is deferred unless proven useful.
+- Patch 406 failed in copied smoke on an invalid fixture username; Patch 407
+  recovered. Patch 408 failed on a CSS comment marker stripped by Vite; Patch
+  409 added minifier-safe markers and passed full verification.
 
 Deferred MCP Settings requirement
-- During the MCP phase add an authenticated Settings control to enable/disable the
-  MCP server.
+- During the MCP phase add an authenticated Settings control to enable/disable
+  the MCP server.
 - Define persisted default, immediate/restart semantics, safe transport/tool
   gating, invalid-value recovery, disabled-state feedback and audit events.
 
 Next implementation
-- Build system-wide History and audit browsing as a separate product slice.
-- Add protected pagination/filtering first, then responsive list/detail UI.
-- Keep Settings, backup/restore and MCP separate from History.
+- Complete Settings and appearance as a separate product slice.
+- Inspect existing persisted settings and UI foundations before implementation.
+- Keep backup/restore and MCP separate from Settings.

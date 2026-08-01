@@ -15311,6 +15311,562 @@ def check_linked_reservation_edit_and_terminal_delta() -> None:
     )
 
 
+
+# PARTPILOT:SYSTEM_HISTORY_SMOKE:V406
+def check_system_history_api() -> None:
+    from datetime import datetime, timedelta, timezone
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import delete, select
+
+    from app.db.session import SessionLocal
+    from app.main import app
+    from app.models import (
+        AuditLog,
+        Part,
+        PartType,
+        Project,
+        Reservation,
+        StockMovement,
+        User,
+        UserSession,
+    )
+    from app.services.auth import create_session, create_user
+    from app.services.history import (
+        HistoryValidationError,
+        list_history,
+        list_history_filter_options,
+    )
+
+    suffix = uuid4().hex[:12]
+    username = f"history_{suffix}"
+    password = "HistorySmokePass123!"
+    part_number = f"PP406-LITERAL%_-{suffix}"
+    audit_event = f"project.history_smoke_{suffix}"
+    secondary_event = f"part.history_smoke_{suffix}"
+
+    user_id: int | None = None
+    part_id: int | None = None
+    project_id: int | None = None
+    reservation_id: int | None = None
+    movement_id: int | None = None
+    audit_ids: list[int] = []
+
+    def cleanup() -> None:
+        cleanup_db = SessionLocal()
+        try:
+            if audit_ids:
+                cleanup_db.execute(
+                    delete(AuditLog).where(
+                        AuditLog.id.in_(audit_ids)
+                    )
+                )
+            if movement_id is not None:
+                cleanup_db.execute(
+                    delete(StockMovement).where(
+                        StockMovement.id == movement_id
+                    )
+                )
+            if reservation_id is not None:
+                cleanup_db.execute(
+                    delete(Reservation).where(
+                        Reservation.id == reservation_id
+                    )
+                )
+            if project_id is not None:
+                cleanup_db.execute(
+                    delete(Project).where(
+                        Project.id == project_id
+                    )
+                )
+            if part_id is not None:
+                cleanup_db.execute(
+                    delete(Part).where(Part.id == part_id)
+                )
+            if user_id is not None:
+                cleanup_db.execute(
+                    delete(UserSession).where(
+                        UserSession.user_id == user_id
+                    )
+                )
+                cleanup_db.execute(
+                    delete(User).where(User.id == user_id)
+                )
+            cleanup_db.commit()
+        finally:
+            cleanup_db.close()
+
+    cleanup()
+    client = TestClient(app)
+
+    for path in (
+        "/api/history",
+        "/api/history/filter-options",
+    ):
+        response = client.get(path)
+        if response.status_code not in (401, 403):
+            fail(
+                f"Unauthenticated {path} should return 401/403, got "
+                f"{response.status_code}: {response.text}"
+            )
+
+    openapi = client.get("/openapi.json")
+    paths = openapi.json().get("paths", {})
+    if (
+        openapi.status_code != 200
+        or set(paths.get("/api/history", {})) != {"get"}
+        or set(
+            paths.get(
+                "/api/history/filter-options",
+                {},
+            )
+        )
+        != {"get"}
+    ):
+        fail(
+            "System History OpenAPI contract is incorrect: "
+            f"{openapi.status_code}, "
+            f"{paths.get('/api/history')}, "
+            f"{paths.get('/api/history/filter-options')}"
+        )
+
+    db = SessionLocal()
+    try:
+        part_type_id = db.execute(
+            select(PartType.id)
+            .where(PartType.is_active.is_(True))
+            .order_by(PartType.id.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if part_type_id is None:
+            fail(
+                "System History smoke requires an active part type"
+            )
+
+        user = create_user(
+            db,
+            username=username,
+            display_name="History Smoke User",
+            password=password,
+            commit=True,
+        )
+        user_id = user.id
+        session_token = create_session(
+            db,
+            user=user,
+            commit=True,
+        )
+
+        part = Part(
+            part_type_id=part_type_id,
+            part_number=part_number,
+            name=f"History literal fixture {suffix}",
+            total_quantity=9,
+            reserved_quantity=2,
+            unit_price=Decimal("4.2500"),
+            is_deleted=False,
+        )
+        project = Project(
+            name=f"History Project {suffix}",
+            description="System History API smoke fixture",
+            status="reserved",
+            notes="History project notes",
+            created_by="manual",
+            estimated_total_value=Decimal("8.5000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([part, project])
+        db.flush()
+        part_id = part.id
+        project_id = project.id
+
+        reservation = Reservation(
+            project_id=project.id,
+            label=f"History Reservation {suffix}",
+            status="active",
+            notes="History reservation notes",
+            created_by="manual",
+            estimated_reserved_value=Decimal("8.5000"),
+            currency_snapshot="USD",
+        )
+        db.add(reservation)
+        db.flush()
+        reservation_id = reservation.id
+
+        base_time = datetime.now(timezone.utc) - timedelta(
+            minutes=5
+        )
+        primary_audit = AuditLog(
+            created_at=base_time,
+            event_type=audit_event,
+            entity_type="project",
+            entity_id=project.id,
+            actor_type="user",
+            actor_user_id=user.id,
+            summary=f"History primary {suffix}",
+            before_json={"status": "draft"},
+            after_json={
+                "status": "reserved",
+                "reservation_id": reservation.id,
+            },
+            metadata_json={
+                "source": "manual",
+                "reservation_id": reservation.id,
+            },
+        )
+        secondary_audit = AuditLog(
+            created_at=base_time + timedelta(seconds=1),
+            event_type=secondary_event,
+            entity_type="part",
+            entity_id=part.id,
+            actor_type="system",
+            actor_user_id=None,
+            summary=f"History secondary {suffix}",
+            before_json={"quantity": 9},
+            after_json={"quantity": 9},
+            metadata_json={"source": "system"},
+        )
+        movement = StockMovement(
+            part_id=part.id,
+            reservation_id=reservation.id,
+            movement_type="reserve",
+            quantity_delta=0,
+            quantity_before=9,
+            quantity_after=9,
+            reserved_quantity_before=0,
+            reserved_quantity_after=2,
+            available_quantity_before=9,
+            available_quantity_after=7,
+            unit_price_snapshot=Decimal("4.2500"),
+            currency_snapshot="USD",
+            reason=f"Literal%_Token {suffix}",
+            note="History movement note",
+            source="manual",
+            actor_user_id=user.id,
+            created_at=base_time + timedelta(seconds=2),
+            updated_at=base_time + timedelta(seconds=2),
+        )
+        db.add_all([primary_audit, secondary_audit, movement])
+        db.commit()
+        for record in (
+            primary_audit,
+            secondary_audit,
+            movement,
+        ):
+            db.refresh(record)
+        audit_ids.extend(
+            [primary_audit.id, secondary_audit.id]
+        )
+        movement_id = movement.id
+
+        combined = list_history(
+            db,
+            query=suffix,
+            limit=10,
+            offset=0,
+        )
+        if (
+            combined.total != 3
+            or [entry.key for entry in combined.entries]
+            != [
+                f"movement:{movement.id}",
+                f"audit:{secondary_audit.id}",
+                f"audit:{primary_audit.id}",
+            ]
+        ):
+            fail(
+                "System History combined ordering is incorrect: "
+                f"{combined}"
+            )
+
+        movement_entry = combined.entries[0]
+        if (
+            movement_entry.kind != "stock_movement"
+            or movement_entry.event_type != "stock.reserve"
+            or movement_entry.entity_type != "part"
+            or movement_entry.entity_id != part.id
+            or movement_entry.entity_label != part_number
+            or movement_entry.actor_display_name
+            != "History Smoke User"
+            or movement_entry.reservation_id != reservation.id
+            or movement_entry.reservation_label
+            != reservation.label
+            or movement_entry.project_id != project.id
+            or movement_entry.project_label != project.name
+            or movement_entry.quantity != 2
+            or movement_entry.quantity_before != 9
+            or movement_entry.quantity_after != 9
+            or movement_entry.reserved_quantity_before != 0
+            or movement_entry.reserved_quantity_after != 2
+            or movement_entry.available_quantity_before != 9
+            or movement_entry.available_quantity_after != 7
+        ):
+            fail(
+                "System History movement hydration is incorrect: "
+                f"{movement_entry}"
+            )
+
+        project_entry = combined.entries[2]
+        if (
+            project_entry.kind != "audit"
+            or project_entry.entity_type != "project"
+            or project_entry.entity_id != project.id
+            or project_entry.entity_label != project.name
+            or project_entry.actor_display_name
+            != "History Smoke User"
+            or project_entry.reservation_id != reservation.id
+            or project_entry.project_id != project.id
+            or project_entry.before_json
+            != {"status": "draft"}
+            or project_entry.after_json.get("status")
+            != "reserved"
+        ):
+            fail(
+                "System History audit hydration is incorrect: "
+                f"{project_entry}"
+            )
+
+        checks = (
+            (
+                list_history(
+                    db,
+                    kind="audit",
+                    query=suffix,
+                    limit=10,
+                ),
+                2,
+                {"audit"},
+            ),
+            (
+                list_history(
+                    db,
+                    kind="stock_movement",
+                    query=suffix,
+                    limit=10,
+                ),
+                1,
+                {"stock_movement"},
+            ),
+            (
+                list_history(
+                    db,
+                    entity_type="project",
+                    query=suffix,
+                    limit=10,
+                ),
+                1,
+                {"audit"},
+            ),
+            (
+                list_history(
+                    db,
+                    event_type=audit_event,
+                    limit=10,
+                ),
+                1,
+                {"audit"},
+            ),
+            (
+                list_history(
+                    db,
+                    movement_type="reserve",
+                    query=suffix,
+                    limit=10,
+                ),
+                1,
+                {"stock_movement"},
+            ),
+            (
+                list_history(
+                    db,
+                    actor_type="system",
+                    query=suffix,
+                    limit=10,
+                ),
+                1,
+                {"audit"},
+            ),
+            (
+                list_history(
+                    db,
+                    actor_user_id=user.id,
+                    query=suffix,
+                    limit=10,
+                ),
+                2,
+                {"audit", "stock_movement"},
+            ),
+        )
+        for response, expected_total, expected_kinds in checks:
+            if (
+                response.total != expected_total
+                or {entry.kind for entry in response.entries}
+                != expected_kinds
+            ):
+                fail(
+                    "System History filter result is incorrect: "
+                    f"{response}, expected total {expected_total} "
+                    f"and kinds {expected_kinds}"
+                )
+
+        literal = list_history(
+            db,
+            query="Literal%_Token",
+            limit=10,
+        )
+        if (
+            literal.total != 1
+            or literal.entries[0].key
+            != f"movement:{movement.id}"
+        ):
+            fail(
+                "System History search did not treat SQL wildcard "
+                f"characters literally: {literal}"
+            )
+
+        paged = list_history(
+            db,
+            query=suffix,
+            limit=1,
+            offset=1,
+        )
+        if (
+            paged.total != 3
+            or len(paged.entries) != 1
+            or paged.entries[0].key
+            != f"audit:{secondary_audit.id}"
+        ):
+            fail(
+                "System History pagination is incorrect: "
+                f"{paged}"
+            )
+
+        bounded = list_history(
+            db,
+            query=suffix,
+            from_time=base_time + timedelta(
+                seconds=0.5
+            ),
+            to_time=base_time + timedelta(
+                seconds=1.5
+            ),
+            limit=10,
+        )
+        if (
+            bounded.total != 1
+            or bounded.entries[0].key
+            != f"audit:{secondary_audit.id}"
+        ):
+            fail(
+                "System History date filtering is incorrect: "
+                f"{bounded}"
+            )
+
+        try:
+            list_history(
+                db,
+                from_time=base_time + timedelta(days=1),
+                to_time=base_time,
+            )
+        except HistoryValidationError:
+            pass
+        else:
+            fail(
+                "System History accepted an inverted date range"
+            )
+
+        options = list_history_filter_options(db)
+        event_options = {
+            option.value: option.count
+            for option in options.event_types
+        }
+        actor_options = {
+            option.user_id: option
+            for option in options.actors
+        }
+        if (
+            event_options.get(audit_event, 0) != 1
+            or event_options.get("stock.reserve", 0) < 1
+            or user.id not in actor_options
+            or actor_options[user.id].display_name
+            != "History Smoke User"
+            or options.earliest_at is None
+            or options.latest_at is None
+            or options.earliest_at > options.latest_at
+        ):
+            fail(
+                "System History filter options are incorrect: "
+                f"{options}"
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}"
+        }
+        api_response = client.get(
+            "/api/history",
+            params={
+                "q": suffix,
+                "limit": 2,
+                "offset": 0,
+            },
+            headers=headers,
+        )
+        if (
+            api_response.status_code != 200
+            or api_response.json().get("total") != 3
+            or len(api_response.json().get("entries", [])) != 2
+        ):
+            fail(
+                "Authenticated System History API response is "
+                f"incorrect: {api_response.status_code}, "
+                f"{api_response.text}"
+            )
+
+        options_response = client.get(
+            "/api/history/filter-options",
+            headers=headers,
+        )
+        if (
+            options_response.status_code != 200
+            or not options_response.json().get("event_types")
+            or not options_response.json().get("kinds")
+        ):
+            fail(
+                "Authenticated History filter-options response is "
+                f"incorrect: {options_response.status_code}, "
+                f"{options_response.text}"
+            )
+
+        invalid_range = client.get(
+            "/api/history",
+            params={
+                "from": (
+                    base_time + timedelta(days=1)
+                ).isoformat(),
+                "to": base_time.isoformat(),
+            },
+            headers=headers,
+        )
+        if invalid_range.status_code != 422:
+            fail(
+                "History API accepted an inverted date range: "
+                f"{invalid_range.status_code}, "
+                f"{invalid_range.text}"
+            )
+    finally:
+        db.close()
+        cleanup()
+
+    ok(
+        "Protected system-wide History merges audit and stock-movement "
+        "events with deterministic pagination, entity/actor/relationship "
+        "hydration, exact filters, literal search, date ranges, counted "
+        "facets, OpenAPI coverage, and inventory-safe fixture cleanup"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -15337,6 +15893,7 @@ def main() -> None:
         check_reservation_consumption_api,
         check_reservation_expiry_api,
         check_reservation_activity_api,
+        check_system_history_api,
         check_reservation_edit_api,
         check_reservation_delete_api,
         check_phase3_auth_foundation,

@@ -5,8 +5,8 @@ import { AuthProvider, useAuth } from "../auth/AuthContext";
 import { AuthScreen } from "../pages/AuthScreen";
 import { Dashboard } from "../pages/Dashboard";
 import { Inventory } from "../pages/Inventory";
+import { History } from "../pages/History";
 import { PartManager } from "../pages/PartManager";
-import { PlaceholderPage } from "../pages/PlaceholderPage";
 import { Projects } from "../pages/Projects";
 import { SetupPreferencesScreen } from "../pages/SetupPreferencesScreen";
 import { Settings } from "../pages/Settings";
@@ -49,10 +49,7 @@ function AppRoutes() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/reservations" element={<Reservations />} />
-        <Route
-          path="/history"
-          element={<PlaceholderPage title="History" />}
-        />
+        <Route path="/history" element={<History />} />
         <Route path="/part-manager" element={<PartManager />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

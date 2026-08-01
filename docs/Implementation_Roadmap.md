@@ -2108,3 +2108,57 @@ Do not combine History, Settings, backup/restore or MCP in one implementation
 slice. Preserve the realistic Patch 401 fixtures until an explicit cleanup or
 database reset. The backend manual Reservation-create API remains temporarily
 available pending the API/MCP compatibility decision.
+
+<!-- PARTPILOT:SYSTEM_HISTORY_ROADMAP:V410 -->
+## Current roadmap checkpoint — System-wide History complete
+
+### Overall progress
+
+**Working V1/public-alpha estimate: approximately 90%.**
+
+Inventory, universal search, Reservations, the complete Project lifecycle
+and system-wide History are operational, responsive and browser approved.
+
+### Completed through Patch 409
+
+- [x] Protected unified History API over audits and stock movements.
+- [x] Deterministic newest-first pagination across both record kinds.
+- [x] Literal text search and entity, event, actor, user, movement and date
+  filters.
+- [x] Counted filter facets and earliest/latest event bounds.
+- [x] Actor, entity, Part, Reservation and Project context hydration.
+- [x] Physical, Reserved and Available movement snapshots.
+- [x] Structured audit Before, After and metadata inspection.
+- [x] 280 ms frontend search, stale-response guards and page reset behavior.
+- [x] Desktop register/detail workflow and mobile register-first workflow.
+- [x] Complete copied-database regression coverage and desktop/mobile
+  browser approval.
+- [x] Chronological-order product decision: no general column sorting unless
+  a future investigation workflow demonstrates a need for Oldest-first.
+
+### Next implementation order
+
+1. Inspect the current Settings routes, persisted app settings and appearance
+   foundations before defining a UI slice.
+2. Complete authenticated Settings information architecture and responsive
+   layout.
+3. Implement appearance/theme controls only where the runtime contract is
+   explicit and testable.
+4. Preserve existing settings and use copied-database tests for every write.
+5. Keep the deferred MCP server enable/disable control separate unless the
+   MCP runtime and restart semantics are fully defined.
+6. Browser-test and checkpoint Settings independently.
+
+### Remaining major V1 areas
+
+- [ ] Settings and appearance completion.
+- [ ] Backup and restore.
+- [ ] MCP read tools and safeguarded write tools.
+- [ ] Authenticated MCP server enable/disable control during the MCP phase.
+- [ ] Accessibility, security and public-alpha release hardening.
+
+### Scope discipline
+
+Do not combine Settings, backup/restore and MCP in one implementation slice.
+Preserve the six realistic Patch 401 fixtures and all existing operational
+history until an explicit cleanup or database reset.

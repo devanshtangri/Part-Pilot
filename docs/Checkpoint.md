@@ -2558,3 +2558,75 @@ row.
 Project lifecycle work is checkpointed. The next major product area is the
 system-wide History and audit browser. Keep it separate from Settings,
 backup/restore and MCP implementation.
+
+<!-- PARTPILOT:SYSTEM_HISTORY_CHECKPOINT:V410 -->
+## Chat 15 checkpoint — System-wide History complete through Patch 409
+
+**Checkpoint patch:** 410
+**Browser approval:** complete through Patch 409
+**Alembic head:** `0007_projects_contract`
+**Commit subject:** `Add system-wide History workspace`
+
+### Completed History contract
+
+- Protected `GET /api/history` and `GET /api/history/filter-options`
+  endpoints provide a unified operational register over `audit_log` and
+  `stock_movements`.
+- The feed is deterministic and newest-first across both record kinds.
+  Pagination uses a stable timestamp, kind and record-ID order.
+- Server-backed filters cover record kind, entity, event, actor type,
+  individual user, movement type, date range and literal text search.
+- Dynamic filter options expose counted facets plus earliest/latest event
+  timestamps.
+- History entries hydrate readable actor, entity, Part, Reservation and
+  Project context without rewriting historical rows.
+- Stock records expose Physical, Reserved and Available before/after
+  snapshots, movement quantity, signed delta, reason, note and source.
+- Audit records expose structured Before, After and expandable metadata
+  evidence.
+- The responsive History workspace uses a dense register/detail layout,
+  280 ms search, pagination reset on filter changes, abort controllers and
+  request IDs to prevent stale responses.
+- Desktop selects the newest event; mobile remains register-first and opens
+  detail only after an explicit tap.
+- History uses chronological ordering by design. General sortable columns
+  are intentionally omitted because Entity, Event, Actor, Kind, Movement,
+  dates and text filters already support investigation without breaking the
+  timeline. An Oldest-first option remains a future evidence-based addition,
+  not a current requirement.
+
+### Verification and recovery history
+
+- Patch 406 added the backend contract but failed in copied-database smoke
+  because its generated username contained a forbidden hyphen. Source and
+  deployment were restored.
+- Patch 407 corrected the smoke username, replaced brittle historical SQLite
+  byte matching with canonical logical-data validation, and passed the
+  complete smoke suite.
+- Patch 408 added the frontend workspace and built successfully, but its
+  deployment verifier searched minified CSS for a source comment that Vite
+  removes. The frontend and deployment were restored.
+- Patch 409 added a minifier-safe CSS custom property and data-attribute
+  selector, then passed Python/TypeScript/Vite build, deployment, Alembic,
+  protected API/OpenAPI checks, production bundle checks and the complete
+  copied-database smoke suite.
+- Desktop and mobile browser testing passed, including exact totals,
+  search/stale-response behavior, counted filters, pagination, date
+  validation, stock snapshots, structured audit evidence and register-first
+  mobile detail behavior.
+
+### Approved live register
+
+The browser-approved test database contains 118 History events: 86 audit
+records and 32 stock movements. Existing realistic Patch 401 fixtures,
+Projects, Reservations, movements and audits remain intentionally preserved.
+Runtime data, logs and fixture manifests are ignored by Git and are not
+staged by Patch 410.
+
+### Next implementation
+
+System-wide History is checkpointed. The next major V1 area is Settings and
+appearance completion. Keep Settings separate from backup/restore and MCP.
+The previously deferred authenticated MCP server enable/disable control
+remains part of the later MCP phase unless its runtime contract is designed
+explicitly during Settings work.

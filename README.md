@@ -49,13 +49,12 @@ assistants can understand and act on inventory safely.
 - Docker Compose deployment with persistent `/data` storage.
 - Automated database, API, migration, frontend-build, and route smoke checks.
 - Structured audit records for implemented inventory operations.
+- Protected system-wide History with unified audit and stock-movement search, filters, pagination and responsive detail inspection.
 
 ## Planned V1 work
 
 Major remaining areas include:
 
-- Lightweight Projects and project-linked inventory.
-- Full history and audit browsing.
 - Settings and appearance completion.
 - Backup and restore.
 - MCP read tools and safeguarded write tools.
@@ -326,3 +325,30 @@ the MCP server. Default, restart behavior, transport/tool gating and auditing
 will be defined during the MCP implementation phase; the control is not
 implemented yet.
 <!-- PARTPILOT:PROJECTS_AND_RESERVATIONS:END -->
+
+<!-- PARTPILOT:SYSTEM_HISTORY_README:V410:START -->
+## System-wide History
+
+Part Pilot provides a protected chronological register across operational
+inventory and audit events.
+
+| Capability | Status |
+|---|---|
+| Unified audit and stock-movement register | Available |
+| Deterministic newest-first pagination | Available |
+| Literal text search | Available |
+| Kind, entity, event, actor, user and movement filters | Available |
+| From/to date filtering | Available |
+| Counted filter facets | Available |
+| Part, Reservation and Project context | Available |
+| Physical, Reserved and Available snapshots | Available |
+| Structured Before, After and metadata evidence | Available |
+| Desktop register/detail workspace | Available |
+| Register-first mobile detail workflow | Available |
+| Stale-response protection | Available |
+
+History remains newest-first by design. General sortable columns are omitted
+because the available filters support investigation without breaking the
+operational timeline. An Oldest-first option can be added later if a concrete
+investigation workflow requires it.
+<!-- PARTPILOT:SYSTEM_HISTORY_README:V410:END -->
