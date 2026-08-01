@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -55,10 +57,36 @@ from app.api.routes.history import router as history_router
 # PARTPILOT:BACKUP_DOWNLOAD_ROUTER:V434
 from app.api.routes.backups import router as backups_router
 from app.core.config import get_settings
+# PARTPILOT:APPLICATION_LIFECYCLE:V436
+from app.core.lifecycle import (
+    LifecycleRequestMiddleware,
+    application_lifecycle,
+)
+from app.db.session import dispose_database_engine
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    application_lifecycle.mark_started()
+    try:
+        yield
+    finally:
+        application_lifecycle.begin_shutdown()
+        await asyncio.to_thread(
+            application_lifecycle.wait_for_drain,
+            timeout=30.0,
+            max_active_requests=0,
+        )
+        dispose_database_engine()
+        application_lifecycle.mark_stopped()
+
+
+app = FastAPI(
+    title=settings.app_name,
+    lifespan=lifespan,
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,6 +94,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+app.add_middleware(
+    LifecycleRequestMiddleware,
+    state=application_lifecycle,
 )
 
 # Root health check required by Phase 1 completion criteria.

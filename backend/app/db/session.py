@@ -36,3 +36,12 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# PARTPILOT:DATABASE_ENGINE_LIFECYCLE:V436
+def dispose_database_engine() -> None:
+    engine.dispose(close=True)
+
+
+def database_pool_status() -> str:
+    return engine.pool.status()
