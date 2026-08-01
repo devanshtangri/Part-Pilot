@@ -182,3 +182,20 @@ class RestoreBootstrapResult(RestoreContractModel):
         default=None,
         max_length=80,
     )
+
+
+class RestoreCommitRequest(RestoreContractModel):
+    confirmation: Literal["RESTORE"]
+
+
+class RestoreCommitResponse(RestoreContractModel):
+    status: Literal["restart_scheduled"]
+    validation_token: str = Field(
+        pattern=RESTORE_TOKEN_PATTERN
+    )
+    message: str = Field(
+        min_length=1,
+        max_length=240,
+    )
+    sessions_will_be_invalidated: Literal[True]
+    reauthentication_required: Literal[True]

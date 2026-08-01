@@ -1077,3 +1077,55 @@ def process_pending_restore(
                 "Restore failed and rollback could not be "
                 f"verified: {rollback_exc}"
             ) from rollback_exc
+
+
+def cancel_restore_commit_job(
+    validation_token: str,
+    *,
+    actor_user_id: int,
+    actor_username: str,
+    staging_root: Path,
+) -> None:
+    staged = load_staged_restore(
+        validation_token,
+        actor_user_id=actor_user_id,
+        actor_username=actor_username,
+        staging_root=staging_root,
+        require_unexpired=False,
+        allowed_extra_files=frozenset(
+            {
+                RESTORE_COMMIT_FILENAME,
+            }
+        ),
+    )
+    operation = staged.operation_directory
+    job_path = (
+        operation
+        / RESTORE_COMMIT_FILENAME
+    )
+    result_path = (
+        operation
+        / RESTORE_RESULT_FILENAME
+    )
+    if result_path.exists():
+        raise RestoreBootstrapError(
+            "Restore result already exists."
+        )
+    if not job_path.is_file():
+        raise RestoreBootstrapError(
+            "Restore commit job is missing."
+        )
+    job = _load_job(job_path)
+    if (
+        job.validation_token
+        != validation_token
+        or job.actor_user_id
+        != actor_user_id
+        or job.actor_username
+        != actor_username.strip()
+    ):
+        raise RestoreBootstrapError(
+            "Restore commit job ownership changed."
+        )
+    job_path.unlink()
+    _fsync_directory(operation)

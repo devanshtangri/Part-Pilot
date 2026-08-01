@@ -280,7 +280,7 @@ def main() -> None:
         "maintenance gate, bounded drain accounting, liveness/"
         "readiness separation, lifespan shutdown disposal, "
         "post-disposal database reconnection, and maintenance "
-        "HTTP behavior without enabling restore commit"
+        "HTTP behavior with controlled restore commit scheduling"
     )
 
 

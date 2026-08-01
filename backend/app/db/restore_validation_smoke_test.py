@@ -360,16 +360,35 @@ def check_restore_validation_api() -> None:
             fail(
                 "Restore validation OpenAPI contract is incorrect."
             )
-        if any(
-            path.startswith(
+        commit_path = (
+            "/api/restores/"
+            "{validation_token}/commit"
+        )
+        if set(
+            paths.get(
+                commit_path,
+                {},
+            )
+        ) != {"post"}:
+            fail(
+                "Restore commit OpenAPI contract is incorrect."
+            )
+        unexpected_restore_paths = [
+            path
+            for path in paths
+            if path.startswith(
                 "/api/restores/"
             )
             and path
-            != "/api/restores/validate"
-            for path in paths
-        ):
+            not in {
+                "/api/restores/validate",
+                commit_path,
+            }
+        ]
+        if unexpected_restore_paths:
             fail(
-                "Restore commit controls were exposed prematurely."
+                "Unexpected restore controls were exposed: "
+                f"{unexpected_restore_paths}"
             )
 
         unauthenticated = client.post(
@@ -789,7 +808,7 @@ def check_restore_validation_api() -> None:
         "mode-0600 files under opaque user-bound expiring "
         "tokens, exposes sanitized review metadata, and "
         "leaves the source database unchanged without "
-        "enabling restore commit"
+        "replacing the source database during validation"
     )
 
 
