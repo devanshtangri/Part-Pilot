@@ -492,8 +492,429 @@ def check_backup_artifact_core() -> None:
     )
 
 
+
+
+def check_backup_download_api() -> None:
+    from unittest.mock import patch
+    from uuid import uuid4
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import text
+
+    from app.api.routes import backups as backups_route
+    from app.db.session import SessionLocal
+    from app.main import app as fastapi_app
+    from app.services.auth import create_session, create_user
+
+    source_path = sqlite_path_from_database_url(
+        get_settings().database_url
+    )
+    baseline = logical_snapshot(source_path)
+    baseline_hash = logical_sha256(baseline)
+    suffix = uuid4().hex[:12]
+    username = f"smoke_backup_api_{suffix}"
+    password = "backup-api-smoke-password"
+    user_id: int | None = None
+    token: str | None = None
+    root = Path(
+        tempfile.mkdtemp(
+            prefix="partpilot-backup-api-smoke-"
+        )
+    )
+    os.chmod(root, 0o700)
+
+    def cleanup() -> None:
+        if user_id is not None:
+            with SessionLocal() as db:
+                db.execute(
+                    text(
+                        "DELETE FROM audit_log "
+                        "WHERE event_type='backup.generated' "
+                        "AND actor_user_id=:user_id"
+                    ),
+                    {"user_id": user_id},
+                )
+                db.execute(
+                    text(
+                        "DELETE FROM sessions "
+                        "WHERE user_id=:user_id"
+                    ),
+                    {"user_id": user_id},
+                )
+                db.execute(
+                    text(
+                        "DELETE FROM users WHERE id=:user_id"
+                    ),
+                    {"user_id": user_id},
+                )
+                db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        paths = client.get(
+            "/openapi.json"
+        ).json().get("paths", {})
+        if set(
+            paths.get("/api/backups/download", {})
+        ) != {"post"}:
+            fail(
+                "Backup download OpenAPI contract is incorrect: "
+                f"{paths.get('/api/backups/download')}"
+            )
+        if "post" not in paths.get(
+            "/api/parts/{part_id}/restore",
+            {},
+        ):
+            fail(
+                "Inventory soft-delete restore route disappeared."
+            )
+
+        unauthenticated = client.post(
+            "/api/backups/download"
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Backup download should require authentication: "
+                f"{unauthenticated.status_code}"
+            )
+
+        with SessionLocal() as db:
+            user = create_user(
+                db,
+                username=username,
+                password=password,
+                display_name="Backup API Smoke",
+                commit=False,
+            )
+            session_token = create_session(
+                db,
+                user=user,
+                user_agent="backup-api-smoke",
+                ip_address="127.0.0.1",
+                commit=False,
+            )
+            db.commit()
+            db.refresh(user)
+            user_id = int(user.id)
+            token = session_token.token
+
+        headers = {
+            "Authorization": f"Bearer {token}"
+        }
+        before_request = logical_snapshot(source_path)
+        before_audits = len(
+            before_request["audit_log"]
+        )
+        before_backups = len(
+            before_request["backups"]
+        )
+        protected_tables = (
+            "app_settings",
+            "part_types",
+            "part_type_fields",
+            "manufacturers",
+            "packages",
+            "locations",
+            "parts",
+            "part_field_values",
+            "aliases",
+            "tags",
+            "part_tags",
+            "projects",
+            "project_items",
+            "reservations",
+            "reservation_items",
+            "stock_movements",
+            "backups",
+        )
+        before_counts = {
+            table: len(before_request[table])
+            for table in protected_tables
+        }
+
+        with patch.object(
+            backups_route,
+            "BACKUP_OPERATION_PARENT",
+            root,
+        ):
+            response = client.post(
+                "/api/backups/download",
+                headers=headers,
+            )
+
+        if response.status_code != 200:
+            fail(
+                "Authenticated backup download failed: "
+                f"{response.status_code}: {response.text}"
+            )
+        if (
+            response.headers.get("content-type")
+            != "application/vnd.partpilot.backup+zip"
+        ):
+            fail(
+                "Backup media type is incorrect: "
+                f"{response.headers.get('content-type')}"
+            )
+        if (
+            response.headers.get("cache-control")
+            != "no-store, max-age=0"
+            or response.headers.get("pragma") != "no-cache"
+            or response.headers.get("x-content-type-options")
+            != "nosniff"
+        ):
+            fail(
+                "Backup no-cache/security headers are incorrect."
+            )
+        content_disposition = response.headers.get(
+            "content-disposition",
+            "",
+        )
+        if (
+            "attachment" not in content_disposition.lower()
+            or ".ppbackup" not in content_disposition
+            or "part-pilot-backup-" not in content_disposition
+        ):
+            fail(
+                "Backup Content-Disposition is incorrect: "
+                f"{content_disposition}"
+            )
+
+        downloaded = root / "downloaded.ppbackup"
+        downloaded.write_bytes(response.content)
+        os.chmod(downloaded, 0o600)
+        manifest = validate_backup_artifact(
+            downloaded,
+            validation_parent=root,
+        )
+        if (
+            manifest.format != "part-pilot-backup"
+            or manifest.format_version != 1
+            or manifest.schema.alembic_revision
+            != EXPECTED_ALEMBIC_REVISION
+        ):
+            fail(
+                "Downloaded backup manifest is incorrect."
+            )
+
+        extracted = root / "downloaded.db"
+        extract_database(downloaded, extracted)
+        downloaded_snapshot = logical_snapshot(extracted)
+        if downloaded_snapshot != before_request:
+            fail(
+                "Downloaded snapshot does not match the "
+                "pre-audit database state."
+            )
+
+        after_success = logical_snapshot(source_path)
+        if len(after_success["audit_log"]) != before_audits + 1:
+            fail(
+                "Successful backup did not append exactly one audit."
+            )
+        if len(after_success["backups"]) != before_backups:
+            fail(
+                "Manual download unexpectedly inserted a backups row."
+            )
+        after_counts = {
+            table: len(after_success[table])
+            for table in protected_tables
+        }
+        if after_counts != before_counts:
+            fail(
+                "Backup download changed protected table counts: "
+                f"{before_counts} -> {after_counts}"
+            )
+
+        with SessionLocal() as db:
+            audit = db.execute(
+                text(
+                    "SELECT actor_type, actor_user_id, summary, "
+                    "after_json, metadata_json "
+                    "FROM audit_log "
+                    "WHERE event_type='backup.generated' "
+                    "AND actor_user_id=:user_id "
+                    "ORDER BY id DESC LIMIT 1"
+                ),
+                {"user_id": user_id},
+            ).mappings().one()
+        raw_after_json = audit["after_json"]
+        after_json = (
+            raw_after_json
+            if isinstance(raw_after_json, dict)
+            else json.loads(raw_after_json)
+        )
+        raw_metadata_json = audit["metadata_json"]
+        metadata_json = (
+            raw_metadata_json
+            if isinstance(raw_metadata_json, dict)
+            else json.loads(raw_metadata_json)
+        )
+        disposition_filename = (
+            content_disposition.split(
+                'filename="',
+                1,
+            )[1].split('"', 1)[0]
+            if 'filename="' in content_disposition
+            else ""
+        )
+        if (
+            audit["actor_type"] != "user"
+            or int(audit["actor_user_id"]) != user_id
+            or audit["summary"]
+            != "Generated manual Part Pilot backup"
+            or after_json.get("filename")
+            != disposition_filename
+        ):
+            fail(
+                "Backup audit actor, summary, or filename is incorrect."
+            )
+        if (
+            after_json.get("format")
+            != "part-pilot-backup"
+            or after_json.get("format_version") != 1
+            or after_json.get("alembic_revision")
+            != EXPECTED_ALEMBIC_REVISION
+            or after_json.get("database_sha256")
+            != manifest.database.sha256
+            or after_json.get("archive_sha256")
+            != hashlib.sha256(response.content).hexdigest()
+            or metadata_json.get("manual_download") is not True
+            or metadata_json.get("media_type")
+            != "application/vnd.partpilot.backup+zip"
+        ):
+            fail(
+                "Backup audit metadata does not match the artifact."
+            )
+
+        with patch.object(
+            backups_route,
+            "BACKUP_OPERATION_PARENT",
+            root,
+        ):
+            acquired = (
+                backups_route.BACKUP_GENERATION_LOCK.acquire(
+                    blocking=False
+                )
+            )
+            if not acquired:
+                fail("Could not acquire the backup smoke lock.")
+            try:
+                contention = client.post(
+                    "/api/backups/download",
+                    headers=headers,
+                )
+            finally:
+                backups_route.BACKUP_GENERATION_LOCK.release()
+        if contention.status_code != 409:
+            fail(
+                "Concurrent backup generation should return 409: "
+                f"{contention.status_code}"
+            )
+
+        with (
+            patch.object(
+                backups_route,
+                "BACKUP_OPERATION_PARENT",
+                root,
+            ),
+            patch.object(
+                backups_route,
+                "create_backup_artifact",
+                side_effect=BackupArtifactError(
+                    "injected generation failure"
+                ),
+            ),
+        ):
+            generation_failure = client.post(
+                "/api/backups/download",
+                headers=headers,
+            )
+        if (
+            generation_failure.status_code != 500
+            or generation_failure.json().get("detail")
+            != "Backup generation failed."
+        ):
+            fail(
+                "Injected backup generation failure was not sanitized."
+            )
+
+        with (
+            patch.object(
+                backups_route,
+                "BACKUP_OPERATION_PARENT",
+                root,
+            ),
+            patch.object(
+                backups_route,
+                "record_backup_generated_audit",
+                side_effect=RuntimeError(
+                    "injected audit failure"
+                ),
+            ),
+        ):
+            audit_failure = client.post(
+                "/api/backups/download",
+                headers=headers,
+            )
+        if (
+            audit_failure.status_code != 500
+            or audit_failure.json().get("detail")
+            != "Backup generation failed."
+        ):
+            fail(
+                "Injected backup audit failure was not sanitized."
+            )
+
+        remaining_operations = [
+            path
+            for path in root.iterdir()
+            if path.is_dir()
+            and path.name.startswith(
+                "partpilot-backup-"
+            )
+        ]
+        if remaining_operations:
+            fail(
+                "Backup response/failure cleanup left operation "
+                f"directories: {remaining_operations}"
+            )
+
+        final_fixture_state = logical_snapshot(source_path)
+        if len(final_fixture_state["audit_log"]) != before_audits + 1:
+            fail(
+                "Rejected backup requests added unexpected audits."
+            )
+        if len(final_fixture_state["backups"]) != before_backups:
+            fail(
+                "Rejected backup requests changed backups rows."
+            )
+
+    finally:
+        cleanup()
+        shutil.rmtree(root, ignore_errors=True)
+
+    final_state = logical_snapshot(source_path)
+    if (
+        final_state != baseline
+        or logical_sha256(final_state) != baseline_hash
+    ):
+        fail(
+            "Backup API smoke cleanup did not restore its "
+            "copied-database baseline."
+        )
+
+    print(
+        "[PASS] Protected backup download enforces authentication, "
+        "returns a canonical no-store .ppbackup file, records one "
+        "actor-attributed post-snapshot audit without backups rows "
+        "or inventory mutations, limits concurrent generation, "
+        "sanitizes failures, and cleans operation-owned files"
+    )
+
 def main() -> None:
     check_backup_artifact_core()
+    check_backup_download_api()
 
 
 if __name__ == "__main__":

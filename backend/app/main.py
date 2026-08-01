@@ -52,6 +52,8 @@ from app.api.routes.reservations import router as reservations_router
 from app.api.routes.projects import router as projects_router
 # PARTPILOT:SYSTEM_HISTORY_ROUTER_REGISTRATION:V406
 from app.api.routes.history import router as history_router
+# PARTPILOT:BACKUP_DOWNLOAD_ROUTER:V434
+from app.api.routes.backups import router as backups_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -93,6 +95,8 @@ app.include_router(reservations_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
 # PARTPILOT:SYSTEM_HISTORY_ROUTER_REGISTRATION:V406
 app.include_router(history_router, prefix="/api")
+# PARTPILOT:BACKUP_DOWNLOAD_ROUTER:V434
+app.include_router(backups_router, prefix="/api")
 
 frontend_dist = Path("/app/frontend_dist")
 if frontend_dist.exists():

@@ -15,7 +15,9 @@ from typing import Any
 import zipfile
 
 from sqlalchemy.engine import make_url
+from sqlalchemy.orm import Session
 
+from app.models import AuditLog
 from app.schemas.backups import (
     BackupApplicationManifest,
     BackupDatabaseManifest,
@@ -951,6 +953,59 @@ def create_backup_artifact(
             operation_directory,
             ignore_errors=True,
         )
+        raise
+
+
+def record_backup_generated_audit(
+    db: Session,
+    artifact: BackupArtifact,
+    *,
+    actor_user_id: int,
+    commit: bool = True,
+) -> int:
+    if actor_user_id < 1:
+        raise BackupArtifactError(
+            "Backup audit actor must be a positive user ID."
+        )
+
+    audit = AuditLog(
+        event_type="backup.generated",
+        entity_type="backup",
+        entity_id=None,
+        actor_type="user",
+        actor_user_id=actor_user_id,
+        summary="Generated manual Part Pilot backup",
+        before_json=None,
+        after_json={
+            "filename": artifact.filename,
+            "format": artifact.manifest.format,
+            "format_version": artifact.manifest.format_version,
+            "alembic_revision": (
+                artifact.manifest.schema.alembic_revision
+            ),
+            "database_sha256": artifact.database_sha256,
+            "archive_sha256": artifact.archive_sha256,
+        },
+        metadata_json={
+            "manual_download": True,
+            "archive_size_bytes": artifact.archive_size_bytes,
+            "database_size_bytes": artifact.database_size_bytes,
+            "compatibility_policy": (
+                artifact.manifest.schema.compatibility_policy
+            ),
+            "media_type": BACKUP_MEDIA_TYPE,
+        },
+    )
+    try:
+        db.add(audit)
+        db.flush()
+        audit_id = int(audit.id)
+        if commit:
+            db.commit()
+        return audit_id
+    except Exception:
+        if commit:
+            db.rollback()
         raise
 
 
