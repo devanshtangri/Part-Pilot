@@ -199,3 +199,33 @@ def consume_project_record(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+
+# PARTPILOT:PROJECT_CANCELLATION_ROUTE:V397
+@router.post(
+    "/{project_id}/cancel",
+    response_model=ProjectResponse,
+)
+def cancel_project_record(
+    project_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProjectResponse:
+    from app.services.projects import cancel_project
+
+    try:
+        return cancel_project(
+            db,
+            project_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except ProjectConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc

@@ -13427,6 +13427,1890 @@ def check_project_consumption_api() -> None:
         "statuses, movements, audits, guards, and rollback"
     )
 
+# PARTPILOT:PROJECT_CANCELLATION_SMOKE:V397
+def check_project_cancellation_api() -> None:
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import func, select, text
+
+    from app.db.constants import (
+        MOVEMENT_TYPE_RELEASE,
+        PROJECT_STATUS_CANCELLED,
+        PROJECT_STATUS_DRAFT,
+        PROJECT_STATUS_RESERVED,
+        RESERVATION_STATUS_ACTIVE,
+        RESERVATION_STATUS_CANCELLED,
+    )
+    from app.db.session import SessionLocal
+    from app.main import app
+    from app.models import (
+        AuditLog,
+        Part,
+        PartType,
+        Project,
+        ProjectItem,
+        Reservation,
+        StockMovement,
+    )
+    from app.services.projects import (
+        ProjectConflictError,
+        ProjectNotFoundError,
+        cancel_project,
+        reserve_project,
+    )
+
+    client = TestClient(app)
+    unauthenticated = client.post(
+        "/api/projects/999999999/cancel"
+    )
+    if unauthenticated.status_code not in (401, 403):
+        fail(
+            "Unauthenticated Project cancellation should return 401/403, "
+            f"got {unauthenticated.status_code}: "
+            f"{unauthenticated.text}"
+        )
+
+    openapi = client.get("/openapi.json")
+    cancel_methods = set(
+        openapi.json()
+        .get("paths", {})
+        .get("/api/projects/{project_id}/cancel", {})
+    )
+    if openapi.status_code != 200 or cancel_methods != {"post"}:
+        fail(
+            "Project cancellation OpenAPI contract is incorrect: "
+            f"{openapi.status_code}, {sorted(cancel_methods)}"
+        )
+
+    suffix = uuid4().hex[:12]
+    db = SessionLocal()
+    try:
+        part_type_id = db.execute(
+            select(PartType.id)
+            .where(PartType.is_active.is_(True))
+            .order_by(PartType.id.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if part_type_id is None:
+            fail(
+                "Project cancellation smoke requires an active part type"
+            )
+
+        part = Part(
+            part_type_id=part_type_id,
+            part_number=f"PP397-{suffix}",
+            name=f"Project cancellation smoke {suffix}",
+            total_quantity=7,
+            reserved_quantity=0,
+            unit_price=Decimal("3.2500"),
+            is_deleted=False,
+        )
+        project = Project(
+            name=f"Project cancellation {suffix}",
+            description="Atomic Project cancellation smoke fixture",
+            status=PROJECT_STATUS_DRAFT,
+            notes="Cancel this linked Project reservation",
+            created_by="manual",
+            estimated_total_value=Decimal("6.5000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([part, project])
+        db.flush()
+        db.add(
+            ProjectItem(
+                project_id=project.id,
+                part_id=part.id,
+                quantity=2,
+                unit_price_snapshot=Decimal("3.2500"),
+                currency_snapshot="USD",
+                note="Release this exact Project quantity",
+            )
+        )
+        db.flush()
+
+        reserve_project(
+            db,
+            project.id,
+            actor_user_id=None,
+            commit=False,
+        )
+        db.flush()
+
+        reservation = db.execute(
+            select(Reservation).where(
+                Reservation.project_id == project.id
+            )
+        ).scalar_one_or_none()
+        if reservation is None:
+            fail(
+                "Project cancellation fixture has no linked Reservation"
+            )
+        if reservation.status != RESERVATION_STATUS_ACTIVE:
+            fail(
+                "Project cancellation fixture Reservation is not active"
+            )
+
+        total_before = int(part.total_quantity)
+        reserved_before = int(part.reserved_quantity)
+        available_before = total_before - reserved_before
+        if reserved_before != 2:
+            fail(
+                "Project cancellation fixture did not reserve two units"
+            )
+
+        response = cancel_project(
+            db,
+            project.id,
+            actor_user_id=None,
+            commit=False,
+        )
+        db.flush()
+        db.refresh(project)
+        db.refresh(reservation)
+        db.refresh(part)
+
+        if response.status != PROJECT_STATUS_CANCELLED:
+            fail(
+                "Project cancel response did not transition to cancelled"
+            )
+        if project.status != PROJECT_STATUS_CANCELLED:
+            fail(
+                "Project persistence did not transition to cancelled"
+            )
+        if reservation.status != RESERVATION_STATUS_CANCELLED:
+            fail(
+                "Linked Reservation did not transition to cancelled"
+            )
+        if int(part.total_quantity) != total_before:
+            fail(
+                "Project cancellation changed physical total quantity"
+            )
+        if int(part.reserved_quantity) != reserved_before - 2:
+            fail(
+                "Project cancellation did not release reserved quantity"
+            )
+        if (
+            int(part.total_quantity) - int(part.reserved_quantity)
+            != available_before + 2
+        ):
+            fail(
+                "Project cancellation did not increase available quantity"
+            )
+
+        release_movements = list(
+            db.execute(
+                select(StockMovement)
+                .where(
+                    StockMovement.reservation_id == reservation.id,
+                    StockMovement.movement_type == MOVEMENT_TYPE_RELEASE,
+                )
+                .order_by(StockMovement.id.asc())
+            ).scalars()
+        )
+        if len(release_movements) != 1:
+            fail(
+                "Project cancellation did not create exactly one release "
+                f"movement: {len(release_movements)}"
+            )
+        movement = release_movements[0]
+        if (
+            int(movement.quantity_delta) != 0
+            or int(movement.quantity_before) != total_before
+            or int(movement.quantity_after) != total_before
+            or int(movement.reserved_quantity_before)
+            != reserved_before
+            or int(movement.reserved_quantity_after)
+            != reserved_before - 2
+            or int(movement.available_quantity_before)
+            != available_before
+            or int(movement.available_quantity_after)
+            != available_before + 2
+        ):
+            fail(
+                f"Project release movement is incorrect: {movement}"
+            )
+
+        project_audit = db.execute(
+            select(AuditLog).where(
+                AuditLog.event_type == "project.cancelled",
+                AuditLog.entity_type == "project",
+                AuditLog.entity_id == project.id,
+            )
+        ).scalar_one_or_none()
+        reservation_audit_count = int(
+            db.execute(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(
+                    AuditLog.event_type == "reservation.cancelled",
+                    AuditLog.entity_type == "reservation",
+                    AuditLog.entity_id == reservation.id,
+                )
+            ).scalar_one()
+        )
+        if project_audit is None or reservation_audit_count != 1:
+            fail(
+                "Project cancellation did not create exactly one Project "
+                "and one Reservation cancellation audit"
+            )
+        if (
+            project_audit.before_json.get("status")
+            != PROJECT_STATUS_RESERVED
+            or project_audit.before_json.get("reservation_id")
+            != reservation.id
+            or project_audit.before_json.get("reservation_status")
+            != RESERVATION_STATUS_ACTIVE
+            or project_audit.after_json.get("status")
+            != PROJECT_STATUS_CANCELLED
+            or project_audit.after_json.get("reservation_id")
+            != reservation.id
+            or project_audit.after_json.get("reservation_status")
+            != RESERVATION_STATUS_CANCELLED
+            or project_audit.after_json.get("released_units") != 2
+            or project_audit.after_json.get("stock_movement_ids")
+            != [movement.id]
+            or project_audit.metadata_json.get("movement_type")
+            != MOVEMENT_TYPE_RELEASE
+        ):
+            fail(
+                "Project cancellation audit payload is incorrect: "
+                f"{project_audit.after_json}"
+            )
+
+        try:
+            cancel_project(
+                db,
+                project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail(
+                "Already-cancelled Project accepted a second cancellation"
+            )
+
+        try:
+            cancel_project(
+                db,
+                999999999,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectNotFoundError:
+            pass
+        else:
+            fail("Missing Project was accepted for cancellation")
+
+        db.rollback()
+
+        draft_project = Project(
+            name=f"Project cancellation draft guard {suffix}",
+            status=PROJECT_STATUS_DRAFT,
+            created_by="manual",
+        )
+        db.add(draft_project)
+        db.flush()
+        try:
+            cancel_project(
+                db,
+                draft_project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail("Draft Project was accepted for cancellation")
+        if draft_project.status != PROJECT_STATUS_DRAFT:
+            fail("Rejected Draft Project cancellation changed status")
+        db.rollback()
+
+        orphan_part = Part(
+            part_type_id=part_type_id,
+            part_number=f"PP397-ORPHAN-{suffix}",
+            name=f"Project cancellation orphan {suffix}",
+            total_quantity=3,
+            reserved_quantity=1,
+            unit_price=Decimal("1.0000"),
+            is_deleted=False,
+        )
+        orphan_project = Project(
+            name=f"Project cancellation orphan {suffix}",
+            status=PROJECT_STATUS_RESERVED,
+            created_by="manual",
+            estimated_total_value=Decimal("1.0000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([orphan_part, orphan_project])
+        db.flush()
+        db.add(
+            ProjectItem(
+                project_id=orphan_project.id,
+                part_id=orphan_part.id,
+                quantity=1,
+                unit_price_snapshot=Decimal("1.0000"),
+                currency_snapshot="USD",
+            )
+        )
+        db.flush()
+        try:
+            cancel_project(
+                db,
+                orphan_project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail(
+                "Reserved Project without a linked Reservation was cancelled"
+            )
+        if (
+            orphan_project.status != PROJECT_STATUS_RESERVED
+            or int(orphan_part.total_quantity) != 3
+            or int(orphan_part.reserved_quantity) != 1
+        ):
+            fail(
+                "Rejected orphan Project cancellation changed Project "
+                "or inventory state"
+            )
+        db.rollback()
+
+        duplicate_project = Project(
+            name=f"Project cancellation duplicate link {suffix}",
+            status=PROJECT_STATUS_RESERVED,
+            created_by="manual",
+        )
+        db.add(duplicate_project)
+        db.flush()
+        duplicate_reservations = [
+            Reservation(
+                project_id=duplicate_project.id,
+                label=f"Duplicate link {index} {suffix}",
+                status=RESERVATION_STATUS_ACTIVE,
+                notes=None,
+                created_by="manual",
+                expiry_at=None,
+                estimated_reserved_value=None,
+                currency_snapshot=None,
+            )
+            for index in (1, 2)
+        ]
+        db.add_all(duplicate_reservations)
+        db.flush()
+        try:
+            cancel_project(
+                db,
+                duplicate_project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail(
+                "Project with duplicate linked Reservations was cancelled"
+            )
+        if (
+            duplicate_project.status != PROJECT_STATUS_RESERVED
+            or any(
+                row.status != RESERVATION_STATUS_ACTIVE
+                for row in duplicate_reservations
+            )
+        ):
+            fail(
+                "Rejected duplicate-link cancellation changed lifecycle state"
+            )
+        db.rollback()
+
+        inactive_project = Project(
+            name=f"Project cancellation inactive link {suffix}",
+            status=PROJECT_STATUS_RESERVED,
+            created_by="manual",
+        )
+        db.add(inactive_project)
+        db.flush()
+        inactive_reservation = Reservation(
+            project_id=inactive_project.id,
+            label=f"Inactive cancellation link {suffix}",
+            status=RESERVATION_STATUS_CANCELLED,
+            notes=None,
+            created_by="manual",
+            expiry_at=None,
+            estimated_reserved_value=None,
+            currency_snapshot=None,
+        )
+        db.add(inactive_reservation)
+        db.flush()
+        try:
+            cancel_project(
+                db,
+                inactive_project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail(
+                "Project with an inactive linked Reservation was cancelled"
+            )
+        if (
+            inactive_project.status != PROJECT_STATUS_RESERVED
+            or inactive_reservation.status
+            != RESERVATION_STATUS_CANCELLED
+        ):
+            fail(
+                "Rejected inactive-link cancellation changed lifecycle state"
+            )
+        db.rollback()
+    finally:
+        db.close()
+
+    conflict_part_id: int | None = None
+    conflict_project_id: int | None = None
+    conflict_reservation_id: int | None = None
+    db = SessionLocal()
+    try:
+        part_type_id = db.execute(
+            select(PartType.id)
+            .where(PartType.is_active.is_(True))
+            .order_by(PartType.id.asc())
+            .limit(1)
+        ).scalar_one()
+        conflict_part = Part(
+            part_type_id=part_type_id,
+            part_number=f"PP397-CONFLICT-{suffix}",
+            name=f"Project cancellation conflict {suffix}",
+            total_quantity=7,
+            reserved_quantity=0,
+            unit_price=Decimal("2.0000"),
+            is_deleted=False,
+        )
+        conflict_project = Project(
+            name=f"Project cancellation conflict {suffix}",
+            status=PROJECT_STATUS_DRAFT,
+            created_by="manual",
+            estimated_total_value=Decimal("4.0000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([conflict_part, conflict_project])
+        db.flush()
+        db.add(
+            ProjectItem(
+                project_id=conflict_project.id,
+                part_id=conflict_part.id,
+                quantity=2,
+                unit_price_snapshot=Decimal("2.0000"),
+                currency_snapshot="USD",
+            )
+        )
+        db.flush()
+        reserve_project(
+            db,
+            conflict_project.id,
+            actor_user_id=None,
+            commit=False,
+        )
+        db.flush()
+        conflict_reservation = db.execute(
+            select(Reservation).where(
+                Reservation.project_id == conflict_project.id
+            )
+        ).scalar_one()
+        conflict_part_id = conflict_part.id
+        conflict_project_id = conflict_project.id
+        conflict_reservation_id = conflict_reservation.id
+        db.commit()
+
+        db.execute(
+            text(
+                "update parts set reserved_quantity = 1 "
+                "where id = :part_id"
+            ),
+            {"part_id": conflict_part_id},
+        )
+        db.commit()
+
+        try:
+            cancel_project(
+                db,
+                conflict_project_id,
+                actor_user_id=None,
+                commit=True,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail(
+                "Concurrent reserved-stock change was accepted during "
+                "Project cancellation"
+            )
+
+        conflict_state = db.execute(
+            text(
+                "select p.status as project_status, "
+                "r.status as reservation_status, "
+                "pt.total_quantity, pt.reserved_quantity "
+                "from projects p "
+                "join reservations r on r.project_id = p.id "
+                "join project_items pi on pi.project_id = p.id "
+                "join parts pt on pt.id = pi.part_id "
+                "where p.id = :project_id"
+            ),
+            {"project_id": conflict_project_id},
+        ).mappings().one()
+        release_count = int(
+            db.execute(
+                select(func.count())
+                .select_from(StockMovement)
+                .where(
+                    StockMovement.reservation_id
+                    == conflict_reservation_id,
+                    StockMovement.movement_type
+                    == MOVEMENT_TYPE_RELEASE,
+                )
+            ).scalar_one()
+        )
+        cancellation_audit_count = int(
+            db.execute(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(
+                    AuditLog.event_type.in_(
+                        (
+                            "reservation.cancelled",
+                            "project.cancelled",
+                        )
+                    ),
+                    (
+                        (
+                            AuditLog.entity_type == "reservation"
+                        )
+                        & (
+                            AuditLog.entity_id
+                            == conflict_reservation_id
+                        )
+                    )
+                    | (
+                        (
+                            AuditLog.entity_type == "project"
+                        )
+                        & (
+                            AuditLog.entity_id
+                            == conflict_project_id
+                        )
+                    ),
+                )
+            ).scalar_one()
+        )
+        if (
+            conflict_state["project_status"]
+            != PROJECT_STATUS_RESERVED
+            or conflict_state["reservation_status"]
+            != RESERVATION_STATUS_ACTIVE
+            or int(conflict_state["total_quantity"]) != 7
+            or int(conflict_state["reserved_quantity"]) != 1
+            or release_count != 0
+            or cancellation_audit_count != 0
+        ):
+            fail(
+                "Failed Project cancellation did not roll back atomically: "
+                f"{dict(conflict_state)}, release_count={release_count}, "
+                f"audit_count={cancellation_audit_count}"
+            )
+    finally:
+        db.rollback()
+        if conflict_project_id is not None:
+            db.execute(
+                text(
+                    "delete from audit_log where "
+                    "(entity_type = 'project' and entity_id = :project_id) "
+                    "or (entity_type = 'reservation' "
+                    "and entity_id = :reservation_id)"
+                ),
+                {
+                    "project_id": conflict_project_id,
+                    "reservation_id": conflict_reservation_id,
+                },
+            )
+        if conflict_reservation_id is not None:
+            db.execute(
+                text(
+                    "delete from stock_movements "
+                    "where reservation_id = :reservation_id"
+                ),
+                {"reservation_id": conflict_reservation_id},
+            )
+            db.execute(
+                text(
+                    "delete from reservation_items "
+                    "where reservation_id = :reservation_id"
+                ),
+                {"reservation_id": conflict_reservation_id},
+            )
+            db.execute(
+                text(
+                    "delete from reservations "
+                    "where id = :reservation_id"
+                ),
+                {"reservation_id": conflict_reservation_id},
+            )
+        if conflict_project_id is not None:
+            db.execute(
+                text(
+                    "delete from project_items "
+                    "where project_id = :project_id"
+                ),
+                {"project_id": conflict_project_id},
+            )
+            db.execute(
+                text(
+                    "delete from projects where id = :project_id"
+                ),
+                {"project_id": conflict_project_id},
+            )
+        if conflict_part_id is not None:
+            db.execute(
+                text(
+                    "delete from stock_movements where part_id = :part_id"
+                ),
+                {"part_id": conflict_part_id},
+            )
+            db.execute(
+                text("delete from parts where id = :part_id"),
+                {"part_id": conflict_part_id},
+            )
+        db.commit()
+        db.close()
+
+    ok(
+        "Reserved Projects cancel atomically through their linked "
+        "Reservations, release stock without changing physical totals, "
+        "synchronise terminal statuses, preserve movements and audits, "
+        "reject invalid links and repeated actions, and roll back conflicts"
+    )
+
+
+# PARTPILOT:PROJECT_LINKED_RESERVATION_TERMINAL_SMOKE:V399
+def check_project_linked_reservation_terminal_sync() -> None:
+    from datetime import datetime, timedelta, timezone
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from sqlalchemy import func, select
+
+    from app.db.constants import (
+        MOVEMENT_TYPE_CONSUME,
+        MOVEMENT_TYPE_RELEASE,
+        PROJECT_STATUS_CANCELLED,
+        PROJECT_STATUS_CONSUMED,
+        PROJECT_STATUS_DRAFT,
+        RESERVATION_STATUS_CANCELLED,
+        RESERVATION_STATUS_CONSUMED,
+        RESERVATION_STATUS_EXPIRED,
+    )
+    from app.db.session import SessionLocal
+    from app.models import (
+        AuditLog,
+        Part,
+        PartType,
+        Project,
+        ProjectItem,
+        Reservation,
+        StockMovement,
+    )
+    from app.services.projects import reserve_project
+    from app.services.reservations import (
+        cancel_reservation,
+        consume_reservation,
+        expire_reservation,
+    )
+
+    suffix = uuid4().hex[:12]
+    db = SessionLocal()
+    try:
+        part_type_id = db.execute(
+            select(PartType.id)
+            .where(PartType.is_active.is_(True))
+            .order_by(PartType.id.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if part_type_id is None:
+            fail(
+                "Project-linked Reservation terminal smoke requires an "
+                "active part type"
+            )
+
+        cases = (
+            (
+                "consume",
+                consume_reservation,
+                PROJECT_STATUS_CONSUMED,
+                RESERVATION_STATUS_CONSUMED,
+                MOVEMENT_TYPE_CONSUME,
+                "project.consumed",
+                "reservation.consumed",
+                "consumed_units",
+                6,
+                0,
+                6,
+                "manual",
+            ),
+            (
+                "cancel",
+                cancel_reservation,
+                PROJECT_STATUS_CANCELLED,
+                RESERVATION_STATUS_CANCELLED,
+                MOVEMENT_TYPE_RELEASE,
+                "project.cancelled",
+                "reservation.cancelled",
+                "released_units",
+                8,
+                0,
+                8,
+                "manual",
+            ),
+            (
+                "expire",
+                expire_reservation,
+                PROJECT_STATUS_CANCELLED,
+                RESERVATION_STATUS_EXPIRED,
+                MOVEMENT_TYPE_RELEASE,
+                "project.cancelled",
+                "reservation.expired",
+                "released_units",
+                8,
+                0,
+                8,
+                "system",
+            ),
+        )
+
+        for index, (
+            action,
+            action_function,
+            expected_project_status,
+            expected_reservation_status,
+            movement_type,
+            project_event,
+            reservation_event,
+            units_key,
+            expected_total,
+            expected_reserved,
+            expected_available,
+            expected_source,
+        ) in enumerate(cases, start=1):
+            part = Part(
+                part_type_id=part_type_id,
+                part_number=f"PP399-{action.upper()}-{suffix}",
+                name=f"Linked Reservation {action} smoke {suffix}",
+                total_quantity=8,
+                reserved_quantity=0,
+                unit_price=Decimal("2.0000"),
+                is_deleted=False,
+            )
+            project = Project(
+                name=f"Linked Reservation {action} {suffix}",
+                description=(
+                    "Direct Reservation terminal action must synchronise "
+                    "the linked Project"
+                ),
+                status=PROJECT_STATUS_DRAFT,
+                created_by="manual",
+                estimated_total_value=Decimal("4.0000"),
+                currency_snapshot="USD",
+            )
+            db.add_all([part, project])
+            db.flush()
+            db.add(
+                ProjectItem(
+                    project_id=project.id,
+                    part_id=part.id,
+                    quantity=2,
+                    unit_price_snapshot=Decimal("2.0000"),
+                    currency_snapshot="USD",
+                )
+            )
+            db.flush()
+            reserve_project(
+                db,
+                project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+            db.flush()
+
+            reservation = db.execute(
+                select(Reservation).where(
+                    Reservation.project_id == project.id
+                )
+            ).scalar_one()
+            if action == "expire":
+                reservation.expiry_at = (
+                    datetime.now(timezone.utc)
+                    - timedelta(minutes=5)
+                )
+                db.flush()
+
+            action_function(
+                db,
+                reservation.id,
+                actor_user_id=None,
+                commit=False,
+            )
+            db.flush()
+            db.refresh(project)
+            db.refresh(reservation)
+            db.refresh(part)
+
+            if project.status != expected_project_status:
+                fail(
+                    f"Direct {action} did not synchronise Project status: "
+                    f"{project.status}"
+                )
+            if reservation.status != expected_reservation_status:
+                fail(
+                    f"Direct {action} did not persist Reservation status: "
+                    f"{reservation.status}"
+                )
+            actual_stock = (
+                int(part.total_quantity),
+                int(part.reserved_quantity),
+                int(part.total_quantity) - int(part.reserved_quantity),
+            )
+            expected_stock = (
+                expected_total,
+                expected_reserved,
+                expected_available,
+            )
+            if actual_stock != expected_stock:
+                fail(
+                    f"Direct {action} stock result is incorrect: "
+                    f"{actual_stock}, expected {expected_stock}"
+                )
+
+            movement = db.execute(
+                select(StockMovement).where(
+                    StockMovement.reservation_id == reservation.id,
+                    StockMovement.movement_type == movement_type,
+                )
+            ).scalar_one_or_none()
+            if movement is None:
+                fail(
+                    f"Direct {action} did not create its terminal movement"
+                )
+
+            project_audit = db.execute(
+                select(AuditLog).where(
+                    AuditLog.event_type == project_event,
+                    AuditLog.entity_type == "project",
+                    AuditLog.entity_id == project.id,
+                )
+            ).scalar_one_or_none()
+            reservation_audit_count = int(
+                db.execute(
+                    select(func.count())
+                    .select_from(AuditLog)
+                    .where(
+                        AuditLog.event_type == reservation_event,
+                        AuditLog.entity_type == "reservation",
+                        AuditLog.entity_id == reservation.id,
+                    )
+                ).scalar_one()
+            )
+            if project_audit is None or reservation_audit_count != 1:
+                fail(
+                    f"Direct {action} did not create exactly one linked "
+                    "Project audit and one Reservation audit"
+                )
+            if (
+                project_audit.before_json.get("status")
+                != "reserved"
+                or project_audit.after_json.get("status")
+                != expected_project_status
+                or project_audit.after_json.get("reservation_status")
+                != expected_reservation_status
+                or project_audit.after_json.get(units_key) != 2
+                or project_audit.after_json.get("stock_movement_ids")
+                != [movement.id]
+                or project_audit.metadata_json.get("origin")
+                != "reservation.lifecycle"
+                or project_audit.metadata_json.get(
+                    "reservation_terminal_action"
+                )
+                != action
+                or project_audit.metadata_json.get("source")
+                != expected_source
+            ):
+                fail(
+                    f"Direct {action} linked Project audit is incorrect: "
+                    f"{project_audit.after_json}, "
+                    f"{project_audit.metadata_json}"
+                )
+
+            db.rollback()
+
+    finally:
+        db.rollback()
+        db.close()
+
+    ok(
+        "Direct consume, cancel, and expiry actions on Project-linked "
+        "Reservations synchronise terminal Project status, stock, "
+        "movements, audits, and transaction ownership"
+    )
+
+
+
+# PARTPILOT:PROJECT_RESERVED_UPDATE_SMOKE:V400
+def check_project_reserved_update_api() -> None:
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import delete, func, select
+
+    from app.db.constants import (
+        MOVEMENT_TYPE_RELEASE,
+        MOVEMENT_TYPE_RESERVE,
+        PROJECT_STATUS_DRAFT,
+        PROJECT_STATUS_RESERVED,
+        RESERVATION_STATUS_ACTIVE,
+    )
+    from app.db.session import SessionLocal
+    from app.main import app
+    from app.models import (
+        AuditLog,
+        Part,
+        PartType,
+        Project,
+        ProjectItem,
+        Reservation,
+        ReservationItem,
+        StockMovement,
+    )
+    from app.schemas.projects import ProjectUpdateRequest
+    from app.services.parts import list_part_movements
+    from app.services.projects import (
+        ProjectConflictError,
+        reserve_project,
+        update_project,
+    )
+
+    client = TestClient(app)
+    unauthenticated = client.put(
+        "/api/projects/999999999",
+        json={
+            "name": "Unauthenticated",
+            "description": None,
+            "notes": None,
+            "items": [{"part_id": 1, "quantity": 1}],
+        },
+    )
+    if unauthenticated.status_code not in (401, 403):
+        fail(
+            "Reserved Project update should require authentication, got "
+            f"{unauthenticated.status_code}"
+        )
+
+    openapi = client.get("/openapi.json")
+    movement_properties = (
+        openapi.json()
+        .get("components", {})
+        .get("schemas", {})
+        .get("StockMovementResponse", {})
+        .get("properties", {})
+    )
+    required_snapshot_fields = {
+        "reserved_quantity_before",
+        "reserved_quantity_after",
+        "available_quantity_before",
+        "available_quantity_after",
+    }
+    if (
+        openapi.status_code != 200
+        or not required_snapshot_fields.issubset(movement_properties)
+    ):
+        fail(
+            "Stock movement OpenAPI snapshots are incomplete: "
+            f"{sorted(movement_properties)}"
+        )
+
+    suffix = uuid4().hex[:12]
+    project_id: int | None = None
+    reservation_id: int | None = None
+    part_ids: list[int] = []
+
+    def cleanup() -> None:
+        cleanup_db = SessionLocal()
+        try:
+            if project_id is not None:
+                cleanup_db.execute(
+                    delete(AuditLog).where(
+                        (
+                            (AuditLog.entity_type == "project")
+                            & (AuditLog.entity_id == project_id)
+                        )
+                        | (
+                            (AuditLog.entity_type == "reservation")
+                            & (AuditLog.entity_id == reservation_id)
+                        )
+                    )
+                )
+            if reservation_id is not None:
+                cleanup_db.execute(
+                    delete(StockMovement).where(
+                        StockMovement.reservation_id == reservation_id
+                    )
+                )
+                cleanup_db.execute(
+                    delete(ReservationItem).where(
+                        ReservationItem.reservation_id == reservation_id
+                    )
+                )
+                cleanup_db.execute(
+                    delete(Reservation).where(
+                        Reservation.id == reservation_id
+                    )
+                )
+            if project_id is not None:
+                cleanup_db.execute(
+                    delete(ProjectItem).where(
+                        ProjectItem.project_id == project_id
+                    )
+                )
+                cleanup_db.execute(
+                    delete(Project).where(Project.id == project_id)
+                )
+            if part_ids:
+                cleanup_db.execute(
+                    delete(StockMovement).where(
+                        StockMovement.part_id.in_(part_ids)
+                    )
+                )
+                cleanup_db.execute(
+                    delete(Part).where(Part.id.in_(part_ids))
+                )
+            cleanup_db.commit()
+        finally:
+            cleanup_db.close()
+
+    cleanup()
+    db = SessionLocal()
+    try:
+        part_type_id = db.execute(
+            select(PartType.id)
+            .where(PartType.is_active.is_(True))
+            .order_by(PartType.id.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if part_type_id is None:
+            fail("Reserved Project update smoke requires an active part type")
+
+        parts = [
+            Part(
+                part_type_id=part_type_id,
+                part_number=f"PP400-EDIT-{index}-{suffix}",
+                name=f"Reserved Project edit part {index} {suffix}",
+                total_quantity=total,
+                reserved_quantity=0,
+                unit_price=Decimal(price),
+                is_deleted=False,
+            )
+            for index, total, price in (
+                (1, 10, "2.0000"),
+                (2, 8, "3.0000"),
+                (3, 12, "4.0000"),
+            )
+        ]
+        project = Project(
+            name=f"Reserved Project edit {suffix}",
+            description="Before reserved edit",
+            status=PROJECT_STATUS_DRAFT,
+            notes="Before notes",
+            created_by="manual",
+            estimated_total_value=Decimal("13.0000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([*parts, project])
+        db.flush()
+        part_ids.extend(part.id for part in parts)
+        project_id = project.id
+        db.add_all(
+            [
+                ProjectItem(
+                    project_id=project.id,
+                    part_id=parts[0].id,
+                    quantity=2,
+                    unit_price_snapshot=parts[0].unit_price,
+                    currency_snapshot="USD",
+                    note="Keep and increase",
+                ),
+                ProjectItem(
+                    project_id=project.id,
+                    part_id=parts[1].id,
+                    quantity=3,
+                    unit_price_snapshot=parts[1].unit_price,
+                    currency_snapshot="USD",
+                    note="Keep and decrease",
+                ),
+            ]
+        )
+        db.commit()
+
+        reserve_project(
+            db,
+            project.id,
+            actor_user_id=None,
+            commit=True,
+        )
+        reservation = db.execute(
+            select(Reservation).where(
+                Reservation.project_id == project.id
+            )
+        ).scalar_one()
+        reservation_id = reservation.id
+
+        payload = ProjectUpdateRequest(
+            name=f"Reserved Project updated {suffix}",
+            description="After reserved edit",
+            notes="After notes",
+            items=[
+                {
+                    "part_id": parts[0].id,
+                    "quantity": 4,
+                    "note": "Keep and increase",
+                },
+                {
+                    "part_id": parts[1].id,
+                    "quantity": 1,
+                    "note": "Keep and decrease",
+                },
+                {
+                    "part_id": parts[2].id,
+                    "quantity": 5,
+                    "note": "New reserved part",
+                },
+            ],
+        )
+        response = update_project(
+            db,
+            project.id,
+            payload,
+            actor_user_id=None,
+            commit=True,
+        )
+        db.refresh(project)
+        db.refresh(reservation)
+        for part in parts:
+            db.refresh(part)
+
+        if (
+            response.status != PROJECT_STATUS_RESERVED
+            or project.status != PROJECT_STATUS_RESERVED
+            or reservation.status != RESERVATION_STATUS_ACTIVE
+            or project.name != payload.name
+            or reservation.label != payload.name
+            or project.notes != payload.notes
+            or reservation.notes != payload.notes
+        ):
+            fail(
+                "Reserved Project metadata or lifecycle synchronization is "
+                f"incorrect: {response}"
+            )
+
+        expected_stock = {
+            parts[0].id: (10, 4, 6),
+            parts[1].id: (8, 1, 7),
+            parts[2].id: (12, 5, 7),
+        }
+        for part in parts:
+            actual = (
+                int(part.total_quantity),
+                int(part.reserved_quantity),
+                int(part.total_quantity) - int(part.reserved_quantity),
+            )
+            if actual != expected_stock[part.id]:
+                fail(
+                    f"Reserved Project edit stock is incorrect for "
+                    f"{part.id}: {actual}"
+                )
+
+        project_items = {
+            int(item.part_id): (int(item.quantity), item.note)
+            for item in db.execute(
+                select(ProjectItem).where(
+                    ProjectItem.project_id == project.id
+                )
+            ).scalars()
+            if item.part_id is not None
+        }
+        reservation_items = {
+            int(item.part_id): (int(item.quantity), item.note)
+            for item in db.execute(
+                select(ReservationItem).where(
+                    ReservationItem.reservation_id == reservation.id
+                )
+            ).scalars()
+            if item.part_id is not None
+        }
+        expected_items = {
+            parts[0].id: (4, "Keep and increase"),
+            parts[1].id: (1, "Keep and decrease"),
+            parts[2].id: (5, "New reserved part"),
+        }
+        if (
+            project_items != expected_items
+            or reservation_items != expected_items
+        ):
+            fail(
+                "Reserved Project and Reservation items diverged: "
+                f"{project_items}, {reservation_items}"
+            )
+
+        edit_movements = list(
+            db.execute(
+                select(StockMovement)
+                .where(StockMovement.reservation_id == reservation.id)
+                .order_by(StockMovement.id.asc())
+            ).scalars()
+        )[-3:]
+        expected_movements = {
+            parts[0].id: (
+                MOVEMENT_TYPE_RESERVE,
+                10,
+                10,
+                2,
+                4,
+                8,
+                6,
+            ),
+            parts[1].id: (
+                MOVEMENT_TYPE_RELEASE,
+                8,
+                8,
+                3,
+                1,
+                5,
+                7,
+            ),
+            parts[2].id: (
+                MOVEMENT_TYPE_RESERVE,
+                12,
+                12,
+                0,
+                5,
+                12,
+                7,
+            ),
+        }
+        if len(edit_movements) != 3:
+            fail(
+                "Reserved Project edit movement count is incorrect: "
+                f"{len(edit_movements)}"
+            )
+        for movement in edit_movements:
+            actual = (
+                movement.movement_type,
+                int(movement.quantity_before),
+                int(movement.quantity_after),
+                int(movement.reserved_quantity_before),
+                int(movement.reserved_quantity_after),
+                int(movement.available_quantity_before),
+                int(movement.available_quantity_after),
+            )
+            if actual != expected_movements[int(movement.part_id)]:
+                fail(
+                    "Reserved Project edit movement snapshots are "
+                    f"incorrect: {actual}"
+                )
+
+        movement_response = list_part_movements(
+            db,
+            parts[0].id,
+            limit=10,
+        ).movements[0]
+        if (
+            movement_response.reserved_quantity_before != 2
+            or movement_response.reserved_quantity_after != 4
+            or movement_response.available_quantity_before != 8
+            or movement_response.available_quantity_after != 6
+        ):
+            fail(
+                "Part movement API did not expose reservation snapshots: "
+                f"{movement_response}"
+            )
+
+        project_audit_count = int(
+            db.execute(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(
+                    AuditLog.event_type == "project.updated",
+                    AuditLog.entity_type == "project",
+                    AuditLog.entity_id == project.id,
+                )
+            ).scalar_one()
+        )
+        reservation_audit_count = int(
+            db.execute(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(
+                    AuditLog.event_type == "reservation.updated",
+                    AuditLog.entity_type == "reservation",
+                    AuditLog.entity_id == reservation.id,
+                )
+            ).scalar_one()
+        )
+        if project_audit_count != 1 or reservation_audit_count != 1:
+            fail(
+                "Reserved Project edit did not create exactly one paired "
+                "Project and Reservation audit"
+            )
+
+        movement_count_before_noop = int(
+            db.execute(
+                select(func.count())
+                .select_from(StockMovement)
+                .where(StockMovement.reservation_id == reservation.id)
+            ).scalar_one()
+        )
+        update_project(
+            db,
+            project.id,
+            payload,
+            actor_user_id=None,
+            commit=True,
+        )
+        movement_count_after_noop = int(
+            db.execute(
+                select(func.count())
+                .select_from(StockMovement)
+                .where(StockMovement.reservation_id == reservation.id)
+            ).scalar_one()
+        )
+        if movement_count_after_noop != movement_count_before_noop:
+            fail("No-op Reserved Project edit created a stock movement")
+
+        conflict_payload = ProjectUpdateRequest(
+            name=payload.name,
+            description=payload.description,
+            notes=payload.notes,
+            items=[
+                {
+                    "part_id": parts[0].id,
+                    "quantity": 999,
+                    "note": "Insufficient stock",
+                },
+                {
+                    "part_id": parts[1].id,
+                    "quantity": 1,
+                    "note": "Keep and decrease",
+                },
+                {
+                    "part_id": parts[2].id,
+                    "quantity": 5,
+                    "note": "New reserved part",
+                },
+            ],
+        )
+        try:
+            update_project(
+                db,
+                project.id,
+                conflict_payload,
+                actor_user_id=None,
+                commit=True,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail("Reserved Project edit accepted insufficient stock")
+
+        persisted = db.execute(
+            select(Project).where(Project.id == project.id)
+        ).scalar_one()
+        persisted_reservation = db.execute(
+            select(Reservation).where(
+                Reservation.id == reservation.id
+            )
+        ).scalar_one()
+        persisted_parts = {
+            part.id: (
+                int(part.total_quantity),
+                int(part.reserved_quantity),
+            )
+            for part in db.execute(
+                select(Part).where(Part.id.in_(part_ids))
+            ).scalars()
+        }
+        if (
+            persisted.status != PROJECT_STATUS_RESERVED
+            or persisted_reservation.status != RESERVATION_STATUS_ACTIVE
+            or persisted_parts
+            != {
+                parts[0].id: (10, 4),
+                parts[1].id: (8, 1),
+                parts[2].id: (12, 5),
+            }
+        ):
+            fail(
+                "Failed Reserved Project edit did not roll back cleanly: "
+                f"{persisted.status}, {persisted_reservation.status}, "
+                f"{persisted_parts}"
+            )
+    finally:
+        db.close()
+        cleanup()
+
+    ok(
+        "Reserved Projects edit atomically through their linked "
+        "Reservations, synchronise metadata and item plans, reserve and "
+        "release only quantity deltas, expose physical/reserved/available "
+        "movement snapshots, reject insufficient stock, preserve no-op "
+        "semantics, and roll back conflicts"
+    )
+
+
+
+# PARTPILOT:LINKED_RESERVATION_EDIT_TERMINAL_SMOKE:V402
+def check_linked_reservation_edit_and_terminal_delta() -> None:
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from sqlalchemy import select
+
+    from app.db.constants import (
+        MOVEMENT_TYPE_CONSUME,
+        MOVEMENT_TYPE_RELEASE,
+        PROJECT_STATUS_CANCELLED,
+        PROJECT_STATUS_CONSUMED,
+        PROJECT_STATUS_DRAFT,
+        PROJECT_STATUS_RESERVED,
+        RESERVATION_STATUS_ACTIVE,
+        RESERVATION_STATUS_CANCELLED,
+        RESERVATION_STATUS_CONSUMED,
+    )
+    from app.db.session import SessionLocal
+    from app.models import (
+        AuditLog,
+        Part,
+        PartType,
+        Project,
+        ProjectItem,
+        Reservation,
+        ReservationItem,
+        StockMovement,
+    )
+    from app.schemas.reservations import ReservationUpdateRequest
+    from app.services.projects import (
+        cancel_project,
+        consume_project,
+        reserve_project,
+    )
+    from app.services.reservations import update_reservation
+
+    suffix = uuid4().hex[:12]
+    db = SessionLocal()
+    try:
+        part_type_id = db.execute(
+            select(PartType.id)
+            .where(PartType.is_active.is_(True))
+            .order_by(PartType.id.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if part_type_id is None:
+            fail(
+                "Linked Reservation edit smoke requires an active part "
+                "type"
+            )
+
+        for case_index, terminal_action in enumerate(
+            ("cancel", "consume"),
+            start=1,
+        ):
+            parts = [
+                Part(
+                    part_type_id=part_type_id,
+                    part_number=(
+                        f"PP402-{terminal_action.upper()}-"
+                        f"{part_index}-{suffix}"
+                    ),
+                    name=(
+                        f"Linked edit {terminal_action} part "
+                        f"{part_index} {suffix}"
+                    ),
+                    total_quantity=total_quantity,
+                    reserved_quantity=0,
+                    unit_price=Decimal(unit_price),
+                    is_deleted=False,
+                )
+                for part_index, total_quantity, unit_price in (
+                    (1, 10, "2.0000"),
+                    (2, 12, "3.0000"),
+                    (3, 15, "4.0000"),
+                )
+            ]
+            project = Project(
+                name=(
+                    f"Linked edit {terminal_action} "
+                    f"{case_index} {suffix}"
+                ),
+                description="Description must remain Project-owned",
+                status=PROJECT_STATUS_DRAFT,
+                notes="Before linked Reservation edit",
+                created_by="manual",
+                estimated_total_value=Decimal("17.0000"),
+                currency_snapshot="USD",
+            )
+            db.add_all([*parts, project])
+            db.flush()
+            db.add_all(
+                [
+                    ProjectItem(
+                        project_id=project.id,
+                        part_id=parts[0].id,
+                        quantity=4,
+                        unit_price_snapshot=parts[0].unit_price,
+                        currency_snapshot="USD",
+                        note="Decrease through Reservation",
+                    ),
+                    ProjectItem(
+                        project_id=project.id,
+                        part_id=parts[1].id,
+                        quantity=3,
+                        unit_price_snapshot=parts[1].unit_price,
+                        currency_snapshot="USD",
+                        note="Increase through Reservation",
+                    ),
+                ]
+            )
+            db.flush()
+
+            reserve_project(
+                db,
+                project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+            db.flush()
+            reservation = db.execute(
+                select(Reservation).where(
+                    Reservation.project_id == project.id
+                )
+            ).scalar_one()
+
+            updated_label = (
+                f"Linked Reservation edited {terminal_action} "
+                f"{suffix}"
+            )
+            payload = ReservationUpdateRequest(
+                label=updated_label,
+                notes="Updated from Reservations and synced to Project",
+                expiry_at=None,
+                items=[
+                    {
+                        "part_id": parts[0].id,
+                        "quantity": 2,
+                        "note": "Decrease through Reservation",
+                    },
+                    {
+                        "part_id": parts[1].id,
+                        "quantity": 4,
+                        "note": "Increase through Reservation",
+                    },
+                    {
+                        "part_id": parts[2].id,
+                        "quantity": 5,
+                        "note": "Added through Reservation",
+                    },
+                ],
+            )
+            updated = update_reservation(
+                db,
+                reservation.id,
+                payload,
+                actor_user_id=None,
+                commit=False,
+            )
+            db.flush()
+            db.refresh(project)
+            db.refresh(reservation)
+            for part in parts:
+                db.refresh(part)
+
+            if (
+                updated.status != RESERVATION_STATUS_ACTIVE
+                or reservation.status != RESERVATION_STATUS_ACTIVE
+                or project.status != PROJECT_STATUS_RESERVED
+                or project.name != updated_label
+                or reservation.label != updated_label
+                or project.notes != payload.notes
+                or reservation.notes != payload.notes
+                or project.description
+                != "Description must remain Project-owned"
+            ):
+                fail(
+                    "Direct linked Reservation edit did not synchronise "
+                    f"Project metadata: {project.status}, "
+                    f"{reservation.status}, {project.name}, "
+                    f"{reservation.label}"
+                )
+
+            project_items = {
+                int(item.part_id): (
+                    int(item.quantity),
+                    item.note,
+                )
+                for item in db.execute(
+                    select(ProjectItem).where(
+                        ProjectItem.project_id == project.id
+                    )
+                ).scalars()
+                if item.part_id is not None
+            }
+            reservation_items = {
+                int(item.part_id): (
+                    int(item.quantity),
+                    item.note,
+                )
+                for item in db.execute(
+                    select(ReservationItem).where(
+                        ReservationItem.reservation_id
+                        == reservation.id
+                    )
+                ).scalars()
+                if item.part_id is not None
+            }
+            expected_items = {
+                parts[0].id: (
+                    2,
+                    "Decrease through Reservation",
+                ),
+                parts[1].id: (
+                    4,
+                    "Increase through Reservation",
+                ),
+                parts[2].id: (
+                    5,
+                    "Added through Reservation",
+                ),
+            }
+            if (
+                project_items != expected_items
+                or reservation_items != expected_items
+            ):
+                fail(
+                    "Direct linked Reservation edit left Project and "
+                    f"Reservation plans out of sync: {project_items}, "
+                    f"{reservation_items}"
+                )
+
+            expected_before_terminal = {
+                parts[0].id: (10, 2, 8),
+                parts[1].id: (12, 4, 8),
+                parts[2].id: (15, 5, 10),
+            }
+            for part in parts:
+                actual = (
+                    int(part.total_quantity),
+                    int(part.reserved_quantity),
+                    int(part.total_quantity)
+                    - int(part.reserved_quantity),
+                )
+                if actual != expected_before_terminal[part.id]:
+                    fail(
+                        "Direct linked Reservation edit stock delta is "
+                        f"incorrect for part {part.id}: {actual}"
+                    )
+
+            edit_release_ids = set(
+                db.execute(
+                    select(StockMovement.id).where(
+                        StockMovement.reservation_id == reservation.id,
+                        StockMovement.movement_type
+                        == MOVEMENT_TYPE_RELEASE,
+                    )
+                ).scalars()
+            )
+            if len(edit_release_ids) != 1:
+                fail(
+                    "Linked Reservation edit should create exactly one "
+                    f"historical release movement, got "
+                    f"{edit_release_ids}"
+                )
+
+            project_update_audit = db.execute(
+                select(AuditLog).where(
+                    AuditLog.event_type == "project.updated",
+                    AuditLog.entity_type == "project",
+                    AuditLog.entity_id == project.id,
+                )
+            ).scalar_one_or_none()
+            reservation_update_audit = db.execute(
+                select(AuditLog).where(
+                    AuditLog.event_type == "reservation.updated",
+                    AuditLog.entity_type == "reservation",
+                    AuditLog.entity_id == reservation.id,
+                )
+            ).scalar_one_or_none()
+            if (
+                project_update_audit is None
+                or reservation_update_audit is None
+                or project_update_audit.metadata_json.get("origin")
+                != "reservation.edit"
+                or project_update_audit.metadata_json.get(
+                    "reservation_id"
+                )
+                != reservation.id
+            ):
+                fail(
+                    "Direct linked Reservation edit did not create paired "
+                    "Project and Reservation audits"
+                )
+
+            if terminal_action == "cancel":
+                result = cancel_project(
+                    db,
+                    project.id,
+                    actor_user_id=None,
+                    commit=False,
+                )
+                expected_project_status = PROJECT_STATUS_CANCELLED
+                expected_reservation_status = (
+                    RESERVATION_STATUS_CANCELLED
+                )
+                terminal_event = "project.cancelled"
+                terminal_movement_type = MOVEMENT_TYPE_RELEASE
+                expected_stock = {
+                    parts[0].id: (10, 0, 10),
+                    parts[1].id: (12, 0, 12),
+                    parts[2].id: (15, 0, 15),
+                }
+            else:
+                result = consume_project(
+                    db,
+                    project.id,
+                    actor_user_id=None,
+                    commit=False,
+                )
+                expected_project_status = PROJECT_STATUS_CONSUMED
+                expected_reservation_status = (
+                    RESERVATION_STATUS_CONSUMED
+                )
+                terminal_event = "project.consumed"
+                terminal_movement_type = MOVEMENT_TYPE_CONSUME
+                expected_stock = {
+                    parts[0].id: (8, 0, 8),
+                    parts[1].id: (8, 0, 8),
+                    parts[2].id: (10, 0, 10),
+                }
+
+            db.flush()
+            db.refresh(project)
+            db.refresh(reservation)
+            for part in parts:
+                db.refresh(part)
+
+            if (
+                result.status != expected_project_status
+                or project.status != expected_project_status
+                or reservation.status
+                != expected_reservation_status
+            ):
+                fail(
+                    f"Project {terminal_action} after linked edit did not "
+                    f"complete: {result.status}, {project.status}, "
+                    f"{reservation.status}"
+                )
+
+            terminal_audit = db.execute(
+                select(AuditLog).where(
+                    AuditLog.event_type == terminal_event,
+                    AuditLog.entity_type == "project",
+                    AuditLog.entity_id == project.id,
+                )
+            ).scalar_one_or_none()
+            if terminal_audit is None:
+                fail(
+                    f"Project {terminal_action} after linked edit did not "
+                    "create its Project terminal audit"
+                )
+            terminal_movement_ids = set(
+                terminal_audit.after_json.get(
+                    "stock_movement_ids",
+                    [],
+                )
+            )
+            if len(terminal_movement_ids) != 3:
+                fail(
+                    f"Project {terminal_action} terminal audit contains "
+                    f"the wrong movement set: {terminal_movement_ids}"
+                )
+            if terminal_movement_ids & edit_release_ids:
+                fail(
+                    f"Project {terminal_action} reused historical edit "
+                    f"release movements: {terminal_movement_ids}, "
+                    f"{edit_release_ids}"
+                )
+
+            terminal_movements = list(
+                db.execute(
+                    select(StockMovement).where(
+                        StockMovement.id.in_(
+                            terminal_movement_ids
+                        )
+                    )
+                ).scalars()
+            )
+            if (
+                len(terminal_movements) != 3
+                or {
+                    movement.movement_type
+                    for movement in terminal_movements
+                }
+                != {terminal_movement_type}
+            ):
+                fail(
+                    f"Project {terminal_action} terminal movements are "
+                    f"incorrect: {terminal_movements}"
+                )
+
+            for part in parts:
+                actual = (
+                    int(part.total_quantity),
+                    int(part.reserved_quantity),
+                    int(part.total_quantity)
+                    - int(part.reserved_quantity),
+                )
+                if actual != expected_stock[part.id]:
+                    fail(
+                        f"Project {terminal_action} after linked edit "
+                        f"stock is incorrect for part {part.id}: "
+                        f"{actual}"
+                    )
+
+        db.rollback()
+    finally:
+        db.rollback()
+        db.close()
+
+    ok(
+        "Project-linked Reservations edit from Reservations with atomic "
+        "two-way metadata, item-plan, value, stock-delta, and audit "
+        "synchronisation; subsequent Project cancellation and consumption "
+        "count only newly-created terminal movements and ignore historical "
+        "edit releases"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -13440,8 +15324,12 @@ def main() -> None:
         check_project_creation_service,
         check_project_read_create_api,
         check_project_draft_update_api,
+        check_project_reserved_update_api,
+        check_linked_reservation_edit_and_terminal_delta,
         check_project_reservation_api,
         check_project_consumption_api,
+        check_project_cancellation_api,
+        check_project_linked_reservation_terminal_sync,
         check_reservation_contract_schema,
         check_reservation_creation_service,
         check_reservation_read_create_api,

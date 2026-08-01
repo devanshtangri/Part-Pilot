@@ -2483,3 +2483,78 @@ The immediate implementation order is:
 4. clear success/error/activity feedback and terminal-status synchronization;
 5. responsive browser testing and checkpointing;
 6. system-wide History only after Project lifecycle completion is stable.
+
+<!-- PARTPILOT:PROJECT_LIFECYCLE_CHECKPOINT:V405 -->
+## Chat 15 checkpoint — Project lifecycle complete through Patch 403
+
+**Checkpoint patch:** 405
+**Browser approval:** complete through Patch 403
+**Alembic head:** `0007_projects_contract`
+**Commit subject:** `Complete Project lifecycle workflows`
+
+### Completed lifecycle contract
+
+- Reserved Projects consume atomically through exactly one linked active
+  Reservation. Physical and reserved quantities decrease together, available
+  quantity remains unchanged, both records become `consumed`, and paired
+  movements/audits are recorded.
+- Reserved Projects cancel atomically through the linked Reservation. Reserved
+  quantity returns to available stock without changing physical totals, both
+  records become `cancelled`, and paired release movements/audits are recorded.
+- Terminal verification snapshots existing movement IDs before the action and
+  verifies only movements created by the current transaction. Historical
+  reserve/release movements from earlier edits are preserved and cannot cause a
+  false terminal-action conflict.
+- Reserved Projects are editable from Projects. Quantity increases reserve only
+  the delta, decreases release only the delta, and Project/Reservation metadata,
+  items, snapshots, values and audits remain synchronized.
+- Project-linked active Reservations are also editable from Reservations. Both
+  entry points update the same atomic commitment; the Project description remains
+  Project-owned.
+- Direct Reservation consume, cancel and expiry synchronize the linked Project
+  terminal status atomically.
+- Project and Reservation terminal actions use accessible in-app dialogs,
+  duplicate-submit guards, stale-state refresh and non-interactive explanatory
+  hierarchy rather than browser-native confirmation prompts.
+- Projects and Reservations use register-first mobile behavior and compact
+  two-by-two summary metrics. Long values wrap without horizontal overflow.
+- Part history exposes Physical, Reserved and Available before/after snapshots,
+  with meaningful reserve/release deltas instead of ambiguous physical-only
+  values.
+
+### Verification and recovery history
+
+- Patch 397 added atomic Project cancellation.
+- Patch 398 added Project consume/cancel frontend actions.
+- Patch 399 synchronized direct Reservation lifecycle actions with Projects and
+  corrected mobile, stale-state and part-label behavior.
+- Patch 400 failed before writes on a brittle frontend anchor. Patch 401 recovered
+  the Reserved Project editing, stock-history and realistic test-fixture slice.
+- Patch 402 failed before writes on payload-validation and indentation defects.
+  Patch 403 recovered terminal movement-delta verification, two-way editing and
+  lifecycle-dialog hierarchy.
+- Patch 403 passed source compilation, TypeScript/Vite build, deployment,
+  Alembic, protected API/OpenAPI checks, built marker checks and the complete
+  copied-database smoke suite.
+- Desktop and mobile browser tests passed, including two-way editing followed by
+  cancellation in the presence of historical release movements.
+
+### Runtime browser-test inventory
+
+Six realistic manifest-owned test parts remain in the live test database with
+manifest:
+
+```text
+/projects/Part Pilot/fixes/logs/patch_401_test_fixture_manifest.json
+```
+
+Runtime data and logs are ignored by Git. The user plans to reset the database
+before production use. Patch 405 validates this exact live state but does not
+stage, delete or rewrite any inventory, Project, Reservation, movement or audit
+row.
+
+### Next implementation
+
+Project lifecycle work is checkpointed. The next major product area is the
+system-wide History and audit browser. Keep it separate from Settings,
+backup/restore and MCP implementation.

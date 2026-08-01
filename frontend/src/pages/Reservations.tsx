@@ -295,6 +295,8 @@ function activityStockSummary(
   ].join(" · ");
 }
 
+type ReservationLifecycleAction = "cancel" | "consume" | "expire";
+
 export function Reservations() {
   const { token } = useAuth();
 
@@ -328,10 +330,14 @@ export function Reservations() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [listError, setListError] = useState("");
   const [detailError, setDetailError] = useState("");
-  const [actionName, setActionName] = useState<
-    "cancel" | "consume" | "expire" | null
-  >(null);
-  const [actionError, setActionError] = useState("");
+
+const [actionName, setActionName] =
+  useState<ReservationLifecycleAction | null>(null);
+const [actionReservationId, setActionReservationId] =
+  useState<number | null>(null);
+const [actionSubmitting, setActionSubmitting] = useState(false);
+const [actionError, setActionError] = useState("");
+const [actionNotice, setActionNotice] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Reservation | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -585,6 +591,22 @@ useEffect(() => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [deleteSubmitting, deleteTarget]);
 
+
+useEffect(() => {
+  if (actionName === null) {
+    return;
+  }
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && !actionSubmitting) {
+      setActionName(null);
+      setActionReservationId(null);
+      setActionError("");
+    }
+  };
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
+}, [actionName, actionSubmitting]);
+
   const visibleReservations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
@@ -619,12 +641,24 @@ useEffect(() => {
     .filter((reservation) => reservation.status === "active")
     .reduce((total, reservation) => total + reservationUnits(reservation), 0);
 
+const actionTarget =
+  actionName !== null &&
+  actionReservationId !== null &&
+  selectedReservation?.id === actionReservationId
+    ? selectedReservation
+    : null;
+const actionUnits = actionTarget ? reservationUnits(actionTarget) : 0;
+
   const chooseStatusFilter = (value: ReservationStatus | "all") => {
     writeReservationStatusPreference(value);
     setStatusFilter(value);
     setPageOffset(0);
     setSelectedId(null);
     setDeletionNotice("");
+    setActionNotice("");
+    setActionName(null);
+    setActionReservationId(null);
+    setActionError("");
   };
 
   const openDelete = () => {
@@ -661,13 +695,14 @@ useEffect(() => {
       return;
     }
     if (selectedReservation.items.some((item) => item.part_id === null)) {
-      setActionError(
+      setActionNotice(
         "This reservation contains a deleted part and cannot be edited."
       );
       return;
     }
 
     resetCreateForm();
+    setActionNotice("");
     setActionError("");
     setEditingReservationId(selectedReservation.id);
     setDraftLabel(selectedReservation.label);
@@ -848,6 +883,11 @@ useEffect(() => {
       resetCreateForm();
       setSelectedId(saved.id);
       setSelectedReservation(saved);
+      setActionNotice(
+        saved.project_id !== null
+          ? `Updated Reservation and linked Project #${saved.project_id}.`
+          : "Reservation updated."
+      );
       setReloadVersion((value) => value + 1);
       setActivityReloadVersion((value) => value + 1);
     } catch (error: unknown) {
@@ -899,43 +939,90 @@ useEffect(() => {
     }
   };
 
-  const runAction = async (
-    action: "cancel" | "consume" | "expire"
-  ) => {
-    if (!token || !selectedReservation || actionName) {
-      return;
-    }
 
-    const verbs = {
-      cancel: "Cancel",
-      consume: "Consume",
-      expire: "Expire"
-    } as const;
-    const confirmed = window.confirm(
-      `${verbs[action]} reservation "${selectedReservation.label}"?`
-    );
-    if (!confirmed) {
-      return;
-    }
+const openAction = (action: ReservationLifecycleAction) => {
+  if (
+    !selectedReservation ||
+    selectedReservation.status !== "active" ||
+    actionSubmitting
+  ) {
+    return;
+  }
+  setActionNotice("");
+  setActionError("");
+  setActionReservationId(selectedReservation.id);
+  setActionName(action);
+};
 
-    setActionName(action);
+const closeAction = () => {
+  if (!actionSubmitting) {
+    setActionName(null);
+    setActionReservationId(null);
     setActionError("");
+  }
+};
+
+const runAction = async () => {
+  if (
+    !token ||
+    !actionTarget ||
+    actionName === null ||
+    actionSubmitting
+  ) {
+    return;
+  }
+
+  const action = actionName;
+  const target = actionTarget;
+  setActionSubmitting(true);
+  setActionError("");
+  try {
+    const updated =
+      action === "cancel"
+        ? await cancelReservation(token, target.id)
+        : action === "consume"
+          ? await consumeReservation(token, target.id)
+          : await expireReservation(token, target.id);
+    setSelectedReservation(updated);
+    setActionName(null);
+    setActionReservationId(null);
+    setActionNotice(
+      `${updated.label} is now ${statusLabel(updated.status)}.${
+        updated.project_id !== null
+          ? ` Linked Project #${updated.project_id} was synchronised.`
+          : ""
+      }`
+    );
+    setReloadVersion((value) => value + 1);
+    setActivityReloadVersion((value) => value + 1);
+  } catch (error: unknown) {
+    const originalMessage = messageFrom(error);
     try {
-      const updated =
-        action === "cancel"
-          ? await cancelReservation(token, selectedReservation.id)
-          : action === "consume"
-            ? await consumeReservation(token, selectedReservation.id)
-            : await expireReservation(token, selectedReservation.id);
-      setSelectedReservation(updated);
-      setReloadVersion((value) => value + 1);
-      setActivityReloadVersion((value) => value + 1);
-    } catch (error: unknown) {
-      setActionError(messageFrom(error));
-    } finally {
-      setActionName(null);
+      const latest = await getReservation(token, target.id);
+      if (
+        latest.status !== target.status ||
+        latest.updated_at !== target.updated_at
+      ) {
+        setSelectedReservation(latest);
+        setActionName(null);
+        setActionReservationId(null);
+        setActionNotice(
+          `${latest.label} changed to ${statusLabel(
+            latest.status
+          )} in another tab. The latest state has been loaded; no duplicate action was applied.`
+        );
+        setReloadVersion((value) => value + 1);
+        setActivityReloadVersion((value) => value + 1);
+      } else {
+        setActionError(originalMessage);
+      }
+    } catch {
+      setActionError(originalMessage);
     }
-  };
+  } finally {
+    setActionSubmitting(false);
+  }
+};
 
   return (
     <section
@@ -948,6 +1035,10 @@ useEffect(() => {
       data-partpilot-reservation-preference="PARTPILOT:RESERVATION_STATUS_PREFERENCE:V352"
       data-partpilot-reservation-layout="PARTPILOT:RESERVATION_LAYOUT_REFINEMENT:V353"
       data-partpilot-reservation-default-expiry="PARTPILOT:RESERVATION_DEFAULT_EXPIRY:V362"
+      data-partpilot-reservation-action-dialog="PARTPILOT:RESERVATION_ACTION_DIALOG:V399"
+      data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"
+      data-partpilot-linked-reservation-edit="PARTPILOT:LINKED_RESERVATION_EDIT_UI:V402"
+      data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"
     >
       <header
         className="reservations-header"
@@ -1218,6 +1309,16 @@ useEffect(() => {
                 </button>
               </div>
 
+              {actionNotice ? (
+                <div
+                  className="reservations-notice is-success reservation-action-notice"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span>{actionNotice}</span>
+                </div>
+              ) : null}
+
               <dl className="reservation-facts">
                 <div>
                   <dt>Expiry</dt>
@@ -1264,8 +1365,16 @@ useEffect(() => {
                 {selectedReservation.items.map((item) => (
                   <article className="reservation-item" key={item.id}>
                     <div className="reservation-item-main">
-                      <strong>{item.part_number ?? "Deleted part"}</strong>
-                      <span>{item.part_name ?? "Part no longer available"}</span>
+                      <strong>
+                        {item.part_number ?? item.part_name ?? "Deleted part"}
+                      </strong>
+                      <span>
+                        {item.part_number
+                          ? item.part_name ?? "Part name unavailable"
+                          : item.part_id === null
+                            ? "Part no longer available"
+                            : "Inventory part"}
+                      </span>
                     </div>
                     <dl>
                       <div>
@@ -1364,53 +1473,45 @@ useEffect(() => {
                 )}
               </section>
 
-              {actionError ? (
-                <div className="reservations-notice is-error" role="alert">
-                  <span>{actionError}</span>
-                </div>
-              ) : null}
 
-              {selectedReservation.status === "active" ? (
-                <div className="reservation-actions">
-                  <button
-                    className="reservations-button reservations-button-primary"
-                    type="button"
-                    disabled={actionName !== null}
-                    onClick={() => void runAction("consume")}
-                  >
-                    {actionName === "consume"
-                      ? "Consuming…"
-                      : "Consume reservation"}
-                  </button>
-                  <button
-                    className="reservations-button"
-                    type="button"
-                    disabled={actionName !== null}
-                    onClick={openEdit}
-                  >
-                    Edit reservation
-                  </button>
-                  <button
-                    className="reservations-button"
-                    type="button"
-                    disabled={actionName !== null}
-                    onClick={() => void runAction("cancel")}
-                  >
-                    {actionName === "cancel" ? "Cancelling…" : "Cancel"}
-                  </button>
-                  {isDue(selectedReservation) ? (
-                    <button
-                      className="reservations-button"
-                      type="button"
-                      disabled={actionName !== null}
-                      onClick={() => void runAction("expire")}
-                    >
-                      {actionName === "expire" ? "Expiring…" : "Mark expired"}
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="reservation-actions">
+{selectedReservation.status === "active" ? (
+  <div className="reservation-actions">
+    <button
+      className="reservations-button reservations-button-primary"
+      type="button"
+      disabled={actionSubmitting}
+      onClick={() => openAction("consume")}
+    >
+      Consume reservation
+    </button>
+    <button
+      className="reservations-button"
+      type="button"
+      disabled={actionSubmitting}
+      onClick={openEdit}
+    >
+      Edit reservation
+    </button>
+    <button
+      className="reservations-button"
+      type="button"
+      disabled={actionSubmitting}
+      onClick={() => openAction("cancel")}
+    >
+      Cancel
+    </button>
+    {isDue(selectedReservation) ? (
+      <button
+        className="reservations-button"
+        type="button"
+        disabled={actionSubmitting}
+        onClick={() => openAction("expire")}
+      >
+        Mark expired
+      </button>
+    ) : null}
+  </div>
+) : (                <div className="reservation-actions">
                   <button
                     className="reservations-button reservations-button-danger"
                     type="button"
@@ -1424,6 +1525,144 @@ useEffect(() => {
           )}
         </aside>
       </div>
+
+
+{actionTarget && actionName ? (
+  <div
+    className="reservation-modal-backdrop"
+    role="presentation"
+    onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget) {
+        closeAction();
+      }
+    }}
+  >
+    <section
+      className={`reservation-modal reservation-action-modal is-${actionName}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reservation-action-title"
+      aria-describedby="reservation-action-description"
+      aria-busy={actionSubmitting}
+      data-partpilot-marker="PARTPILOT:RESERVATION_ACTION_DIALOG:V399"
+    >
+      <header>
+        <div>
+          <p className="eyebrow">
+            {actionName === "consume"
+              ? "Permanent stock movement"
+              : actionName === "expire"
+                ? "Due reservation release"
+                : "Release inventory commitment"}
+          </p>
+          <h2 id="reservation-action-title">
+            {actionName === "consume"
+              ? "Consume reservation"
+              : actionName === "expire"
+                ? "Mark reservation expired"
+                : "Cancel reservation"}
+          </h2>
+          <p id="reservation-action-description">
+            {actionName === "consume"
+              ? "Confirm the permanent removal of the physical stock committed to this Reservation."
+              : "Confirm that this Reservation should release its committed stock without changing physical totals."}
+          </p>
+        </div>
+        <button
+          className="reservations-button"
+          type="button"
+          disabled={actionSubmitting}
+          onClick={closeAction}
+        >
+          Close
+        </button>
+      </header>
+
+      <div className="reservation-action-body">
+        <div className="reservation-action-summary">
+          <article>
+            <span>Reservation</span>
+            <strong>{actionTarget.label}</strong>
+          </article>
+          <article>
+            <span>Parts</span>
+            <strong>{actionTarget.items.length}</strong>
+          </article>
+          <article>
+            <span>
+              {actionName === "consume"
+                ? "Units to remove"
+                : "Units to release"}
+            </span>
+            <strong>{actionUnits}</strong>
+          </article>
+        </div>
+
+        <div
+          className={`reservation-action-impact is-${actionName}`}
+        >
+          <strong>Stock impact</strong>
+          <p>
+            {actionName === "consume"
+              ? `Physical and reserved quantities both decrease by ${actionUnits}. Available quantity remains unchanged.`
+              : `Reserved quantity decreases by ${actionUnits} and available quantity increases by the same amount. Physical stock remains unchanged.`}
+          </p>
+        </div>
+
+        <div className="reservation-action-terminal-note">
+          <strong>
+            {actionName === "consume"
+              ? "This stock removal cannot be undone from the Reservation."
+              : actionName === "expire"
+                ? "The Reservation will close as Expired."
+                : "The Reservation will close as Cancelled."}
+          </strong>
+          <span>
+            {actionTarget.project_id !== null
+              ? `Linked Project #${actionTarget.project_id} will be synchronised atomically.`
+              : "This Reservation is not linked to a Project."}
+          </span>
+        </div>
+
+        {actionError ? (
+          <div className="reservations-notice is-error" role="alert">
+            <span>{actionError}</span>
+          </div>
+        ) : null}
+      </div>
+
+      <footer>
+        <span>
+          Current status, linked Project state, and inventory are
+          checked again when you confirm.
+        </span>
+        <button
+          autoFocus
+          className={`reservations-button ${
+            actionName === "consume"
+              ? "reservations-button-danger"
+              : "reservations-button-primary"
+          }`}
+          type="button"
+          disabled={actionSubmitting}
+          onClick={() => void runAction()}
+        >
+          {actionSubmitting
+            ? actionName === "consume"
+              ? "Consuming…"
+              : actionName === "expire"
+                ? "Expiring…"
+                : "Cancelling…"
+            : actionName === "consume"
+              ? "Consume physical stock"
+              : actionName === "expire"
+                ? "Release and mark expired"
+                : "Release reserved stock"}
+        </button>
+      </footer>
+    </section>
+  </div>
+) : null}
 
       {deleteTarget ? (
         <div
@@ -1539,11 +1778,20 @@ useEffect(() => {
           >
             <header data-partpilot-marker="PARTPILOT:RESERVATION_SINGLE_DISMISS_ACTION:V364">
               <div>
-                <p className="eyebrow">Update inventory commitment</p>
-                <h2 id="reservation-form-title">Edit reservation</h2>
+                <p className="eyebrow">
+                  {selectedReservation?.project_id !== null
+                    ? "Two-way Project synchronization"
+                    : "Update inventory commitment"}
+                </p>
+                <h2 id="reservation-form-title">
+                  {selectedReservation?.project_id !== null
+                    ? "Edit Project reservation"
+                    : "Edit reservation"}
+                </h2>
                 <p>
-                  Adjust this active hold's details, parts, quantities, notes,
-                  or expiry. New commitments are created by reserving Projects.
+                  {selectedReservation?.project_id !== null
+                    ? "Changes update this active Reservation and its linked Reserved Project together. Quantity deltas adjust reserved and available stock while physical totals remain unchanged."
+                    : "Adjust this active hold's details, parts, quantities, notes, or expiry. New commitments are created by reserving Projects."}
                 </p>
               </div>
             </header>

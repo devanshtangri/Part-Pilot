@@ -1443,3 +1443,249 @@
   color: var(--muted);
   font-size: 0.69rem;
 }
+
+/* PARTPILOT:RESERVATION_BROWSER_FEEDBACK_FIXES:V399 */
+.reservation-action-modal {
+  width: min(620px, 100%);
+}
+
+.reservation-action-body {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.reservation-action-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 0.7fr));
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.reservation-action-summary article {
+  min-width: 0;
+  padding: 12px 13px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.reservation-action-summary article:last-child {
+  border-right: 0;
+}
+
+.reservation-action-summary span,
+.reservation-action-summary strong,
+.reservation-action-terminal-note strong,
+.reservation-action-terminal-note span {
+  display: block;
+}
+
+.reservation-action-summary span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.reservation-action-summary strong {
+  overflow-wrap: anywhere;
+  margin-top: 4px;
+  font-size: 0.88rem;
+  line-height: 1.3;
+}
+
+.reservation-action-impact,
+.reservation-action-terminal-note {
+  padding: 13px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.reservation-action-impact.is-consume {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--panel-border));
+  background: color-mix(in srgb, var(--danger) 7%, var(--panel));
+}
+
+.reservation-action-impact.is-cancel,
+.reservation-action-impact.is-expire {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--panel-border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+}
+
+.reservation-action-impact p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.reservation-action-terminal-note {
+  background: var(--sidebar);
+}
+
+.reservation-action-terminal-note strong {
+  font-size: 0.84rem;
+}
+
+.reservation-action-terminal-note span {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.reservation-action-modal > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--panel-border);
+  background: var(--sidebar);
+}
+
+.reservation-action-modal > footer > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.reservation-action-modal > footer .reservations-button {
+  min-width: 190px;
+}
+
+@media (max-width: 640px) {
+  .reservation-action-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .reservation-action-summary article {
+    border-right: 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .reservation-action-summary article:last-child {
+    border-bottom: 0;
+  }
+
+  .reservation-action-modal > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .reservation-action-modal > footer .reservations-button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .reservations-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .reservations-summary
+    article,
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .reservations-summary
+    article:nth-child(2) {
+    display: flex;
+    min-height: 70px;
+    justify-content: center;
+    flex-direction: column;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .reservations-summary
+    article:nth-child(odd) {
+    border-right: 1px solid var(--panel-border);
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .reservations-summary
+    article:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .reservations-summary
+    span {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .reservations-summary
+    strong {
+    overflow: visible;
+    margin-top: 4px;
+    font-size: clamp(0.95rem, 4.8vw, 1.15rem);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+/* PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402 */
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-impact,
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-terminal-note {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-impact
+  strong {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-impact.is-consume
+  strong {
+  color: var(--danger);
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-impact.is-cancel
+  strong,
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-impact.is-expire
+  strong {
+  color: var(--accent-strong);
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-impact
+  p {
+  margin-top: 7px;
+  color: var(--text);
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-terminal-note {
+  padding-top: 13px;
+  border-top: 1px solid var(--panel-border);
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .reservation-action-terminal-note
+  strong {
+  font-size: 0.82rem;
+  font-weight: 650;
+}

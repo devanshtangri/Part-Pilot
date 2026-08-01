@@ -278,36 +278,46 @@ atomically commits its planned quantities.
 Draft Project
     ↓ Reserve
 Reserved Project + Active Reservation
+    ├─ Edit    → synchronized Project + Reservation commitment
     ├─ Consume → Consumed Project + Consumed Reservation
     └─ Cancel  → Cancelled Project + Cancelled Reservation
 ```
 
 | Capability | Status |
 |---|---|
-| Project register, detail, creation and Draft editing | Available |
+| Project register, detail, creation and Draft/Reserved editing | Available |
 | Server-backed multi-result part search (up to 50 matches) | Available |
 | Price, currency and current-availability snapshots | Available |
 | Atomic Project reservation with linked Reservation | Available |
-| Atomic Project consumption API | Available |
-| Project cancellation/release API | Planned |
-| Project consume/cancel frontend actions | Planned |
+| Atomic Project consumption API and UI | Available |
+| Atomic Project cancellation/release API and UI | Available |
+| Two-way linked editing from Projects or Reservations | Available |
 | Available/reserved/physical quantity accounting | Available |
-| Reserve/release/consume movements and audits | Available |
-| Active-Reservation editing and lifecycle actions | Available |
-| Reservation activity timeline | Available |
+| Reserve/release/consume movements and paired audits | Available |
+| Physical, Reserved and Available history snapshots | Available |
+| Reservation activity and lifecycle actions | Available |
+| Accessible in-app confirmations and stale-state handling | Available |
 | Responsive desktop and mobile workflows | Available |
 
 Project consumption reuses the linked Reservation transaction: physical and
 reserved quantities decrease together, available quantity remains unchanged,
-both records become `consumed`, and paired audits are written.
+both records become `consumed`, and paired movements and audits are written.
+
+Project cancellation also reuses the linked Reservation transaction: reserved
+quantity returns to available stock without changing physical totals, both
+records become `cancelled`, and paired release movements and audits are written.
+
+A Reserved commitment can be edited from either workspace. Projects preserves
+Project-specific description data, while shared names, notes, items, quantities,
+price/value snapshots and inventory deltas remain synchronized atomically.
+Quantity increases reserve only the additional units; decreases release only the
+removed units.
 
 The Reservations page is the operational queue for committed inventory. Manual
-Reservation creation is intentionally absent from the frontend so users have
-one clear entry path: plan work in Projects, then reserve it. Existing
-Reservations retain editing and lifecycle actions.
-
-The backend Reservation-create API remains temporarily available for
-compatibility while future API and MCP behavior is defined.
+Reservation creation is intentionally absent from the frontend so users have one
+clear entry path: plan work in Projects, then reserve it. The backend
+Reservation-create API remains temporarily available for compatibility while
+future API and MCP behavior is defined.
 
 ### Planned administration control
 

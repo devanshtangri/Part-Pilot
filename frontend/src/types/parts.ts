@@ -134,6 +134,10 @@ export interface StockMovement {
   quantity_delta: number;
   quantity_before: number | null;
   quantity_after: number | null;
+  reserved_quantity_before: number | null;
+  reserved_quantity_after: number | null;
+  available_quantity_before: number | null;
+  available_quantity_after: number | null;
   unit_price_snapshot: string | null;
   currency_snapshot: string | null;
   reason: string | null;

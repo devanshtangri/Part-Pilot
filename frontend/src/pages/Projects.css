@@ -1229,3 +1229,217 @@
   color: var(--muted);
   font-size: 0.69rem;
 }
+
+/* PARTPILOT:PROJECT_TERMINAL_STYLES:V398 */
+[data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"]
+  .project-detail-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.projects-button-danger {
+  border-color: color-mix(in srgb, var(--danger) 46%, var(--panel-border));
+  background: color-mix(in srgb, var(--danger) 11%, var(--panel));
+  color: var(--danger);
+}
+
+.projects-button-danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 66%, var(--panel-border));
+  background: color-mix(in srgb, var(--danger) 17%, var(--panel));
+}
+
+.project-lifecycle-notice {
+  display: grid;
+  gap: 4px;
+  margin: 14px 16px 0;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--panel-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+  color: var(--accent-strong);
+}
+
+.project-lifecycle-notice strong,
+.project-lifecycle-notice span,
+.project-lifecycle-terminal-note strong,
+.project-lifecycle-terminal-note span {
+  display: block;
+}
+
+.project-lifecycle-notice strong {
+  font-size: 0.8rem;
+}
+
+.project-lifecycle-notice span {
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.project-lifecycle-impact.is-consume {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--panel-border));
+  background: color-mix(in srgb, var(--danger) 7%, var(--panel));
+}
+
+.project-lifecycle-impact.is-cancel {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--panel-border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+}
+
+.project-lifecycle-terminal-note {
+  padding: 13px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--sidebar);
+}
+
+.project-lifecycle-terminal-note strong {
+  font-size: 0.84rem;
+}
+
+.project-lifecycle-terminal-note span {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.project-lifecycle-dialog > footer .projects-button {
+  min-width: 190px;
+}
+
+@media (max-width: 680px) {
+  [data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"]
+    .project-detail-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  [data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"]
+    .project-detail-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  [data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"]
+    .project-detail-actions
+    .projects-button {
+    flex: 1 1 140px;
+  }
+}
+
+@media (max-width: 640px) {
+  .project-lifecycle-dialog > footer .projects-button {
+    min-width: 0;
+  }
+}
+
+/* PARTPILOT:PROJECT_MOBILE_LANDING_SUMMARY:V399 */
+@media (max-width: 520px) {
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .projects-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .projects-summary
+    article,
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .projects-summary
+    article:nth-child(2) {
+    display: flex;
+    min-height: 70px;
+    justify-content: center;
+    flex-direction: column;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .projects-summary
+    article:nth-child(odd) {
+    border-right: 1px solid var(--panel-border);
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .projects-summary
+    article:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .projects-summary
+    span {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+
+  [data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"]
+    .projects-summary
+    strong {
+    overflow: visible;
+    margin-top: 4px;
+    font-size: clamp(0.95rem, 4.8vw, 1.15rem);
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+/* PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402 */
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .project-lifecycle-impact,
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .project-lifecycle-terminal-note {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .project-lifecycle-impact
+  strong {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .project-lifecycle-impact.is-consume
+  strong {
+  color: var(--danger);
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .project-lifecycle-impact.is-cancel
+  strong {
+  color: var(--accent-strong);
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .project-lifecycle-impact
+  p {
+  margin-top: 7px;
+  color: var(--text);
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .project-lifecycle-terminal-note {
+  padding-top: 13px;
+  border-top: 1px solid var(--panel-border);
+}
+
+[data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"]
+  .project-lifecycle-terminal-note
+  strong {
+  font-size: 0.82rem;
+  font-weight: 650;
+}

@@ -125,3 +125,22 @@ export function reserveProject(
     method: "POST"
   });
 }
+
+// PARTPILOT:PROJECT_TERMINAL_CLIENT:V398
+export function consumeProject(
+  token: string,
+  projectId: number
+): Promise<Project> {
+  return requestJson<Project>(`/projects/${projectId}/consume`, token, {
+    method: "POST"
+  });
+}
+
+export function cancelProject(
+  token: string,
+  projectId: number
+): Promise<Project> {
+  return requestJson<Project>(`/projects/${projectId}/cancel`, token, {
+    method: "POST"
+  });
+}

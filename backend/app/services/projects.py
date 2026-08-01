@@ -397,6 +397,317 @@ def _project_audit_snapshot(
     }
 
 
+
+# PARTPILOT:PROJECT_RESERVED_UPDATE_SERVICE:V400
+def _update_reserved_project(
+    db: Session,
+    project: Project,
+    payload: ProjectUpdateRequest,
+    *,
+    actor_user_id: int | None,
+    commit: bool,
+) -> ProjectResponse:
+    from app.schemas.reservations import ReservationUpdateRequest
+    from app.services.reservations import (
+        ReservationConflictError,
+        ReservationNotFoundError,
+        ReservationValidationError,
+        update_reservation,
+    )
+
+    submitted_items = _normalise_items(payload.items)
+    if not submitted_items:
+        raise ProjectValidationError(
+            "A Project must contain at least one part."
+        )
+
+    existing_items = list(
+        db.execute(
+            select(ProjectItem)
+            .where(ProjectItem.project_id == project.id)
+            .order_by(ProjectItem.id.asc())
+            .with_for_update()
+        ).scalars()
+    )
+    if not existing_items:
+        raise ProjectConflictError(
+            "Reserved Project has no stored items to edit."
+        )
+    if any(item.part_id is None for item in existing_items):
+        raise ProjectConflictError(
+            "Reserved Project contains an item whose part no longer exists."
+        )
+
+    existing_by_part: dict[int, ProjectItem] = {}
+    for item in existing_items:
+        assert item.part_id is not None
+        if item.part_id in existing_by_part:
+            raise ProjectConflictError(
+                "Reserved Project contains duplicate stored items for the "
+                "same part."
+            )
+        existing_by_part[item.part_id] = item
+
+    linked_reservations = list(
+        db.execute(
+            select(Reservation)
+            .where(Reservation.project_id == project.id)
+            .order_by(Reservation.id.asc())
+            .with_for_update()
+        ).scalars()
+    )
+    if len(linked_reservations) != 1:
+        raise ProjectConflictError(
+            "Reserved Project must have exactly one linked Reservation "
+            "before it can be edited."
+        )
+    reservation = linked_reservations[0]
+    if reservation.status != RESERVATION_STATUS_ACTIVE:
+        raise ProjectConflictError(
+            "The linked Reservation must be active before the Reserved "
+            f"Project can be edited. Current status: {reservation.status}."
+        )
+
+    reservation_items = list(
+        db.execute(
+            select(ReservationItem)
+            .where(ReservationItem.reservation_id == reservation.id)
+            .order_by(ReservationItem.id.asc())
+            .with_for_update()
+        ).scalars()
+    )
+    if any(item.part_id is None for item in reservation_items):
+        raise ProjectConflictError(
+            "Linked Reservation contains an item whose part no longer exists."
+        )
+    reservation_by_part = {
+        int(item.part_id): item
+        for item in reservation_items
+        if item.part_id is not None
+    }
+    if (
+        len(reservation_by_part) != len(reservation_items)
+        or set(reservation_by_part) != set(existing_by_part)
+        or any(
+            int(reservation_by_part[part_id].quantity)
+            != int(existing_by_part[part_id].quantity)
+            or reservation_by_part[part_id].note
+            != existing_by_part[part_id].note
+            for part_id in existing_by_part
+        )
+    ):
+        raise ProjectConflictError(
+            "Reserved Project and linked Reservation item plans are not "
+            "synchronised."
+        )
+
+    submitted_by_part = {
+        item.part_id: item
+        for item in submitted_items
+    }
+    unchanged_items = (
+        set(existing_by_part) == set(submitted_by_part)
+        and all(
+            int(existing_by_part[part_id].quantity)
+            == int(submitted_by_part[part_id].quantity)
+            and existing_by_part[part_id].note
+            == submitted_by_part[part_id].note
+            for part_id in existing_by_part
+        )
+    )
+    reservation_aligned = (
+        reservation.label == payload.name
+        and reservation.notes == payload.notes
+        and unchanged_items
+    )
+    if (
+        project.name == payload.name
+        and project.description == payload.description
+        and project.notes == payload.notes
+        and unchanged_items
+        and reservation_aligned
+    ):
+        return _serialise_project(db, project)
+
+    before_snapshot = _project_audit_snapshot(project, existing_items)
+    existing_movement_ids = set(
+        db.execute(
+            select(StockMovement.id).where(
+                StockMovement.reservation_id == reservation.id
+            )
+        ).scalars()
+    )
+    expiry_at = reservation.expiry_at
+    if (
+        expiry_at is not None
+        and (expiry_at.tzinfo is None or expiry_at.utcoffset() is None)
+    ):
+        expiry_at = expiry_at.replace(tzinfo=timezone.utc)
+
+    reservation_payload = ReservationUpdateRequest(
+        label=payload.name,
+        notes=payload.notes,
+        expiry_at=expiry_at,
+        items=[
+            {
+                "part_id": item.part_id,
+                "quantity": item.quantity,
+                "note": item.note,
+            }
+            for item in submitted_items
+        ],
+    )
+
+    try:
+        try:
+            updated_reservation = update_reservation(
+                db,
+                reservation.id,
+                reservation_payload,
+                actor_user_id=actor_user_id,
+                commit=False,
+                sync_linked_project=False,
+            )
+        except ReservationNotFoundError as exc:
+            raise ProjectConflictError(
+                "Linked Reservation no longer exists."
+            ) from exc
+        except ReservationConflictError as exc:
+            raise ProjectConflictError(
+                f"Linked Reservation could not be edited: {exc}"
+            ) from exc
+        except ReservationValidationError as exc:
+            raise ProjectValidationError(str(exc)) from exc
+
+        if updated_reservation.status != RESERVATION_STATUS_ACTIVE:
+            raise ProjectConflictError(
+                "Linked Reservation did not remain active after the edit."
+            )
+
+        updated_reservation_by_part = {
+            int(item.part_id): item
+            for item in updated_reservation.items
+            if item.part_id is not None
+        }
+        if (
+            len(updated_reservation_by_part)
+            != len(updated_reservation.items)
+            or set(updated_reservation_by_part) != set(submitted_by_part)
+        ):
+            raise ProjectConflictError(
+                "Linked Reservation response did not match the submitted "
+                "Project item plan."
+            )
+
+        project.name = payload.name
+        project.description = payload.description
+        project.notes = payload.notes
+        project.estimated_total_value = (
+            updated_reservation.estimated_reserved_value
+        )
+        project.currency_snapshot = updated_reservation.currency_snapshot
+        project.updated_at = datetime.now(timezone.utc)
+
+        for existing in existing_items:
+            assert existing.part_id is not None
+            submitted = submitted_by_part.get(existing.part_id)
+            if submitted is None:
+                db.delete(existing)
+                continue
+            response_item = updated_reservation_by_part[existing.part_id]
+            existing.quantity = submitted.quantity
+            existing.note = submitted.note
+            existing.unit_price_snapshot = response_item.unit_price_snapshot
+            existing.currency_snapshot = response_item.currency_snapshot
+
+        for submitted in submitted_items:
+            if submitted.part_id in existing_by_part:
+                continue
+            response_item = updated_reservation_by_part[submitted.part_id]
+            db.add(
+                ProjectItem(
+                    project_id=project.id,
+                    part_id=submitted.part_id,
+                    quantity=submitted.quantity,
+                    unit_price_snapshot=response_item.unit_price_snapshot,
+                    currency_snapshot=response_item.currency_snapshot,
+                    note=submitted.note,
+                )
+            )
+
+        db.flush()
+        updated_items = list(
+            db.execute(
+                select(ProjectItem)
+                .where(ProjectItem.project_id == project.id)
+                .order_by(ProjectItem.id.asc())
+            ).scalars()
+        )
+        after_snapshot = _project_audit_snapshot(project, updated_items)
+
+        all_movements = list(
+            db.execute(
+                select(StockMovement)
+                .where(StockMovement.reservation_id == reservation.id)
+                .order_by(StockMovement.id.asc())
+            ).scalars()
+        )
+        new_movements = [
+            movement
+            for movement in all_movements
+            if movement.id not in existing_movement_ids
+        ]
+
+        db.add(
+            AuditLog(
+                event_type="project.updated",
+                entity_type="project",
+                entity_id=project.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=(
+                    f"Updated Reserved Project {project.name} with "
+                    f"{len(updated_items)} parts"
+                ),
+                before_json=before_snapshot,
+                after_json=after_snapshot,
+                metadata_json={
+                    "source": SOURCE_MANUAL,
+                    "origin": "reserved_project.edit",
+                    "reservation_id": reservation.id,
+                    "movement_ids": [
+                        movement.id for movement in new_movements
+                    ],
+                    "movement_types": sorted(
+                        {
+                            movement.movement_type
+                            for movement in new_movements
+                        }
+                    ),
+                },
+            )
+        )
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(project)
+            db.refresh(reservation)
+    except IntegrityError as exc:
+        db.rollback()
+        raise ProjectConflictError(
+            "Reserved Project update conflicted with current inventory "
+            "data."
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return _serialise_project(db, project)
+
+
 def update_project(
     db: Session,
     project_id: int,
@@ -412,9 +723,17 @@ def update_project(
     ).scalar_one_or_none()
     if project is None:
         raise ProjectNotFoundError("Project not found.")
+    if project.status == PROJECT_STATUS_RESERVED:
+        return _update_reserved_project(
+            db,
+            project,
+            payload,
+            actor_user_id=actor_user_id,
+            commit=commit,
+        )
     if project.status != PROJECT_STATUS_DRAFT:
         raise ProjectConflictError(
-            "Only Draft Projects can be edited. "
+            "Only Draft or Reserved Projects can be edited. "
             f"Current status: {project.status}."
         )
 
@@ -818,6 +1137,43 @@ def reserve_project(
 
     return _serialise_project(db, project)
 
+# PARTPILOT:PROJECT_TERMINAL_MOVEMENT_DELTA:V402
+def _reservation_movement_ids(
+    db: Session,
+    reservation_id: int,
+) -> set[int]:
+    return set(
+        db.execute(
+            select(StockMovement.id).where(
+                StockMovement.reservation_id == reservation_id
+            )
+        ).scalars()
+    )
+
+
+def _new_reservation_movements(
+    db: Session,
+    reservation_id: int,
+    movement_type: str,
+    existing_movement_ids: set[int],
+) -> list[StockMovement]:
+    conditions = [
+        StockMovement.reservation_id == reservation_id,
+        StockMovement.movement_type == movement_type,
+    ]
+    if existing_movement_ids:
+        conditions.append(
+            StockMovement.id.not_in(existing_movement_ids)
+        )
+    return list(
+        db.execute(
+            select(StockMovement)
+            .where(*conditions)
+            .order_by(StockMovement.id.asc())
+        ).scalars()
+    )
+
+
 # PARTPILOT:PROJECT_CONSUMPTION_SERVICE:V394
 def consume_project(
     db: Session,
@@ -887,6 +1243,11 @@ def consume_project(
             "The linked Reservation has no items to consume."
         )
 
+    existing_movement_ids = _reservation_movement_ids(
+        db,
+        reservation.id,
+    )
+
     try:
         try:
             consumed_reservation = consume_reservation(
@@ -894,6 +1255,7 @@ def consume_project(
                 reservation.id,
                 actor_user_id=actor_user_id,
                 commit=False,
+                sync_linked_project=False,
             )
         except (ReservationConflictError, ReservationNotFoundError) as exc:
             raise ProjectConflictError(
@@ -925,15 +1287,11 @@ def consume_project(
         db.expire(project, ["status", "updated_at"])
 
         db.flush()
-        consume_movements = list(
-            db.execute(
-                select(StockMovement)
-                .where(
-                    StockMovement.reservation_id == reservation.id,
-                    StockMovement.movement_type == MOVEMENT_TYPE_CONSUME,
-                )
-                .order_by(StockMovement.id.asc())
-            ).scalars()
+        consume_movements = _new_reservation_movements(
+            db,
+            reservation.id,
+            MOVEMENT_TYPE_CONSUME,
+            existing_movement_ids,
         )
         if len(consume_movements) != len(reservation_items):
             raise ProjectConflictError(
@@ -989,6 +1347,186 @@ def consume_project(
         db.rollback()
         raise ProjectConflictError(
             "Project consumption conflicted with current inventory data."
+        ) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+    return _serialise_project(db, project)
+
+# PARTPILOT:PROJECT_CANCELLATION_SERVICE:V397
+def cancel_project(
+    db: Session,
+    project_id: int,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> ProjectResponse:
+    from app.db.constants import (
+        MOVEMENT_TYPE_RELEASE,
+        PROJECT_STATUS_CANCELLED,
+        RESERVATION_STATUS_CANCELLED,
+    )
+    from app.services.reservations import (
+        ReservationConflictError,
+        ReservationNotFoundError,
+        cancel_reservation,
+    )
+
+    project = db.execute(
+        select(Project)
+        .where(Project.id == project_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if project is None:
+        raise ProjectNotFoundError("Project not found.")
+    if project.status != PROJECT_STATUS_RESERVED:
+        raise ProjectConflictError(
+            "Only Reserved Projects can be cancelled. "
+            f"Current status: {project.status}."
+        )
+
+    linked_reservations = list(
+        db.execute(
+            select(Reservation)
+            .where(Reservation.project_id == project.id)
+            .order_by(Reservation.id.asc())
+            .with_for_update()
+        ).scalars()
+    )
+    if not linked_reservations:
+        raise ProjectConflictError(
+            "Reserved Project has no linked Reservation to cancel."
+        )
+    if len(linked_reservations) != 1:
+        raise ProjectConflictError(
+            "Reserved Project has multiple linked Reservations and cannot "
+            "be cancelled safely."
+        )
+
+    reservation = linked_reservations[0]
+    if reservation.status != RESERVATION_STATUS_ACTIVE:
+        raise ProjectConflictError(
+            "The linked Reservation must be active before Project "
+            f"cancellation. Current status: {reservation.status}."
+        )
+
+    reservation_items = list(
+        db.execute(
+            select(ReservationItem)
+            .where(ReservationItem.reservation_id == reservation.id)
+            .order_by(ReservationItem.id.asc())
+        ).scalars()
+    )
+    if not reservation_items:
+        raise ProjectConflictError(
+            "The linked Reservation has no items to release."
+        )
+
+    existing_movement_ids = _reservation_movement_ids(
+        db,
+        reservation.id,
+    )
+
+    try:
+        try:
+            cancelled_reservation = cancel_reservation(
+                db,
+                reservation.id,
+                actor_user_id=actor_user_id,
+                commit=False,
+                sync_linked_project=False,
+            )
+        except (ReservationConflictError, ReservationNotFoundError) as exc:
+            raise ProjectConflictError(
+                f"Linked Reservation could not be cancelled: {exc}"
+            ) from exc
+
+        if cancelled_reservation.status != RESERVATION_STATUS_CANCELLED:
+            raise ProjectConflictError(
+                "Linked Reservation did not transition to cancelled."
+            )
+
+        changed_at = datetime.now(timezone.utc)
+        project_status_result = db.execute(
+            update(Project)
+            .where(
+                Project.id == project.id,
+                Project.status == PROJECT_STATUS_RESERVED,
+            )
+            .values(
+                status=PROJECT_STATUS_CANCELLED,
+                updated_at=changed_at,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        if project_status_result.rowcount != 1:
+            raise ProjectConflictError(
+                "Project status changed while cancellation was in progress."
+            )
+        db.expire(project, ["status", "updated_at"])
+
+        db.flush()
+        release_movements = _new_reservation_movements(
+            db,
+            reservation.id,
+            MOVEMENT_TYPE_RELEASE,
+            existing_movement_ids,
+        )
+        if len(release_movements) != len(reservation_items):
+            raise ProjectConflictError(
+                "Project cancellation did not create one release movement "
+                "for every linked Reservation item."
+            )
+
+        released_units = sum(
+            int(item.quantity) for item in reservation_items
+        )
+        db.add(
+            AuditLog(
+                event_type="project.cancelled",
+                entity_type="project",
+                entity_id=project.id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary=(
+                    f"Cancelled Project {project.name} and released "
+                    f"{released_units} reserved units"
+                ),
+                before_json={
+                    "status": PROJECT_STATUS_RESERVED,
+                    "reservation_id": reservation.id,
+                    "reservation_status": RESERVATION_STATUS_ACTIVE,
+                    "total_units": released_units,
+                },
+                after_json={
+                    "status": PROJECT_STATUS_CANCELLED,
+                    "reservation_id": reservation.id,
+                    "reservation_status": RESERVATION_STATUS_CANCELLED,
+                    "released_units": released_units,
+                    "stock_movement_ids": [
+                        movement.id for movement in release_movements
+                    ],
+                },
+                metadata_json={
+                    "source": SOURCE_MANUAL,
+                    "movement_type": MOVEMENT_TYPE_RELEASE,
+                    "reservation_id": reservation.id,
+                },
+            )
+        )
+        db.flush()
+
+        if commit:
+            db.commit()
+            db.refresh(project)
+            db.refresh(reservation)
+    except IntegrityError as exc:
+        db.rollback()
+        raise ProjectConflictError(
+            "Project cancellation conflicted with current inventory data."
         ) from exc
     except Exception:
         db.rollback()

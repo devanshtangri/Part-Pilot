@@ -12,6 +12,9 @@ from app.db.constants import (
     MOVEMENT_TYPE_CONSUME,
     MOVEMENT_TYPE_RELEASE,
     MOVEMENT_TYPE_RESERVE,
+    PROJECT_STATUS_CANCELLED,
+    PROJECT_STATUS_CONSUMED,
+    PROJECT_STATUS_RESERVED,
     RESERVATION_STATUSES,
     RESERVATION_STATUS_ACTIVE,
     RESERVATION_STATUS_CANCELLED,
@@ -24,6 +27,8 @@ from app.db.settings import get_str_setting
 from app.models import (
     AuditLog,
     Part,
+    Project,
+    ProjectItem,
     Reservation,
     ReservationItem,
     StockMovement,
@@ -46,6 +51,136 @@ class ReservationConflictError(ValueError):
 
 class ReservationValidationError(ValueError):
     pass
+
+
+# PARTPILOT:PROJECT_LINKED_RESERVATION_TERMINAL_SYNC:V399
+def _sync_linked_project_terminal_status(
+    db: Session,
+    reservation: Reservation,
+    *,
+    reservation_status: str,
+    project_status: str,
+    actor_user_id: int | None,
+    movement_type: str,
+    source: str,
+    units_key: str,
+    units: int,
+    movement_ids: list[int],
+    terminal_action: str,
+) -> None:
+    if reservation.project_id is None:
+        return
+
+    project = db.execute(
+        select(Project)
+        .where(Project.id == reservation.project_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if project is None:
+        raise ReservationConflictError(
+            "Linked Project no longer exists."
+        )
+
+    linked_reservation_ids = list(
+        db.execute(
+            select(Reservation.id)
+            .where(Reservation.project_id == project.id)
+            .order_by(Reservation.id.asc())
+            .with_for_update()
+        ).scalars()
+    )
+    if linked_reservation_ids != [reservation.id]:
+        raise ReservationConflictError(
+            "Linked Project must have exactly one Reservation before a "
+            "terminal Reservation action can continue."
+        )
+    if project.status != PROJECT_STATUS_RESERVED:
+        raise ReservationConflictError(
+            "Linked Project must be Reserved before the Reservation can "
+            f"be completed. Current Project status: {project.status}."
+        )
+    if project_status not in (
+        PROJECT_STATUS_CONSUMED,
+        PROJECT_STATUS_CANCELLED,
+    ):
+        raise ReservationConflictError(
+            f"Unsupported linked Project terminal status: {project_status}."
+        )
+
+    changed_at = datetime.now(timezone.utc)
+    status_result = db.execute(
+        update(Project)
+        .where(
+            Project.id == project.id,
+            Project.status == PROJECT_STATUS_RESERVED,
+        )
+        .values(
+            status=project_status,
+            updated_at=changed_at,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    if status_result.rowcount != 1:
+        raise ReservationConflictError(
+            "Linked Project status changed while the Reservation terminal "
+            "action was in progress."
+        )
+    db.expire(project, ["status", "updated_at"])
+
+    event_type = (
+        "project.consumed"
+        if project_status == PROJECT_STATUS_CONSUMED
+        else "project.cancelled"
+    )
+    if terminal_action == "expire":
+        summary = (
+            f"Cancelled Project {project.name} after linked Reservation "
+            f"{reservation.id} expired"
+        )
+    elif project_status == PROJECT_STATUS_CONSUMED:
+        summary = (
+            f"Consumed Project {project.name} through linked Reservation "
+            f"{reservation.id}"
+        )
+    else:
+        summary = (
+            f"Cancelled Project {project.name} through linked Reservation "
+            f"{reservation.id}"
+        )
+
+    db.add(
+        AuditLog(
+            event_type=event_type,
+            entity_type="project",
+            entity_id=project.id,
+            actor_type=(
+                "user" if actor_user_id is not None else "system"
+            ),
+            actor_user_id=actor_user_id,
+            summary=summary,
+            before_json={
+                "status": PROJECT_STATUS_RESERVED,
+                "reservation_id": reservation.id,
+                "reservation_status": RESERVATION_STATUS_ACTIVE,
+                "total_units": units,
+            },
+            after_json={
+                "status": project_status,
+                "reservation_id": reservation.id,
+                "reservation_status": reservation_status,
+                units_key: units,
+                "stock_movement_ids": movement_ids,
+            },
+            metadata_json={
+                "source": source,
+                "movement_type": movement_type,
+                "reservation_id": reservation.id,
+                "origin": "reservation.lifecycle",
+                "reservation_terminal_action": terminal_action,
+            },
+        )
+    )
+    db.flush()
 
 
 @dataclass(frozen=True)
@@ -556,6 +691,50 @@ def _reservation_edit_item_snapshot(
     }
 
 
+
+# PARTPILOT:LINKED_RESERVATION_EDIT_SYNC:V402
+def _linked_project_item_snapshot(
+    item: ProjectItem,
+) -> dict[str, object]:
+    return {
+        "id": item.id,
+        "part_id": item.part_id,
+        "quantity": int(item.quantity),
+        "unit_price_snapshot": (
+            str(item.unit_price_snapshot)
+            if item.unit_price_snapshot is not None
+            else None
+        ),
+        "currency_snapshot": item.currency_snapshot,
+        "note": item.note,
+    }
+
+
+def _linked_project_edit_snapshot(
+    project: Project,
+    items: list[ProjectItem],
+) -> dict[str, object]:
+    return {
+        "id": project.id,
+        "name": project.name,
+        "description": project.description,
+        "status": project.status,
+        "notes": project.notes,
+        "item_count": len(items),
+        "total_units": sum(int(item.quantity) for item in items),
+        "estimated_total_value": (
+            str(project.estimated_total_value)
+            if project.estimated_total_value is not None
+            else None
+        ),
+        "currency_snapshot": project.currency_snapshot,
+        "items": [
+            _linked_project_item_snapshot(item)
+            for item in items
+        ],
+    }
+
+
 def update_reservation(
     db: Session,
     reservation_id: int,
@@ -563,6 +742,7 @@ def update_reservation(
     *,
     actor_user_id: int | None = None,
     commit: bool = True,
+    sync_linked_project: bool = True,
 ) -> ReservationResponse:
     reservation = db.execute(
         select(Reservation)
@@ -609,6 +789,92 @@ def update_reservation(
             )
         existing_by_part[item.part_id] = item
 
+    linked_project: Project | None = None
+    linked_project_items_by_part: dict[int, ProjectItem] = {}
+    linked_project_before: dict[str, object] | None = None
+
+    if sync_linked_project and reservation.project_id is not None:
+        linked_project = db.execute(
+            select(Project)
+            .where(Project.id == reservation.project_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        if linked_project is None:
+            raise ReservationConflictError(
+                "Linked Project no longer exists."
+            )
+        if linked_project.status != PROJECT_STATUS_RESERVED:
+            raise ReservationConflictError(
+                "Linked Project must be Reserved before its Reservation "
+                f"can be edited. Current Project status: "
+                f"{linked_project.status}."
+            )
+
+        linked_reservation_ids = list(
+            db.execute(
+                select(Reservation.id)
+                .where(Reservation.project_id == linked_project.id)
+                .order_by(Reservation.id.asc())
+                .with_for_update()
+            ).scalars()
+        )
+        if linked_reservation_ids != [reservation.id]:
+            raise ReservationConflictError(
+                "Linked Project must have exactly one Reservation before "
+                "the Reservation can be edited."
+            )
+
+        linked_project_items = list(
+            db.execute(
+                select(ProjectItem)
+                .where(ProjectItem.project_id == linked_project.id)
+                .order_by(ProjectItem.id.asc())
+                .with_for_update()
+            ).scalars()
+        )
+        if not linked_project_items:
+            raise ReservationConflictError(
+                "Linked Project has no stored items to edit."
+            )
+        if any(
+            item.part_id is None
+            for item in linked_project_items
+        ):
+            raise ReservationConflictError(
+                "Linked Project contains an item whose part no longer "
+                "exists."
+            )
+
+        for item in linked_project_items:
+            assert item.part_id is not None
+            if item.part_id in linked_project_items_by_part:
+                raise ReservationConflictError(
+                    "Linked Project contains duplicate stored items for "
+                    "the same part."
+                )
+            linked_project_items_by_part[item.part_id] = item
+
+        if (
+            set(linked_project_items_by_part)
+            != set(existing_by_part)
+            or any(
+                int(linked_project_items_by_part[part_id].quantity)
+                != int(existing_by_part[part_id].quantity)
+                or linked_project_items_by_part[part_id].note
+                != existing_by_part[part_id].note
+                for part_id in existing_by_part
+            )
+        ):
+            raise ReservationConflictError(
+                "Linked Project and Reservation item plans are not "
+                "synchronised."
+            )
+
+        linked_project_before = _linked_project_edit_snapshot(
+            linked_project,
+            linked_project_items,
+        )
+
     submitted_by_part = {
         item.part_id: item
         for item in submitted_items
@@ -647,11 +913,32 @@ def update_reservation(
             for part_id in existing_by_part
         )
     )
+    linked_project_aligned = (
+        linked_project is None
+        or (
+            linked_project.name == payload.label
+            and linked_project.notes == payload.notes
+            and linked_project.estimated_total_value
+            == reservation.estimated_reserved_value
+            and linked_project.currency_snapshot
+            == reservation.currency_snapshot
+            and set(linked_project_items_by_part)
+            == set(existing_by_part)
+            and all(
+                int(linked_project_items_by_part[part_id].quantity)
+                == int(existing_by_part[part_id].quantity)
+                and linked_project_items_by_part[part_id].note
+                == existing_by_part[part_id].note
+                for part_id in existing_by_part
+            )
+        )
+    )
     if (
         reservation.label == payload.label
         and reservation.notes == payload.notes
         and current_expiry == expiry_at
         and unchanged_items
+        and linked_project_aligned
     ):
         return _serialise_reservation(db, reservation)
 
@@ -833,6 +1120,83 @@ def update_reservation(
         reservation.estimated_reserved_value = estimated_value
         db.flush()
 
+        linked_project_after: dict[str, object] | None = None
+        if linked_project is not None:
+            retained_by_part = {
+                int(item.part_id): item
+                for item in retained_items
+                if item.part_id is not None
+            }
+            if (
+                len(retained_by_part) != len(retained_items)
+                or set(retained_by_part) != set(submitted_by_part)
+            ):
+                raise ReservationConflictError(
+                    "Updated Reservation items could not be synchronised "
+                    "to the linked Project."
+                )
+
+            for part_id, project_item in (
+                linked_project_items_by_part.items()
+            ):
+                submitted = submitted_by_part.get(part_id)
+                if submitted is None:
+                    db.delete(project_item)
+                    continue
+                reservation_item = retained_by_part[part_id]
+                project_item.quantity = submitted.quantity
+                project_item.note = submitted.note
+                project_item.unit_price_snapshot = (
+                    reservation_item.unit_price_snapshot
+                )
+                project_item.currency_snapshot = (
+                    reservation_item.currency_snapshot
+                )
+
+            for submitted in submitted_items:
+                if submitted.part_id in linked_project_items_by_part:
+                    continue
+                reservation_item = retained_by_part[
+                    submitted.part_id
+                ]
+                db.add(
+                    ProjectItem(
+                        project_id=linked_project.id,
+                        part_id=submitted.part_id,
+                        quantity=submitted.quantity,
+                        unit_price_snapshot=(
+                            reservation_item.unit_price_snapshot
+                        ),
+                        currency_snapshot=(
+                            reservation_item.currency_snapshot
+                        ),
+                        note=submitted.note,
+                    )
+                )
+
+            linked_project.name = payload.label
+            linked_project.notes = payload.notes
+            linked_project.estimated_total_value = estimated_value
+            linked_project.currency_snapshot = (
+                reservation.currency_snapshot
+            )
+            linked_project.updated_at = datetime.now(timezone.utc)
+            db.flush()
+
+            linked_project_items_after = list(
+                db.execute(
+                    select(ProjectItem)
+                    .where(
+                        ProjectItem.project_id == linked_project.id
+                    )
+                    .order_by(ProjectItem.id.asc())
+                ).scalars()
+            )
+            linked_project_after = _linked_project_edit_snapshot(
+                linked_project,
+                linked_project_items_after,
+            )
+
         after_items = [
             _reservation_edit_item_snapshot(item)
             for item in retained_items
@@ -856,6 +1220,50 @@ def update_reservation(
             ),
             "items": after_items,
         }
+
+        if linked_project is not None:
+            if (
+                linked_project_before is None
+                or linked_project_after is None
+            ):
+                raise ReservationConflictError(
+                    "Linked Project audit snapshots were not prepared."
+                )
+            db.add(
+                AuditLog(
+                    event_type="project.updated",
+                    entity_type="project",
+                    entity_id=linked_project.id,
+                    actor_type=(
+                        "user"
+                        if actor_user_id is not None
+                        else "system"
+                    ),
+                    actor_user_id=actor_user_id,
+                    summary=(
+                        f"Updated Reserved Project "
+                        f"{linked_project.name} through Reservation "
+                        f"{reservation.id}"
+                    ),
+                    before_json=linked_project_before,
+                    after_json=linked_project_after,
+                    metadata_json={
+                        "source": SOURCE_MANUAL,
+                        "origin": "reservation.edit",
+                        "reservation_id": reservation.id,
+                        "movement_ids": [
+                            movement.id
+                            for movement in movements
+                        ],
+                        "movement_types": sorted(
+                            {
+                                movement.movement_type
+                                for movement in movements
+                            }
+                        ),
+                    },
+                )
+            )
 
         db.add(
             AuditLog(
@@ -911,6 +1319,7 @@ def cancel_reservation(
     *,
     actor_user_id: int | None = None,
     commit: bool = True,
+    sync_linked_project: bool = True,
 ) -> ReservationResponse:
     reservation = db.execute(
         select(Reservation)
@@ -1105,6 +1514,25 @@ def cancel_reservation(
         )
         db.flush()
 
+        if sync_linked_project:
+            _sync_linked_project_terminal_status(
+                db,
+                reservation,
+                reservation_status=RESERVATION_STATUS_CANCELLED,
+                project_status=PROJECT_STATUS_CANCELLED,
+                actor_user_id=actor_user_id,
+                movement_type=MOVEMENT_TYPE_RELEASE,
+                source=SOURCE_MANUAL,
+                units_key="released_units",
+                units=sum(
+                    record["quantity"] for record in release_records
+                ),
+                movement_ids=[
+                    movement.id for movement in movements
+                ],
+                terminal_action="cancel",
+            )
+
         if commit:
             db.commit()
             db.refresh(reservation)
@@ -1129,6 +1557,7 @@ def consume_reservation(
     *,
     actor_user_id: int | None = None,
     commit: bool = True,
+    sync_linked_project: bool = True,
 ) -> ReservationResponse:
     reservation = db.execute(
         select(Reservation)
@@ -1348,6 +1777,25 @@ def consume_reservation(
         )
         db.flush()
 
+        if sync_linked_project:
+            _sync_linked_project_terminal_status(
+                db,
+                reservation,
+                reservation_status=RESERVATION_STATUS_CONSUMED,
+                project_status=PROJECT_STATUS_CONSUMED,
+                actor_user_id=actor_user_id,
+                movement_type=MOVEMENT_TYPE_CONSUME,
+                source=SOURCE_MANUAL,
+                units_key="consumed_units",
+                units=sum(
+                    record["quantity"] for record in consume_records
+                ),
+                movement_ids=[
+                    movement.id for movement in movements
+                ],
+                terminal_action="consume",
+            )
+
         if commit:
             db.commit()
             db.refresh(reservation)
@@ -1372,6 +1820,7 @@ def expire_reservation(
     *,
     actor_user_id: int | None = None,
     commit: bool = True,
+    sync_linked_project: bool = True,
 ) -> ReservationResponse:
     reservation = db.execute(
         select(Reservation)
@@ -1580,6 +2029,23 @@ def expire_reservation(
             )
         )
         db.flush()
+
+        if sync_linked_project:
+            _sync_linked_project_terminal_status(
+                db,
+                reservation,
+                reservation_status=RESERVATION_STATUS_EXPIRED,
+                project_status=PROJECT_STATUS_CANCELLED,
+                actor_user_id=actor_user_id,
+                movement_type=MOVEMENT_TYPE_RELEASE,
+                source=SOURCE_SYSTEM,
+                units_key="released_units",
+                units=sum(row["quantity"] for row in records),
+                movement_ids=[
+                    movement.id for movement in movements
+                ],
+                terminal_action="expire",
+            )
         if commit:
             db.commit()
             db.refresh(reservation)

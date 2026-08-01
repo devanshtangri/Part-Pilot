@@ -290,6 +290,10 @@ class StockMovementResponse(BaseModel):
     quantity_delta: int
     quantity_before: int | None = None
     quantity_after: int | None = None
+    reserved_quantity_before: int | None = None
+    reserved_quantity_after: int | None = None
+    available_quantity_before: int | None = None
+    available_quantity_after: int | None = None
     unit_price_snapshot: Decimal | None = None
     currency_snapshot: str | None = None
     reason: str | None = None

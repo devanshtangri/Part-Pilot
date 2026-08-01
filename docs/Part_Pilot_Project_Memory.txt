@@ -3,100 +3,100 @@ Part Pilot project memory
 Project
 - Repository: https://github.com/devanshtangri/Part-Pilot.git
 - Root: /projects/Part Pilot; branch: main
+- Origin: git@github.com:devanshtangri/Part-Pilot.git
 - Compose service: partpilot; host port: 7890
-- React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend
+- Frontend: React/Vite/TypeScript
+- Backend: FastAPI/SQLAlchemy/Alembic
 - Alembic head: 0007_projects_contract
-- Git origin uses SSH: git@github.com:devanshtangri/Part-Pilot.git
 
 Patch and chat workflow
 - Every implementation, fix, diagnostic, checkpoint, cleanup and documentation
-  change is one complete sequential downloadable Python patch.
-- The assistant provides the file in chat only; it does not place or run it on
-  HomeLab. The user copies it to fixes/ and runs it.
-- Filenames begin with the patch number, never patch_. Failed user-run scripts
-  consume their number. Successful scripts end with exactly `Everything PASS`.
-- Use headings `Patch N - Browser Test` or `Patch N - Fix Only`.
-- Browser instructions stay outside scripts. Browser-test source remains
-  unstaged/uncommitted until explicit approval and a separate checkpoint.
-- Chat 14 planned boundary Patch 395 failed before writes; narrow boundary
-  recovery Patch 396 closes the chat.
+  update is one complete downloadable Python file supplied in chat. The assistant
+  does not place or execute numbered patches on HomeLab unless explicitly asked.
+- Filenames start directly with the sequential patch number, never patch_.
+  Failed user-run scripts consume their number.
+- Successful scripts print exactly `Everything PASS` as their final line.
+- Response headings are `Patch N - Browser Test` or `Patch N - Fix Only`.
 - Chat 15 is `Chat 15: Project Lifecycle Completion`, owns Patch 397-426, and
-  Patch 426 is its planned boundary.
-- No next-chat prompt files are created. The ready prompt is posted in chat only
-  after a successful boundary.
-
-HomeLab-assisted workflow
-- Inspect exact local Git/index state, source hashes, successful logs,
-  deployment, HTTP contracts and live SQLite values before high-risk patches.
-- Local source and newest diagnostic/handoff are authoritative.
-- Generate every transform in memory before backup/write. Prefer exact hashes,
-  scoped functions/markers and semantic counts over brittle adjacency.
-- Do not run or preflight numbered patches unless the user explicitly asks.
+  Patch 426 is its planned boundary. Patch 405 checkpoints the browser-approved
+  lifecycle source; Patch 406 is next after successful execution.
+- No next-chat starting-prompt files are created. A ready prompt is posted in
+  chat only after a successful boundary.
+- Browser-test source remains unstaged/uncommitted until explicit approval, then
+  a separate checkpoint script stages, commits and pushes the approved allowlist.
 - After two consecutive pre-write failures, repeated anchor mismatches or source
-  uncertainty, stop implementation and issue a diagnostic-only patch under
+  uncertainty, stop implementation and issue a diagnostic-only patch creating
   docs/diagonostic_*.md.
 
-Patch safeguards
-- Validate root, branch, SSH origin, HEAD/origin, index, exact pending allowlist,
-  current hashes, prerequisites and prior log evidence.
+HomeLab-assisted safeguards
+- Inspect exact local Git/index state, hashes, successful logs, deployment,
+  OpenAPI/bundle markers and live SQLite values before high-risk patches.
+- Local source and the newest diagnostic/handoff are authoritative.
+- Generate all transformations in memory before backup/write. Prefer exact hashes,
+  scoped functions/markers and semantic validation over adjacency.
 - Backups: /projects/Part Pilot/fixes/backups/
-- Logs: /projects/Part Pilot/fixes/logs/ (ignored by Git)
-- Application patches verify Python/TypeScript, git diff --check, Docker
-  build/deploy, Alembic, protected APIs, SPA routes/bundle markers, complete
-  copied-database smoke and live-data preservation.
+- Logs: /projects/Part Pilot/fixes/logs/ and ignored by Git.
+- Application changes compile Python/TypeScript, run git diff --check, build and
+  deploy, verify Alembic/protected APIs/SPA markers, run the complete smoke suite
+  on a copied database, and preserve live data.
 - Failure output includes phase, exception, actual command or in-memory
-  transform, useful output, rollback result, final Git state and log path.
-- Stage only explicit allowlists; staged diff --check; push main; fetch and
-  verify local HEAD equals origin/main.
-- Keep this file at or below 8,000 characters.
+  transformation, rollback result, final Git state and log path.
+- Checkpoints stage only explicit allowlists, validate staged diff, push main,
+  fetch and verify local HEAD equals origin/main.
+- Keep this memory at or below 8,000 characters.
 
-Inventory and data safety
-- Never assume an empty database. Use unique fixture-owned IDs and cleanup only
-  those IDs.
-- Preserve real inventory, Reservations, Projects, movements, audits, settings
-  and catalogue data.
+Inventory and fixture safety
+- Never assume an empty database. Use unique manifest-owned fixtures and clean up
+  only recorded IDs.
+- Preserve users, catalogues, real inventory, Projects, Reservations, movements,
+  audits and settings.
 - SQLite integrity and foreign-key checks must pass.
+- Six realistic Patch 401 test parts remain intentionally in the test database.
+  Manifest: /projects/Part Pilot/fixes/logs/patch_401_test_fixture_manifest.json
+- The user plans to reset the database before production use. Do not silently
+  remove or rewrite fixtures/history before an explicit cleanup or reset.
 
-Completed product state through Patch 394
-- Auth/setup, dynamic part templates and manufacturer/package/location
+Completed product state through Patch 403
+- Authentication/setup, dynamic part templates and manufacturer/package/location
   catalogues.
-- Inventory create/read/edit, adjustments, soft delete/restore and part history.
-- Dashboard and Stored Parts universal search, filters, pagination, independent
-  Available/Out-of-stock sorting and persistent preferences.
-- Reservation read/edit/cancel/consume/expire/delete, activity, optional expiry
-  settings and responsive desktop/mobile workspace.
-- Canonical Project statuses: draft/reserved/consumed/cancelled.
-- Protected Project list/detail/create/update APIs with reconciliation,
-  snapshots, pagination, validation, no-op suppression and auditing.
-- Responsive Projects register/detail/create/edit UI.
-- Reserving a Draft Project creates exactly one linked active Reservation,
-  matching items, reserve movements and paired audits without changing physical
-  stock totals.
-- Users plan new work in Projects. Reservations is the operational commitment
-  queue. Manual Reservation creation is removed from the frontend; backend
-  creation remains temporarily for API/MCP compatibility.
-- Project and Reservation pickers show up to 50 server matches.
-- Atomic Project consumption is available at
-  POST /api/projects/{project_id}/consume. It reuses linked Reservation
-  consumption in one transaction, reduces total and reserved quantities
-  together, preserves available quantity, synchronizes both statuses to
-  consumed and records paired audits.
-- Browser approval covers the Projects foundation through Patch 386.
-- Patch 394 backend consumption passed build, deploy, OpenAPI, complete copied
-  smoke and live-data preservation.
-- Patch 393 documents the Patch 391/392 failures and safe recovery.
+- Inventory create/read/edit, adjustments, soft delete/restore, universal search,
+  filters, pagination, Available/Out-of-stock sections and persistent preferences.
+- Part history shows Physical, Reserved and Available before/after snapshots and
+  meaningful reserve/release deltas.
+- Reservation read/edit/cancel/consume/expire/delete, activity, expiry settings,
+  custom lifecycle dialogs, stale-state refresh and responsive workspace.
+- Canonical Project statuses: draft, reserved, consumed and cancelled.
+- Protected Project list/detail/create/update/reserve/consume/cancel APIs.
+- Draft Projects store item/price/currency snapshots without changing inventory.
+- Reserving creates exactly one linked active Reservation with matching items,
+  reserve movements and paired audits.
+- Reserved Projects edit atomically through the linked Reservation. Quantity
+  increases reserve only the delta; decreases release only the delta.
+- Project-linked active Reservations are editable from Projects or Reservations.
+  Names, notes, items, quantities, values, stock deltas and audits synchronize;
+  Project descriptions remain Project-owned.
+- Project consumption reduces physical and reserved quantities together,
+  preserves available quantity, synchronizes both terminal statuses and records
+  paired movements/audits.
+- Project cancellation releases reserved quantity to available stock without
+  changing physical totals and synchronizes both terminal statuses.
+- Direct Reservation consume/cancel/expiry synchronizes linked Projects.
+- Terminal verification uses only movement IDs created by the current
+  transaction, preserving historical edit movements.
+- Projects/Reservations use register-first mobile behavior, compact two-by-two
+  summaries and accessible non-browser-native confirmation dialogs.
+- Browser approval is complete through Patch 403. Patch 404 failed before writes
+  on generated Markdown trailing whitespace; Patch 405 is the narrow checkpoint
+  recovery. Patch 403 passed build, deploy,
+  OpenAPI, bundle-marker and complete copied-database smoke verification.
 
 Deferred MCP Settings requirement
-- Add a future authenticated Settings control to enable or disable the MCP
-  server.
+- During the MCP phase add an authenticated Settings control to enable/disable the
+  MCP server.
 - Define persisted default, immediate/restart semantics, safe transport/tool
   gating, invalid-value recovery, disabled-state feedback and audit events.
-- This is saved only and remains deferred to the MCP phase.
 
 Next implementation
-- Add atomic Reserved Project cancellation/release through the linked
-  Reservation.
-- Add frontend Project consume/cancel methods and guarded confirmation actions.
-- Synchronize Project/Reservation terminal states in the UI and refresh affected
-  inventory and activity views.
-- Complete responsive browser testing and checkpoint approved lifecycle work.
+- Build system-wide History and audit browsing as a separate product slice.
+- Add protected pagination/filtering first, then responsive list/detail UI.
+- Keep Settings, backup/restore and MCP separate from History.

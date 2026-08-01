@@ -3524,3 +3524,44 @@
 }
 
 /* END PATCH 356 */
+
+/* PARTPILOT:STOCK_MOVEMENT_SNAPSHOTS:V400 */
+[data-partpilot-stock-history="PARTPILOT:STOCK_MOVEMENT_SNAPSHOTS:V400"]
+  .part-movement-snapshots {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+
+[data-partpilot-stock-history="PARTPILOT:STOCK_MOVEMENT_SNAPSHOTS:V400"]
+  .part-movement-snapshots
+  span {
+  display: grid !important;
+  min-width: 0 !important;
+  gap: 2px !important;
+  padding: 6px 7px !important;
+  border: 1px solid #25354a !important;
+  border-radius: 6px !important;
+  background: #0e1927 !important;
+  color: #aebed0 !important;
+  font-size: 0.66rem !important;
+  font-variant-numeric: tabular-nums !important;
+  line-height: 1.3 !important;
+}
+
+[data-partpilot-stock-history="PARTPILOT:STOCK_MOVEMENT_SNAPSHOTS:V400"]
+  .part-movement-snapshots
+  small {
+  color: #7f91a7 !important;
+  font-size: 0.6rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+}
+
+@media (max-width: 420px) {
+  [data-partpilot-stock-history="PARTPILOT:STOCK_MOVEMENT_SNAPSHOTS:V400"]
+    .part-movement-snapshots {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}

@@ -336,6 +336,12 @@ function movementTypeLabel(movement: StockMovement): string {
   if (movement.movement_type === "consume") {
     return "Stock consumed";
   }
+  if (movement.movement_type === "reserve") {
+    return "Stock reserved";
+  }
+  if (movement.movement_type === "release") {
+    return "Reserved stock released";
+  }
   if (movement.movement_type === "adjust") {
     return movement.quantity_delta < 0
       ? "Stock reduced"
@@ -348,6 +354,60 @@ function movementTypeLabel(movement: StockMovement): string {
 
 function movementDeltaLabel(quantityDelta: number): string {
   return quantityDelta > 0 ? `+${quantityDelta}` : String(quantityDelta);
+}
+
+// PARTPILOT:STOCK_MOVEMENT_SNAPSHOTS:V400
+function movementDisplayDelta(movement: StockMovement): number {
+  if (movement.quantity_delta !== 0) {
+    return movement.quantity_delta;
+  }
+  if (
+    movement.reserved_quantity_before !== null &&
+    movement.reserved_quantity_after !== null
+  ) {
+    return (
+      movement.reserved_quantity_after -
+      movement.reserved_quantity_before
+    );
+  }
+  return 0;
+}
+
+function movementSnapshotRows(
+  movement: StockMovement
+): Array<{ label: string; before: number; after: number }> {
+  const rows: Array<{ label: string; before: number; after: number }> = [];
+  if (
+    movement.quantity_before !== null &&
+    movement.quantity_after !== null
+  ) {
+    rows.push({
+      label: "Physical",
+      before: movement.quantity_before,
+      after: movement.quantity_after
+    });
+  }
+  if (
+    movement.reserved_quantity_before !== null &&
+    movement.reserved_quantity_after !== null
+  ) {
+    rows.push({
+      label: "Reserved",
+      before: movement.reserved_quantity_before,
+      after: movement.reserved_quantity_after
+    });
+  }
+  if (
+    movement.available_quantity_before !== null &&
+    movement.available_quantity_after !== null
+  ) {
+    rows.push({
+      label: "Available",
+      before: movement.available_quantity_before,
+      after: movement.available_quantity_after
+    });
+  }
+  return rows;
 }
 
 function quantityOperationHint(
@@ -3154,6 +3214,7 @@ function closeCreator() {
                   <section
                     className="part-details-section part-movement-history"
                     aria-label="Recent stock history"
+                    data-partpilot-stock-history="PARTPILOT:STOCK_MOVEMENT_SNAPSHOTS:V400"
                   >
                     <div className="part-details-section-heading">
                       <strong>Recent stock history</strong>
@@ -3200,21 +3261,28 @@ function closeCreator() {
                               </div>
                               <b
                                 className={
-                                  movement.quantity_delta > 0
+                                  movementDisplayDelta(movement) > 0
                                     ? "is-positive"
-                                    : "is-negative"
+                                    : movementDisplayDelta(movement) < 0
+                                      ? "is-negative"
+                                      : undefined
                                 }
                               >
                                 {movementDeltaLabel(
-                                  movement.quantity_delta
+                                  movementDisplayDelta(movement)
                                 )}
                               </b>
                             </div>
-                            <p>
-                              {movement.quantity_before ?? "—"}
-                              {" → "}
-                              {movement.quantity_after ?? "—"}
-                            </p>
+                            <div className="part-movement-snapshots">
+                              {movementSnapshotRows(movement).map((snapshot) => (
+                                <span key={snapshot.label}>
+                                  <small>{snapshot.label}</small>
+                                  {snapshot.before}
+                                  {" → "}
+                                  {snapshot.after}
+                                </span>
+                              ))}
+                            </div>
                             {movement.note ? (
                               <small>{movement.note}</small>
                             ) : null}

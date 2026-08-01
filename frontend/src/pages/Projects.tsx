@@ -15,6 +15,8 @@ import type {
 import { useAuth } from "../auth/AuthContext";
 import { getParts } from "../services/partsClient";
 import {
+  cancelProject,
+  consumeProject,
   createProject,
   getProject,
   getProjects,
@@ -55,9 +57,18 @@ interface DraftItem {
   manufacturerName: string | null;
   locationName: string | null;
   availableQuantity: number | null;
+  originalQuantity: number;
   partIsDeleted: boolean;
   quantity: number;
   note: string;
+}
+
+// PARTPILOT:PROJECT_TERMINAL_TYPES:V398
+type ProjectLifecycleAction = "consume" | "cancel";
+
+interface ProjectLifecycleNotice {
+  projectId: number;
+  message: string;
 }
 
 function readProjectStatusPreference(): ProjectStatus | "all" {
@@ -182,6 +193,7 @@ function draftItemFromPart(part: Part): DraftItem {
     manufacturerName: part.manufacturer_name,
     locationName: part.location_name,
     availableQuantity: part.available_quantity,
+    originalQuantity: 0,
     partIsDeleted: false,
     quantity: 1,
     note: ""
@@ -198,6 +210,7 @@ function draftItemFromProjectItem(item: Project["items"][number]): DraftItem {
     manufacturerName: null,
     locationName: null,
     availableQuantity: item.available_quantity,
+    originalQuantity: item.quantity,
     partIsDeleted: Boolean(item.part_is_deleted),
     quantity: item.quantity,
     note: item.note ?? ""
@@ -266,8 +279,19 @@ export function Projects() {
   const [reserveSubmitting, setReserveSubmitting] = useState(false);
   const [reserveError, setReserveError] = useState("");
 
+const [lifecycleAction, setLifecycleAction] =
+  useState<ProjectLifecycleAction | null>(null);
+const [lifecycleProjectId, setLifecycleProjectId] =
+  useState<number | null>(null);
+const [lifecycleSubmitting, setLifecycleSubmitting] = useState(false);
+const [lifecycleError, setLifecycleError] = useState("");
+const [lifecycleNotice, setLifecycleNotice] =
+  useState<ProjectLifecycleNotice | null>(null);
+
   const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [editingProjectId, setEditingProjectId] = useState<number | null>(null);
+  const [editingProjectStatus, setEditingProjectStatus] =
+    useState<ProjectStatus | null>(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [draftName, setDraftName] = useState("");
@@ -310,6 +334,9 @@ export function Projects() {
         setSelectedId((current) => {
           if (current !== null && response.projects.some((item) => item.id === current)) {
             return current;
+          }
+          if (window.matchMedia("(max-width: 900px)").matches) {
+            return null;
           }
           return response.projects[0]?.id ?? null;
         });
@@ -458,6 +485,24 @@ export function Projects() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [reserveProjectId, reserveSubmitting]);
 
+
+useEffect(() => {
+  if (lifecycleAction === null) {
+    return;
+  }
+
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && !lifecycleSubmitting) {
+      setLifecycleAction(null);
+      setLifecycleProjectId(null);
+      setLifecycleError("");
+    }
+  };
+
+  window.addEventListener("keydown", handleKeyDown);
+  return () => window.removeEventListener("keydown", handleKeyDown);
+}, [lifecycleAction, lifecycleSubmitting]);
+
   const currentPage = Math.floor(pageOffset / PAGE_SIZE) + 1;
   const totalPages = Math.max(1, Math.ceil(collection.total / PAGE_SIZE));
   const currentPageUnits = useMemo(
@@ -474,11 +519,21 @@ export function Projects() {
     ? projectReservationBlocker(reserveCandidate)
     : null;
 
+  const lifecycleCandidate =
+    lifecycleAction !== null &&
+    lifecycleProjectId !== null &&
+    selectedProject?.id === lifecycleProjectId
+      ? selectedProject
+      : null;
+  const isReservedEdit =
+    formMode === "edit" && editingProjectStatus === "reserved";
+
   function changeStatus(nextStatus: ProjectStatus | "all") {
     setStatusFilter(nextStatus);
     setPageOffset(0);
     setSelectedId(null);
     setSelectedProject(null);
+    setLifecycleNotice(null);
   }
 
   function resetFormSearch() {
@@ -495,11 +550,15 @@ export function Projects() {
     resetFormSearch();
     setFormError("");
     setEditingProjectId(null);
+    setEditingProjectStatus(null);
     setFormMode("create");
   }
 
   function openEdit() {
-    if (!selectedProject || selectedProject.status !== "draft") {
+    if (
+      !selectedProject ||
+      !["draft", "reserved"].includes(selectedProject.status)
+    ) {
       return;
     }
     setDraftName(selectedProject.name);
@@ -509,6 +568,7 @@ export function Projects() {
     resetFormSearch();
     setFormError("");
     setEditingProjectId(selectedProject.id);
+    setEditingProjectStatus(selectedProject.status);
     setFormMode("edit");
   }
 
@@ -563,10 +623,82 @@ export function Projects() {
       setReserveSubmitting(false);
     }
   }
+
+function openProjectLifecycle(action: ProjectLifecycleAction) {
+  if (
+    !selectedProject ||
+    selectedProject.status !== "reserved" ||
+    lifecycleSubmitting
+  ) {
+    return;
+  }
+  setLifecycleNotice(null);
+  setLifecycleError("");
+  setLifecycleProjectId(selectedProject.id);
+  setLifecycleAction(action);
+}
+
+function closeProjectLifecycle() {
+  if (!lifecycleSubmitting) {
+    setLifecycleAction(null);
+    setLifecycleProjectId(null);
+    setLifecycleError("");
+  }
+}
+
+async function submitProjectLifecycle() {
+  if (
+    !token ||
+    lifecycleAction === null ||
+    lifecycleProjectId === null ||
+    lifecycleSubmitting
+  ) {
+    return;
+  }
+
+  const project =
+    selectedProject?.id === lifecycleProjectId ? selectedProject : null;
+  if (!project || project.status !== "reserved") {
+    setLifecycleError(
+      "The selected Project is no longer Reserved. Refresh and review its current status."
+    );
+    return;
+  }
+
+  const action = lifecycleAction;
+  setLifecycleSubmitting(true);
+  setLifecycleError("");
+  try {
+    const updated =
+      action === "consume"
+        ? await consumeProject(token, lifecycleProjectId)
+        : await cancelProject(token, lifecycleProjectId);
+    setLifecycleAction(null);
+    setLifecycleProjectId(null);
+    setLifecycleNotice({
+      projectId: updated.id,
+      message:
+        action === "consume"
+          ? `"${updated.name}" was consumed. Physical and reserved stock were reduced together.`
+          : `"${updated.name}" was cancelled. Reserved stock was released back to available inventory.`
+    });
+    setStatusFilter(updated.status);
+    setPageOffset(0);
+    setSelectedId(updated.id);
+    setSelectedProject(updated);
+    setReloadVersion((value) => value + 1);
+  } catch (error: unknown) {
+    setLifecycleError(messageFrom(error));
+  } finally {
+    setLifecycleSubmitting(false);
+  }
+}
+
   function closeForm() {
     if (!formSubmitting) {
       setFormMode(null);
       setEditingProjectId(null);
+      setEditingProjectStatus(null);
     }
   }
 
@@ -643,7 +775,7 @@ export function Projects() {
       return;
     }
     if (formMode === "edit" && editingProjectId === null) {
-      setFormError("The Draft Project selection is no longer available.");
+      setFormError("The Project selection is no longer available.");
       return;
     }
     const payload = buildProjectPayload();
@@ -659,6 +791,7 @@ export function Projects() {
         : await updateProject(token, editingProjectId as number, payload);
       setFormMode(null);
       setEditingProjectId(null);
+      setEditingProjectStatus(null);
       if (formMode === "create") {
         setStatusFilter("draft");
         setPageOffset(0);
@@ -677,6 +810,11 @@ export function Projects() {
     <section
       className="projects-page page-stack"
       data-partpilot-marker="PARTPILOT:PROJECTS_WORKSPACE:V381"
+      data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"
+      data-partpilot-project-mobile-landing="PARTPILOT:PROJECT_MOBILE_LANDING:V399"
+      data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"
+      data-partpilot-reserved-edit="PARTPILOT:PROJECT_RESERVED_EDIT_UI:V400"
+      data-partpilot-lifecycle-information="PARTPILOT:LIFECYCLE_INFORMATION_HIERARCHY:V402"
     >
       <header className="projects-header">
         <div className="page-header">
@@ -864,6 +1002,34 @@ export function Projects() {
                       </button>
                     </>
                   ) : null}
+                  {selectedProject.status === "reserved" ? (
+                    <>
+                      <button
+                        className="projects-button"
+                        type="button"
+                        disabled={lifecycleSubmitting}
+                        onClick={openEdit}
+                      >
+                        Edit Reserved
+                      </button>
+                      <button
+                        className="projects-button projects-button-primary"
+                        type="button"
+                        disabled={lifecycleSubmitting}
+                        onClick={() => openProjectLifecycle("consume")}
+                      >
+                        Consume Project
+                      </button>
+                      <button
+                        className="projects-button projects-button-danger"
+                        type="button"
+                        disabled={lifecycleSubmitting}
+                        onClick={() => openProjectLifecycle("cancel")}
+                      >
+                        Cancel Project
+                      </button>
+                    </>
+                  ) : null}
                   <button
                     className="projects-button projects-close-mobile"
                     type="button"
@@ -874,6 +1040,17 @@ export function Projects() {
                   </button>
                 </div>
               </header>
+
+              {lifecycleNotice?.projectId === selectedProject.id ? (
+                <div
+                  className="project-lifecycle-notice"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <strong>Lifecycle updated</strong>
+                  <span>{lifecycleNotice.message}</span>
+                </div>
+              ) : null}
 
               <div className="project-facts">
                 <article>
@@ -1068,6 +1245,137 @@ export function Projects() {
         </div>
       ) : null}
 
+
+{lifecycleCandidate && lifecycleAction ? (
+  <div
+    className="project-modal-backdrop"
+    role="presentation"
+    onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget) {
+        closeProjectLifecycle();
+      }
+    }}
+  >
+    <section
+      className={`project-reserve-dialog project-lifecycle-dialog is-${lifecycleAction}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="project-lifecycle-title"
+      aria-describedby="project-lifecycle-description"
+      aria-busy={lifecycleSubmitting}
+      data-partpilot-marker="PARTPILOT:PROJECT_TERMINAL_DIALOG:V398"
+    >
+      <header>
+        <div>
+          <p className="eyebrow">
+            {lifecycleAction === "consume"
+              ? "Permanent stock movement"
+              : "Release inventory commitment"}
+          </p>
+          <h2 id="project-lifecycle-title">
+            {lifecycleAction === "consume"
+              ? "Consume Project"
+              : "Cancel Project"}
+          </h2>
+          <p id="project-lifecycle-description">
+            {lifecycleAction === "consume"
+              ? "Confirm the permanent removal of the reserved physical stock assigned to this Project."
+              : "Confirm that the reserved stock should be released without changing physical inventory totals."}
+          </p>
+        </div>
+        <button
+          className="projects-button"
+          type="button"
+          aria-label={`Close ${
+            lifecycleAction === "consume" ? "Consume" : "Cancel"
+          } Project confirmation`}
+          disabled={lifecycleSubmitting}
+          onClick={closeProjectLifecycle}
+        >
+          Close
+        </button>
+      </header>
+
+      <div className="project-reserve-body">
+        <div className="project-reserve-summary">
+          <article>
+            <span>Project</span>
+            <strong>{lifecycleCandidate.name}</strong>
+          </article>
+          <article>
+            <span>Parts</span>
+            <strong>{lifecycleCandidate.item_count}</strong>
+          </article>
+          <article>
+            <span>
+              {lifecycleAction === "consume"
+                ? "Units to remove"
+                : "Units to release"}
+            </span>
+            <strong>{lifecycleCandidate.total_units}</strong>
+          </article>
+        </div>
+
+        <div
+          className={`project-reserve-impact project-lifecycle-impact is-${lifecycleAction}`}
+        >
+          <strong>Stock impact</strong>
+          <p>
+            {lifecycleAction === "consume"
+              ? `Confirming permanently removes ${lifecycleCandidate.total_units} physical units and clears the same reserved units. Available quantity remains unchanged because physical and reserved stock decrease together.`
+              : `Confirming releases ${lifecycleCandidate.total_units} reserved units back to available inventory. Physical stock totals do not change.`}
+          </p>
+        </div>
+
+        <div className="project-lifecycle-terminal-note">
+          <strong>
+            {lifecycleAction === "consume"
+              ? "This stock removal cannot be undone from this Project."
+              : "This closes the Project without consuming stock."}
+          </strong>
+          <span>
+            {lifecycleAction === "consume"
+              ? "The Project and its linked Reservation will both become Consumed."
+              : "The Project and its linked Reservation will both become Cancelled."}
+          </span>
+        </div>
+
+        {lifecycleError ? (
+          <div className="project-form-error" role="alert">
+            {lifecycleError}
+          </div>
+        ) : null}
+      </div>
+
+      <footer>
+        <span>
+          Current status and inventory are checked atomically. Any
+          conflict rejects the complete action without partial changes.
+        </span>
+        <button
+          autoFocus
+          className={`projects-button ${
+            lifecycleAction === "consume"
+              ? "projects-button-danger"
+              : "projects-button-primary"
+          }`}
+          type="button"
+          disabled={lifecycleSubmitting}
+          onClick={() => void submitProjectLifecycle()}
+        >
+          {lifecycleSubmitting
+            ? lifecycleAction === "consume"
+              ? "Consuming…"
+              : "Cancelling…"
+            : lifecycleAction === "consume"
+              ? "Consume physical stock"
+              : "Release reserved stock"}
+        </button>
+      </footer>
+    </section>
+  </div>
+) : null}
+
       {formMode !== null ? (
         <div
           className="project-modal-backdrop"
@@ -1091,13 +1399,23 @@ export function Projects() {
           >
             <header>
               <div>
-                <p className="eyebrow">Inventory-neutral planning</p>
+                <p className="eyebrow">
+                  {isReservedEdit
+                    ? "Atomic reservation adjustment"
+                    : "Inventory-neutral planning"}
+                </p>
                 <h2 id="project-form-title">
-                  {formMode === "edit" ? "Edit Draft Project" : "New Project"}
+                  {formMode === "edit"
+                    ? isReservedEdit
+                      ? "Edit Reserved Project"
+                      : "Edit Draft Project"
+                    : "New Project"}
                 </h2>
                 <p>
                   {formMode === "edit"
-                    ? "Update the Draft plan and refresh price snapshots without reserving, consuming, or otherwise changing stock."
+                    ? isReservedEdit
+                      ? "Update the Project and linked Reservation together. Quantity increases reserve only the additional units; decreases release only the removed units."
+                      : "Update the Draft plan and refresh price snapshots without reserving, consuming, or otherwise changing stock."
                     : "Add active inventory parts and planned quantities. This Draft does not reserve, consume, or otherwise change stock."}
                 </p>
               </div>
@@ -1106,7 +1424,9 @@ export function Projects() {
                 type="button"
                 aria-label={
                   formMode === "edit"
-                    ? "Close Edit Draft Project form"
+                    ? isReservedEdit
+                      ? "Close Edit Reserved Project form"
+                      : "Close Edit Draft Project form"
                     : "Close new Project form"
                 }
                 disabled={formSubmitting}
@@ -1234,9 +1554,14 @@ export function Projects() {
                   </div>
                 ) : (
                   draftItems.map((item) => {
+                    const supportedQuantity =
+                      item.availableQuantity === null
+                        ? null
+                        : item.availableQuantity +
+                          (isReservedEdit ? item.originalQuantity : 0);
                     const exceedsAvailability =
-                      item.availableQuantity !== null &&
-                      item.quantity > item.availableQuantity;
+                      supportedQuantity !== null &&
+                      item.quantity > supportedQuantity;
                     const inventoryLinkUnavailable =
                       item.partId === null || item.partIsDeleted;
                     return (
@@ -1258,11 +1583,17 @@ export function Projects() {
                           >
                             {inventoryLinkUnavailable
                               ? "Inventory link unavailable · remove before saving"
-                              : `${item.availableQuantity ?? "Unknown"} currently available${
-                                  exceedsAvailability
-                                    ? " · planning beyond availability"
-                                    : ""
-                                }`}
+                              : isReservedEdit
+                                ? `${supportedQuantity ?? "Unknown"} supported for this edit (${item.availableQuantity ?? "Unknown"} currently available + ${item.originalQuantity} already reserved)${
+                                    exceedsAvailability
+                                      ? " · exceeds supported quantity"
+                                      : ""
+                                  }`
+                                : `${item.availableQuantity ?? "Unknown"} currently available${
+                                    exceedsAvailability
+                                      ? " · planning beyond availability"
+                                      : ""
+                                  }`}
                           </small>
                         </div>
                         <label>
@@ -1314,7 +1645,9 @@ export function Projects() {
               <footer>
                 <span>
                   {formMode === "edit"
-                    ? "Saving replaces the Draft plan and refreshes snapshots; inventory remains unchanged."
+                    ? isReservedEdit
+                      ? "Saving synchronises the linked Reservation and changes only reserved and available quantities; physical totals remain unchanged."
+                      : "Saving replaces the Draft plan and refreshes snapshots; inventory remains unchanged."
                     : "Creating a Draft records snapshots only; inventory remains unchanged."}
                 </span>
                 <button
@@ -1327,7 +1660,9 @@ export function Projects() {
                       ? "Saving…"
                       : "Creating…"
                     : formMode === "edit"
-                      ? "Save Draft Changes"
+                      ? isReservedEdit
+                        ? "Save Reserved Changes"
+                        : "Save Draft Changes"
                       : "Create Draft Project"}
                 </button>
               </footer>

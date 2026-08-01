@@ -2051,3 +2051,60 @@ Do not combine Project cancellation, system-wide History, backup/restore or MCP
 in one patch. Preserve existing inventory, Reservations, Projects, movements,
 audits and settings. The backend manual Reservation-create API remains until an
 explicit API/MCP compatibility decision is made.
+
+<!-- PARTPILOT:CHAT15_PROJECT_LIFECYCLE_ROADMAP:V405 -->
+## Current roadmap checkpoint — Project lifecycle complete
+
+### Overall progress
+
+**Working V1/public-alpha estimate: approximately 86%.**
+
+Inventory, universal search, Reservations and the complete Project lifecycle are
+operational and browser approved. Users can plan Draft Projects, reserve them,
+edit the resulting commitment from either Projects or Reservations, and finish
+through consumption or cancellation with synchronized inventory, movements,
+statuses and audits.
+
+### Completed through Patch 403
+
+Patch 404 failed before writes on generated Markdown trailing whitespace. Patch 405 is the narrow checkpoint recovery.
+
+- [x] Atomic Project reservation through one linked active Reservation.
+- [x] Atomic Project consumption and cancellation/release.
+- [x] Paired Project/Reservation terminal statuses, movements and audits.
+- [x] Current-transaction movement verification that ignores historical edit
+  movements.
+- [x] Reserved Project editing with quantity-delta reserve/release behavior.
+- [x] Two-way Project-linked Reservation editing from either workspace.
+- [x] Direct Reservation consume/cancel/expiry synchronization to Projects.
+- [x] Accessible in-app lifecycle confirmations and stale-state handling.
+- [x] Mobile register-first behavior and compact summary metrics.
+- [x] Physical, Reserved and Available movement snapshots in part history.
+- [x] Complete copied-database regression coverage and browser approval.
+- [x] Realistic manifest-owned test inventory for pre-reset validation.
+
+### Next implementation order
+
+1. Design the system-wide History information architecture and filters.
+2. Add protected paginated audit/history APIs without duplicating existing
+   Reservation activity or part movement logic.
+3. Add entity, event, actor, date and text filtering with deterministic ordering.
+4. Build responsive History list/detail views with readable before/after data.
+5. Preserve inventory and use copied-database fixtures for all History tests.
+6. Browser-test and checkpoint History independently.
+
+### Remaining major V1 areas
+
+- [ ] System-wide History and audit browsing.
+- [ ] Settings and appearance completion.
+- [ ] Backup and restore.
+- [ ] MCP read tools and safeguarded write tools.
+- [ ] Authenticated MCP server enable/disable Settings control.
+- [ ] Accessibility, security and public-alpha release hardening.
+
+### Scope discipline
+
+Do not combine History, Settings, backup/restore or MCP in one implementation
+slice. Preserve the realistic Patch 401 fixtures until an explicit cleanup or
+database reset. The backend manual Reservation-create API remains temporarily
+available pending the API/MCP compatibility decision.
