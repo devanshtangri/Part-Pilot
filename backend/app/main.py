@@ -48,6 +48,8 @@ from app.api.routes.locations import router as locations_router
 from app.api.routes.app_settings import router as app_settings_router
 # PATCH 303: protected reservation read/create routes
 from app.api.routes.reservations import router as reservations_router
+# PATCH 374: protected Project read/create routes
+from app.api.routes.projects import router as projects_router
 from app.core.config import get_settings
 
 settings = get_settings()
@@ -85,6 +87,8 @@ app.include_router(locations_router, prefix="/api")
 app.include_router(app_settings_router, prefix="/api")
 # PATCH 303: protected reservation read/create API
 app.include_router(reservations_router, prefix="/api")
+# PATCH 374: protected Project read/create API
+app.include_router(projects_router, prefix="/api")
 
 frontend_dist = Path("/app/frontend_dist")
 if frontend_dist.exists():

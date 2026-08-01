@@ -13,11 +13,9 @@ import type {
 } from "react";
 
 import { useAuth } from "../auth/AuthContext";
-import { getReservationSettings } from "../services/settingsClient";
 import {
   cancelReservation,
   consumeReservation,
-  createReservation,
   deleteReservation,
   expireReservation,
   getReservation,
@@ -26,14 +24,12 @@ import {
   searchReservableParts,
   updateReservation
 } from "../services/reservationsClient";
-import type { ReservationSettings } from "../types/settings";
 import type {
   ReservablePart,
   Reservation,
   ReservationActivityCollection,
   ReservationActivityEntry,
   ReservationCollection,
-  ReservationCreatePayload,
   ReservationStatus,
   ReservationUpdatePayload
 } from "../types/reservations";
@@ -139,23 +135,6 @@ function toLocalDateTimeInput(value: string | null): string {
     return "";
   }
   return localDateTimeInputFromDate(parseApiDateTime(value));
-}
-
-// PARTPILOT:RESERVATION_DEFAULT_EXPIRY:V362
-function defaultReservationExpiryInput(
-  settings: ReservationSettings
-): string {
-  if (
-    settings.expiry_mode !== "default" ||
-    !Number.isInteger(settings.default_days) ||
-    Number(settings.default_days) < 1 ||
-    Number(settings.default_days) > 3650
-  ) {
-    return "";
-  }
-  return localDateTimeInputFromDate(
-    new Date(Date.now() + Number(settings.default_days) * 24 * 60 * 60 * 1000)
-  );
 }
 
 // PARTPILOT:RESERVATION_NOOP_GUARD:V348
@@ -359,11 +338,6 @@ export function Reservations() {
   const [deleteError, setDeleteError] = useState("");
   const [deletionNotice, setDeletionNotice] = useState("");
 
-  const [reservationSettings, setReservationSettings] =
-    useState<ReservationSettings>({
-      expiry_mode: "none",
-      default_days: null
-    });
   const [createOpen, setCreateOpen] = useState(false);
   const [editingReservationId, setEditingReservationId] = useState<number | null>(
     null
@@ -383,36 +357,6 @@ export function Reservations() {
   const detailRequest = useRef(0);
   const activityRequest = useRef(0);
   const expiryInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!token) {
-      setReservationSettings({
-        expiry_mode: "none",
-        default_days: null
-      });
-      return;
-    }
-
-    let cancelled = false;
-    void getReservationSettings(token)
-      .then((result) => {
-        if (!cancelled) {
-          setReservationSettings(result);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setReservationSettings({
-            expiry_mode: "none",
-            default_days: null
-          });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
 
   useEffect(() => {
     if (!token) {
@@ -712,13 +656,6 @@ useEffect(() => {
     setCreateError("");
   };
 
-  const openCreate = () => {
-    resetCreateForm();
-    setDraftExpiry(defaultReservationExpiryInput(reservationSettings));
-    setEditingReservationId(null);
-    setCreateOpen(true);
-  };
-
   const openEdit = () => {
     if (!selectedReservation || selectedReservation.status !== "active") {
       return;
@@ -807,8 +744,6 @@ useEffect(() => {
         }
       ];
     });
-    setPartQuery("");
-    setPartOptions([]);
   };
 
   const updateDraftQuantity = (partId: number, quantity: number) => {
@@ -872,7 +807,17 @@ useEffect(() => {
       expiryAt = parsed.toISOString();
     }
 
-    const payload: ReservationCreatePayload | ReservationUpdatePayload = {
+    if (
+      editingReservationId === null ||
+      selectedReservation?.id !== editingReservationId
+    ) {
+      setCreateError(
+        "Manual Reservation creation is disabled. Start new work in Projects."
+      );
+      return;
+    }
+
+    const payload: ReservationUpdatePayload = {
       label: draftLabel.trim(),
       notes: draftNotes.trim() || null,
       expiry_at: expiryAt,
@@ -883,11 +828,7 @@ useEffect(() => {
       }))
     };
 
-    if (
-      editingReservationId !== null &&
-      selectedReservation?.id === editingReservationId &&
-      reservationMatchesPayload(selectedReservation, payload)
-    ) {
+    if (reservationMatchesPayload(selectedReservation, payload)) {
       setCreateOpen(false);
       setEditingReservationId(null);
       resetCreateForm();
@@ -897,23 +838,18 @@ useEffect(() => {
     setCreateSubmitting(true);
     setCreateError("");
     try {
-      const saved =
-        editingReservationId === null
-          ? await createReservation(token, payload)
-          : await updateReservation(token, editingReservationId, payload);
-      const wasEditing = editingReservationId !== null;
+      const saved = await updateReservation(
+        token,
+        editingReservationId,
+        payload
+      );
       setCreateOpen(false);
       setEditingReservationId(null);
       resetCreateForm();
-      if (!wasEditing) {
-        chooseStatusFilter("active");
-      }
       setSelectedId(saved.id);
       setSelectedReservation(saved);
       setReloadVersion((value) => value + 1);
-      if (wasEditing) {
-        setActivityReloadVersion((value) => value + 1);
-      }
+      setActivityReloadVersion((value) => value + 1);
     } catch (error: unknown) {
       setCreateError(messageFrom(error));
     } finally {
@@ -1013,22 +949,25 @@ useEffect(() => {
       data-partpilot-reservation-layout="PARTPILOT:RESERVATION_LAYOUT_REFINEMENT:V353"
       data-partpilot-reservation-default-expiry="PARTPILOT:RESERVATION_DEFAULT_EXPIRY:V362"
     >
-      <header className="reservations-header">
+      <header
+        className="reservations-header"
+        data-partpilot-marker="PARTPILOT:PROJECT_DERIVED_RESERVATIONS:V386"
+      >
         <div className="page-header">
-          <p className="eyebrow">Inventory commitments</p>
+          <p className="eyebrow">Operational inventory commitments</p>
           <h1>Reservations</h1>
           <p>
-            Review reserved stock, inspect item-level availability, and move
-            active reservations through cancellation, consumption, or expiry.
+            Review stock committed by Reserved Projects, adjust active holds,
+            and complete them through consumption, cancellation, or expiry.
+            Plan new work in Projects first.
           </p>
         </div>
-        <button
+        <a
           className="reservations-button reservations-button-primary"
-          type="button"
-          onClick={openCreate}
+          href="/projects"
         >
-          New reservation
-        </button>
+          Plan in Projects
+        </a>
       </header>
 
       <div className="reservations-summary" aria-label="Reservation summary">
@@ -1600,20 +1539,11 @@ useEffect(() => {
           >
             <header data-partpilot-marker="PARTPILOT:RESERVATION_SINGLE_DISMISS_ACTION:V364">
               <div>
-                <p className="eyebrow">
-                  {editingReservationId === null
-                    ? "Reserve inventory"
-                    : "Update reservation"}
-                </p>
-                <h2 id="reservation-form-title">
-                  {editingReservationId === null
-                    ? "New reservation"
-                    : "Edit reservation"}
-                </h2>
+                <p className="eyebrow">Update inventory commitment</p>
+                <h2 id="reservation-form-title">Edit reservation</h2>
                 <p>
-                  {editingReservationId === null
-                    ? "Select available parts and reserve quantities without changing physical stock."
-                    : "Adjust the reservation details, parts, quantities, notes, or expiry."}
+                  Adjust this active hold's details, parts, quantities, notes,
+                  or expiry. New commitments are created by reserving Projects.
                 </p>
               </div>
             </header>
@@ -1697,36 +1627,55 @@ useEffect(() => {
                     autoComplete="off"
                   />
                 </label>
-                <div className="reservation-part-results" aria-live="polite">
-                  {partSearchLoading ? (
-                    <span>Searching inventory…</span>
-                  ) : partSearchError ? (
-                    <span className="is-error">{partSearchError}</span>
-                  ) : partQuery.trim().length < 2 ? (
-                    <span>Enter at least two characters.</span>
-                  ) : partOptions.length === 0 ? (
-                    <span>No available matching parts.</span>
-                  ) : (
-                    partOptions.map((part) => (
-                      <button
-                        key={part.id}
-                        type="button"
-                        onClick={() => addDraftItem(part)}
-                        disabled={draftItems.some(
-                          (item) => item.part.id === part.id
-                        )}
-                      >
-                        <span>
-                          <strong>{part.part_number}</strong>
-                          <small>{part.name}</small>
-                        </span>
-                        <span>
-                          {part.available_quantity} available
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
+                {partQuery.trim().length >= 2 ? (
+                  <div
+                    className="reservation-part-results"
+                    aria-live="polite"
+                    aria-label="Matching available inventory parts"
+                  >
+                    {partSearchLoading ? (
+                      <span>Searching inventory…</span>
+                    ) : partSearchError ? (
+                      <span className="is-error">{partSearchError}</span>
+                    ) : partOptions.length === 0 ? (
+                      <span>No available matching parts.</span>
+                    ) : (
+                      <>
+                        <div className="reservation-part-results-summary">
+                          <strong>
+                            {partOptions.length} matching available{" "}
+                            {partOptions.length === 1 ? "part" : "parts"}
+                          </strong>
+                          <small>Showing up to 50 results</small>
+                        </div>
+                        {partOptions.map((part) => (
+                          <button
+                            key={part.id}
+                            type="button"
+                            onClick={() => addDraftItem(part)}
+                            disabled={draftItems.some(
+                              (item) => item.part.id === part.id
+                            )}
+                          >
+                            <span>
+                              <strong>{part.part_number}</strong>
+                              <small>
+                                {[part.name, part.manufacturer_name, part.location_name]
+                                  .filter(Boolean)
+                                  .join(" · ") || "No additional metadata"}
+                              </small>
+                            </span>
+                            <span>{part.available_quantity} available</span>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <small className="reservation-part-search-hint">
+                    Enter at least two characters to search inventory.
+                  </small>
+                )}
               </div>
 
               <div className="reservation-draft-items">
@@ -1809,15 +1758,13 @@ useEffect(() => {
                 <button
                   className="reservations-button reservations-button-primary"
                   type="submit"
-                  disabled={createSubmitting || draftItems.length === 0}
+                  disabled={
+                    createSubmitting ||
+                    editingReservationId === null ||
+                    draftItems.length === 0
+                  }
                 >
-                  {createSubmitting
-                    ? editingReservationId === null
-                      ? "Creating…"
-                      : "Saving…"
-                    : editingReservationId === null
-                      ? "Create reservation"
-                      : "Save changes"}
+                  {createSubmitting ? "Saving…" : "Save changes"}
                 </button>
               </footer>
             </form>

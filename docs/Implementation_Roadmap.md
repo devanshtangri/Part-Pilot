@@ -1924,3 +1924,56 @@ clean builds and copied-database smoke tests before packaging, exact-byte patch
 payloads, `[X/N]` runtime phases, full rollback, and separate browser approval /
 checkpoint scripts. Do not return to speculative source anchors or scripts that
 have not been executed against an isolated copy first.
+
+<!-- PARTPILOT:PROJECTS_FOUNDATION_ROADMAP:V390 -->
+## Current roadmap checkpoint — Projects foundation operational
+
+### Overall progress
+
+**Working V1/public-alpha estimate: approximately 80%.**
+
+Inventory, universal search, Reservations and the first complete Projects
+planning-to-reservation workflow are operational and browser approved.
+Remaining work is concentrated in Project completion/cancellation, system-wide
+History, broader Settings and appearance, backup/restore, MCP, accessibility,
+security and public-alpha hardening.
+
+### Completed through Patch 386
+
+- [x] Canonical Project lifecycle schema and migration.
+- [x] Protected Project list, detail, create and Draft-update APIs.
+- [x] Project item reconciliation and price/currency snapshots.
+- [x] Responsive Projects register/detail/create/edit workspace.
+- [x] Atomic Draft Project reservation through a linked active Reservation.
+- [x] Reserve stock movements, Project/Reservation audits and inventory guards.
+- [x] Multi-result Project and Reservation part pickers with up to 50 matches.
+- [x] Project-derived Reservations product model.
+- [x] Manual Reservation creation removed from the frontend.
+- [x] Existing Reservation edit/cancel/consume/expire/delete/activity retained.
+- [x] Complete smoke, protected API, SPA, browser and live-data preservation.
+
+### Immediate next slice
+
+- [ ] Add atomic Reserved Project consumption using the linked Reservation.
+- [ ] Add atomic Reserved Project cancellation/release.
+- [ ] Synchronize Project and Reservation terminal statuses.
+- [ ] Add accessible confirmation actions and error feedback.
+- [ ] Checkpoint each approved lifecycle transition independently.
+
+### Settings backlog
+
+- [ ] Add an authenticated Settings control to enable or disable the MCP server.
+- [ ] Define persisted default, startup behavior and invalid-value recovery.
+- [ ] Define immediate-apply versus restart-required semantics.
+- [ ] Gate MCP transport/tool availability safely when disabled.
+- [ ] Audit real MCP setting changes.
+- [ ] Keep this item deferred until the MCP implementation phase.
+
+### Remaining major V1 areas
+
+- [ ] Complete Project consume/cancel lifecycle.
+- [ ] System-wide History and audit browsing.
+- [ ] Settings and appearance completion.
+- [ ] Backup and restore.
+- [ ] MCP read tools and safeguarded write tools.
+- [ ] Accessibility, security and public-alpha release hardening.

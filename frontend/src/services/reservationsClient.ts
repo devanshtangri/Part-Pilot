@@ -209,7 +209,7 @@ export async function searchReservableParts(
 ): Promise<ReservablePart[]> {
   const parameters = new URLSearchParams({
     search: query,
-    limit: "20",
+    limit: "50",
     offset: "0"
   });
   const response = await requestJson<PartSearchResponse>(

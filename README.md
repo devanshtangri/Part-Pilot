@@ -264,31 +264,46 @@ and stock-status filters, accurate pagination, stale-response guards, and
 independent full-result sorting for Available and Out of stock sections.
 <!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_README:END -->
 
-<!-- PARTPILOT:RESERVATIONS_FOUNDATION:START -->
-## Reservations
+<!-- PARTPILOT:PROJECTS_AND_RESERVATIONS:START -->
+## Projects and reservations
 
-Part Pilot can hold inventory against planned work while preserving visibility
-into physical, reserved and available stock.
+Part Pilot separates **planning** from **operational inventory commitments**.
+
+Users create a Draft Project for a build, repair, prototype or other planned
+work. A Project stores its parts, quantities, notes and price snapshots without
+changing stock. Reserving the Project then creates one linked active Reservation
+and atomically commits the planned quantities.
+
+```text
+Draft Project → Reserve Project → Active Reservation → Consume / Cancel / Expire
+```
 
 | Capability | Status |
 |---|---|
-| Multi-part reservation creation | Available |
+| Project register, detail, creation and Draft editing | Available |
+| Server-backed multi-result part search (up to 50 matches) | Available |
+| Price, currency and current-availability snapshots | Available |
+| Atomic Project reservation with linked Reservation | Available |
 | Available/reserved quantity accounting | Available |
+| Reserve/release/consume stock movements and audits | Available |
+| Active-Reservation editing | Available |
 | Cancel, consume and due-time expiry | Available |
-| Active-reservation label, notes, expiry and item editing | Available |
-| Inactive-reservation permanent deletion with exact confirmation | Available |
-| Status filters, pagination and responsive register/detail workspace | Available |
-| Audit and stock-movement activity timeline | Available |
-| Actor, part and quantity-snapshot activity details | Available |
-| Installation-wide optional default expiry for new reservations | Available |
-| Desktop split-view and mobile register-first workflow | Available |
+| Inactive-Reservation deletion with exact confirmation | Available |
+| Reservation activity timeline | Available |
+| Responsive desktop and mobile workflows | Available |
 
-Reservation defaults are non-enforcing: they prefill only newly opened manual
-reservation forms and can be changed or cleared before creation. Existing
-reservations and direct API payloads are never silently rewritten.
+The Reservations page is the operational queue for committed inventory. Manual
+Reservation creation is intentionally absent from the frontend so users have
+one clear entry path: plan work in Projects, then reserve it. Existing
+Reservations retain editing and lifecycle actions.
 
-The workflow is authenticated, audited, inventory-safe and covered by complete
-smoke tests that preserve pre-existing user reservations. Desktop automatically
-opens the first record in split view; compact layouts land on the register and
-open details only after the user selects a reservation.
-<!-- PARTPILOT:RESERVATIONS_FOUNDATION:END -->
+The backend Reservation-create API remains temporarily available for
+compatibility while future API and MCP behavior is defined.
+
+### Planned administration control
+
+A future Settings update will add an authenticated control to enable or disable
+the MCP server. Default, restart behavior, transport/tool gating and auditing
+will be defined during the MCP implementation phase; the control is not
+implemented yet.
+<!-- PARTPILOT:PROJECTS_AND_RESERVATIONS:END -->

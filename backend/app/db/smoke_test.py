@@ -711,6 +711,1363 @@ def check_reservation_contract_schema() -> None:
 
 
 # PARTPILOT:RESERVATION_CREATION_SERVICE_SMOKE:V301
+# PARTPILOT:PROJECT_CREATION_SERVICE_SMOKE:V371
+def check_project_creation_service() -> None:
+    from decimal import Decimal
+
+    from pydantic import ValidationError
+
+    from app.models import Part
+    from app.schemas.projects import (
+        ProjectCreateRequest,
+        ProjectItemCreateRequest,
+    )
+    from app.services.projects import (
+        ProjectNotFoundError,
+        ProjectValidationError,
+        create_project,
+        get_project,
+        list_projects,
+    )
+
+    suffix = uuid4().hex[:12]
+    part_numbers = [
+        f"SMOKE-PROJECT-A-{suffix}",
+        f"SMOKE-PROJECT-B-{suffix}",
+        f"SMOKE-PROJECT-C-{suffix}",
+    ]
+    part_ids: list[int] = []
+    project_ids: list[int] = []
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if project_ids:
+                placeholders = ", ".join(
+                    f":project_id_{index}"
+                    for index, _project_id in enumerate(project_ids)
+                )
+                parameters = {
+                    f"project_id_{index}": project_id
+                    for index, project_id in enumerate(project_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'project' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from project_items "
+                        f"where project_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from projects "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+            if part_ids:
+                placeholders = ", ".join(
+                    f":part_id_{index}"
+                    for index, _part_id in enumerate(part_ids)
+                )
+                parameters = {
+                    f"part_id_{index}": part_id
+                    for index, part_id in enumerate(part_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where part_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from parts "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+            db.commit()
+
+    cleanup()
+    try:
+        try:
+            ProjectCreateRequest(
+                name="Invalid",
+                items=[
+                    ProjectItemCreateRequest(
+                        part_id=1,
+                        quantity=0,
+                    )
+                ],
+            )
+        except ValidationError:
+            pass
+        else:
+            fail("Project schema accepted a non-positive quantity")
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail("Cannot test Projects without an active part type")
+            fixtures = [
+                Part(
+                    part_type_id=part_type_id,
+                    part_number=part_numbers[0],
+                    name="Project service smoke part A",
+                    total_quantity=2,
+                    reserved_quantity=1,
+                    unit_price=Decimal("2.5000"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+                Part(
+                    part_type_id=part_type_id,
+                    part_number=part_numbers[1],
+                    name="Project service smoke part B",
+                    total_quantity=0,
+                    reserved_quantity=0,
+                    unit_price=Decimal("1.2500"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+                Part(
+                    part_type_id=part_type_id,
+                    part_number=part_numbers[2],
+                    name="Project service smoke part C",
+                    total_quantity=4,
+                    reserved_quantity=0,
+                    unit_price=None,
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+            ]
+            db.add_all(fixtures)
+            db.commit()
+            for part in fixtures:
+                db.refresh(part)
+                part_ids.append(part.id)
+
+        with db_session() as db:
+            inventory_before = {
+                row["id"]: (
+                    int(row["total_quantity"]),
+                    int(row["reserved_quantity"]),
+                    row["updated_at"],
+                )
+                for row in db.execute(
+                    text(
+                        "select id,total_quantity,reserved_quantity,updated_at "
+                        "from parts where id in (:a,:b,:c)"
+                    ),
+                    {"a": part_ids[0], "b": part_ids[1], "c": part_ids[2]},
+                ).mappings()
+            }
+            counts_before = {
+                "reservations": db.execute(
+                    text("select count(*) from reservations")
+                ).scalar(),
+                "reservation_items": db.execute(
+                    text("select count(*) from reservation_items")
+                ).scalar(),
+                "stock_movements": db.execute(
+                    text("select count(*) from stock_movements")
+                ).scalar(),
+            }
+
+            response = create_project(
+                db,
+                ProjectCreateRequest(
+                    name="  Smoke Project service  ",
+                    description="  Inventory neutral planning  ",
+                    notes="  Snapshot contract  ",
+                    items=[
+                        ProjectItemCreateRequest(
+                            part_id=part_ids[0],
+                            quantity=1,
+                            note="Primary line",
+                        ),
+                        ProjectItemCreateRequest(
+                            part_id=part_ids[0],
+                            quantity=2,
+                            note="Primary line",
+                        ),
+                        ProjectItemCreateRequest(
+                            part_id=part_ids[1],
+                            quantity=5,
+                        ),
+                    ],
+                ),
+                commit=True,
+            )
+            project_ids.append(response.id)
+
+            if response.name != "Smoke Project service":
+                fail(f"Project name was not normalised: {response.name!r}")
+            if response.description != "Inventory neutral planning":
+                fail("Project description was not normalised")
+            if response.notes != "Snapshot contract":
+                fail("Project notes were not normalised")
+            if response.status != "draft" or response.created_by != "manual":
+                fail("Project creation returned the wrong lifecycle metadata")
+            if response.item_count != 2 or response.total_units != 8:
+                fail(
+                    "Project duplicate normalisation totals are wrong: "
+                    f"items={response.item_count}, units={response.total_units}"
+                )
+            if response.estimated_total_value != Decimal("13.7500"):
+                fail(
+                    "Project snapshot total is incorrect: "
+                    f"{response.estimated_total_value!r}"
+                )
+
+            by_part = {item.part_id: item for item in response.items}
+            if by_part[part_ids[0]].quantity != 3:
+                fail("Merged Project quantity is incorrect")
+            if by_part[part_ids[1]].quantity != 5:
+                fail("Project planning quantity is incorrect")
+            if by_part[part_ids[1]].available_quantity != 0:
+                fail("Project response current availability is incorrect")
+            if by_part[part_ids[1]].quantity <= by_part[part_ids[1]].available_quantity:
+                fail("Project smoke did not exercise planning beyond availability")
+
+            stored_items = db.execute(
+                text(
+                    "select part_id,quantity,unit_price_snapshot,currency_snapshot,note "
+                    "from project_items where project_id=:project_id order by part_id"
+                ),
+                {"project_id": response.id},
+            ).mappings().all()
+            if len(stored_items) != 2:
+                fail("Project item normalization did not persist exactly two rows")
+            stored_by_part = {int(row["part_id"]): row for row in stored_items}
+            if int(stored_by_part[part_ids[0]]["quantity"]) != 3:
+                fail("Persisted merged Project quantity is incorrect")
+            if Decimal(stored_by_part[part_ids[0]]["unit_price_snapshot"]) != Decimal("2.5000"):
+                fail("Project item price snapshot is incorrect")
+
+            inventory_after = {
+                row["id"]: (
+                    int(row["total_quantity"]),
+                    int(row["reserved_quantity"]),
+                    row["updated_at"],
+                )
+                for row in db.execute(
+                    text(
+                        "select id,total_quantity,reserved_quantity,updated_at "
+                        "from parts where id in (:a,:b,:c)"
+                    ),
+                    {"a": part_ids[0], "b": part_ids[1], "c": part_ids[2]},
+                ).mappings()
+            }
+            if inventory_after != inventory_before:
+                fail(
+                    "Draft Project creation changed inventory: "
+                    f"before={inventory_before}, after={inventory_after}"
+                )
+            counts_after = {
+                "reservations": db.execute(
+                    text("select count(*) from reservations")
+                ).scalar(),
+                "reservation_items": db.execute(
+                    text("select count(*) from reservation_items")
+                ).scalar(),
+                "stock_movements": db.execute(
+                    text("select count(*) from stock_movements")
+                ).scalar(),
+            }
+            if counts_after != counts_before:
+                fail(
+                    "Draft Project creation created inventory lifecycle rows: "
+                    f"before={counts_before}, after={counts_after}"
+                )
+
+            audit = db.execute(
+                text(
+                    "select actor_type,after_json,metadata_json from audit_log "
+                    "where event_type='project.created' and entity_type='project' "
+                    "and entity_id=:project_id"
+                ),
+                {"project_id": response.id},
+            ).mappings().all()
+            if len(audit) != 1:
+                fail(f"Project creation audit count is wrong: {len(audit)}")
+            if audit[0]["actor_type"] != "system":
+                fail("Project creation audit actor is incorrect")
+            if '"source": "manual"' not in str(audit[0]["metadata_json"]):
+                fail("Project creation audit source metadata is missing")
+
+            detail = get_project(db, response.id)
+            if detail.model_dump() != response.model_dump():
+                fail("Project detail serialization differs from create response")
+            listing = list_projects(db, status_filter="draft", limit=10, offset=0)
+            if response.id not in [project.id for project in listing.projects]:
+                fail("Project list did not include the created Draft")
+
+            unknown = create_project(
+                db,
+                ProjectCreateRequest(
+                    name="Unknown price Project",
+                    items=[
+                        ProjectItemCreateRequest(
+                            part_id=part_ids[2],
+                            quantity=2,
+                        )
+                    ],
+                ),
+                commit=True,
+            )
+            project_ids.append(unknown.id)
+            if unknown.estimated_total_value is not None:
+                fail("Project with an unknown price understated its total")
+
+        with db_session() as db:
+            before_projects = db.execute(
+                text("select count(*) from projects")
+            ).scalar()
+            try:
+                create_project(
+                    db,
+                    ProjectCreateRequest(
+                        name="Conflicting duplicate note Project",
+                        items=[
+                            ProjectItemCreateRequest(
+                                part_id=part_ids[0],
+                                quantity=1,
+                                note="First",
+                            ),
+                            ProjectItemCreateRequest(
+                                part_id=part_ids[0],
+                                quantity=1,
+                                note="Second",
+                            ),
+                        ],
+                    ),
+                )
+            except ProjectValidationError:
+                pass
+            else:
+                fail("Project service accepted conflicting duplicate notes")
+            if db.execute(text("select count(*) from projects")).scalar() != before_projects:
+                fail("Failed Project creation left a partial Project row")
+
+            try:
+                get_project(db, 2147483647)
+            except ProjectNotFoundError:
+                pass
+            else:
+                fail("Missing Project detail did not raise not-found")
+            for kwargs in (
+                {"status_filter": "active"},
+                {"limit": 0},
+                {"limit": 101},
+                {"offset": -1},
+            ):
+                try:
+                    list_projects(db, **kwargs)
+                except ProjectValidationError:
+                    pass
+                else:
+                    fail(f"Project list accepted invalid arguments: {kwargs}")
+
+            transient = create_project(
+                db,
+                ProjectCreateRequest(
+                    name="Transient Project",
+                    items=[
+                        ProjectItemCreateRequest(
+                            part_id=part_ids[0],
+                            quantity=1,
+                        )
+                    ],
+                ),
+                commit=False,
+            )
+            transient_id = transient.id
+            db.rollback()
+        with db_session() as db:
+            if db.execute(
+                text("select count(*) from projects where id=:id"),
+                {"id": transient_id},
+            ).scalar() != 0:
+                fail("commit=False Project creation persisted after rollback")
+
+    finally:
+        cleanup()
+
+    ok(
+        "Project schemas and read/create service normalise Draft items, snapshot totals, audit once, and preserve inventory"
+    )
+
+
+# PARTPILOT:PROJECT_READ_CREATE_API_SMOKE:V374
+def check_project_read_create_api() -> None:
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_project_api_{suffix}"
+    password = "project-api-smoke-password"
+    part_numbers = [
+        f"SMOKE-PROJECT-API-A-{suffix}",
+        f"SMOKE-PROJECT-API-B-{suffix}",
+    ]
+    part_ids: list[int] = []
+    project_ids: list[int] = []
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if project_ids:
+                placeholders = ", ".join(
+                    f":project_id_{index}"
+                    for index, _value in enumerate(project_ids)
+                )
+                parameters = {
+                    f"project_id_{index}": value
+                    for index, value in enumerate(project_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'project' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from project_items "
+                        f"where project_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from projects "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+
+            if part_ids:
+                placeholders = ", ".join(
+                    f":part_id_{index}"
+                    for index, _value in enumerate(part_ids)
+                )
+                parameters = {
+                    f"part_id_{index}": value
+                    for index, value in enumerate(part_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where part_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where entity_type = 'part' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from parts "
+                        f"where id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username = :username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+
+    try:
+        openapi_response = client.get("/openapi.json")
+        if openapi_response.status_code != 200:
+            fail(
+                "Projects OpenAPI lookup failed: "
+                f"{openapi_response.status_code}: {openapi_response.text}"
+            )
+        paths = openapi_response.json().get("paths", {})
+        if set(paths.get("/api/projects", {})) != {"get", "post"}:
+            fail(
+                "Projects collection OpenAPI methods are incorrect: "
+                f"{paths.get('/api/projects')}"
+            )
+        if set(paths.get("/api/projects/{project_id}", {})) != {"get", "put"}:
+            fail(
+                "Project detail OpenAPI methods are incorrect: "
+                f"{paths.get('/api/projects/{project_id}')}"
+            )
+
+        for method, path, payload in (
+            ("get", "/api/projects", None),
+            ("get", "/api/projects/999999999", None),
+            (
+                "post",
+                "/api/projects",
+                {
+                    "name": "Unauthenticated Project",
+                    "items": [{"part_id": 1, "quantity": 1}],
+                },
+            ),
+        ):
+            response = getattr(client, method)(
+                path,
+                **({"json": payload} if payload is not None else {}),
+            )
+            if response.status_code != 401:
+                fail(
+                    f"{method.upper()} {path} should require "
+                    f"authentication, got {response.status_code}"
+                )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types "
+                    "where is_active = 1 order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail("Project API smoke requires an active part type")
+
+            user = create_user(
+                db,
+                username=username,
+                display_name="Project API Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+            fixtures = [
+                Part(
+                    part_type_id=int(part_type_id),
+                    part_number=part_numbers[0],
+                    name="Project API smoke part A",
+                    total_quantity=2,
+                    reserved_quantity=0,
+                    unit_price=Decimal("2.5000"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    part_number=part_numbers[1],
+                    name="Project API smoke part B",
+                    total_quantity=0,
+                    reserved_quantity=0,
+                    unit_price=Decimal("1.2500"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+            ]
+            db.add_all(fixtures)
+            db.commit()
+            for part in fixtures:
+                db.refresh(part)
+                part_ids.append(part.id)
+
+            inventory_before = {
+                row["id"]: (
+                    int(row["total_quantity"]),
+                    int(row["reserved_quantity"]),
+                    row["updated_at"],
+                )
+                for row in db.execute(
+                    text(
+                        "select id,total_quantity,reserved_quantity,updated_at "
+                        "from parts where id in (:a,:b)"
+                    ),
+                    {"a": part_ids[0], "b": part_ids[1]},
+                ).mappings()
+            }
+            lifecycle_before = {
+                "reservations": int(
+                    db.execute(text("select count(*) from reservations")).scalar()
+                    or 0
+                ),
+                "reservation_items": int(
+                    db.execute(
+                        text("select count(*) from reservation_items")
+                    ).scalar()
+                    or 0
+                ),
+                "stock_movements": int(
+                    db.execute(
+                        text("select count(*) from stock_movements")
+                    ).scalar()
+                    or 0
+                ),
+            }
+            existing_drafts = int(
+                db.execute(
+                    text("select count(*) from projects where status = 'draft'")
+                ).scalar()
+                or 0
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}"
+        }
+        requests = [
+            {
+                "name": "  First API Project  ",
+                "description": "  Existing-data-safe first Draft  ",
+                "notes": "  First note  ",
+                "items": [
+                    {
+                        "part_id": part_ids[0],
+                        "quantity": 1,
+                        "note": "Primary",
+                    },
+                    {
+                        "part_id": part_ids[0],
+                        "quantity": 2,
+                        "note": "Primary",
+                    },
+                ],
+            },
+            {
+                "name": "Second API Project",
+                "items": [
+                    {
+                        "part_id": part_ids[1],
+                        "quantity": 5,
+                    }
+                ],
+            },
+        ]
+        created_payloads: list[dict[str, object]] = []
+        for request_payload in requests:
+            response = client.post(
+                "/api/projects",
+                headers=headers,
+                json=request_payload,
+            )
+            if response.status_code != 201:
+                fail(
+                    "POST /api/projects returned "
+                    f"{response.status_code}: {response.text}"
+                )
+            payload = response.json()
+            project_id = int(payload["id"])
+            project_ids.append(project_id)
+            created_payloads.append(payload)
+
+        first_payload, second_payload = created_payloads
+        first_id, second_id = project_ids
+        if (
+            first_payload.get("name") != "First API Project"
+            or first_payload.get("description")
+            != "Existing-data-safe first Draft"
+            or first_payload.get("notes") != "First note"
+            or first_payload.get("status") != "draft"
+            or first_payload.get("item_count") != 1
+            or first_payload.get("total_units") != 3
+            or len(first_payload.get("items", [])) != 1
+            or first_payload["items"][0].get("quantity") != 3
+        ):
+            fail(f"First Project API payload is incorrect: {first_payload}")
+        if (
+            second_payload.get("status") != "draft"
+            or second_payload.get("item_count") != 1
+            or second_payload.get("total_units") != 5
+            or second_payload["items"][0].get("available_quantity") != 0
+        ):
+            fail(f"Second Project API payload is incorrect: {second_payload}")
+
+        with db_session() as db:
+            db.execute(
+                text(
+                    "update projects set created_at = :created_at, "
+                    "updated_at = :created_at where id = :project_id"
+                ),
+                {
+                    "created_at": "2099-01-01 00:00:01.000000",
+                    "project_id": first_id,
+                },
+            )
+            db.execute(
+                text(
+                    "update projects set created_at = :created_at, "
+                    "updated_at = :created_at where id = :project_id"
+                ),
+                {
+                    "created_at": "2099-01-01 00:00:02.000000",
+                    "project_id": second_id,
+                },
+            )
+            db.commit()
+
+        first_page = client.get(
+            "/api/projects",
+            headers=headers,
+            params={"status": "draft", "limit": 1, "offset": 0},
+        )
+        if first_page.status_code != 200:
+            fail(
+                "GET /api/projects first page returned "
+                f"{first_page.status_code}: {first_page.text}"
+            )
+        first_page_json = first_page.json()
+        first_page_projects = first_page_json.get("projects", [])
+        if (
+            first_page_json.get("total") != existing_drafts + 2
+            or first_page_json.get("limit") != 1
+            or first_page_json.get("offset") != 0
+            or len(first_page_projects) != 1
+            or int(first_page_projects[0]["id"]) != second_id
+        ):
+            fail(
+                "Project list ordering or first-page metadata is incorrect: "
+                f"{first_page_json}"
+            )
+
+        second_page = client.get(
+            "/api/projects",
+            headers=headers,
+            params={"status": "draft", "limit": 1, "offset": 1},
+        )
+        if second_page.status_code != 200:
+            fail(
+                "GET /api/projects second page returned "
+                f"{second_page.status_code}: {second_page.text}"
+            )
+        second_page_json = second_page.json()
+        second_page_projects = second_page_json.get("projects", [])
+        if (
+            second_page_json.get("total") != existing_drafts + 2
+            or second_page_json.get("offset") != 1
+            or len(second_page_projects) != 1
+            or int(second_page_projects[0]["id"]) != first_id
+        ):
+            fail(
+                "Project list pagination is incorrect: "
+                f"{second_page_json}"
+            )
+
+        detail_response = client.get(
+            f"/api/projects/{first_id}",
+            headers=headers,
+        )
+        if detail_response.status_code != 200:
+            fail(
+                "GET /api/projects/{id} returned "
+                f"{detail_response.status_code}: {detail_response.text}"
+            )
+        detail_json = detail_response.json()
+        if (
+            int(detail_json.get("id", 0)) != first_id
+            or detail_json.get("name") != "First API Project"
+            or detail_json.get("item_count") != 1
+            or detail_json.get("total_units") != 3
+        ):
+            fail(f"Project detail response is incorrect: {detail_json}")
+
+        missing_response = client.get(
+            f"/api/projects/{second_id + 999999}",
+            headers=headers,
+        )
+        if missing_response.status_code != 404:
+            fail(
+                "Missing Project detail should return 404, got "
+                f"{missing_response.status_code}: {missing_response.text}"
+            )
+
+        for params in (
+            {"status": "active"},
+            {"limit": 0},
+            {"limit": 101},
+            {"offset": -1},
+        ):
+            invalid_list = client.get(
+                "/api/projects",
+                headers=headers,
+                params=params,
+            )
+            if invalid_list.status_code != 422:
+                fail(
+                    "Invalid Project list parameters should return 422: "
+                    f"params={params}, status={invalid_list.status_code}, "
+                    f"body={invalid_list.text}"
+                )
+
+        invalid_quantity = client.post(
+            "/api/projects",
+            headers=headers,
+            json={
+                "name": "Invalid quantity Project",
+                "items": [{"part_id": part_ids[0], "quantity": 0}],
+            },
+        )
+        if invalid_quantity.status_code != 422:
+            fail(
+                "Invalid Project quantity should return 422, got "
+                f"{invalid_quantity.status_code}: {invalid_quantity.text}"
+            )
+
+        missing_part = client.post(
+            "/api/projects",
+            headers=headers,
+            json={
+                "name": "Missing part Project",
+                "items": [
+                    {
+                        "part_id": max(part_ids) + 999999,
+                        "quantity": 1,
+                    }
+                ],
+            },
+        )
+        if missing_part.status_code != 422:
+            fail(
+                "Missing Project part should return 422, got "
+                f"{missing_part.status_code}: {missing_part.text}"
+            )
+
+        conflicting_notes = client.post(
+            "/api/projects",
+            headers=headers,
+            json={
+                "name": "Conflicting notes Project",
+                "items": [
+                    {
+                        "part_id": part_ids[0],
+                        "quantity": 1,
+                        "note": "First",
+                    },
+                    {
+                        "part_id": part_ids[0],
+                        "quantity": 1,
+                        "note": "Second",
+                    },
+                ],
+            },
+        )
+        if conflicting_notes.status_code != 422:
+            fail(
+                "Conflicting duplicate Project notes should return 422, got "
+                f"{conflicting_notes.status_code}: {conflicting_notes.text}"
+            )
+
+        with db_session() as db:
+            inventory_after = {
+                row["id"]: (
+                    int(row["total_quantity"]),
+                    int(row["reserved_quantity"]),
+                    row["updated_at"],
+                )
+                for row in db.execute(
+                    text(
+                        "select id,total_quantity,reserved_quantity,updated_at "
+                        "from parts where id in (:a,:b)"
+                    ),
+                    {"a": part_ids[0], "b": part_ids[1]},
+                ).mappings()
+            }
+            if inventory_after != inventory_before:
+                fail(
+                    "Project API changed fixture inventory: "
+                    f"before={inventory_before}, after={inventory_after}"
+                )
+
+            lifecycle_after = {
+                "reservations": int(
+                    db.execute(text("select count(*) from reservations")).scalar()
+                    or 0
+                ),
+                "reservation_items": int(
+                    db.execute(
+                        text("select count(*) from reservation_items")
+                    ).scalar()
+                    or 0
+                ),
+                "stock_movements": int(
+                    db.execute(
+                        text("select count(*) from stock_movements")
+                    ).scalar()
+                    or 0
+                ),
+            }
+            if lifecycle_after != lifecycle_before:
+                fail(
+                    "Project API created inventory lifecycle rows: "
+                    f"before={lifecycle_before}, after={lifecycle_after}"
+                )
+
+            counts = {
+                "projects": int(
+                    db.execute(
+                        text(
+                            "select count(*) from projects "
+                            "where id in (:first_id,:second_id)"
+                        ),
+                        {"first_id": first_id, "second_id": second_id},
+                    ).scalar()
+                    or 0
+                ),
+                "items": int(
+                    db.execute(
+                        text(
+                            "select count(*) from project_items "
+                            "where project_id in (:first_id,:second_id)"
+                        ),
+                        {"first_id": first_id, "second_id": second_id},
+                    ).scalar()
+                    or 0
+                ),
+                "audits": int(
+                    db.execute(
+                        text(
+                            "select count(*) from audit_log "
+                            "where event_type = 'project.created' "
+                            "and entity_type = 'project' "
+                            "and entity_id in (:first_id,:second_id) "
+                            "and actor_type = 'user' "
+                            "and actor_user_id = :user_id"
+                        ),
+                        {
+                            "first_id": first_id,
+                            "second_id": second_id,
+                            "user_id": user_id,
+                        },
+                    ).scalar()
+                    or 0
+                ),
+            }
+            if counts != {"projects": 2, "items": 2, "audits": 2}:
+                fail(
+                    "Project API persistence or actor audit counts are "
+                    f"incorrect: {counts}"
+                )
+    finally:
+        cleanup()
+
+    ok(
+        "Protected Project list, detail, and Draft creation APIs enforce "
+        "authentication, OpenAPI registration, ordering, pagination, "
+        "validation, actor audits, inventory neutrality, and exact cleanup"
+    )
+
+# PARTPILOT:PROJECT_DRAFT_UPDATE_API_SMOKE:V379
+def check_project_draft_update_api() -> None:
+    from decimal import Decimal
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import Part
+    from app.services.auth import create_session, create_user
+
+    suffix = uuid4().hex[:12]
+    username = f"smoke_project_update_{suffix}"
+    password = "project-update-smoke-password"
+    part_numbers = [
+        f"SMOKE-PROJECT-UPDATE-A-{suffix}",
+        f"SMOKE-PROJECT-UPDATE-B-{suffix}",
+        f"SMOKE-PROJECT-UPDATE-C-{suffix}",
+    ]
+    part_ids: list[int] = []
+    project_id: int | None = None
+    user_id: int | None = None
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if project_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log where entity_type='project' "
+                        "and entity_id=:project_id"
+                    ),
+                    {"project_id": project_id},
+                )
+                db.execute(
+                    text("delete from project_items where project_id=:project_id"),
+                    {"project_id": project_id},
+                )
+                db.execute(
+                    text("delete from projects where id=:project_id"),
+                    {"project_id": project_id},
+                )
+            if part_ids:
+                placeholders = ", ".join(
+                    f":part_id_{index}"
+                    for index, _value in enumerate(part_ids)
+                )
+                parameters = {
+                    f"part_id_{index}": value
+                    for index, value in enumerate(part_ids)
+                }
+                db.execute(
+                    text(
+                        "delete from stock_movements "
+                        f"where part_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(
+                        "delete from audit_log where entity_type='part' "
+                        f"and entity_id in ({placeholders})"
+                    ),
+                    parameters,
+                )
+                db.execute(
+                    text(f"delete from parts where id in ({placeholders})"),
+                    parameters,
+                )
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users where username=:username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text("delete from users where username=:username"),
+                {"username": username},
+            )
+            db.commit()
+
+    cleanup()
+    client = TestClient(fastapi_app)
+    try:
+        paths = client.get("/openapi.json").json().get("paths", {})
+        if set(paths.get("/api/projects/{project_id}", {})) != {"get", "put"}:
+            fail(
+                "Project detail OpenAPI methods are incorrect after update: "
+                f"{paths.get('/api/projects/{project_id}')}"
+            )
+        unauthenticated = client.put(
+            "/api/projects/999999999",
+            json={
+                "name": "Unauthenticated Project update",
+                "items": [{"part_id": 1, "quantity": 1}],
+            },
+        )
+        if unauthenticated.status_code != 401:
+            fail(
+                "Unauthenticated Project update should return 401, got "
+                f"{unauthenticated.status_code}"
+            )
+
+        with db_session() as db:
+            part_type_id = db.execute(
+                text(
+                    "select id from part_types where is_active=1 "
+                    "order by id limit 1"
+                )
+            ).scalar()
+            if part_type_id is None:
+                fail("Project update smoke requires an active part type")
+            user = create_user(
+                db,
+                username=username,
+                display_name="Project Update Smoke User",
+                password=password,
+                commit=True,
+            )
+            user_id = user.id
+            session_token = create_session(db, user=user, commit=True)
+            fixtures = [
+                Part(
+                    part_type_id=int(part_type_id),
+                    part_number=part_numbers[0],
+                    name="Project update part A",
+                    total_quantity=4,
+                    reserved_quantity=0,
+                    unit_price=Decimal("2.0000"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    part_number=part_numbers[1],
+                    name="Project update part B",
+                    total_quantity=1,
+                    reserved_quantity=0,
+                    unit_price=Decimal("3.5000"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+                Part(
+                    part_type_id=int(part_type_id),
+                    part_number=part_numbers[2],
+                    name="Project update part C",
+                    total_quantity=0,
+                    reserved_quantity=0,
+                    unit_price=Decimal("1.2500"),
+                    is_deleted=False,
+                    deleted_at=None,
+                ),
+            ]
+            db.add_all(fixtures)
+            db.commit()
+            for part in fixtures:
+                db.refresh(part)
+                part_ids.append(part.id)
+            inventory_before = {
+                row["id"]: (
+                    int(row["total_quantity"]),
+                    int(row["reserved_quantity"]),
+                    row["updated_at"],
+                )
+                for row in db.execute(
+                    text(
+                        "select id,total_quantity,reserved_quantity,updated_at "
+                        "from parts where id in (:a,:b,:c)"
+                    ),
+                    {"a": part_ids[0], "b": part_ids[1], "c": part_ids[2]},
+                ).mappings()
+            }
+            lifecycle_before = {
+                "reservations": int(db.execute(text("select count(*) from reservations")).scalar() or 0),
+                "reservation_items": int(db.execute(text("select count(*) from reservation_items")).scalar() or 0),
+                "stock_movements": int(db.execute(text("select count(*) from stock_movements")).scalar() or 0),
+            }
+
+        headers = {"Authorization": f"Bearer {session_token.token}"}
+        created = client.post(
+            "/api/projects",
+            headers=headers,
+            json={
+                "name": "Project update original",
+                "description": "Original description",
+                "notes": "Original notes",
+                "items": [
+                    {"part_id": part_ids[0], "quantity": 2, "note": "Keep"},
+                    {"part_id": part_ids[1], "quantity": 1, "note": "Remove"},
+                ],
+            },
+        )
+        if created.status_code != 201:
+            fail(f"Project update fixture creation failed: {created.status_code}: {created.text}")
+        created_body = created.json()
+        project_id = int(created_body["id"])
+        retained_id = next(
+            int(item["id"])
+            for item in created_body["items"]
+            if int(item["part_id"]) == part_ids[0]
+        )
+
+        missing = client.put(
+            "/api/projects/999999999",
+            headers=headers,
+            json={
+                "name": "Missing Project",
+                "items": [{"part_id": part_ids[0], "quantity": 1}],
+            },
+        )
+        if missing.status_code != 404:
+            fail(f"Missing Project update should return 404, got {missing.status_code}")
+
+        updated = client.put(
+            f"/api/projects/{project_id}",
+            headers=headers,
+            json={
+                "name": "  Project update revised  ",
+                "description": "  Revised description  ",
+                "notes": "  Revised notes  ",
+                "items": [
+                    {"part_id": part_ids[0], "quantity": 3, "note": "  Keep revised  "},
+                    {"part_id": part_ids[2], "quantity": 2, "note": "  Add  "},
+                    {"part_id": part_ids[2], "quantity": 1, "note": "Add"},
+                ],
+            },
+        )
+        if updated.status_code != 200:
+            fail(f"Draft Project update failed: {updated.status_code}: {updated.text}")
+        body = updated.json()
+        if (
+            body["name"] != "Project update revised"
+            or body["description"] != "Revised description"
+            or body["notes"] != "Revised notes"
+            or body["status"] != "draft"
+            or body["item_count"] != 2
+            or body["total_units"] != 6
+            or Decimal(str(body["estimated_total_value"])) != Decimal("9.7500")
+        ):
+            fail(f"Updated Project response is incorrect: {body}")
+        by_part = {int(item["part_id"]): item for item in body["items"]}
+        if set(by_part) != {part_ids[0], part_ids[2]}:
+            fail(f"Project item reconciliation is incorrect: {by_part}")
+        if int(by_part[part_ids[0]]["id"]) != retained_id:
+            fail("Retained Project item did not preserve its row identity")
+        if int(by_part[part_ids[2]]["quantity"]) != 3:
+            fail("Duplicate submitted Project items were not normalised")
+
+        with db_session() as db:
+            audit_before_noop = int(
+                db.execute(
+                    text(
+                        "select count(*) from audit_log where entity_type='project' "
+                        "and entity_id=:project_id and event_type='project.updated'"
+                    ),
+                    {"project_id": project_id},
+                ).scalar() or 0
+            )
+            updated_at_before_noop = db.execute(
+                text("select updated_at from projects where id=:project_id"),
+                {"project_id": project_id},
+            ).scalar()
+            audit = db.execute(
+                text(
+                    "select actor_type,actor_user_id,before_json,after_json "
+                    "from audit_log where entity_type='project' "
+                    "and entity_id=:project_id and event_type='project.updated'"
+                ),
+                {"project_id": project_id},
+            ).mappings().one()
+            if audit["actor_type"] != "user" or int(audit["actor_user_id"]) != user_id:
+                fail(f"Project update actor audit is incorrect: {audit}")
+            if not audit["before_json"] or not audit["after_json"]:
+                fail("Project update audit snapshots are missing")
+
+        noop_payload = {
+            "name": "Project update revised",
+            "description": "Revised description",
+            "notes": "Revised notes",
+            "items": [
+                {"part_id": part_ids[0], "quantity": 3, "note": "Keep revised"},
+                {"part_id": part_ids[2], "quantity": 3, "note": "Add"},
+            ],
+        }
+        noop = client.put(
+            f"/api/projects/{project_id}",
+            headers=headers,
+            json=noop_payload,
+        )
+        if noop.status_code != 200:
+            fail(f"No-op Project update failed: {noop.status_code}: {noop.text}")
+        with db_session() as db:
+            audit_after_noop = int(
+                db.execute(
+                    text(
+                        "select count(*) from audit_log where entity_type='project' "
+                        "and entity_id=:project_id and event_type='project.updated'"
+                    ),
+                    {"project_id": project_id},
+                ).scalar() or 0
+            )
+            updated_at_after_noop = db.execute(
+                text("select updated_at from projects where id=:project_id"),
+                {"project_id": project_id},
+            ).scalar()
+            if audit_after_noop != audit_before_noop or updated_at_after_noop != updated_at_before_noop:
+                fail("No-op Project update changed persistence or audit state")
+
+            db.execute(
+                text("update projects set status='reserved' where id=:project_id"),
+                {"project_id": project_id},
+            )
+            db.commit()
+        conflict = client.put(
+            f"/api/projects/{project_id}",
+            headers=headers,
+            json=noop_payload,
+        )
+        if conflict.status_code != 409:
+            fail(f"Non-Draft Project update should return 409, got {conflict.status_code}")
+        with db_session() as db:
+            db.execute(
+                text("update projects set status='draft' where id=:project_id"),
+                {"project_id": project_id},
+            )
+            db.commit()
+
+        invalid = client.put(
+            f"/api/projects/{project_id}",
+            headers=headers,
+            json={
+                "name": "Invalid part update",
+                "items": [{"part_id": 999999999, "quantity": 1}],
+            },
+        )
+        if invalid.status_code != 422:
+            fail(f"Invalid Project part should return 422, got {invalid.status_code}")
+
+        with db_session() as db:
+            inventory_after = {
+                row["id"]: (
+                    int(row["total_quantity"]),
+                    int(row["reserved_quantity"]),
+                    row["updated_at"],
+                )
+                for row in db.execute(
+                    text(
+                        "select id,total_quantity,reserved_quantity,updated_at "
+                        "from parts where id in (:a,:b,:c)"
+                    ),
+                    {"a": part_ids[0], "b": part_ids[1], "c": part_ids[2]},
+                ).mappings()
+            }
+            lifecycle_after = {
+                "reservations": int(db.execute(text("select count(*) from reservations")).scalar() or 0),
+                "reservation_items": int(db.execute(text("select count(*) from reservation_items")).scalar() or 0),
+                "stock_movements": int(db.execute(text("select count(*) from stock_movements")).scalar() or 0),
+            }
+            if inventory_after != inventory_before:
+                fail("Project update changed inventory rows")
+            if lifecycle_after != lifecycle_before:
+                fail("Project update changed reservation or movement counts")
+    finally:
+        cleanup()
+
+    ok(
+        "Draft Project updates are authenticated, reconciled, snapshot-aware, "
+        "no-op safe, status-guarded, audited once, and inventory-neutral"
+    )
+
+
 def check_reservation_creation_service() -> None:
     from datetime import datetime, timedelta, timezone
     from decimal import Decimal
@@ -11530,6 +12887,234 @@ def check_universal_part_search_api() -> None:
         "sortable columns"
     )
 
+# PARTPILOT:PROJECT_RESERVATION_SMOKE:V383
+def check_project_reservation_api() -> None:
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import func, select
+
+    from app.db.constants import (
+        MOVEMENT_TYPE_RESERVE,
+        PROJECT_STATUS_DRAFT,
+        PROJECT_STATUS_RESERVED,
+        RESERVATION_STATUS_ACTIVE,
+    )
+    from app.db.session import SessionLocal
+    from app.main import app
+    from app.models import (
+        AuditLog,
+        Part,
+        PartType,
+        Project,
+        ProjectItem,
+        Reservation,
+        ReservationItem,
+        StockMovement,
+    )
+    from app.services.projects import (
+        ProjectConflictError,
+        reserve_project,
+    )
+
+    client = TestClient(app)
+    unauthenticated = client.post("/api/projects/999999999/reserve")
+    if unauthenticated.status_code not in (401, 403):
+        fail(
+            "Unauthenticated Project reservation should return 401/403, got "
+            f"{unauthenticated.status_code}: {unauthenticated.text}"
+        )
+
+    openapi = client.get("/openapi.json")
+    reserve_methods = set(
+        openapi.json()
+        .get("paths", {})
+        .get("/api/projects/{project_id}/reserve", {})
+    )
+    if openapi.status_code != 200 or reserve_methods != {"post"}:
+        fail(
+            "Project reservation OpenAPI contract is incorrect: "
+            f"{openapi.status_code}, {sorted(reserve_methods)}"
+        )
+
+    db = SessionLocal()
+    suffix = uuid4().hex[:12]
+    try:
+        part_type_id = db.execute(
+            select(PartType.id)
+            .where(PartType.is_active.is_(True))
+            .order_by(PartType.id.asc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if part_type_id is None:
+            fail("Project reservation smoke requires an active part type")
+
+        part = Part(
+            part_type_id=part_type_id,
+            part_number=f"PP383-{suffix}",
+            name=f"Project reservation smoke {suffix}",
+            total_quantity=5,
+            reserved_quantity=1,
+            unit_price=Decimal("2.5000"),
+            is_deleted=False,
+        )
+        project = Project(
+            name=f"Project reservation {suffix}",
+            description="Atomic Project reservation smoke fixture",
+            status=PROJECT_STATUS_DRAFT,
+            notes="Preserve Project item notes",
+            created_by="manual",
+            estimated_total_value=Decimal("5.0000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([part, project])
+        db.flush()
+        project_item = ProjectItem(
+            project_id=project.id,
+            part_id=part.id,
+            quantity=2,
+            unit_price_snapshot=Decimal("2.5000"),
+            currency_snapshot="USD",
+            note="Reserve this exact Project quantity",
+        )
+        db.add(project_item)
+        db.flush()
+
+        total_before = int(part.total_quantity)
+        reserved_before = int(part.reserved_quantity)
+        response = reserve_project(
+            db,
+            project.id,
+            actor_user_id=None,
+            commit=False,
+        )
+        db.flush()
+
+        if response.status != PROJECT_STATUS_RESERVED:
+            fail(f"Project reserve response status is incorrect: {response}")
+        if project.status != PROJECT_STATUS_RESERVED:
+            fail("Project persistence did not transition to reserved")
+        if int(part.total_quantity) != total_before:
+            fail("Project reservation changed physical total quantity")
+        if int(part.reserved_quantity) != reserved_before + 2:
+            fail("Project reservation did not increment reserved quantity")
+
+        reservation = db.execute(
+            select(Reservation).where(Reservation.project_id == project.id)
+        ).scalar_one_or_none()
+        if reservation is None:
+            fail("Project reservation did not create a linked Reservation")
+        if reservation.status != RESERVATION_STATUS_ACTIVE:
+            fail(f"Linked Reservation status is incorrect: {reservation.status}")
+
+        reservation_item = db.execute(
+            select(ReservationItem).where(
+                ReservationItem.reservation_id == reservation.id
+            )
+        ).scalar_one_or_none()
+        if (
+            reservation_item is None
+            or reservation_item.part_id != part.id
+            or int(reservation_item.quantity) != 2
+            or reservation_item.note != project_item.note
+        ):
+            fail("Linked Reservation item did not preserve the Project plan")
+
+        movement = db.execute(
+            select(StockMovement).where(
+                StockMovement.reservation_id == reservation.id
+            )
+        ).scalar_one_or_none()
+        if (
+            movement is None
+            or movement.movement_type != MOVEMENT_TYPE_RESERVE
+            or movement.quantity_delta != 0
+            or movement.quantity_before != total_before
+            or movement.quantity_after != total_before
+            or movement.reserved_quantity_before != reserved_before
+            or movement.reserved_quantity_after != reserved_before + 2
+        ):
+            fail(f"Project reserve movement is incorrect: {movement}")
+
+        project_audits = int(
+            db.execute(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(
+                    AuditLog.event_type == "project.reserved",
+                    AuditLog.entity_type == "project",
+                    AuditLog.entity_id == project.id,
+                )
+            ).scalar_one()
+        )
+        reservation_audits = int(
+            db.execute(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(
+                    AuditLog.event_type == "reservation.created",
+                    AuditLog.entity_type == "reservation",
+                    AuditLog.entity_id == reservation.id,
+                )
+            ).scalar_one()
+        )
+        if project_audits != 1 or reservation_audits != 1:
+            fail(
+                "Project reservation did not create exactly one Project and "
+                "one Reservation audit"
+            )
+
+        db.rollback()
+
+        conflict_part = Part(
+            part_type_id=part_type_id,
+            part_number=f"PP383-CONFLICT-{suffix}",
+            name=f"Project reservation conflict {suffix}",
+            total_quantity=1,
+            reserved_quantity=1,
+            unit_price=Decimal("1.0000"),
+            is_deleted=False,
+        )
+        conflict_project = Project(
+            name=f"Project reservation conflict {suffix}",
+            status=PROJECT_STATUS_DRAFT,
+            created_by="manual",
+            estimated_total_value=Decimal("1.0000"),
+            currency_snapshot="USD",
+        )
+        db.add_all([conflict_part, conflict_project])
+        db.flush()
+        db.add(
+            ProjectItem(
+                project_id=conflict_project.id,
+                part_id=conflict_part.id,
+                quantity=1,
+                unit_price_snapshot=Decimal("1.0000"),
+                currency_snapshot="USD",
+            )
+        )
+        db.flush()
+        try:
+            reserve_project(
+                db,
+                conflict_project.id,
+                actor_user_id=None,
+                commit=False,
+            )
+        except ProjectConflictError:
+            pass
+        else:
+            fail("Project reservation accepted insufficient available stock")
+        db.rollback()
+    finally:
+        db.close()
+
+    ok(
+        "Draft Projects reserve atomically through linked Reservations, "
+        "stock movements, audits, status guards, and inventory-safe rollback"
+    )
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -11540,6 +13125,10 @@ def main() -> None:
         check_valid_part_insert_rolls_back,
         check_backend_db_helpers,
         check_projects_contract_schema,
+        check_project_creation_service,
+        check_project_read_create_api,
+        check_project_draft_update_api,
+        check_project_reservation_api,
         check_reservation_contract_schema,
         check_reservation_creation_service,
         check_reservation_read_create_api,

@@ -7,6 +7,7 @@ import { Dashboard } from "../pages/Dashboard";
 import { Inventory } from "../pages/Inventory";
 import { PartManager } from "../pages/PartManager";
 import { PlaceholderPage } from "../pages/PlaceholderPage";
+import { Projects } from "../pages/Projects";
 import { SetupPreferencesScreen } from "../pages/SetupPreferencesScreen";
 import { Settings } from "../pages/Settings";
 import { Reservations } from "../pages/Reservations";
@@ -46,10 +47,7 @@ function AppRoutes() {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/inventory" element={<Inventory />} />
-        <Route
-          path="/projects"
-          element={<PlaceholderPage title="Projects" />}
-        />
+        <Route path="/projects" element={<Projects />} />
         <Route path="/reservations" element={<Reservations />} />
         <Route
           path="/history"

@@ -1395,3 +1395,51 @@
     width: 100%;
   }
 }
+/* PARTPILOT:PROJECT_DERIVED_RESERVATIONS_STYLES:V386 */
+.reservations-header > a.reservations-button {
+  text-decoration: none;
+}
+
+.reservation-part-picker {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.reservation-part-results {
+  max-height: 280px;
+  margin-top: 0;
+}
+
+.reservation-part-search-hint {
+  display: block;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.reservation-part-results-summary {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--sidebar);
+}
+
+.reservation-part-results-summary strong,
+.reservation-part-results-summary small {
+  display: block;
+}
+
+.reservation-part-results-summary strong {
+  font-size: 0.76rem;
+}
+
+.reservation-part-results-summary small {
+  color: var(--muted);
+  font-size: 0.69rem;
+}
