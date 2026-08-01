@@ -56,7 +56,11 @@ from app.api.routes.projects import router as projects_router
 from app.api.routes.history import router as history_router
 # PARTPILOT:BACKUP_DOWNLOAD_ROUTER:V434
 from app.api.routes.backups import router as backups_router
+# PARTPILOT:RESTORE_VALIDATION_ROUTER:V438
+from app.api.routes.restores import router as restores_router
 from app.core.config import get_settings
+# PARTPILOT:RESTORE_UPLOAD_LIMIT:V438
+from app.core.upload_limits import RestoreUploadLimitMiddleware
 # PARTPILOT:APPLICATION_LIFECYCLE:V436
 from app.core.lifecycle import (
     LifecycleRequestMiddleware,
@@ -99,6 +103,9 @@ app.add_middleware(
     LifecycleRequestMiddleware,
     state=application_lifecycle,
 )
+app.add_middleware(
+    RestoreUploadLimitMiddleware,
+)
 
 # Root health check required by Phase 1 completion criteria.
 app.include_router(health_router)
@@ -129,6 +136,8 @@ app.include_router(projects_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 # PARTPILOT:BACKUP_DOWNLOAD_ROUTER:V434
 app.include_router(backups_router, prefix="/api")
+# PARTPILOT:RESTORE_VALIDATION_ROUTER:V438
+app.include_router(restores_router, prefix="/api")
 
 frontend_dist = Path("/app/frontend_dist")
 if frontend_dist.exists():
