@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useMemo,
   useState
 } from "react";
 
@@ -55,7 +54,6 @@ export function Settings() {
   const { token } = useAuth();
   const {
     theme,
-    resolvedTheme,
     lightThemeAvailable,
     isLoading: appearanceLoading,
     isSaving: appearanceSaving,
@@ -115,13 +113,6 @@ export function Settings() {
       Number(reservationDraft.default_days) > 3650)
       ? "Enter a whole number from 1 to 3650 days."
       : null;
-
-  const appearanceSummary = useMemo(() => {
-    if (theme === "system") {
-      return `Following system · ${resolvedTheme} mode active`;
-    }
-    return `${theme === "dark" ? "Dark" : "Light"} mode active`;
-  }, [resolvedTheme, theme]);
 
   useEffect(() => {
     if (!token) {
@@ -378,6 +369,7 @@ export function Settings() {
       data-search-settings-version="search-settings-toggle-v194"
       data-reservation-settings-version="reservation-expiry-settings-v362"
       data-partpilot-appearance="PARTPILOT:SETTINGS_APPEARANCE_WORKSPACE:V412"
+      data-partpilot-runtime-badge="PARTPILOT:SETTINGS_RUNTIME_BADGE_REMOVED:V428"
     >
       <header className="page-header settings-page-header">
         <div>
@@ -388,10 +380,6 @@ export function Settings() {
             and local data controls for this installation.
           </p>
         </div>
-        <span className="settings-runtime-status">
-          <span aria-hidden="true" />
-          {appearanceSummary}
-        </span>
       </header>
 
       <nav

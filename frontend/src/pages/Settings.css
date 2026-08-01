@@ -17,7 +17,6 @@
   min-width: 0;
 }
 
-.settings-runtime-status,
 .settings-danger-badge {
   display: inline-flex;
   flex: 0 0 auto;
@@ -31,14 +30,6 @@
   font-size: 0.72rem;
   font-weight: 720;
   white-space: nowrap;
-}
-
-.settings-runtime-status > span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .settings-section-nav {
