@@ -18,7 +18,6 @@
 }
 
 .settings-runtime-status,
-.settings-current-mode,
 .settings-danger-badge {
   display: inline-flex;
   flex: 0 0 auto;
@@ -108,11 +107,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   align-items: start;
-}
-
-.settings-current-mode strong {
-  color: var(--text);
-  text-transform: capitalize;
 }
 
 .settings-theme-options {
@@ -753,7 +747,6 @@
     flex-direction: column;
   }
 
-  .settings-current-mode,
   .settings-danger-badge {
     align-self: flex-start;
   }
@@ -944,5 +937,243 @@
 
   .settings-danger-launch {
     width: 100%;
+  }
+}
+
+/* PARTPILOT:COMPACT_OUT_OF_STOCK_PREFERENCE_STYLES:V418 */
+.settings-page {
+  --partpilot-compact-search-preference-v418: 1;
+}
+
+.settings-content-grid {
+  align-items: start;
+}
+
+.settings-content-grid > .settings-section,
+.settings-content-grid > .settings-search-compact {
+  height: auto;
+}
+
+.settings-search-compact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 14px 15px;
+  scroll-margin-top: 20px;
+}
+
+.settings-search-compact-copy {
+  min-width: 0;
+}
+
+.settings-search-compact-copy h2,
+.settings-search-compact-copy p {
+  margin: 0;
+}
+
+.settings-search-compact-copy h2 {
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 1rem;
+  letter-spacing: -0.015em;
+}
+
+.settings-search-compact-copy p {
+  max-width: 660px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.settings-search-compact-control {
+  display: flex;
+  min-width: 104px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.settings-search-compact-status {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.settings-compact-switch-control {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 7px 5px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+.settings-compact-switch-control:hover:not(.is-disabled) {
+  border-color: color-mix(
+    in srgb,
+    var(--panel-border) 50%,
+    var(--accent)
+  );
+  background: var(--panel-raised);
+}
+
+.settings-compact-switch-control.is-disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.settings-compact-switch-state {
+  min-width: 24px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 760;
+  text-align: right;
+}
+
+.settings-compact-switch-control input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-compact-switch-control input:focus-visible
+  + .settings-switch {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.settings-compact-switch-control input:checked
+  + .settings-switch {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 70%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
+}
+
+.settings-compact-switch-control input:checked
+  + .settings-switch::after {
+  transform: translateX(20px);
+  background: var(--accent);
+}
+
+.settings-search-compact-feedback {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.69rem;
+  line-height: 1.4;
+}
+
+.settings-search-compact-feedback.is-error {
+  border-color: color-mix(
+    in srgb,
+    var(--danger) 40%,
+    var(--panel-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--danger) 7%,
+    var(--panel)
+  );
+  color: var(--danger);
+}
+
+.settings-search-compact-feedback.is-success {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 34%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+@media (max-width: 520px) {
+  .settings-search-compact {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 13px;
+  }
+
+  .settings-search-compact-copy p {
+    max-width: none;
+  }
+
+  .settings-search-compact-control {
+    min-width: 92px;
+  }
+
+  .settings-compact-switch-control {
+    gap: 7px;
+    padding-left: 8px;
+  }
+}
+
+/* PARTPILOT:SETTINGS_DESKTOP_COMPOSITION_STYLES:V423 */
+.settings-page {
+  --partpilot-settings-desktop-composition-v423: 1;
+}
+
+.settings-content-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "inventory inventory"
+    "reservations data";
+  align-items: start;
+}
+
+.settings-grid-inventory {
+  grid-area: inventory;
+}
+
+.settings-grid-reservations {
+  grid-area: reservations;
+}
+
+.settings-grid-data {
+  grid-area: data;
+}
+
+.settings-grid-data,
+.settings-grid-reservations {
+  align-self: start;
+}
+
+@media (max-width: 900px) {
+  .settings-content-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "inventory"
+      "reservations"
+      "data";
+  }
+}
+
+/* PARTPILOT:SETTINGS_LOWER_CARD_HEIGHT_SYNC:V425 */
+.settings-page {
+  --partpilot-settings-lower-card-height-v425: 1;
+}
+
+@media (min-width: 901px) {
+  .settings-content-grid > .settings-grid-reservations,
+  .settings-content-grid > .settings-grid-data {
+    align-self: stretch;
+  }
+
+  .settings-content-grid > .settings-grid-data {
+    align-content: space-between;
   }
 }

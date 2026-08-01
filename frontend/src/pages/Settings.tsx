@@ -419,9 +419,6 @@ export function Settings() {
               without a reload.
             </p>
           </div>
-          <span className="settings-current-mode">
-            Resolved: <strong>{resolvedTheme}</strong>
-          </span>
         </div>
 
         {appearanceLoading ? (
@@ -511,73 +508,78 @@ export function Settings() {
         ) : null}
       </section>
 
-      <div className="settings-content-grid">
+      <div
+        className="settings-content-grid"
+        data-partpilot-settings-layout="PARTPILOT:SETTINGS_DESKTOP_COMPOSITION:V423"
+      >
         <section
           id="settings-inventory"
-          className="card settings-section settings-search-section"
+          className="card settings-search-compact settings-grid-inventory"
           aria-labelledby="settings-search-title"
+          data-partpilot-compact-search="PARTPILOT:COMPACT_OUT_OF_STOCK_PREFERENCE:V418"
         >
-          <div className="settings-section-heading">
-            <div>
-              <span className="card-label">Inventory search</span>
-              <h2 id="settings-search-title">
-                Out-of-stock results
-              </h2>
-              <p>
-                Keep zero-stock matches in a separate section below
-                available and low-stock parts when All is selected.
-              </p>
-            </div>
+          <div className="settings-search-compact-copy">
+            <span className="card-label">Inventory search</span>
+            <h2 id="settings-search-title">
+              Separate out-of-stock results
+            </h2>
+            <p id="settings-search-description">
+              Show zero-stock matches below available parts when All is
+              selected. The explicit Out filter always remains available.
+            </p>
           </div>
 
-          {searchSettingsLoading ? (
-            <p
-              className="settings-preference-state"
-              role="status"
-            >
-              Loading search preference...
-            </p>
-          ) : null}
-
-          {!searchSettingsLoading && searchSettings ? (
-            <label
-              className={
-                searchSettingsSaving
-                  ? "settings-toggle-row is-disabled"
-                  : "settings-toggle-row"
-              }
-            >
-              <span className="settings-toggle-copy">
-                <strong>Show a separate out-of-stock section</strong>
-                <span>
-                  The explicit Out filter remains available when this
-                  preference is disabled.
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                role="switch"
-                checked={
-                  searchSettings.show_out_of_stock_section
-                }
-                onChange={(event) =>
-                  void handleOutOfStockPreference(
-                    event.target.checked
-                  )
-                }
-                disabled={searchSettingsSaving}
-                aria-label="Show a separate out-of-stock section"
-              />
+          <div className="settings-search-compact-control">
+            {searchSettingsLoading ? (
               <span
-                className="settings-switch"
-                aria-hidden="true"
-              />
-            </label>
-          ) : null}
+                className="settings-search-compact-status"
+                role="status"
+              >
+                Loading...
+              </span>
+            ) : null}
+
+            {!searchSettingsLoading && searchSettings ? (
+              <label
+                className={
+                  searchSettingsSaving
+                    ? "settings-compact-switch-control is-disabled"
+                    : "settings-compact-switch-control"
+                }
+              >
+                <span className="settings-compact-switch-state">
+                  {searchSettingsSaving
+                    ? "Saving..."
+                    : searchSettings.show_out_of_stock_section
+                      ? "On"
+                      : "Off"}
+                </span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={
+                    searchSettings.show_out_of_stock_section
+                  }
+                  onChange={(event) =>
+                    void handleOutOfStockPreference(
+                      event.target.checked
+                    )
+                  }
+                  disabled={searchSettingsSaving}
+                  aria-label="Show a separate out-of-stock section"
+                  aria-describedby="settings-search-description"
+                />
+                <span
+                  className="settings-switch"
+                  aria-hidden="true"
+                />
+              </label>
+            ) : null}
+          </div>
 
           {searchSettingsError ? (
             <p
-              className="settings-preference-state is-error"
+              className="settings-search-compact-feedback is-error"
               role="alert"
             >
               {searchSettingsError}
@@ -586,17 +588,17 @@ export function Settings() {
 
           {searchSettingsSaved && !searchSettingsError ? (
             <p
-              className="settings-preference-state is-success"
+              className="settings-search-compact-feedback is-success"
               role="status"
             >
-              Search preference saved.
+              Preference saved.
             </p>
           ) : null}
         </section>
 
         <section
           id="settings-reservations"
-          className="card settings-section settings-reservation-section"
+          className="card settings-section settings-reservation-section settings-grid-reservations"
           aria-labelledby="settings-reservation-title"
           data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362"
         >
@@ -784,42 +786,42 @@ export function Settings() {
             </p>
           ) : null}
         </section>
-      </div>
 
-      <section
-        id="settings-data"
-        className="card settings-section settings-danger-section"
-        aria-labelledby="settings-data-title"
-      >
-        <div className="settings-section-heading">
-          <div>
-            <span className="card-label">Local data</span>
-            <h2 id="settings-data-title">Database reset</h2>
-            <p>
-              Return this installation to first-run setup. Built-in
-              part types, templates, and default settings are recreated.
-            </p>
+        <section
+          id="settings-data"
+          className="card settings-section settings-danger-section settings-grid-data"
+          aria-labelledby="settings-data-title"
+        >
+          <div className="settings-section-heading">
+            <div>
+              <span className="card-label">Local data</span>
+              <h2 id="settings-data-title">Database reset</h2>
+              <p>
+                Return this installation to first-run setup. Built-in
+                part types, templates, and default settings are recreated.
+              </p>
+            </div>
+            <span className="settings-danger-badge">
+              Permanent action
+            </span>
           </div>
-          <span className="settings-danger-badge">
-            Permanent action
-          </span>
-        </div>
 
-        <div className="settings-danger-summary">
-          <p>
-            This deletes the owner account, sessions, inventory,
-            Projects, Reservations, History, and application settings.
-            Files outside the database are not removed.
-          </p>
-          <button
-            className="danger-button settings-danger-launch"
-            type="button"
-            onClick={openDatabaseResetDialog}
-          >
-            Review database reset
-          </button>
-        </div>
-      </section>
+          <div className="settings-danger-summary">
+            <p>
+              This deletes the owner account, sessions, inventory,
+              Projects, Reservations, History, and application settings.
+              Files outside the database are not removed.
+            </p>
+            <button
+              className="danger-button settings-danger-launch"
+              type="button"
+              onClick={openDatabaseResetDialog}
+            >
+              Review database reset
+            </button>
+          </div>
+        </section>
+      </div>
 
       {resetDialogOpen ? (
         <div

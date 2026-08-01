@@ -2212,3 +2212,82 @@ responsive and browser approved.
 Keep the compact Settings refinement separate from backup/restore and MCP.
 Preserve the realistic Patch 401 fixtures and all operational History until
 an explicit cleanup or database reset.
+
+<!-- PARTPILOT:CHAT16_BACKUP_RESTORE_ROADMAP:V426 -->
+## Current roadmap checkpoint — Settings complete, backup/restore next
+
+### Overall progress
+
+**Working V1/public-alpha estimate: approximately 95%.**
+
+Inventory, universal search, Reservations, the complete Project lifecycle,
+system-wide History and authenticated global Settings/appearance are
+operational, responsive and browser approved.
+
+### Completed through Patch 425
+
+- [x] Complete Project planning, reservation, editing, consumption and
+  cancellation lifecycle.
+- [x] Atomic linked Project/Reservation synchronization and inventory
+  accounting.
+- [x] Protected system-wide History and audit register.
+- [x] Persisted Dark, Light and System appearance contract.
+- [x] Pre-paint theme application and live System-theme following.
+- [x] Complete Light-theme coverage and cross-workspace interaction
+  hierarchy.
+- [x] Responsive Settings information architecture.
+- [x] Compact accessible Out-of-stock preference.
+- [x] Reservation expiry defaults and guarded database-reset dialog.
+- [x] Final desktop composition with equal-height Reservation and Data
+  cards and natural mobile stacking.
+- [x] Complete copied-database regression coverage and browser approval.
+
+### Chat 16 — Backup and Restore Foundation
+
+**Required title:** `Chat 16: Backup and Restore Foundation`
+**Patch range:** 427–456 inclusive
+**Planned boundary:** Patch 456
+**First patch:** 427
+
+### Immediate implementation order
+
+1. Inspect the current SQLite path, reset service, authentication model,
+   Docker volume layout and app startup/session behavior before designing
+   the contract.
+2. Define a versioned backup artifact and manifest containing format
+   version, creation timestamp, Alembic revision, database metadata and
+   integrity evidence.
+3. Create backups using SQLite's online backup API rather than copying a
+   live database file directly.
+4. Add protected backup download behavior with explicit filename, media
+   type, no-cache headers, audit evidence and cleanup of temporary files.
+5. Design restore as a separate guarded transaction: upload limits, archive
+   validation, path-traversal protection, manifest/schema compatibility,
+   SQLite integrity and foreign-key checks, required-table validation and
+   rejection before touching live data.
+6. Before restore, create a rollback snapshot of the current database.
+   Replace live data only after all validation succeeds, define connection
+   and restart semantics explicitly, and restore the rollback snapshot on
+   any failure.
+7. Add responsive Settings Data controls for Download backup and Restore
+   backup. Restore must use an accessible review dialog with explicit
+   destructive copy and progress/error feedback.
+8. Test exclusively with copied databases and manifest-owned artifacts.
+   Verify exact preservation of users, catalogues, inventory, Projects,
+   Reservations, movements, audits and settings across backup/restore.
+9. Browser-test backup download, invalid-file rejection, successful restore,
+   rollback behavior and responsive layouts before checkpointing.
+
+### Remaining major V1 areas
+
+- [ ] Backup and restore.
+- [ ] MCP read tools and safeguarded write tools.
+- [ ] Authenticated MCP server enable/disable control during the MCP phase.
+- [ ] Accessibility, security and public-alpha release hardening.
+
+### Scope discipline
+
+Keep backup/restore separate from MCP. Do not silently clean the six
+realistic Patch 401 fixtures or existing History. Do not design restore as
+an unvalidated raw-file overwrite. The current database-reset action remains
+a separate permanent operation and must not be conflated with restore.

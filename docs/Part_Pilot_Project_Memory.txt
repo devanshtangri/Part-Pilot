@@ -5,94 +5,100 @@ Project
 - Root: /projects/Part Pilot; branch: main
 - Origin: git@github.com:devanshtangri/Part-Pilot.git
 - Compose service: partpilot; host port: 7890
-- Frontend: React/Vite/TypeScript
-- Backend: FastAPI/SQLAlchemy/Alembic
+- React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend
 - Alembic head: 0007_projects_contract
 
 Patch and chat workflow
-- Every implementation, fix, diagnostic, checkpoint, cleanup and documentation
-  update is one complete downloadable Python file supplied in chat. The
-  assistant does not place or execute numbered patches on HomeLab unless
+- Every implementation, fix, diagnostic, checkpoint, cleanup, documentation
+  update and boundary is one complete downloadable sequential Python file.
+  The assistant does not place or execute numbered patches on HomeLab unless
   explicitly asked.
-- Filenames start directly with the sequential patch number, never patch_.
-  Failed user-run scripts consume their number.
-- Successful scripts print exactly `Everything PASS` as their final line.
-- Response headings are `Patch N - Browser Test` or `Patch N - Fix Only`.
-- Chat 15 is `Chat 15: Project Lifecycle Completion`, owns Patch 397-426, and
-  Patch 426 is its planned boundary. Patch 417 checkpoints browser-approved
-  global appearance; Patch 418 is the next focused Settings refinement.
+- Filenames begin with the number, never patch_. Failed user-run scripts
+  consume their number. Successful scripts print exactly `Everything PASS`.
+- Headings are `Patch N - Browser Test` or `Patch N - Fix Only`.
 - Browser-test source remains unstaged/uncommitted until explicit approval,
   followed by a separate checkpoint/commit/push script.
-- No next-chat prompt file is created. A ready prompt is posted only after a
-  successful boundary.
+- Chat 15 is `Chat 15: Project Lifecycle Completion`, owns 397-426 and ends
+  at boundary Patch 426.
+- Chat 16 is `Chat 16: Backup and Restore Foundation`, owns 427-456 and
+  Patch 456 is its planned boundary.
+- No next-chat starting-prompt file is created. The ready prompt is posted
+  in chat only after a successful boundary.
 - After two consecutive pre-write failures, repeated anchor mismatches or
-  source uncertainty, issue the next diagnostic-only patch and create
+  source uncertainty, the next patch is diagnostic-only and creates
   docs/diagonostic_*.md.
 
 HomeLab-assisted safeguards
-- Inspect exact Git/index state, hashes, logs, deployment, OpenAPI/bundle
-  markers and live SQLite values before high-risk patches.
-- Local source and newest durable diagnostic/handoff are authoritative.
-- Generate transformations in memory before backup/write; prefer exact hashes,
-  scoped functions/markers and semantic validation over adjacency.
+- Inspect exact Git/index state, source hashes, logs, deployment, OpenAPI,
+  bundles and live SQLite before high-risk patches. Local source and newest
+  handoff/diagnostic are authoritative.
+- Generate transforms in memory before backup/write. Prefer exact hashes,
+  scoped structures and semantic validation over brittle adjacency.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs: /projects/Part Pilot/fixes/logs/ and ignored by Git.
-- Application changes compile, run git diff --check, build/deploy, verify
-  Alembic/protected APIs/SPA markers, run complete smoke on a copied database
-  and preserve live data.
+- Application patches run git diff --check, Python/TypeScript validation,
+  Docker build/deploy, Alembic/protected API/SPA marker checks, complete
+  copied-database smoke and live-data preservation.
 - Failure output includes phase, exception, actual command or in-memory
-  transformation, rollback result, final Git state and log path.
-- Checkpoints stage explicit allowlists only, validate staged diff, push main,
+  transform, rollback result, final Git state and log path.
+- Checkpoints stage explicit allowlists, validate staged diff, push main,
   fetch and verify local HEAD equals origin/main.
 - Keep this memory at or below 8,000 characters.
 
 Inventory and fixture safety
-- Never assume an empty database. Use unique manifest-owned fixtures and clean
-  up only recorded IDs.
-- Preserve users, catalogues, inventory, Projects, Reservations, movements,
-  audits and settings. SQLite integrity and foreign-key checks must pass.
-- Six realistic Patch 401 test parts remain intentionally in the test database.
+- Never assume an empty database. Preserve users, catalogues, inventory,
+  Projects, Reservations, movements, audits and settings.
+- Use unique manifest-owned fixtures and clean up only recorded IDs.
+- Six realistic Patch 401 parts remain intentionally in the test database.
   Manifest: /projects/Part Pilot/fixes/logs/patch_401_test_fixture_manifest.json
-- The user plans to reset the database before production use. Do not silently
-  remove fixtures/history before explicit cleanup or reset.
+- The user plans to reset before production use. Do not silently remove
+  fixtures or History.
+- SQLite integrity and foreign-key checks must pass.
 
-Completed product state through Patch 416
-- Authentication/setup, dynamic part templates, reusable manufacturer/package/
-  location catalogues and typed custom fields.
-- Inventory create/read/edit, quantity adjustment, soft delete/restore,
-  universal search, filters, pagination, Available/Out-of-stock sections and
+Completed product state through Patch 425
+- Authentication/setup, dynamic part templates, typed custom fields and
+  reusable manufacturer/package/location catalogues.
+- Inventory create/read/edit, adjustment, soft delete/restore, universal
+  search, filters, pagination, Available/Out-of-stock sections, sorting and
   persistent preferences.
-- Part history shows Physical, Reserved and Available snapshots with meaningful
-  reserve/release deltas.
-- Reservation read/edit/cancel/consume/expire/delete, activity, expiry settings,
-  custom dialogs, stale refresh and responsive workspace.
-- Project draft/create/update/reserve/consume/cancel lifecycle with atomic linked
-  Reservation synchronization, two-way Reserved editing, delta movements and
-  paired audits.
-- Protected system-wide History merges audits and movements newest-first with
-  literal search, counted filters, context hydration, snapshots and structured
-  evidence. Desktop is register/detail; mobile is register-first.
-- History intentionally has no general column sorting. Chronology is primary;
-  Oldest-first remains deferred unless a real investigation requires it.
+- Part history shows Physical, Reserved and Available snapshots with
+  meaningful reserve/release deltas.
+- Reservation edit/cancel/consume/expire/delete, activity, expiry defaults,
+  dialogs, stale guards and responsive register/detail workspace.
+- Project Draft/create/update/reserve/consume/cancel lifecycle with atomic
+  linked Reservation synchronization, two-way Reserved editing, delta
+  movements and paired audits.
+- Protected system-wide History merges audits and stock movements
+  newest-first with literal search, counted filters, context hydration,
+  snapshots and structured evidence. Desktop is register/detail; mobile is
+  register-first. General column sorting remains intentionally omitted.
 - Protected appearance settings persist Dark/Light/System, enforce Light
-  availability, validate values and write actor-attributed audits.
-- Pre-paint theme application prevents opposite-theme flashes. System follows
-  OS changes live; authenticated synchronization restores failed optimistic saves.
-- Responsive Settings preserves Inventory and Reservation preferences and uses
-  a compact database-reset launcher with dialog-owned phrase confirmation.
-- Light mode covers every current workspace and overlay with explicit primary,
-  neutral, destructive, active, selected, status and truly disabled states.
-- Browser approval is complete through Patch 416. Patches 412-414 recovered
-  minified-selector, SQLite-byte-layout and brittle-evidence failures safely.
+  availability, validate values and record actor-attributed audits.
+- Pre-paint application prevents opposite-theme flashes; System follows OS
+  changes live and failed saves restore the previous state.
+- Light mode covers every current workspace and overlay with explicit
+  primary, neutral, destructive, active, selected, status and disabled
+  states.
+- Settings has full-width Appearance, compact full-width Inventory search,
+  equal-height Reservation/Data desktop cards and natural mobile stacking.
+  The Out-of-stock switch remains server-backed and accessible. Database
+  reset uses a guarded dialog with phrase confirmation.
+- Browser approval is complete through Patch 425.
+- Diagnostic 422 records the Patch 419-421 failures and validated Settings
+  composition. Patch 424 safely rolled back after Vite rewrote its media
+  query; Patch 425 recovered with minifier-safe verification.
 
 Deferred MCP Settings requirement
-- During the MCP phase add an authenticated Settings control to enable/disable
-  the MCP server.
-- Define persisted default, immediate/restart semantics, safe transport/tool
-  gating, invalid-value recovery, disabled-state feedback and audit events.
+- During the MCP phase add an authenticated MCP server enable/disable
+  control with persisted default, startup/restart semantics, safe
+  transport/tool gating, invalid-value recovery, disabled feedback and
+  audit events.
 
 Next implementation
-- Compact the Out-of-stock results preference without changing its persisted
-  server-backed boolean behavior or accessibility.
-- Browser-test and checkpoint that focused Settings refinement.
-- Keep backup/restore and MCP separate from Settings.
+- Begin backup/restore as a separate product slice.
+- Use SQLite online backup, a versioned manifest and integrity evidence.
+- Restore must validate before touching live data, create a rollback
+  snapshot, define connection/restart behavior and recover atomically.
+- Add protected APIs and accessible Settings Data controls; test with copied
+  databases and preserve all current operational data.
+- Keep MCP separate until backup/restore is browser approved and checkpointed.

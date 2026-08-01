@@ -2693,3 +2693,102 @@ Compact the Out-of-stock results preference so its visual weight matches
 its single boolean function. Keep the existing server-backed setting and
 switch behavior, then browser-test and checkpoint that focused refinement
 before beginning backup/restore.
+
+<!-- PARTPILOT:CHAT15_SETTINGS_BOUNDARY:V426 -->
+## Chat 15 boundary — lifecycle, History and Settings complete
+
+**Boundary patch:** 426
+**Browser approval:** complete through Patch 425
+**Alembic head:** `0007_projects_contract`
+**Boundary commit subject:** `Complete Chat 15 Settings and appearance`
+
+### Completed in Chat 15
+
+- The complete Project lifecycle is operational: Draft creation and editing,
+  reservation, synchronized Reserved editing from Projects or Reservations,
+  consumption and cancellation.
+- Project and linked Reservation terminal transitions are atomic, preserve
+  inventory invariants, create paired movements/audits and reject invalid or
+  repeated actions.
+- System-wide History provides a protected newest-first register over audits
+  and stock movements with literal search, counted filters, actor/entity
+  context, stock snapshots and responsive register/detail behavior.
+- Authenticated Dark, Light and System appearance preferences persist on the
+  server, apply before React renders and follow operating-system changes in
+  System mode.
+- Light mode now covers every current workspace and overlay with explicit
+  primary, neutral, destructive, active, selected, status and genuinely
+  disabled states.
+- Settings provides responsive Appearance, Inventory, Reservations and Data
+  sections, a guarded database-reset dialog and preserved server-backed
+  Inventory/Reservation preferences.
+- The Out-of-stock preference is one compact full-width row with visible
+  On/Off/Saving state and accessible switch semantics.
+- Desktop Settings uses a full-width Appearance card, a full-width compact
+  Inventory preference, then equal-height Reservation defaults and Database
+  reset cards. Mobile stacks Inventory, Reservations and Data naturally.
+- The redundant `Resolved: Dark/Light` pill was removed. The page-level
+  runtime status and selected appearance card remain authoritative.
+
+### Verification and recovery history
+
+- Patches 397–405 completed and checkpointed Project cancellation, terminal
+  actions, two-way Reserved editing, movement snapshots and realistic
+  manifest-owned test fixtures.
+- Patches 406–410 implemented and checkpointed system-wide History.
+- Patches 411–417 implemented and checkpointed the appearance contract,
+  runtime synchronization, Light theme and cross-workspace interaction
+  hierarchy.
+- Patch 418 compacted the Out-of-stock preference.
+- Patches 419 and 420 failed before writes on brittle block matching and an
+  incomplete resolved-mode selector cleanup.
+- Patch 421 completed the full in-memory composition simulation but stopped
+  before writing its report because numbered blank source lines introduced
+  trailing spaces.
+- Patch 422 created and pushed
+  `docs/diagonostic_422_settings_desktop_composition_recovery.md`, recording
+  all exact selectors, structural boundaries and candidate hashes.
+- Patch 423 applied the diagnostic-backed Settings composition and passed
+  build, deployment and the complete copied-database smoke suite.
+- Patch 424 built successfully but its verifier rejected Vite's rewrite of
+  `@media (min-width: 901px)` to `@media (width>=901px)`; rollback restored
+  the exact Patch 423 state.
+- Patch 425 accepted authored and minified media-query forms, synchronized
+  the lower desktop card heights and passed all automated checks.
+- Desktop, mobile, Dark and Light browser testing approved the final
+  composition, equal-height lower cards, compact Inventory preference,
+  appearance behavior and reset-dialog safety.
+
+### Approved live state
+
+- Users: 1
+- Part types: 36
+- Manufacturers: 9
+- Packages: 23
+- Locations: 1
+- Parts: 15
+- Projects: 7
+- Reservations: 9
+- Stock movements: 32
+- Audits: 96
+- App settings: 17
+- Appearance preference: `dark`
+- Separate Out-of-stock results: enabled
+
+The six realistic Patch 401 parts remain intentionally preserved. Their
+manifest is:
+
+```text
+/projects/Part Pilot/fixes/logs/patch_401_test_fixture_manifest.json
+```
+
+### Boundary state and next phase
+
+Patch 426 stages only its explicit seven-file allowlist, commits and pushes
+`main`, fetches and verifies local `HEAD == origin/main`, then revalidates
+deployment, Alembic, protected Settings contracts and unchanged live data.
+
+The next chat is `Chat 16: Backup and Restore Foundation`. It owns Patches
+427–456 inclusive; Patch 456 is its planned boundary. No starting-prompt
+file is created. The ready-to-paste prompt is provided in chat only after
+Patch 426 ends with `Everything PASS`.

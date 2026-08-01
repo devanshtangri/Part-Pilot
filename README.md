@@ -380,3 +380,29 @@ Database reset remains intentionally guarded: Settings presents one review
 action, then requires the exact destructive phrase inside an accessible
 in-app dialog before the final erase action becomes available.
 <!-- PARTPILOT:GLOBAL_APPEARANCE_README:V417:END -->
+
+<!-- PARTPILOT:SETTINGS_COMPLETION_README:V426:START -->
+## Completed Settings workspace
+
+The Settings workspace now uses a compact, responsive composition:
+
+| Section | Desktop | Mobile |
+|---|---|---|
+| Appearance | Full width | Full width |
+| Inventory search | Full-width compact row | Full width |
+| Reservation defaults | Lower two-column row | Full width |
+| Database reset | Equal-height lower card | Full width |
+
+The Inventory preference preserves its server-backed boolean behavior and
+explicit Out filter while displaying a concise On/Off/Saving switch. The
+Reservation and Database reset cards align on desktop without enlarging
+their controls, and return to natural independent heights below the desktop
+breakpoint.
+
+Dark, Light and System modes remain installation-wide. The page-level
+runtime status and selected theme card identify the active appearance;
+duplicate resolved-theme text has been removed.
+
+Backup and restore is the next independent product area. The existing
+database-reset action remains a separate guarded permanent operation.
+<!-- PARTPILOT:SETTINGS_COMPLETION_README:V426:END -->
