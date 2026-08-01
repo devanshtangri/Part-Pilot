@@ -15867,6 +15867,577 @@ def check_system_history_api() -> None:
     )
 
 
+
+# PARTPILOT:APPEARANCE_SETTINGS_SMOKE:V411
+def check_appearance_settings_api() -> None:
+    import json as json_module
+    from unittest.mock import patch
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app as fastapi_app
+    from app.models import AppSetting
+    from app.schemas.app_settings import (
+        AppearanceSettingsUpdateRequest,
+    )
+    from app.services import app_settings as app_settings_service
+
+    theme_key = "appearance.theme"
+    availability_key = "appearance.light_theme_available"
+    setting_keys = (theme_key, availability_key)
+    suffix = uuid4().hex[:10]
+    username = f"smoke_appearance_{suffix}"
+    password = "appearance-settings-smoke-password"
+    user_id: int | None = None
+
+    with db_session() as db:
+        original_settings: dict[
+            str,
+            tuple[object, str | None] | None,
+        ] = {}
+        for key in setting_keys:
+            row = (
+                db.query(AppSetting)
+                .filter(AppSetting.key == key)
+                .one_or_none()
+            )
+            original_settings[key] = (
+                None
+                if row is None
+                else (row.value_json, row.value_text)
+            )
+
+    def restore_settings(db) -> None:
+        for key in setting_keys:
+            original = original_settings[key]
+            row = (
+                db.query(AppSetting)
+                .filter(AppSetting.key == key)
+                .one_or_none()
+            )
+            if original is None:
+                if row is not None:
+                    db.delete(row)
+            elif row is None:
+                db.add(
+                    AppSetting(
+                        key=key,
+                        value_json=original[0],
+                        value_text=original[1],
+                    )
+                )
+            else:
+                row.value_json = original[0]
+                row.value_text = original[1]
+
+    def cleanup() -> None:
+        with db_session() as db:
+            if user_id is not None:
+                db.execute(
+                    text(
+                        "delete from audit_log "
+                        "where event_type = "
+                        "'settings.appearance_updated' "
+                        "and actor_user_id = :actor_user_id"
+                    ),
+                    {"actor_user_id": user_id},
+                )
+            db.execute(
+                text(
+                    "delete from sessions where user_id in "
+                    "(select id from users "
+                    "where username = :username)"
+                ),
+                {"username": username},
+            )
+            db.execute(
+                text(
+                    "delete from users where username = :username"
+                ),
+                {"username": username},
+            )
+            restore_settings(db)
+            db.commit()
+
+    client = TestClient(fastapi_app)
+
+    try:
+        unauthenticated_get = client.get(
+            "/api/settings/appearance"
+        )
+        if unauthenticated_get.status_code not in {401, 403}:
+            fail(
+                "GET /api/settings/appearance should require "
+                "authentication, got "
+                f"{unauthenticated_get.status_code}: "
+                f"{unauthenticated_get.text}"
+            )
+        unauthenticated_patch = client.patch(
+            "/api/settings/appearance",
+            json={"theme": "light"},
+        )
+        if unauthenticated_patch.status_code not in {401, 403}:
+            fail(
+                "PATCH /api/settings/appearance should require "
+                "authentication, got "
+                f"{unauthenticated_patch.status_code}: "
+                f"{unauthenticated_patch.text}"
+            )
+
+        openapi = client.get("/openapi.json")
+        openapi_methods = (
+            openapi.json()
+            .get("paths", {})
+            .get("/api/settings/appearance", {})
+        )
+        if (
+            openapi.status_code != 200
+            or set(openapi_methods) != {"get", "patch"}
+        ):
+            fail(
+                "Appearance settings GET/PATCH routes are missing "
+                "from OpenAPI: "
+                f"{openapi.status_code} {openapi_methods}"
+            )
+
+        schemas = (
+            openapi.json()
+            .get("components", {})
+            .get("schemas", {})
+        )
+        for schema_name in (
+            "AppearanceSettingsResponse",
+            "AppearanceSettingsUpdateRequest",
+        ):
+            if schema_name not in schemas:
+                fail(
+                    "Appearance OpenAPI schema is missing: "
+                    f"{schema_name}"
+                )
+
+        with db_session() as db:
+            set_app_setting(
+                db,
+                theme_key,
+                "dark",
+                text_value="dark",
+                commit=False,
+            )
+            set_app_setting(
+                db,
+                availability_key,
+                True,
+                text_value=None,
+                commit=False,
+            )
+            user = create_user(
+                db,
+                username=username,
+                display_name="Appearance Settings Smoke User",
+                password=password,
+                commit=False,
+            )
+            db.commit()
+            db.refresh(user)
+            user_id = user.id
+            session_token = create_session(
+                db,
+                user=user,
+                commit=True,
+            )
+
+        headers = {
+            "Authorization": f"Bearer {session_token.token}",
+        }
+
+        seeded = client.get(
+            "/api/settings/appearance",
+            headers=headers,
+        )
+        if (
+            seeded.status_code != 200
+            or seeded.json()
+            != {
+                "theme": "dark",
+                "light_theme_available": True,
+            }
+        ):
+            fail(
+                "Seeded appearance settings should read as "
+                f"dark/available: {seeded.status_code} "
+                f"{seeded.text}"
+            )
+
+        with db_session() as db:
+            set_app_setting(
+                db,
+                theme_key,
+                "legacy-neon",
+                text_value="legacy-neon",
+                commit=True,
+            )
+
+        corrupt_read = client.get(
+            "/api/settings/appearance",
+            headers=headers,
+        )
+        if (
+            corrupt_read.status_code != 200
+            or corrupt_read.json()
+            != {
+                "theme": "dark",
+                "light_theme_available": True,
+            }
+        ):
+            fail(
+                "Corrupt appearance theme should defensively read "
+                f"as dark: {corrupt_read.status_code} "
+                f"{corrupt_read.text}"
+            )
+
+        with db_session() as db:
+            raw_theme = get_str_setting(db, theme_key, "")
+            if raw_theme != "legacy-neon":
+                fail(
+                    "Appearance GET silently rewrote the corrupt "
+                    f"stored value: {raw_theme!r}"
+                )
+            set_app_setting(
+                db,
+                theme_key,
+                "dark",
+                text_value="dark",
+                commit=True,
+            )
+
+        invalid_payloads = [
+            {},
+            {"theme": "sepia"},
+            {"theme": None},
+            {"theme": True},
+            {"theme": 1},
+            {"theme": "dark", "unexpected": True},
+        ]
+        for payload in invalid_payloads:
+            response = client.patch(
+                "/api/settings/appearance",
+                headers=headers,
+                json=payload,
+            )
+            if response.status_code != 422:
+                fail(
+                    "Invalid appearance payload should return 422, "
+                    f"got {response.status_code}: "
+                    f"{payload!r} {response.text}"
+                )
+
+        light = client.patch(
+            "/api/settings/appearance",
+            headers=headers,
+            json={"theme": "light"},
+        )
+        if (
+            light.status_code != 200
+            or light.json()
+            != {
+                "theme": "light",
+                "light_theme_available": True,
+            }
+        ):
+            fail(
+                "Appearance light update failed: "
+                f"{light.status_code} {light.text}"
+            )
+
+        repeat_light = client.patch(
+            "/api/settings/appearance",
+            headers=headers,
+            json={"theme": "light"},
+        )
+        if repeat_light.status_code != 200:
+            fail(
+                "Idempotent appearance update failed: "
+                f"{repeat_light.status_code} "
+                f"{repeat_light.text}"
+            )
+
+        system = client.patch(
+            "/api/settings/appearance",
+            headers=headers,
+            json={"theme": "system"},
+        )
+        if (
+            system.status_code != 200
+            or system.json().get("theme") != "system"
+        ):
+            fail(
+                "Appearance system update failed: "
+                f"{system.status_code} {system.text}"
+            )
+
+        dark = client.patch(
+            "/api/settings/appearance",
+            headers=headers,
+            json={"theme": "dark"},
+        )
+        if (
+            dark.status_code != 200
+            or dark.json()
+            != {
+                "theme": "dark",
+                "light_theme_available": True,
+            }
+        ):
+            fail(
+                "Appearance dark update failed: "
+                f"{dark.status_code} {dark.text}"
+            )
+
+        with db_session() as db:
+            theme_row = (
+                db.query(AppSetting)
+                .filter(AppSetting.key == theme_key)
+                .one()
+            )
+            audit_rows = db.execute(
+                text(
+                    "select entity_id, actor_type, actor_user_id, "
+                    "before_json, after_json, metadata_json "
+                    "from audit_log "
+                    "where event_type = "
+                    "'settings.appearance_updated' "
+                    "and actor_user_id = :actor_user_id "
+                    "order by id"
+                ),
+                {"actor_user_id": user_id},
+            ).all()
+
+        if (
+            theme_row.value_json != "dark"
+            or theme_row.value_text != "dark"
+        ):
+            fail(
+                "Appearance setting database row is incorrect: "
+                f"{theme_row.value_json!r}/"
+                f"{theme_row.value_text!r}"
+            )
+
+        if len(audit_rows) != 3:
+            fail(
+                "Appearance settings should create one audit per "
+                "real change and none for no-op updates, got "
+                f"{len(audit_rows)}."
+            )
+
+        expected_transitions = [
+            ("dark", "light"),
+            ("light", "system"),
+            ("system", "dark"),
+        ]
+        for row, expected in zip(
+            audit_rows,
+            expected_transitions,
+        ):
+            if (
+                row[0] != theme_row.id
+                or row[1] != "user"
+                or row[2] != user_id
+            ):
+                fail(
+                    "Appearance audit attribution is incorrect: "
+                    f"{row!r}"
+                )
+            before_json = (
+                json_module.loads(row[3])
+                if isinstance(row[3], str)
+                else row[3]
+            )
+            after_json = (
+                json_module.loads(row[4])
+                if isinstance(row[4], str)
+                else row[4]
+            )
+            metadata_json = (
+                json_module.loads(row[5])
+                if isinstance(row[5], str)
+                else row[5]
+            )
+            if (
+                before_json != {"theme": expected[0]}
+                or after_json != {"theme": expected[1]}
+                or metadata_json.get("setting_key")
+                != theme_key
+                or metadata_json.get("changed_fields")
+                != ["theme"]
+                or metadata_json.get(
+                    "light_theme_available"
+                )
+                is not True
+            ):
+                fail(
+                    "Appearance audit snapshots/metadata are "
+                    "incorrect: "
+                    f"{before_json!r}/{after_json!r}/"
+                    f"{metadata_json!r}"
+                )
+
+        with db_session() as db:
+            set_app_setting(
+                db,
+                availability_key,
+                False,
+                text_value=None,
+                commit=True,
+            )
+
+        unavailable_read = client.get(
+            "/api/settings/appearance",
+            headers=headers,
+        )
+        if (
+            unavailable_read.status_code != 200
+            or unavailable_read.json()
+            != {
+                "theme": "dark",
+                "light_theme_available": False,
+            }
+        ):
+            fail(
+                "Unavailable light theme should read as "
+                f"dark/unavailable: {unavailable_read.status_code} "
+                f"{unavailable_read.text}"
+            )
+
+        for unavailable_theme in ("light", "system"):
+            unavailable = client.patch(
+                "/api/settings/appearance",
+                headers=headers,
+                json={"theme": unavailable_theme},
+            )
+            if (
+                unavailable.status_code != 409
+                or "not available"
+                not in unavailable.text
+            ):
+                fail(
+                    "Unavailable appearance mode should return 409: "
+                    f"{unavailable_theme} "
+                    f"{unavailable.status_code} "
+                    f"{unavailable.text}"
+                )
+
+        with db_session() as db:
+            audit_count = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = "
+                    "'settings.appearance_updated' "
+                    "and actor_user_id = :actor_user_id"
+                ),
+                {"actor_user_id": user_id},
+            ).scalar()
+            stored_theme = get_str_setting(
+                db,
+                theme_key,
+                "",
+            )
+            if audit_count != 3 or stored_theme != "dark":
+                fail(
+                    "Unavailable appearance attempts changed state: "
+                    f"audits={audit_count}, theme={stored_theme!r}"
+                )
+            set_app_setting(
+                db,
+                availability_key,
+                True,
+                text_value=None,
+                commit=True,
+            )
+
+        real_set_app_setting = (
+            app_settings_service.set_app_setting
+        )
+
+        def write_then_fail(*args, **kwargs):
+            real_set_app_setting(*args, **kwargs)
+            raise RuntimeError(
+                "injected appearance setting failure"
+            )
+
+        with db_session() as db:
+            try:
+                with patch.object(
+                    app_settings_service,
+                    "set_app_setting",
+                    side_effect=write_then_fail,
+                ):
+                    app_settings_service.update_appearance_settings(
+                        db,
+                        AppearanceSettingsUpdateRequest(
+                            theme="light"
+                        ),
+                        actor_user_id=user_id,
+                        commit=True,
+                    )
+            except RuntimeError as exc:
+                if (
+                    "injected appearance setting failure"
+                    not in str(exc)
+                ):
+                    raise
+            else:
+                fail(
+                    "Injected appearance settings failure did "
+                    "not raise"
+                )
+
+        with db_session() as db:
+            after_failure = (
+                app_settings_service.get_appearance_settings(db)
+            )
+            audit_count_after_failure = db.execute(
+                text(
+                    "select count(*) from audit_log "
+                    "where event_type = "
+                    "'settings.appearance_updated' "
+                    "and actor_user_id = :actor_user_id"
+                ),
+                {"actor_user_id": user_id},
+            ).scalar()
+            theme_row = (
+                db.query(AppSetting)
+                .filter(AppSetting.key == theme_key)
+                .one()
+            )
+
+        if (
+            after_failure.model_dump()
+            != {
+                "theme": "dark",
+                "light_theme_available": True,
+            }
+            or theme_row.value_json != "dark"
+            or theme_row.value_text != "dark"
+            or audit_count_after_failure != 3
+        ):
+            fail(
+                "Injected appearance failure was not atomic: "
+                f"{after_failure.model_dump()} "
+                f"audits={audit_count_after_failure}"
+            )
+
+    finally:
+        cleanup()
+
+    ok(
+        "Protected appearance settings expose dark/light/system "
+        "modes, strict validation, corrupt-read recovery without "
+        "silent rewrites, availability guards, no-op suppression, "
+        "actor-attributed audit snapshots, injected rollback, "
+        "OpenAPI coverage, authentication, and exact fixture cleanup"
+    )
+
+
 def main() -> None:
     checks = [
         check_db_connects,
@@ -15911,6 +16482,7 @@ def main() -> None:
         check_location_catalogue_api,
         check_part_location_assignment_api,
         check_part_location_list_filter_api,
+        check_appearance_settings_api,
         check_reservation_settings_api,
         check_low_stock_and_search_settings_api,
         check_universal_part_search_api,

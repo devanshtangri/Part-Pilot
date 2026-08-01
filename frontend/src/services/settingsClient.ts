@@ -1,4 +1,6 @@
 import type {
+  AppearanceSettings,
+  AppearanceSettingsUpdatePayload,
   ReservationSettings,
   ReservationSettingsUpdatePayload,
   SearchSettings,
@@ -96,6 +98,24 @@ export function updateReservationSettings(
   payload: ReservationSettingsUpdatePayload
 ): Promise<ReservationSettings> {
   return requestJson<ReservationSettings>("/settings/reservations", token, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+
+// PARTPILOT:APPEARANCE_SETTINGS_CLIENT:V412
+export function getAppearanceSettings(
+  token: string
+): Promise<AppearanceSettings> {
+  return requestJson<AppearanceSettings>("/settings/appearance", token);
+}
+
+export function updateAppearanceSettings(
+  token: string,
+  payload: AppearanceSettingsUpdatePayload
+): Promise<AppearanceSettings> {
+  return requestJson<AppearanceSettings>("/settings/appearance", token, {
     method: "PATCH",
     body: JSON.stringify(payload)
   });

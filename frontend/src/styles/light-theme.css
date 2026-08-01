@@ -1,0 +1,1490 @@
+/* PARTPILOT:GLOBAL_LIGHT_THEME_STYLES:V412 */
+:root[data-theme="light"] {
+  --partpilot-global-appearance-v412: 1;
+  color-scheme: light;
+
+  --bg: #f3f6fa;
+  --sidebar: #ffffff;
+  --panel: #ffffff;
+  --panel-soft: #f1f5f9;
+  --panel-raised: #e7edf5;
+  --panel-border: #c8d2df;
+  --text: #172033;
+  --muted: #64748b;
+  --accent: #087f6f;
+  --accent-strong: #0b8f7b;
+  --accent-soft: rgba(8, 127, 111, 0.1);
+  --danger: #b72f43;
+  --shadow: 0 18px 45px rgba(31, 45, 61, 0.16);
+}
+
+html[data-theme="light"] body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+html[data-theme="light"] .nav-item:hover,
+html[data-theme="light"] .part-type-item:hover,
+html[data-theme="light"] .history-row:hover,
+html[data-theme="light"] .project-row:hover,
+html[data-theme="light"] .reservation-row:hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+html[data-theme="light"] .field-group > span,
+html[data-theme="light"] .auth-facts dd {
+  color: var(--text);
+}
+
+html[data-theme="light"] .field-group input::placeholder,
+html[data-theme="light"] .field-group textarea::placeholder,
+html[data-theme="light"] .history-search input::placeholder,
+html[data-theme="light"] .project-form-grid input::placeholder,
+html[data-theme="light"] .project-form-grid textarea::placeholder,
+html[data-theme="light"] .reservation-form-grid input::placeholder,
+html[data-theme="light"] .reservation-form-grid textarea::placeholder {
+  color: #8794a7;
+}
+
+html[data-theme="light"] .field-group input:hover,
+html[data-theme="light"] .field-group select:hover,
+html[data-theme="light"] .history-button:hover:not(:disabled),
+html[data-theme="light"] .projects-button:hover:not(:disabled),
+html[data-theme="light"] .reservations-button:hover:not(:disabled) {
+  border-color: #9eacbd;
+}
+
+html[data-theme="light"] .drawer-backdrop,
+html[data-theme="light"] .add-part-backdrop,
+html[data-theme="light"] .creator-modal-backdrop,
+html[data-theme="light"] .delete-type-backdrop,
+html[data-theme="light"] .part-details-backdrop,
+html[data-theme="light"] .part-lifecycle-backdrop,
+html[data-theme="light"] .project-modal-backdrop,
+html[data-theme="light"] .reservation-modal-backdrop,
+html[data-theme="light"] .dashboard-search-backdrop {
+  background: rgba(15, 23, 42, 0.54) !important;
+}
+
+html[data-theme="light"] .dashboard-page .dashboard-action-card a,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-actions button,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-state button,
+html[data-theme="light"] .dashboard-search-close,
+html[data-theme="light"] .dashboard-search-input-row .dashboard-search-clear {
+  border-color: var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+}
+
+html[data-theme="light"] .dashboard-page .dashboard-action-card a:hover,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-actions button:hover:not(:disabled),
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-state button:hover:not(:disabled),
+html[data-theme="light"] .dashboard-search-close:hover,
+html[data-theme="light"] .dashboard-search-input-row .dashboard-search-clear:hover:not(:disabled) {
+  border-color: #9eacbd;
+  background: var(--panel-raised);
+}
+
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-state,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-actions > span,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-footer,
+html[data-theme="light"] .dashboard-search-dialog-header p,
+html[data-theme="light"] .dashboard-search-state,
+html[data-theme="light"] .dashboard-search-inline-state,
+html[data-theme="light"] .dashboard-search-results-footer,
+html[data-theme="light"] .dashboard-search-details > header p,
+html[data-theme="light"] .dashboard-search-detail-copy > span,
+html[data-theme="light"] .dashboard-search-fields > span,
+html[data-theme="light"] .dashboard-search-live-note {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-state strong,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-identity strong,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-quantity strong,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-threshold,
+html[data-theme="light"] .dashboard-search-dialog-header h2,
+html[data-theme="light"] .dashboard-search-state strong,
+html[data-theme="light"] .dashboard-search-section > header h3,
+html[data-theme="light"] .dashboard-search-result-main strong,
+html[data-theme="light"] .dashboard-search-result-stock strong,
+html[data-theme="light"] .dashboard-search-details > header h3,
+html[data-theme="light"] .dashboard-search-detail-grid dd,
+html[data-theme="light"] .dashboard-search-fields dd {
+  color: var(--text);
+}
+
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-identity span,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-quantity span,
+html[data-theme="light"] .dashboard-search-result-main small,
+html[data-theme="light"] .dashboard-search-result-stock small,
+html[data-theme="light"] .dashboard-search-detail-grid dt,
+html[data-theme="light"] .dashboard-search-fields dt {
+  color: #718096;
+}
+
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-list,
+html[data-theme="light"] .dashboard-page .dashboard-low-stock-row,
+html[data-theme="light"] .dashboard-search-launcher,
+html[data-theme="light"] .dashboard-search-dialog,
+html[data-theme="light"] .dashboard-search-form,
+html[data-theme="light"] .dashboard-search-details,
+html[data-theme="light"] .dashboard-search-results > .dashboard-search-section,
+html[data-theme="light"] .dashboard-search-detail-grid > div,
+html[data-theme="light"] .dashboard-search-fields dl > div {
+  border-color: var(--panel-border);
+  background: var(--panel);
+  color: var(--text);
+}
+
+html[data-theme="light"] .dashboard-search-launcher:hover,
+html[data-theme="light"] .dashboard-search-result:hover {
+  background: var(--panel-soft);
+}
+
+html[data-theme="light"] .dashboard-search-launcher strong,
+html[data-theme="light"] .dashboard-search-launcher kbd {
+  color: var(--text);
+}
+
+html[data-theme="light"] .dashboard-search-launcher small {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .dashboard-search-launcher kbd {
+  border-color: var(--panel-border);
+  background: var(--panel-soft);
+  box-shadow: none;
+}
+
+html[data-theme="light"] .dashboard-search-input-row input {
+  border-color: var(--panel-border);
+  background: #ffffff;
+  color: var(--text);
+}
+
+html[data-theme="light"] .dashboard-search-section > header,
+html[data-theme="light"] .dashboard-search-results > .dashboard-search-section > header {
+  background: var(--panel-soft);
+}
+
+html[data-theme="light"] .dashboard-search-results > .dashboard-search-section.is-out {
+  border-color: rgba(183, 47, 67, 0.28);
+  background: #fff7f8;
+}
+
+html[data-theme="light"] .dashboard-search-results > .dashboard-search-section.is-out > header {
+  background: rgba(183, 47, 67, 0.06);
+}
+
+html[data-theme="light"] .dashboard-search-result.is-selected {
+  background: rgba(8, 127, 111, 0.08);
+}
+
+html[data-theme="light"] .dashboard-search-result.is-out.is-selected {
+  background: rgba(183, 47, 67, 0.08);
+}
+
+html[data-theme="light"] .dashboard-search-detail-copy p {
+  color: #3f4d61;
+}
+
+html[data-theme="light"] .dashboard-search-details-link {
+  border-color: #b8c7d8;
+  background: #eef6ff;
+  color: #1e5c95;
+}
+
+html[data-theme="light"] .history-json-grid pre,
+html[data-theme="light"] .history-metadata pre,
+html[data-theme="light"] .reservation-notes p,
+html[data-theme="light"] .reservation-activity-entry p {
+  color: #334155;
+}
+
+html[data-theme="light"] .history-detail-panel,
+html[data-theme="light"] .project-modal,
+html[data-theme="light"] .project-detail-panel,
+html[data-theme="light"] .project-reserve-dialog,
+html[data-theme="light"] .reservation-modal,
+html[data-theme="light"] .reservation-detail-panel {
+  border-color: var(--panel-border);
+  background: var(--panel);
+}
+
+html[data-theme="light"] .project-status.is-reserved,
+html[data-theme="light"] .reservation-status.is-consumed,
+html[data-theme="light"] .history-kind.is-audit {
+  color: #1d5fad;
+}
+
+html[data-theme="light"] .project-status.is-consumed {
+  color: #6d3fc0;
+}
+
+html[data-theme="light"] .reservation-status.is-expired {
+  color: #8a5a00;
+}
+
+html[data-theme="light"] .add-part-modal,
+html[data-theme="light"] .add-part-header,
+html[data-theme="light"] .add-part-section,
+html[data-theme="light"] .add-part-actions,
+html[data-theme="light"] .add-part-success-details,
+html[data-theme="light"] .add-part-modal-success .add-part-header,
+html[data-theme="light"] .add-part-modal-success .add-part-success,
+html[data-theme="light"] .add-part-modal-success .add-part-actions,
+html[data-theme="light"] .add-part-modal-success .add-part-success-top,
+html[data-theme="light"] .add-part-modal-success .add-part-success-details {
+  border-color: var(--panel-border);
+  background: var(--panel);
+}
+
+html[data-theme="light"] .add-part-header,
+html[data-theme="light"] .add-part-actions,
+html[data-theme="light"] .add-part-modal-success .add-part-success-top,
+html[data-theme="light"] .add-part-modal-success .add-part-actions {
+  background: var(--panel-soft);
+}
+
+html[data-theme="light"] .add-part-close,
+html[data-theme="light"] .add-part-actions button,
+html[data-theme="light"] .add-part-manufacturer-control > button,
+html[data-theme="light"] .add-part-manufacturer-create > button,
+html[data-theme="light"] .add-part-package-control button,
+html[data-theme="light"] .add-part-package-creator button,
+html[data-theme="light"] .location-selector-control > button,
+html[data-theme="light"] .location-selector-create > button:not(:first-of-type) {
+  border-color: var(--panel-border) !important;
+  background: var(--panel-soft) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .add-part-close:hover:not(:disabled),
+html[data-theme="light"] .add-part-actions button:hover:not(:disabled),
+html[data-theme="light"] .add-part-manufacturer-control > button:hover:not(:disabled),
+html[data-theme="light"] .add-part-manufacturer-create > button:hover:not(:disabled),
+html[data-theme="light"] .add-part-package-control button:hover:not(:disabled),
+html[data-theme="light"] .add-part-package-creator button:hover:not(:disabled),
+html[data-theme="light"] .location-selector-control > button:hover:not(:disabled),
+html[data-theme="light"] .location-selector-create > button:not(:first-of-type):hover:not(:disabled) {
+  border-color: #9eacbd !important;
+  background: var(--panel-raised) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .add-part-section-heading strong,
+html[data-theme="light"] .add-part-success strong,
+html[data-theme="light"] .add-part-success-hero strong,
+html[data-theme="light"] .add-part-success-details strong,
+html[data-theme="light"] .add-part-modal-success .add-part-success-copy h2 {
+  color: var(--text);
+}
+
+html[data-theme="light"] .add-part-modal label > span,
+html[data-theme="light"] .add-part-success-hero span,
+html[data-theme="light"] .add-part-success-details span,
+html[data-theme="light"] .add-part-package-field > span,
+html[data-theme="light"] .add-part-package-field > small {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .add-part-modal input:not([type="checkbox"]),
+html[data-theme="light"] .add-part-modal select,
+html[data-theme="light"] .add-part-modal textarea {
+  border-color: var(--panel-border);
+  background: #ffffff;
+  color: var(--text);
+}
+
+html[data-theme="light"] .add-part-modal input:not([type="checkbox"]):hover,
+html[data-theme="light"] .add-part-modal select:hover,
+html[data-theme="light"] .add-part-modal textarea:hover {
+  border-color: #9eacbd;
+  background: #ffffff;
+}
+
+html[data-theme="light"] .add-part-low-stock-row,
+html[data-theme="light"] .add-part-manufacturer-create,
+html[data-theme="light"] .add-part-package-creator {
+  border-color: var(--panel-border);
+  background: var(--panel-soft);
+}
+
+html[data-theme="light"] .part-lifecycle-dialog,
+html[data-theme="light"] .part-lifecycle-dialog > header,
+html[data-theme="light"] .part-lifecycle-dialog > footer,
+html[data-theme="light"] .part-lifecycle-summary,
+html[data-theme="light"] .part-lifecycle-summary > div,
+html[data-theme="light"] .part-lifecycle-list,
+html[data-theme="light"] .part-lifecycle-list article {
+  border-color: var(--panel-border);
+  background: var(--panel);
+}
+
+html[data-theme="light"] .part-lifecycle-dialog > header,
+html[data-theme="light"] .part-lifecycle-dialog > footer,
+html[data-theme="light"] .part-lifecycle-summary,
+html[data-theme="light"] .part-lifecycle-list {
+  background: var(--panel-soft);
+}
+
+html[data-theme="light"] .part-lifecycle-dialog > header h2,
+html[data-theme="light"] .part-lifecycle-content > p,
+html[data-theme="light"] .part-lifecycle-summary dd,
+html[data-theme="light"] .part-lifecycle-state strong,
+html[data-theme="light"] .part-lifecycle-part-copy strong {
+  color: var(--text);
+}
+
+html[data-theme="light"] .part-lifecycle-dialog > header > div > p:last-child:not(.eyebrow),
+html[data-theme="light"] .part-lifecycle-summary dt,
+html[data-theme="light"] .part-lifecycle-dialog > footer > span,
+html[data-theme="light"] .part-lifecycle-state,
+html[data-theme="light"] .part-lifecycle-part-copy span,
+html[data-theme="light"] .part-lifecycle-part-copy small {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .part-lifecycle-close,
+html[data-theme="light"] .part-lifecycle-secondary {
+  border-color: var(--panel-border);
+  background: var(--panel-soft);
+  color: var(--text);
+}
+
+html[data-theme="light"] .part-lifecycle-search input {
+  border-color: var(--panel-border);
+  background: #ffffff;
+  color: var(--text);
+}
+
+html[data-theme="light"] .part-manager-page .search-card input[type="search"],
+html[data-theme="light"] .part-manager-page .part-manager-search input,
+html[data-theme="light"] .part-manager-page .inventory-search-control input,
+html[data-theme="light"] .part-manager-page .inventory-location-filter select,
+html[data-theme="light"] .part-manager-page .inventory-part-type-filter select,
+html[data-theme="light"] .part-manager-page .inventory-page-size select,
+html[data-theme="light"] .part-manager-page .delete-type-dialog .delete-type-content input,
+html[data-theme="light"] .part-manager-page .part-quantity-form input,
+html[data-theme="light"] .part-manager-page .part-quantity-form select,
+html[data-theme="light"] .part-manager-page .part-quantity-form textarea {
+  border-color: var(--panel-border) !important;
+  background-color: #ffffff !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .part-manager-page .creator-modal,
+html[data-theme="light"] .part-manager-page .creator-modal .creator-heading,
+html[data-theme="light"] .part-manager-page .creator-modal .creator-actions,
+html[data-theme="light"] .part-manager-page .delete-type-dialog,
+html[data-theme="light"] .part-manager-page .delete-type-dialog header,
+html[data-theme="light"] .part-manager-page .delete-type-dialog footer,
+html[data-theme="light"] .part-manager-page .part-details-drawer,
+html[data-theme="light"] .part-manager-page .part-details-header,
+html[data-theme="light"] .part-manager-page .part-details-footer {
+  border-color: var(--panel-border) !important;
+  background: var(--panel) !important;
+}
+
+html[data-theme="light"] .part-manager-page .creator-modal .creator-heading,
+html[data-theme="light"] .part-manager-page .creator-modal .creator-actions,
+html[data-theme="light"] .part-manager-page .delete-type-dialog header,
+html[data-theme="light"] .part-manager-page .delete-type-dialog footer,
+html[data-theme="light"] .part-manager-page .part-details-header,
+html[data-theme="light"] .part-manager-page .part-details-footer {
+  background: var(--panel-soft) !important;
+}
+
+html[data-theme="light"] .part-manager-page .creator-modal .creator-modal-close,
+html[data-theme="light"] .part-manager-page .part-type-edit-button,
+html[data-theme="light"] .part-manager-page .delete-type-close,
+html[data-theme="light"] .part-manager-page .delete-type-dialog footer button:not(.delete-type-confirm),
+html[data-theme="light"] .part-manager-page .inventory-browser-actions button,
+html[data-theme="light"] .part-manager-page .inventory-filter-empty button,
+html[data-theme="light"] .part-manager-page .inventory-pagination-actions button,
+html[data-theme="light"] .part-manager-page .part-details-close,
+html[data-theme="light"] .part-manager-page .part-details-footer button:not(.part-details-delete-button):not(.part-details-edit-button) {
+  border-color: var(--panel-border) !important;
+  background: var(--panel-soft) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-stock-filters,
+html[data-theme="light"] .part-manager-page .inventory-pagination,
+html[data-theme="light"] .part-manager-page .search-card .filter-tabs {
+  border-color: var(--panel-border) !important;
+  background: var(--panel-soft) !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-stock-filters button,
+html[data-theme="light"] .part-manager-page .search-card .filter-tabs button,
+html[data-theme="light"] .part-manager-page .inventory-sort-button {
+  color: var(--muted) !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-stock-filters button:hover:not(:disabled):not(.active),
+html[data-theme="light"] .part-manager-page .search-card .filter-tabs button:hover:not(.active),
+html[data-theme="light"] .part-manager-page .inventory-sort-button:hover {
+  background: var(--panel-raised) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-table th,
+html[data-theme="light"] .part-manager-page :is(.inventory-available-section, .inventory-out-of-stock-section) .inventory-table th {
+  background: #edf2f7 !important;
+  color: #526177 !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-table tbody td,
+html[data-theme="light"] .part-manager-page .inventory-out-of-stock-section .inventory-table tbody td,
+html[data-theme="light"] .part-manager-page .inventory-out-of-stock-section .inventory-table tbody tr:nth-child(even) td {
+  background: var(--panel) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-table tbody tr:hover td {
+  background: #f4f8fb !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-row-action.is-selected td,
+html[data-theme="light"] .part-manager-page .inventory-out-of-stock-section .inventory-row-action.is-selected td {
+  background: rgba(8, 127, 111, 0.08) !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-available-section {
+  border-color: rgba(8, 127, 111, 0.3) !important;
+  background: #f4fbf9 !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-available-header {
+  background: rgba(8, 127, 111, 0.08) !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-available-header h3,
+html[data-theme="light"] .part-manager-page .inventory-available-header .eyebrow {
+  color: #087f6f !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-available-header p:last-child {
+  color: #58736f !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-out-of-stock-section {
+  border-color: rgba(183, 47, 67, 0.28) !important;
+  background: #fff7f8 !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-out-of-stock-header {
+  background: rgba(183, 47, 67, 0.07) !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-out-of-stock-header h3,
+html[data-theme="light"] .part-manager-page .inventory-out-of-stock-header .eyebrow {
+  color: #b72f43 !important;
+}
+
+html[data-theme="light"] .part-manager-page .inventory-out-of-stock-header p:last-child {
+  color: #7c6267 !important;
+}
+
+html[data-theme="light"] .part-manager-page .part-details-stock article,
+html[data-theme="light"] .part-manager-page .part-details-section,
+html[data-theme="light"] .part-manager-page .part-details-grid,
+html[data-theme="light"] .part-manager-page .part-details-template-fields,
+html[data-theme="light"] .part-manager-page .part-details-grid > div,
+html[data-theme="light"] .part-manager-page .part-details-template-fields > div,
+html[data-theme="light"] .part-manager-page .part-movement-list,
+html[data-theme="light"] .part-manager-page .part-movement-list li,
+html[data-theme="light"] [data-partpilot-stock-history="PARTPILOT:STOCK_MOVEMENT_SNAPSHOTS:V400"] .part-movement-snapshots span {
+  border-color: var(--panel-border) !important;
+  background: var(--panel-soft) !important;
+}
+
+html[data-theme="light"] .part-manager-page .part-details-stock strong,
+html[data-theme="light"] .part-manager-page .part-details-section-heading > strong,
+html[data-theme="light"] .part-manager-page .part-details-grid dd,
+html[data-theme="light"] .part-manager-page .part-details-template-fields dd,
+html[data-theme="light"] .part-manager-page .part-movement-primary strong,
+html[data-theme="light"] .part-manager-page .inventory-pagination-summary strong {
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .part-manager-page .part-details-grid dt,
+html[data-theme="light"] .part-manager-page .part-details-template-fields dt,
+html[data-theme="light"] .part-manager-page .part-details-copy,
+html[data-theme="light"] .part-manager-page .part-movement-primary span,
+html[data-theme="light"] .part-manager-page .part-movement-list p,
+html[data-theme="light"] .part-manager-page .part-movement-list small,
+html[data-theme="light"] .part-manager-page .part-quantity-current,
+html[data-theme="light"] .part-manager-page .part-movement-count,
+html[data-theme="light"] .part-manager-page .part-quantity-hint {
+  color: var(--muted) !important;
+}
+
+html[data-theme="light"] .creator-editor input,
+html[data-theme="light"] .creator-editor select,
+html[data-theme="light"] .creator-editor textarea,
+html[data-theme="light"] .creator-preview input,
+html[data-theme="light"] .creator-preview select,
+html[data-theme="light"] .creator-required-toggle,
+html[data-theme="light"] .creator-preview-boolean {
+  background: #ffffff;
+  color: var(--text);
+}
+
+html[data-theme="light"] .creator-field-card,
+html[data-theme="light"] .creator-preview-card,
+html[data-theme="light"] .creator-actions {
+  background: var(--panel-soft);
+}
+
+html[data-theme="light"] .creator-preview-fields small {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .primary-button {
+  color: #ffffff;
+}
+
+html[data-theme="light"] .danger-button {
+  color: var(--danger);
+}
+
+html[data-theme="light"] .form-error,
+html[data-theme="light"] .danger-panel {
+  background: rgba(183, 47, 67, 0.06);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme] body,
+  html[data-theme] .sidebar,
+  html[data-theme] .mobile-topbar,
+  html[data-theme] .card,
+  html[data-theme] .empty-state,
+  html[data-theme] .main-panel {
+    transition:
+      background-color 140ms ease,
+      border-color 140ms ease,
+      color 140ms ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme] body,
+  html[data-theme] .sidebar,
+  html[data-theme] .mobile-topbar,
+  html[data-theme] .card,
+  html[data-theme] .empty-state,
+  html[data-theme] .main-panel {
+    transition: none;
+  }
+}
+
+/* PARTPILOT:LIGHT_THEME_CONTRAST_REFINEMENT:V415 */
+:root[data-theme="light"] {
+  --partpilot-light-contrast-v415: 1;
+}
+
+html[data-theme="light"] body .sidebar {
+  border-right-color: #c4cfdd;
+  background: #ffffff;
+}
+
+html[data-theme="light"] body .brand strong,
+html[data-theme="light"] body .sidebar-account-name {
+  color: #172033;
+}
+
+html[data-theme="light"] body .brand span,
+html[data-theme="light"] body .sidebar-account-username {
+  color: #66758a;
+}
+
+html[data-theme="light"] body .nav-item {
+  color: #526177;
+}
+
+html[data-theme="light"] body .nav-item:hover {
+  background: #edf2f7;
+  color: #172033;
+}
+
+html[data-theme="light"] body .nav-item.active {
+  background: #e2f2ee;
+  color: #06695d;
+}
+
+html[data-theme="light"] body .sidebar-logout {
+  border-color: #c8d2df;
+  background: #ffffff;
+  color: #526177;
+}
+
+html[data-theme="light"]
+  body
+  .dashboard-page
+  .dashboard-low-stock-threshold
+  span {
+  color: #64748b !important;
+}
+
+html[data-theme="light"]
+  body
+  .dashboard-page
+  .dashboard-low-stock-threshold
+  strong {
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-table
+  tbody
+  tr:nth-child(odd)
+  td,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-available-section
+  .inventory-table
+  tbody
+  tr:nth-child(odd)
+  td,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-out-of-stock-section
+  .inventory-table
+  tbody
+  tr:nth-child(odd)
+  td {
+  background: #ffffff !important;
+  color: #334155 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-table
+  tbody
+  tr:nth-child(even)
+  td,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-available-section
+  .inventory-table
+  tbody
+  tr:nth-child(even)
+  td,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-out-of-stock-section
+  .inventory-table
+  tbody
+  tr:nth-child(even)
+  td {
+  background: #f3f6fa !important;
+  color: #334155 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-table
+  tbody
+  tr:hover
+  td {
+  background: #eaf1f7 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-row-action.is-selected
+  td,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-available-section
+  .inventory-row-action.is-selected
+  td,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-out-of-stock-section
+  .inventory-row-action.is-selected
+  td {
+  background: #dff1ed !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-table
+  td:first-child
+  strong {
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-table
+  td:first-child
+  small {
+  color: #64748b !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-stock-pill.is-in {
+  border-color: #87cfc0 !important;
+  background: #e0f4ef !important;
+  color: #06695d !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-stock-pill.is-low {
+  border-color: #e3bd65 !important;
+  background: #fff4d7 !important;
+  color: #8a5a00 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-stock-pill.is-out {
+  border-color: #e4a5ae !important;
+  background: #fdebed !important;
+  color: #a52439 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-available-header
+  .eyebrow,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-available-header
+  h3 {
+  color: #06695d !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-available-header
+  > span {
+  border-color: #87cfc0 !important;
+  background: #dff3ee !important;
+  color: #06695d !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-out-of-stock-header
+  .eyebrow,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-out-of-stock-header
+  h3 {
+  color: #a52439 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-out-of-stock-header
+  > span {
+  border-color: #e4a5ae !important;
+  background: #fdebed !important;
+  color: #a52439 !important;
+}
+
+html[data-theme="light"] body .projects-status-tabs {
+  border-color: #c8d2df !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="light"] body .projects-status-tab {
+  color: #526177 !important;
+}
+
+html[data-theme="light"] body .projects-status-tab:hover {
+  background: #edf2f7 !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"] body .projects-status-tab.is-active {
+  border: 1px solid #99d3c7 !important;
+  background: #dff1ed !important;
+  color: #06695d !important;
+}
+
+html[data-theme="light"] body .project-row {
+  border-bottom-color: #d1dae6 !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"] body .project-row:hover {
+  background: #edf3f7 !important;
+}
+
+html[data-theme="light"] body .project-row.is-selected {
+  background: #dff1ed !important;
+  box-shadow: inset 3px 0 0 #087f6f !important;
+}
+
+html[data-theme="light"]
+  body
+  .project-row.is-selected
+  .project-row-main
+  strong {
+  color: #102a2a !important;
+}
+
+html[data-theme="light"] body .project-status.is-reserved {
+  border-color: #9dbce5 !important;
+  background: #e8f1fc !important;
+  color: #1d5fad !important;
+}
+
+html[data-theme="light"] body .part-manager-page .part-type-list {
+  background: #ffffff !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-type-list-heading {
+  border-bottom-color: #c8d2df !important;
+  background: #eef3f8 !important;
+  color: #526177 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-type-item {
+  border-bottom-color: #d1dae6 !important;
+  background: #ffffff !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-type-item:hover {
+  background: #edf3f7 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-type-item.active {
+  background: #dff1ed !important;
+  box-shadow: inset 3px 0 0 #087f6f !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-type-item
+  strong {
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-type-item
+  small {
+  color: #64748b !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-type-item
+  em {
+  border-color: #b9c5d3 !important;
+  background: #f4f7fa !important;
+  color: #526177 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-type-item.active
+  em {
+  border-color: #87cfc0 !important;
+  background: #cfece5 !important;
+  color: #06695d !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .search-card
+  .filter-tabs {
+  border-color: #c8d2df !important;
+  background: #eef3f8 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .search-card
+  .filter-tabs
+  button {
+  color: #526177 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .search-card
+  .filter-tabs
+  button:hover:not(.active) {
+  background: #dde5ee !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .search-card
+  .filter-tabs
+  button.active {
+  border-color: #87cfc0 !important;
+  background: #dff1ed !important;
+  color: #06695d !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-manager-create-button,
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-manager-add-part-button {
+  border-color: #87cfc0 !important;
+  background: #dff1ed !important;
+  color: #06695d !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-manager-create-button:hover:not(:disabled),
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .part-manager-add-part-button:hover:not(:disabled) {
+  border-color: #51ad9b !important;
+  background: #cfeae4 !important;
+  color: #04594f !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  :is(
+    .part-manager-create-button,
+    .part-manager-add-part-button
+  ):disabled {
+  border-color: #cbd5e1 !important;
+  background: #eef2f6 !important;
+  color: #8290a2 !important;
+  opacity: 1 !important;
+}
+
+/* PARTPILOT:LIGHT_THEME_INTERACTIVE_HIERARCHY:V416 */
+:root[data-theme="light"] {
+  --partpilot-light-interactive-v416: 1;
+}
+
+/* Inventory table headings and server-backed sort controls */
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-table
+  th {
+  border-bottom-color: #b9c6d5 !important;
+  background: #e3eaf2 !important;
+  color: #34465c !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-available-section
+  .inventory-table
+  th {
+  border-bottom-color: #8fc9bd !important;
+  background: #cfe7e2 !important;
+  color: #174e47 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-out-of-stock-section
+  .inventory-table
+  th {
+  border-bottom-color: #daa2ac !important;
+  background: #f3dce0 !important;
+  color: #762d3a !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-sort-button {
+  background: transparent !important;
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-sort-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.42) !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-available-section
+  .inventory-sort-button.is-active {
+  background: #b7ddd5 !important;
+  color: #04594f !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-out-of-stock-section
+  .inventory-sort-button.is-active {
+  background: #ecc8cf !important;
+  color: #8f1f34 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-sort-indicator {
+  color: currentColor !important;
+  opacity: 0.72 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-sort-button.is-active
+  .inventory-sort-indicator {
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .inventory-sort-button:disabled {
+  cursor: progress !important;
+  opacity: 0.58 !important;
+}
+
+/* Dashboard stock-state badges */
+html[data-theme="light"]
+  body
+  .dashboard-page
+  .dashboard-low-stock-badge {
+  border-color: #d7a13a !important;
+  background: #fff0c8 !important;
+  color: #754900 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .dashboard-page
+  .dashboard-low-stock-row.is-out
+  .dashboard-low-stock-badge {
+  border-color: #d47785 !important;
+  background: #ffe1e6 !important;
+  color: #982039 !important;
+  opacity: 1 !important;
+}
+
+/* Shared active button hierarchy for Projects and Reservations */
+html[data-theme="light"]
+  body
+  :is(.projects-button, .reservations-button):not(
+    .projects-button-primary,
+    .projects-button-danger,
+    .reservations-button-primary,
+    .reservations-button-danger
+  ):not(:disabled) {
+  border-color: #aebccd !important;
+  background: #ffffff !important;
+  color: #25344a !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  :is(.projects-button, .reservations-button):not(
+    .projects-button-primary,
+    .projects-button-danger,
+    .reservations-button-primary,
+    .reservations-button-danger
+  ):hover:not(:disabled) {
+  border-color: #7f91a6 !important;
+  background: #e8eef5 !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  :is(
+    .projects-button-primary,
+    .reservations-button-primary,
+    .part-manager-create-button,
+    .part-manager-add-part-button
+  ):not(:disabled) {
+  border-color: #06695d !important;
+  background: #087f6f !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+html[data-theme="light"]
+  body
+  :is(
+    .projects-button-primary,
+    .reservations-button-primary,
+    .part-manager-create-button,
+    .part-manager-add-part-button
+  ):hover:not(:disabled) {
+  border-color: #04594f !important;
+  background: #06695d !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"]
+  body
+  :is(
+    .projects-button-danger,
+    .reservations-button-danger
+  ):not(:disabled) {
+  border-color: #d47785 !important;
+  background: #fff0f2 !important;
+  color: #982039 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  :is(
+    .projects-button-danger,
+    .reservations-button-danger
+  ):hover:not(:disabled) {
+  border-color: #b9485b !important;
+  background: #ffe0e5 !important;
+  color: #7d152b !important;
+}
+
+html[data-theme="light"]
+  body
+  :is(
+    .projects-button,
+    .reservations-button,
+    .part-manager-create-button,
+    .part-manager-add-part-button
+  ):disabled {
+  border-color: #cfd8e3 !important;
+  background: #edf1f5 !important;
+  color: #8491a2 !important;
+  cursor: not-allowed !important;
+  opacity: 0.68 !important;
+}
+
+/* Project filters, selected row, and lifecycle badges */
+html[data-theme="light"] body .projects-status-tabs {
+  border-color: #b9c6d5 !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="light"] body .projects-status-tab {
+  color: #4b5d73 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .projects-status-tab:hover:not(.is-active) {
+  background: #e6edf4 !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .projects-status-tab.is-active {
+  border: 1px solid #06695d !important;
+  background: #087f6f !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"] body .project-row.is-selected {
+  background: #d2ebe5 !important;
+  box-shadow: inset 3px 0 0 #087f6f !important;
+}
+
+html[data-theme="light"]
+  body
+  .project-row.is-selected
+  :is(
+    .project-row-main strong,
+    .project-row-main small,
+    .project-row-number,
+    .project-row-date
+  ) {
+  color: #173b38 !important;
+}
+
+html[data-theme="light"] body .project-status.is-draft {
+  border-color: #5eb8a7 !important;
+  background: #cfece5 !important;
+  color: #04594f !important;
+}
+
+html[data-theme="light"] body .project-status.is-reserved {
+  border-color: #78a7df !important;
+  background: #dceafb !important;
+  color: #174f9b !important;
+}
+
+html[data-theme="light"] body .project-status.is-consumed {
+  border-color: #9c83d8 !important;
+  background: #ece5fb !important;
+  color: #5936a0 !important;
+}
+
+html[data-theme="light"] body .project-status.is-cancelled {
+  border-color: #d47785 !important;
+  background: #ffe1e6 !important;
+  color: #982039 !important;
+}
+
+/* Reservation filters, selected row, and lifecycle badges */
+html[data-theme="light"] body .reservations-status-tabs {
+  border-color: #b9c6d5 !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="light"] body .reservations-status-tab {
+  color: #4b5d73 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .reservations-status-tab:hover:not(.is-active) {
+  background: #e6edf4 !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .reservations-status-tab.is-active {
+  border: 1px solid #06695d !important;
+  background: #087f6f !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"] body .reservation-row.is-selected {
+  background: #d2ebe5 !important;
+  box-shadow: inset 3px 0 0 #087f6f !important;
+}
+
+html[data-theme="light"]
+  body
+  .reservation-row.is-selected
+  :is(
+    .reservation-row-main strong,
+    .reservation-row-main small,
+    .reservation-row-number,
+    .reservation-row-date
+  ) {
+  color: #173b38 !important;
+}
+
+html[data-theme="light"] body .reservation-status.is-active {
+  border-color: #5eb8a7 !important;
+  background: #cfece5 !important;
+  color: #04594f !important;
+}
+
+html[data-theme="light"] body .reservation-status.is-consumed {
+  border-color: #78a7df !important;
+  background: #dceafb !important;
+  color: #174f9b !important;
+}
+
+html[data-theme="light"] body .reservation-status.is-cancelled {
+  border-color: #d47785 !important;
+  background: #ffe1e6 !important;
+  color: #982039 !important;
+}
+
+html[data-theme="light"] body .reservation-status.is-expired {
+  border-color: #d7a13a !important;
+  background: #fff0c8 !important;
+  color: #754900 !important;
+}
+
+/* History global filters, selected register row, and event-kind badges */
+html[data-theme="light"] body .history-kind-tabs {
+  border-color: #b9c6d5 !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="light"] body .history-kind-tab {
+  color: #4b5d73 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .history-kind-tab:hover:not(.is-active) {
+  background: #e6edf4 !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"] body .history-kind-tab.is-active {
+  border: 1px solid #06695d !important;
+  background: #087f6f !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .history-button:not(:disabled) {
+  border-color: #aebccd !important;
+  background: #ffffff !important;
+  color: #25344a !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .history-button:hover:not(:disabled) {
+  border-color: #7f91a6 !important;
+  background: #e8eef5 !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"] body .history-button:disabled {
+  border-color: #cfd8e3 !important;
+  background: #edf1f5 !important;
+  color: #8491a2 !important;
+  cursor: not-allowed !important;
+  opacity: 0.68 !important;
+}
+
+html[data-theme="light"] body .history-row:hover {
+  background: #e8eef5 !important;
+}
+
+html[data-theme="light"] body .history-row.is-selected {
+  background: #cce8e2 !important;
+  box-shadow: inset 3px 0 0 #087f6f !important;
+}
+
+html[data-theme="light"]
+  body
+  .history-row.is-selected
+  :is(
+    .history-row-main strong,
+    .history-row-main small,
+    .history-row-entity,
+    .history-row-actor,
+    .history-row-date
+  ) {
+  color: #173b38 !important;
+}
+
+html[data-theme="light"]
+  body
+  .history-kind.is-stock_movement {
+  border-color: #55b3a1 !important;
+  background: #c8e9e2 !important;
+  color: #04594f !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"] body .history-kind.is-audit {
+  border-color: #78a7df !important;
+  background: #dceafb !important;
+  color: #174f9b !important;
+  opacity: 1 !important;
+}
+
+/* Part Manager filter tabs use the same active hierarchy */
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .search-card
+  .filter-tabs {
+  border-color: #b9c6d5 !important;
+  background: #ffffff !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .search-card
+  .filter-tabs
+  button {
+  color: #4b5d73 !important;
+  opacity: 1 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .search-card
+  .filter-tabs
+  button:hover:not(.active) {
+  background: #e6edf4 !important;
+  color: #172033 !important;
+}
+
+html[data-theme="light"]
+  body
+  .part-manager-page
+  .search-card
+  .filter-tabs
+  button.active {
+  border-color: #06695d !important;
+  background: #087f6f !important;
+  color: #ffffff !important;
+}

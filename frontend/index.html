@@ -3,6 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script>
+  (() => {
+    const marker = "PARTPILOT:APPEARANCE_PREPAINT:V412";
+    const storageKey = "partpilot.appearance.theme";
+    let preference = "dark";
+
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored === "light" || stored === "system") {
+        preference = stored;
+      }
+    } catch {
+      preference = "dark";
+    }
+
+    const resolved =
+      preference === "system"
+        ? window.matchMedia("(prefers-color-scheme: light)").matches
+          ? "light"
+          : "dark"
+        : preference;
+
+    const root = document.documentElement;
+    root.dataset.theme = resolved;
+    root.dataset.themePreference = preference;
+    root.dataset.partpilotAppearanceBootstrap = marker;
+    root.style.colorScheme = resolved;
+  })();
+</script>
     <title>Part Pilot</title>
   </head>
   <body>

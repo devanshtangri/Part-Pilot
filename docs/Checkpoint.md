@@ -2630,3 +2630,66 @@ appearance completion. Keep Settings separate from backup/restore and MCP.
 The previously deferred authenticated MCP server enable/disable control
 remains part of the later MCP phase unless its runtime contract is designed
 explicitly during Settings work.
+
+<!-- PARTPILOT:GLOBAL_APPEARANCE_CHECKPOINT:V417 -->
+## Global appearance and Settings checkpoint — Patch 417
+
+The authenticated appearance and Settings product slice is complete,
+browser approved and checkpointed.
+
+### Approved product behavior
+
+- Protected `GET` and `PATCH /api/settings/appearance` endpoints persist
+  `dark`, `light` or `system`, expose Light-theme availability, validate
+  invalid values, recover corrupt reads without silent writes and record
+  actor-attributed audit evidence.
+- A pre-paint bootstrap applies the stored preference before React renders,
+  preventing an opposite-theme flash during direct-route loads.
+- The authenticated appearance provider synchronizes server state, stores a
+  local pre-paint preference, follows operating-system theme changes in
+  System mode and restores the previous theme after failed saves.
+- Settings provides responsive Appearance, Inventory, Reservations and Data
+  sections. The Inventory and Reservation cards have aligned desktop
+  heights and stack naturally on narrow layouts.
+- Database reset uses one compact launch action and an accessible in-app
+  dialog. The destructive phrase input and final erase action live inside
+  the dialog; Escape and the non-destructive action clear and close it.
+- Light mode covers the shell, Dashboard, Stored Parts, Part Manager,
+  Projects, Reservations, History, tables, forms, drawers and modals.
+- Light-mode primary, neutral, destructive, selected, status and genuinely
+  disabled states use a consistent hierarchy across workspaces.
+- Dark mode retains the previously approved visual system.
+
+### Verification and recovery history
+
+- Patch 411 added and verified the protected appearance backend contract.
+- Patch 412 built and deployed the frontend but failed because Vite removed
+  quotes from a CSS attribute selector; rollback restored source and
+  deployment while SQLite page layout changed without logical data loss.
+- Patch 413 failed before writes because its failure-evidence string used
+  brittle escaping.
+- Patch 414 recovered with semantic evidence checks and minifier-safe quoted
+  or unquoted selector validation.
+- Patch 415 aligned Settings cards, moved reset confirmation into the dialog
+  and corrected screenshot-identified Light-theme contrast leaks.
+- Patch 416 unified inventory headings, stock badges, workspace actions,
+  active filters, selected rows and real disabled states.
+- Python, TypeScript and Vite builds, deployment, Alembic, protected
+  API/OpenAPI checks, production bundle markers and the complete copied-
+  database smoke suite passed.
+- Desktop browser testing approved Dark, Light and System behavior,
+  persistence, responsive Settings, reset-dialog safety and the final
+  cross-workspace Light-theme interaction hierarchy.
+
+### Approved live state
+
+The operational test database remains intact with 15 Parts, 7 Projects,
+9 Reservations, 32 stock movements and 96 audits. The six realistic
+Patch 401 fixtures remain intentionally preserved.
+
+### Next implementation
+
+Compact the Out-of-stock results preference so its visual weight matches
+its single boolean function. Keep the existing server-backed setting and
+switch behavior, then browser-test and checkpoint that focused refinement
+before beginning backup/restore.

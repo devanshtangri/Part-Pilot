@@ -352,3 +352,31 @@ because the available filters support investigation without breaking the
 operational timeline. An Oldest-first option can be added later if a concrete
 investigation workflow requires it.
 <!-- PARTPILOT:SYSTEM_HISTORY_README:V410:END -->
+
+<!-- PARTPILOT:GLOBAL_APPEARANCE_README:V417:START -->
+## Global appearance and Settings
+
+Part Pilot provides authenticated installation-wide appearance preferences
+with Dark, Light and System modes.
+
+| Capability | Status |
+|---|---|
+| Persisted Dark, Light and System preferences | Available |
+| Pre-paint theme application | Available |
+| Live operating-system theme following | Available |
+| Server synchronization and audit evidence | Available |
+| Responsive Appearance settings | Available |
+| Inventory search preference | Available |
+| Reservation expiry defaults | Available |
+| Accessible database-reset review dialog | Available |
+| Light-theme coverage across all current workspaces | Available |
+| Explicit active, destructive and disabled states | Available |
+
+The stored preference is applied before the React application renders, so
+direct route loads do not flash the opposite theme. System mode follows
+`prefers-color-scheme` changes without a reload.
+
+Database reset remains intentionally guarded: Settings presents one review
+action, then requires the exact destructive phrase inside an accessible
+in-app dialog before the final erase action becomes available.
+<!-- PARTPILOT:GLOBAL_APPEARANCE_README:V417:END -->

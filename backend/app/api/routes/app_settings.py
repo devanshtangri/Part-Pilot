@@ -1,19 +1,24 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.routes.auth import get_current_user
 from app.db.session import get_db
 from app.schemas.app_settings import (
+    AppearanceSettingsResponse,
+    AppearanceSettingsUpdateRequest,
     ReservationSettingsResponse,
     ReservationSettingsUpdateRequest,
     SearchSettingsResponse,
     SearchSettingsUpdateRequest,
 )
 from app.services.app_settings import (
+    AppearanceThemeUnavailableError,
+    get_appearance_settings,
     get_reservation_settings,
     get_search_settings,
+    update_appearance_settings,
     update_reservation_settings,
     update_search_settings,
 )
@@ -67,3 +72,39 @@ def patch_reservation_settings(
         actor_user_id=current_user.id,
         commit=True,
     )
+
+
+# PARTPILOT:APPEARANCE_SETTINGS_ROUTE:V411
+@router.get(
+    "/appearance",
+    response_model=AppearanceSettingsResponse,
+)
+def read_appearance_settings(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AppearanceSettingsResponse:
+    del current_user
+    return get_appearance_settings(db)
+
+
+@router.patch(
+    "/appearance",
+    response_model=AppearanceSettingsResponse,
+)
+def patch_appearance_settings(
+    payload: AppearanceSettingsUpdateRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AppearanceSettingsResponse:
+    try:
+        return update_appearance_settings(
+            db,
+            payload,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except AppearanceThemeUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc

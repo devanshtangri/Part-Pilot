@@ -1,59 +1,293 @@
-/* PATCH 194: SEARCH SETTINGS UI */
+/* PARTPILOT:SETTINGS_APPEARANCE_STYLES:V412 */
 .settings-page {
-  --search-settings-style-v194: 1;
+  --partpilot-settings-appearance-v412: 1;
+  gap: 14px;
+  max-width: 1320px;
 }
 
-.settings-page .settings-search-section {
+.settings-page-header {
+  display: flex;
+  max-width: none;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-end;
+}
+
+.settings-page-header > div {
+  min-width: 0;
+}
+
+.settings-runtime-status,
+.settings-current-mode,
+.settings-danger-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.settings-runtime-status > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.settings-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel);
+}
+
+.settings-section-nav a {
+  padding: 7px 11px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 720;
+}
+
+.settings-section-nav a:hover,
+.settings-section-nav a:focus-visible {
+  background: var(--panel-soft);
+  color: var(--text);
+  outline: none;
+}
+
+.settings-section {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  scroll-margin-top: 20px;
 }
 
-.settings-page .settings-search-section h2,
-.settings-page .settings-search-section p {
+.settings-section h2,
+.settings-section p {
   margin: 0;
 }
 
-.settings-page .settings-search-section > p {
-  max-width: 760px;
-  color: var(--muted);
-  line-height: 1.55;
-}
-
-.settings-page .settings-toggle-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+.settings-section-heading {
+  display: flex;
+  justify-content: space-between;
   gap: 18px;
-  padding: 14px 15px;
-  border: 1px solid #2a374b;
-  border-radius: 8px;
-  background: #0d1622;
+  align-items: flex-start;
+}
+
+.settings-section-heading > div {
+  min-width: 0;
+}
+
+.settings-section-heading h2 {
+  margin-top: 5px;
+  font-size: clamp(1.15rem, 1.8vw, 1.45rem);
+  letter-spacing: -0.02em;
+}
+
+.settings-section-heading p {
+  max-width: 760px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.settings-content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.settings-current-mode strong {
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.settings-theme-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.settings-theme-option {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel-soft);
+  color: var(--text);
   cursor: pointer;
+  text-align: left;
 }
 
-.settings-page .settings-toggle-row.is-disabled {
-  cursor: wait;
-  opacity: 0.72;
+.settings-theme-option:hover:not(:disabled) {
+  border-color: color-mix(
+    in srgb,
+    var(--panel-border) 45%,
+    var(--accent)
+  );
+  background: var(--panel-raised);
 }
 
-.settings-page .settings-toggle-copy {
+.settings-theme-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.settings-theme-option.is-selected {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 62%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.settings-theme-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.settings-theme-preview {
+  display: grid;
+  grid-template-columns: 31% 1fr;
+  height: 76px;
+  overflow: hidden;
+  border: 1px solid rgba(100, 116, 139, 0.42);
+  border-radius: 7px;
+}
+
+.settings-theme-preview.is-dark {
+  background: #121a27;
+}
+
+.settings-theme-preview.is-dark .settings-preview-sidebar {
+  background: #0f1724;
+}
+
+.settings-theme-preview.is-light {
+  background: #ffffff;
+}
+
+.settings-theme-preview.is-light .settings-preview-sidebar {
+  background: #e9eef5;
+}
+
+.settings-theme-preview.is-system {
+  background: #ffffff;
+}
+
+.settings-theme-preview.is-system .settings-preview-sidebar {
+  background: #0f1724;
+}
+
+.settings-preview-main {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 10px 9px;
+}
+
+.settings-preview-main i {
+  display: block;
+  height: 8px;
+  border-radius: 3px;
+  background: #d5dde8;
+}
+
+.settings-theme-preview.is-dark .settings-preview-main i {
+  background: #273247;
+}
+
+.settings-preview-main i:first-child {
+  width: 58%;
+  background: #2dd4a3;
+}
+
+.settings-preview-main i:nth-child(2) {
+  width: 88%;
+}
+
+.settings-preview-main i:last-child {
+  width: 72%;
+}
+
+.settings-theme-copy {
   display: grid;
   gap: 4px;
   min-width: 0;
 }
 
-.settings-page .settings-toggle-copy strong {
-  color: #e8eef7;
-  font-size: 0.86rem;
+.settings-theme-copy strong {
+  font-size: 0.84rem;
 }
 
-.settings-page .settings-toggle-copy span {
+.settings-theme-copy > span {
   color: var(--muted);
-  font-size: 0.74rem;
-  line-height: 1.5;
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
-.settings-page .settings-toggle-row input {
+.settings-theme-check {
+  min-height: 16px;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 780;
+  text-transform: uppercase;
+}
+
+.settings-toggle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 13px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+.settings-toggle-row.is-disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.settings-toggle-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-toggle-copy strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.settings-toggle-copy span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.settings-toggle-row input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -62,298 +296,653 @@
   pointer-events: none;
 }
 
-.settings-page .settings-switch {
+.settings-switch {
   position: relative;
   display: block;
   width: 44px;
   height: 24px;
   flex: 0 0 auto;
-  border: 1px solid #46556c;
+  border: 1px solid var(--panel-border);
   border-radius: 999px;
-  background: #182334;
+  background: var(--panel-raised);
   transition:
     border-color 140ms ease,
     background 140ms ease;
 }
 
-.settings-page .settings-switch::after {
+.settings-switch::after {
   position: absolute;
   top: 3px;
   left: 3px;
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #9aa9bc;
+  background: var(--muted);
   content: "";
   transition:
     transform 140ms ease,
     background 140ms ease;
 }
 
-.settings-page .settings-toggle-row input:checked
-  + .settings-switch {
-  border-color: rgba(45, 212, 163, 0.7);
-  background: rgba(5, 150, 105, 0.24);
+.settings-toggle-row input:checked + .settings-switch {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 70%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
 }
 
-.settings-page .settings-toggle-row input:checked
-  + .settings-switch::after {
+.settings-toggle-row input:checked + .settings-switch::after {
   transform: translateX(20px);
-  background: #5eead4;
+  background: var(--accent);
 }
 
-.settings-page .settings-toggle-row input:focus-visible
-  + .settings-switch {
+.settings-toggle-row input:focus-visible + .settings-switch {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 
-.settings-page .settings-preference-state {
+.settings-preference-state {
   margin: 0;
   padding: 9px 11px;
-  border: 1px solid #2a374b;
+  border: 1px solid var(--panel-border);
   border-radius: 7px;
-  background: #101925;
-  color: #aebdce;
-  font-size: 0.74rem;
-}
-
-.settings-page .settings-preference-state.is-error {
-  border-color: rgba(248, 113, 113, 0.38);
-  background: rgba(127, 29, 29, 0.13);
-  color: #fecaca;
-}
-
-.settings-page .settings-preference-state.is-success {
-  border-color: rgba(45, 212, 163, 0.3);
-  background: rgba(6, 78, 59, 0.13);
-  color: #a7f3d0;
-}
-
-@media (max-width: 620px) {
-  .settings-page .settings-toggle-row {
-    align-items: flex-start;
-    gap: 12px;
-    padding: 13px;
-  }
-}
-
-
-/* PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362 */
-.settings-page {
-  --reservation-expiry-settings-v362: 1;
-}
-
-.settings-page .settings-reservation-section {
-  display: grid;
-  gap: 12px;
-}
-
-.settings-page .settings-reservation-section h2,
-.settings-page .settings-reservation-section p {
-  margin: 0;
-}
-
-.settings-page .settings-reservation-section > p {
-  max-width: 780px;
+  background: var(--panel-soft);
   color: var(--muted);
-  line-height: 1.55;
-}
-
-.settings-page .settings-reservation-form {
-  display: grid;
-  max-width: 780px;
-  gap: 13px;
-}
-
-.settings-page .settings-segmented-control {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
-  padding: 3px;
-  border: 1px solid #2a374b;
-  border-radius: 8px;
-  background: #0d1622;
-}
-
-.settings-page .settings-segmented-control button {
-  min-height: 40px;
-  padding: 8px 12px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: #9eacc0;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.76rem;
-  font-weight: 750;
-  transition:
-    border-color 140ms ease,
-    background 140ms ease,
-    color 140ms ease;
-}
-
-.settings-page .settings-segmented-control button:hover:not(:disabled) {
-  background: #152132;
-  color: #dce5f1;
-}
-
-.settings-page .settings-segmented-control button.is-active {
-  border-color: rgba(45, 212, 163, 0.45);
-  background: rgba(5, 150, 105, 0.22);
-  color: #b7f7e5;
-}
-
-.settings-page .settings-segmented-control button:focus-visible,
-.settings-page .settings-action:focus-visible,
-.settings-page .settings-preference-state button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.settings-page .settings-segmented-control button:disabled,
-.settings-page .settings-action:disabled {
-  cursor: not-allowed;
-  opacity: 0.48;
-}
-
-.settings-page .settings-days-field {
-  display: grid;
-  gap: 7px;
-  padding: 13px 14px;
-  border: 1px solid #2a374b;
-  border-radius: 8px;
-  background: #0d1622;
-}
-
-.settings-page .settings-days-field > span:first-child {
-  color: #dce5f1;
-  font-size: 0.78rem;
-  font-weight: 750;
-}
-
-.settings-page .settings-days-control {
-  display: grid;
-  grid-template-columns: minmax(0, 150px) auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.settings-page .settings-days-control input {
-  width: 100%;
-  min-height: 42px;
-  padding: 9px 11px;
-  border: 1px solid #34445a;
-  border-radius: 7px;
-  outline: none;
-  background: #111b29;
-  color: #edf4fc;
-  font: inherit;
-  font-variant-numeric: tabular-nums;
-}
-
-.settings-page .settings-days-control input:focus {
-  border-color: rgba(45, 212, 163, 0.78);
-  box-shadow: 0 0 0 3px rgba(45, 212, 163, 0.1);
-}
-
-.settings-page .settings-days-control input[aria-invalid="true"] {
-  border-color: rgba(248, 113, 113, 0.62);
-  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.08);
-}
-
-.settings-page .settings-days-control strong {
-  color: #aebdce;
-  font-size: 0.76rem;
-}
-
-.settings-page .settings-days-field small {
-  color: var(--muted);
-  font-size: 0.71rem;
+  font-size: 0.73rem;
   line-height: 1.45;
 }
 
-.settings-page .settings-reservation-summary {
-  padding: 12px 13px;
-  border: 1px solid #2a374b;
-  border-radius: 8px;
-  background: #0d1622;
-  color: #aebdce !important;
-  font-size: 0.76rem;
-}
-
-.settings-page .settings-action-row {
-  display: flex;
-  justify-content: flex-end;
-  gap: 9px;
-}
-
-.settings-page .settings-action {
-  min-height: 40px;
-  padding: 8px 13px;
-  border-radius: 7px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 780;
-}
-
-.settings-page .settings-action-secondary {
-  border: 1px solid #34445a;
-  background: #111b29;
-  color: #c9d4e2;
-}
-
-.settings-page .settings-action-secondary:hover:not(:disabled) {
-  border-color: #4a5c74;
-  background: #172334;
-}
-
-.settings-page .settings-action-primary {
-  border: 1px solid rgba(45, 212, 163, 0.55);
-  background: rgba(5, 150, 105, 0.24);
-  color: #b7f7e5;
-}
-
-.settings-page .settings-action-primary:hover:not(:disabled) {
-  background: rgba(5, 150, 105, 0.34);
-}
-
-.settings-page .settings-preference-state.is-error {
+.settings-preference-state.is-error {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  border-color: color-mix(
+    in srgb,
+    var(--danger) 45%,
+    var(--panel-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--danger) 8%,
+    var(--panel)
+  );
+  color: var(--danger);
 }
 
-.settings-page .settings-preference-state button {
+.settings-preference-state.is-success {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 34%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-preference-state button {
   min-height: 30px;
   padding: 5px 9px;
-  border: 1px solid rgba(248, 113, 113, 0.44);
+  border: 1px solid currentColor;
   border-radius: 6px;
-  background: rgba(127, 29, 29, 0.14);
-  color: #fecaca;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
   font: inherit;
-  font-size: 0.7rem;
+  font-size: 0.69rem;
   font-weight: 760;
 }
 
-@media (max-width: 620px) {
-  .settings-page .settings-segmented-control {
+.settings-reservation-form {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.settings-segmented-control button {
+  min-height: 39px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.73rem;
+  font-weight: 750;
+}
+
+.settings-segmented-control button:hover:not(:disabled) {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.settings-segmented-control button.is-active {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 44%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-segmented-control button:focus-visible,
+.settings-action:focus-visible,
+.settings-preference-state button:focus-visible,
+.danger-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.settings-segmented-control button:disabled,
+.settings-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.settings-days-field {
+  display: grid;
+  gap: 7px;
+  padding: 12px 13px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.settings-days-field > span:first-child {
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.settings-days-control {
+  display: grid;
+  grid-template-columns: minmax(0, 145px) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-days-control input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-days-control input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.settings-days-control input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.settings-days-control strong,
+.settings-days-field small {
+  color: var(--muted);
+  font-size: 0.71rem;
+}
+
+.settings-reservation-summary {
+  padding: 11px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.settings-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings-action {
+  min-height: 38px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.73rem;
+  font-weight: 780;
+}
+
+.settings-action-secondary {
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.settings-action-secondary:hover:not(:disabled) {
+  background: var(--panel-raised);
+  color: var(--text);
+}
+
+.settings-action-primary {
+  border: 1px solid color-mix(
+    in srgb,
+    var(--accent) 54%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-action-primary:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--accent) 17%,
+    var(--panel)
+  );
+}
+
+.settings-danger-section {
+  border-color: color-mix(
+    in srgb,
+    var(--danger) 30%,
+    var(--panel-border)
+  );
+}
+
+.settings-danger-badge {
+  border-color: color-mix(
+    in srgb,
+    var(--danger) 38%,
+    var(--panel-border)
+  );
+  color: var(--danger);
+}
+
+.settings-page .danger-panel {
+  margin: 0;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.settings-page .danger-panel > p {
+  max-width: 850px;
+  margin: 0 0 13px;
+  font-size: 0.78rem;
+}
+
+.settings-page .danger-reset-form {
+  grid-template-columns: minmax(260px, 560px) auto;
+  max-width: none;
+  align-items: end;
+}
+
+.settings-page .danger-reset-form .form-error {
+  grid-column: 1 / -1;
+}
+
+.settings-page .danger-reset-form code {
+  color: var(--danger);
+}
+
+.settings-page .danger-button {
+  min-height: 42px;
+  margin: 0;
+  padding: 9px 13px;
+  border-color: color-mix(
+    in srgb,
+    var(--danger) 55%,
+    var(--panel-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--danger) 11%,
+    var(--panel)
+  );
+  color: var(--danger);
+}
+
+.settings-page .danger-button:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--danger) 17%,
+    var(--panel)
+  );
+}
+
+.settings-reset-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 7, 13, 0.72);
+}
+
+.settings-reset-dialog {
+  width: min(560px, 100%);
+  overflow: hidden;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--danger) 42%,
+    var(--panel-border)
+  );
+  border-radius: 11px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.settings-reset-dialog header,
+.settings-reset-dialog-content,
+.settings-reset-dialog footer {
+  padding: 16px 18px;
+}
+
+.settings-reset-dialog header {
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel-soft);
+}
+
+.settings-reset-dialog header h2 {
+  font-size: 1.35rem;
+}
+
+.settings-reset-dialog-content {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-reset-dialog-content > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.settings-reset-dialog dl {
+  display: grid;
+  margin: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.settings-reset-dialog dl > div {
+  display: grid;
+  grid-template-columns: 105px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 11px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.settings-reset-dialog dl > div:last-child {
+  border-bottom: 0;
+}
+
+.settings-reset-dialog dt {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.settings-reset-dialog dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.settings-reset-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--panel-border);
+  background: var(--panel-soft);
+}
+
+@media (max-width: 900px) {
+  .settings-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-content-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .settings-theme-options {
     grid-template-columns: 1fr;
   }
 
-  .settings-page .settings-days-control {
+  .settings-theme-option {
+    grid-template-columns: 112px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .settings-theme-preview {
+    height: 68px;
+  }
+
+  .settings-theme-check {
+    grid-column: 2;
+  }
+
+  .settings-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-current-mode,
+  .settings-danger-badge {
+    align-self: flex-start;
+  }
+
+  .settings-page .danger-reset-form {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-page .danger-reset-form .form-error {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-section-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-section-nav a {
+    text-align: center;
+  }
+
+  .settings-theme-option {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .settings-toggle-row {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .settings-segmented-control {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-days-control {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .settings-page .settings-action-row {
+  .settings-action-row,
+  .settings-reset-dialog footer {
     align-items: stretch;
     flex-direction: column-reverse;
   }
 
-  .settings-page .settings-action {
+  .settings-action,
+  .settings-reset-dialog .danger-button {
+    width: 100%;
+  }
+
+  .settings-reset-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .settings-reset-dialog {
+    max-height: calc(100dvh - 20px);
+    overflow-y: auto;
+  }
+
+  .settings-reset-dialog dl > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-switch,
+  .settings-switch::after {
+    transition: none;
+  }
+}
+
+/* PARTPILOT:SETTINGS_LAYOUT_REFINEMENT:V415 */
+.settings-page {
+  --partpilot-settings-refinement-v415: 1;
+}
+
+.settings-content-grid {
+  align-items: stretch;
+}
+
+.settings-content-grid > .settings-section {
+  height: 100%;
+}
+
+.settings-danger-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 13px;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--danger) 34%,
+    var(--panel-border)
+  );
+  border-radius: 8px;
+  background: color-mix(
+    in srgb,
+    var(--danger) 6%,
+    var(--panel)
+  );
+}
+
+.settings-danger-summary p {
+  max-width: 820px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.settings-danger-launch {
+  min-height: 36px !important;
+  flex: 0 0 auto;
+  padding: 7px 11px !important;
+  white-space: nowrap;
+}
+
+.settings-reset-confirmation {
+  display: grid;
+  gap: 7px;
+}
+
+.settings-reset-confirmation > span {
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+
+.settings-reset-confirmation code {
+  color: var(--danger);
+}
+
+.settings-reset-confirmation input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.settings-reset-confirmation input:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--danger) 11%, transparent);
+}
+
+.settings-reset-confirmation input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.settings-reset-dialog .form-error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--danger) 36%,
+    var(--panel-border)
+  );
+  border-radius: 7px;
+  background: color-mix(
+    in srgb,
+    var(--danger) 7%,
+    var(--panel)
+  );
+  color: var(--danger);
+  font-size: 0.73rem;
+}
+
+.settings-reset-dialog .danger-button {
+  min-height: 38px;
+  padding: 7px 11px;
+}
+
+@media (max-width: 680px) {
+  .settings-danger-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-danger-launch {
     width: 100%;
   }
 }

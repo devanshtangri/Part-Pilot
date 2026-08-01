@@ -1,7 +1,14 @@
-import { FormEvent, useEffect, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState
+} from "react";
 
+import {
+  APPEARANCE_STORAGE_KEY,
+  useAppearance
+} from "../appearance/AppearanceContext";
 import { useAuth } from "../auth/AuthContext";
-
 import {
   AUTH_TOKEN_STORAGE_KEY,
   resetApplicationDatabase
@@ -13,6 +20,7 @@ import {
   updateSearchSettings
 } from "../services/settingsClient";
 import type {
+  AppearanceTheme,
   ReservationExpiryMode,
   ReservationSettings,
   SearchSettings
@@ -21,8 +29,42 @@ import "./Settings.css";
 
 const RESET_CONFIRMATION = "RESET PART PILOT";
 
+const APPEARANCE_OPTIONS: Array<{
+  value: AppearanceTheme;
+  title: string;
+  description: string;
+}> = [
+  {
+    value: "dark",
+    title: "Dark",
+    description: "Low-glare surfaces for workshops and dim rooms."
+  },
+  {
+    value: "light",
+    title: "Light",
+    description: "Bright neutral surfaces with strong daylight contrast."
+  },
+  {
+    value: "system",
+    title: "System",
+    description: "Follow the operating system and update automatically."
+  }
+];
+
 export function Settings() {
   const { token } = useAuth();
+  const {
+    theme,
+    resolvedTheme,
+    lightThemeAvailable,
+    isLoading: appearanceLoading,
+    isSaving: appearanceSaving,
+    saved: appearanceSaved,
+    error: appearanceError,
+    selectTheme,
+    reload: reloadAppearance
+  } = useAppearance();
+
   const [searchSettings, setSearchSettings] =
     useState<SearchSettings | null>(null);
   const [searchSettingsLoading, setSearchSettingsLoading] =
@@ -33,6 +75,7 @@ export function Settings() {
     useState<string | null>(null);
   const [searchSettingsSaved, setSearchSettingsSaved] =
     useState(false);
+
   const [reservationSettings, setReservationSettings] =
     useState<ReservationSettings | null>(null);
   const [reservationDraft, setReservationDraft] =
@@ -45,19 +88,26 @@ export function Settings() {
     useState<string | null>(null);
   const [reservationSettingsSaved, setReservationSettingsSaved] =
     useState(false);
-  const [reservationReloadVersion, setReservationReloadVersion] = useState(0);
+  const [reservationReloadVersion, setReservationReloadVersion] =
+    useState(0);
+
   const [confirmation, setConfirmation] = useState("");
   const [isResetting, setIsResetting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   const canReset =
     confirmation === RESET_CONFIRMATION && !isResetting;
+
   const reservationSettingsChanged = Boolean(
     reservationSettings &&
       reservationDraft &&
-      (reservationSettings.expiry_mode !== reservationDraft.expiry_mode ||
-        reservationSettings.default_days !== reservationDraft.default_days)
+      (reservationSettings.expiry_mode !==
+        reservationDraft.expiry_mode ||
+        reservationSettings.default_days !==
+          reservationDraft.default_days)
   );
+
   const reservationDaysError =
     reservationDraft?.expiry_mode === "default" &&
     (!Number.isInteger(reservationDraft.default_days) ||
@@ -66,7 +116,13 @@ export function Settings() {
       ? "Enter a whole number from 1 to 3650 days."
       : null;
 
-  // PATCH 194: load the out-of-stock grouping preference
+  const appearanceSummary = useMemo(() => {
+    if (theme === "system") {
+      return `Following system · ${resolvedTheme} mode active`;
+    }
+    return `${theme === "dark" ? "Dark" : "Light"} mode active`;
+  }, [resolvedTheme, theme]);
+
   useEffect(() => {
     if (!token) {
       setSearchSettings(null);
@@ -108,7 +164,6 @@ export function Settings() {
     };
   }, [token]);
 
-  // PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362
   useEffect(() => {
     if (!token) {
       setReservationSettings(null);
@@ -154,6 +209,28 @@ export function Settings() {
     };
   }, [reservationReloadVersion, token]);
 
+  useEffect(() => {
+    if (!resetDialogOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !isResetting) {
+        closeDatabaseResetDialog();
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isResetting, resetDialogOpen]);
+
   function chooseReservationExpiryMode(
     expiryMode: ReservationExpiryMode
   ): void {
@@ -163,7 +240,9 @@ export function Settings() {
     setReservationDraft({
       expiry_mode: expiryMode,
       default_days:
-        expiryMode === "none" ? null : reservationDraft.default_days
+        expiryMode === "none"
+          ? null
+          : reservationDraft.default_days
     });
     setReservationSettingsError(null);
     setReservationSettingsSaved(false);
@@ -192,7 +271,10 @@ export function Settings() {
     setReservationSettingsError(null);
     setReservationSettingsSaved(false);
     try {
-      const saved = await updateReservationSettings(token, reservationDraft);
+      const saved = await updateReservationSettings(
+        token,
+        reservationDraft
+      );
       setReservationSettings(saved);
       setReservationDraft(saved);
       setReservationSettingsSaved(true);
@@ -240,39 +322,48 @@ export function Settings() {
     }
   }
 
-  async function handleReset(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
+  function openDatabaseResetDialog(): void {
+    setConfirmation("");
+    setResetError(null);
+    setResetDialogOpen(true);
+  }
 
-    if (confirmation !== RESET_CONFIRMATION) {
-      setError(`Type ${RESET_CONFIRMATION} exactly to continue.`);
+  function closeDatabaseResetDialog(): void {
+    if (isResetting) {
       return;
     }
+    setResetDialogOpen(false);
+    setConfirmation("");
+    setResetError(null);
+  }
 
-    const accepted = window.confirm(
-      "This will permanently erase every Part Pilot database record, " +
-        "including the user account, inventory, projects, reservations, " +
-        "history, settings, and sessions. Continue?"
-    );
+  async function confirmDatabaseReset(): Promise<void> {
+    const activeToken =
+      token ?? localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 
-    if (!accepted) {
-      return;
-    }
-
-    const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-    if (!token) {
-      setError("Your session is missing. Sign in again before resetting.");
+    if (!activeToken) {
+      setResetError(
+        "Your session is missing. Sign in again before resetting."
+      );
       return;
     }
 
     setIsResetting(true);
+    setResetError(null);
 
     try {
-      await resetApplicationDatabase(token, confirmation);
+      await resetApplicationDatabase(
+        activeToken,
+        confirmation
+      );
       localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      localStorage.removeItem(APPEARANCE_STORAGE_KEY);
+      document.documentElement.dataset.theme = "dark";
+      document.documentElement.dataset.themePreference = "dark";
+      document.documentElement.style.colorScheme = "dark";
       window.location.replace("/");
     } catch (caught) {
-      setError(
+      setResetError(
         caught instanceof Error
           ? caught.message
           : "Unable to reset the database"
@@ -286,278 +377,529 @@ export function Settings() {
       className="page-stack settings-page"
       data-search-settings-version="search-settings-toggle-v194"
       data-reservation-settings-version="reservation-expiry-settings-v362"
+      data-partpilot-appearance="PARTPILOT:SETTINGS_APPEARANCE_WORKSPACE:V412"
     >
-      <header className="page-header">
-        <p className="eyebrow">Application</p>
-        <h1>Settings</h1>
-        <p>Configure this Part Pilot installation.</p>
+      <header className="page-header settings-page-header">
+        <div>
+          <p className="eyebrow">Application configuration</p>
+          <h1>Settings</h1>
+          <p>
+            Manage appearance, inventory behavior, reservation defaults,
+            and local data controls for this installation.
+          </p>
+        </div>
+        <span className="settings-runtime-status">
+          <span aria-hidden="true" />
+          {appearanceSummary}
+        </span>
       </header>
 
-      <section
-        className="card settings-section settings-search-section"
-        aria-labelledby="settings-search-title"
+      <nav
+        className="settings-section-nav"
+        aria-label="Settings sections"
       >
-        <span className="card-label">Inventory search</span>
-        <h2 id="settings-search-title">Out-of-stock results</h2>
-        <p>
-          Control whether matching zero-stock parts appear in a separate
-          section below normal Stored Parts results. The explicit Out filter
-          remains available either way.
-        </p>
+        <a href="#settings-appearance">Appearance</a>
+        <a href="#settings-inventory">Inventory</a>
+        <a href="#settings-reservations">Reservations</a>
+        <a href="#settings-data">Data</a>
+      </nav>
 
-        {searchSettingsLoading ? (
+      <section
+        id="settings-appearance"
+        className="card settings-section settings-appearance-section"
+        aria-labelledby="settings-appearance-title"
+      >
+        <div className="settings-section-heading">
+          <div>
+            <span className="card-label">Workspace</span>
+            <h2 id="settings-appearance-title">Appearance</h2>
+            <p>
+              Choose a stored preference for the complete Part Pilot
+              interface. System mode follows operating-system changes
+              without a reload.
+            </p>
+          </div>
+          <span className="settings-current-mode">
+            Resolved: <strong>{resolvedTheme}</strong>
+          </span>
+        </div>
+
+        {appearanceLoading ? (
           <p className="settings-preference-state" role="status">
-            Loading search preference...
+            Loading appearance preference...
+          </p>
+        ) : (
+          <div
+            className="settings-theme-options"
+            role="radiogroup"
+            aria-label="Application appearance"
+          >
+            {APPEARANCE_OPTIONS.map((option) => {
+              const disabled =
+                appearanceSaving ||
+                (option.value !== "dark" &&
+                  !lightThemeAvailable);
+              return (
+                <button
+                  key={option.value}
+                  className={
+                    theme === option.value
+                      ? "settings-theme-option is-selected"
+                      : "settings-theme-option"
+                  }
+                  type="button"
+                  role="radio"
+                  aria-checked={theme === option.value}
+                  disabled={disabled}
+                  onClick={() =>
+                    void selectTheme(option.value)
+                  }
+                >
+                  <span
+                    className={`settings-theme-preview is-${option.value}`}
+                    aria-hidden="true"
+                  >
+                    <span className="settings-preview-sidebar" />
+                    <span className="settings-preview-main">
+                      <i />
+                      <i />
+                      <i />
+                    </span>
+                  </span>
+                  <span className="settings-theme-copy">
+                    <strong>{option.title}</strong>
+                    <span>{option.description}</span>
+                  </span>
+                  <span
+                    className="settings-theme-check"
+                    aria-hidden="true"
+                  >
+                    {theme === option.value ? "Selected" : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {!lightThemeAvailable ? (
+          <p className="settings-preference-state">
+            Light and System modes are unavailable for this
+            installation. Dark remains active.
           </p>
         ) : null}
 
-        {!searchSettingsLoading && searchSettings ? (
-          <label
-            className={
-              searchSettingsSaving
-                ? "settings-toggle-row is-disabled"
-                : "settings-toggle-row"
-            }
-          >
-            <span className="settings-toggle-copy">
-              <strong>Show a separate out-of-stock section</strong>
-              <span>
-                Keep zero-stock matches below available and low-stock parts
-                when the All filter is selected.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              checked={searchSettings.show_out_of_stock_section}
-              onChange={(event) =>
-                void handleOutOfStockPreference(
-                  event.target.checked
-                )
-              }
-              disabled={searchSettingsSaving}
-              aria-label="Show a separate out-of-stock section"
-            />
-            <span className="settings-switch" aria-hidden="true" />
-          </label>
-        ) : null}
-
-        {searchSettingsError ? (
-          <p
+        {appearanceError ? (
+          <div
             className="settings-preference-state is-error"
             role="alert"
           >
-            {searchSettingsError}
-          </p>
+            <span>{appearanceError}</span>
+            <button type="button" onClick={reloadAppearance}>
+              Retry
+            </button>
+          </div>
         ) : null}
 
-        {searchSettingsSaved && !searchSettingsError ? (
+        {appearanceSaved && !appearanceError ? (
           <p
             className="settings-preference-state is-success"
             role="status"
           >
-            Search preference saved.
+            Appearance saved and applied across Part Pilot.
           </p>
         ) : null}
       </section>
 
-      <section
-        className="card settings-section settings-reservation-section"
-        aria-labelledby="settings-reservation-title"
-        data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362"
-      >
-        <span className="card-label">Reservations</span>
-        <h2 id="settings-reservation-title">Reservation defaults</h2>
-        <p>
-          Choose whether new manual reservations start with an expiry. The
-          suggested value can always be changed or cleared before creation.
-          Existing reservations are never rewritten by this setting.
-        </p>
-
-        {reservationSettingsLoading ? (
-          <p className="settings-preference-state" role="status">
-            Loading reservation defaults...
-          </p>
-        ) : null}
-
-        {!reservationSettingsLoading && reservationDraft ? (
-          <div className="settings-reservation-form">
-            <div
-              className="settings-segmented-control"
-              role="radiogroup"
-              aria-label="Default reservation expiry"
-            >
-              <button
-                type="button"
-                role="radio"
-                aria-checked={reservationDraft.expiry_mode === "none"}
-                className={
-                  reservationDraft.expiry_mode === "none" ? "is-active" : ""
-                }
-                onClick={() => chooseReservationExpiryMode("none")}
-                disabled={reservationSettingsSaving}
-              >
-                No automatic expiry
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={reservationDraft.expiry_mode === "default"}
-                className={
-                  reservationDraft.expiry_mode === "default"
-                    ? "is-active"
-                    : ""
-                }
-                onClick={() => chooseReservationExpiryMode("default")}
-                disabled={reservationSettingsSaving}
-              >
-                Default expiry after
-              </button>
+      <div className="settings-content-grid">
+        <section
+          id="settings-inventory"
+          className="card settings-section settings-search-section"
+          aria-labelledby="settings-search-title"
+        >
+          <div className="settings-section-heading">
+            <div>
+              <span className="card-label">Inventory search</span>
+              <h2 id="settings-search-title">
+                Out-of-stock results
+              </h2>
+              <p>
+                Keep zero-stock matches in a separate section below
+                available and low-stock parts when All is selected.
+              </p>
             </div>
+          </div>
 
-            {reservationDraft.expiry_mode === "default" ? (
-              <label className="settings-days-field">
-                <span>Default expiry duration</span>
-                <span className="settings-days-control">
-                  <input
-                    type="number"
-                    min={1}
-                    max={3650}
-                    step={1}
-                    inputMode="numeric"
-                    value={reservationDraft.default_days ?? ""}
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      setReservationDraft({
-                        expiry_mode: "default",
-                        default_days: value === "" ? null : Number(value)
-                      });
-                      setReservationSettingsError(null);
-                      setReservationSettingsSaved(false);
-                    }}
-                    aria-invalid={Boolean(reservationDaysError)}
-                    aria-describedby="reservation-default-days-help"
-                    disabled={reservationSettingsSaving}
-                  />
-                  <strong>days</strong>
+          {searchSettingsLoading ? (
+            <p
+              className="settings-preference-state"
+              role="status"
+            >
+              Loading search preference...
+            </p>
+          ) : null}
+
+          {!searchSettingsLoading && searchSettings ? (
+            <label
+              className={
+                searchSettingsSaving
+                  ? "settings-toggle-row is-disabled"
+                  : "settings-toggle-row"
+              }
+            >
+              <span className="settings-toggle-copy">
+                <strong>Show a separate out-of-stock section</strong>
+                <span>
+                  The explicit Out filter remains available when this
+                  preference is disabled.
                 </span>
-                <small id="reservation-default-days-help">
-                  Calculated from the moment New reservation is opened.
-                </small>
+              </span>
+              <input
+                type="checkbox"
+                role="switch"
+                checked={
+                  searchSettings.show_out_of_stock_section
+                }
+                onChange={(event) =>
+                  void handleOutOfStockPreference(
+                    event.target.checked
+                  )
+                }
+                disabled={searchSettingsSaving}
+                aria-label="Show a separate out-of-stock section"
+              />
+              <span
+                className="settings-switch"
+                aria-hidden="true"
+              />
+            </label>
+          ) : null}
+
+          {searchSettingsError ? (
+            <p
+              className="settings-preference-state is-error"
+              role="alert"
+            >
+              {searchSettingsError}
+            </p>
+          ) : null}
+
+          {searchSettingsSaved && !searchSettingsError ? (
+            <p
+              className="settings-preference-state is-success"
+              role="status"
+            >
+              Search preference saved.
+            </p>
+          ) : null}
+        </section>
+
+        <section
+          id="settings-reservations"
+          className="card settings-section settings-reservation-section"
+          aria-labelledby="settings-reservation-title"
+          data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362"
+        >
+          <div className="settings-section-heading">
+            <div>
+              <span className="card-label">Reservations</span>
+              <h2 id="settings-reservation-title">
+                Reservation defaults
+              </h2>
+              <p>
+                Set the suggested expiry for new manual reservations.
+                Existing reservations are never rewritten.
+              </p>
+            </div>
+          </div>
+
+          {reservationSettingsLoading ? (
+            <p
+              className="settings-preference-state"
+              role="status"
+            >
+              Loading reservation defaults...
+            </p>
+          ) : null}
+
+          {!reservationSettingsLoading && reservationDraft ? (
+            <div className="settings-reservation-form">
+              <div
+                className="settings-segmented-control"
+                role="radiogroup"
+                aria-label="Default reservation expiry"
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={
+                    reservationDraft.expiry_mode === "none"
+                  }
+                  className={
+                    reservationDraft.expiry_mode === "none"
+                      ? "is-active"
+                      : ""
+                  }
+                  onClick={() =>
+                    chooseReservationExpiryMode("none")
+                  }
+                  disabled={reservationSettingsSaving}
+                >
+                  No automatic expiry
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={
+                    reservationDraft.expiry_mode === "default"
+                  }
+                  className={
+                    reservationDraft.expiry_mode === "default"
+                      ? "is-active"
+                      : ""
+                  }
+                  onClick={() =>
+                    chooseReservationExpiryMode("default")
+                  }
+                  disabled={reservationSettingsSaving}
+                >
+                  Default expiry after
+                </button>
+              </div>
+
+              {reservationDraft.expiry_mode === "default" ? (
+                <label className="settings-days-field">
+                  <span>Default expiry duration</span>
+                  <span className="settings-days-control">
+                    <input
+                      type="number"
+                      min={1}
+                      max={3650}
+                      step={1}
+                      inputMode="numeric"
+                      value={
+                        reservationDraft.default_days ?? ""
+                      }
+                      onChange={(event) => {
+                        const value =
+                          event.currentTarget.value;
+                        setReservationDraft({
+                          expiry_mode: "default",
+                          default_days:
+                            value === ""
+                              ? null
+                              : Number(value)
+                        });
+                        setReservationSettingsError(null);
+                        setReservationSettingsSaved(false);
+                      }}
+                      aria-invalid={Boolean(
+                        reservationDaysError
+                      )}
+                      aria-describedby="reservation-default-days-help"
+                      disabled={reservationSettingsSaving}
+                    />
+                    <strong>days</strong>
+                  </span>
+                  <small id="reservation-default-days-help">
+                    Calculated when New reservation is opened.
+                  </small>
+                </label>
+              ) : (
+                <p className="settings-reservation-summary">
+                  New reservations start with no expiry selected.
+                </p>
+              )}
+
+              {reservationDaysError ? (
+                <p
+                  className="settings-preference-state is-error"
+                  role="alert"
+                >
+                  {reservationDaysError}
+                </p>
+              ) : null}
+
+              <div className="settings-action-row">
+                <button
+                  className="settings-action settings-action-secondary"
+                  type="button"
+                  onClick={resetReservationDraft}
+                  disabled={
+                    !reservationSettingsChanged ||
+                    reservationSettingsSaving
+                  }
+                >
+                  Reset changes
+                </button>
+                <button
+                  className="settings-action settings-action-primary"
+                  type="button"
+                  onClick={() =>
+                    void saveReservationDefaults()
+                  }
+                  disabled={
+                    !reservationSettingsChanged ||
+                    reservationSettingsSaving ||
+                    Boolean(reservationDaysError)
+                  }
+                >
+                  {reservationSettingsSaving
+                    ? "Saving defaults..."
+                    : "Save reservation defaults"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {reservationSettingsError &&
+          !reservationDaysError ? (
+            <div
+              className="settings-preference-state is-error"
+              role="alert"
+            >
+              <span>{reservationSettingsError}</span>
+              {!reservationDraft ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setReservationReloadVersion(
+                      (value) => value + 1
+                    )
+                  }
+                >
+                  Retry
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {reservationSettingsSaved &&
+          !reservationSettingsError ? (
+            <p
+              className="settings-preference-state is-success"
+              role="status"
+            >
+              Reservation defaults saved.
+            </p>
+          ) : null}
+        </section>
+      </div>
+
+      <section
+        id="settings-data"
+        className="card settings-section settings-danger-section"
+        aria-labelledby="settings-data-title"
+      >
+        <div className="settings-section-heading">
+          <div>
+            <span className="card-label">Local data</span>
+            <h2 id="settings-data-title">Database reset</h2>
+            <p>
+              Return this installation to first-run setup. Built-in
+              part types, templates, and default settings are recreated.
+            </p>
+          </div>
+          <span className="settings-danger-badge">
+            Permanent action
+          </span>
+        </div>
+
+        <div className="settings-danger-summary">
+          <p>
+            This deletes the owner account, sessions, inventory,
+            Projects, Reservations, History, and application settings.
+            Files outside the database are not removed.
+          </p>
+          <button
+            className="danger-button settings-danger-launch"
+            type="button"
+            onClick={openDatabaseResetDialog}
+          >
+            Review database reset
+          </button>
+        </div>
+      </section>
+
+      {resetDialogOpen ? (
+        <div
+          className="settings-reset-backdrop"
+          data-partpilot-reset-dialog="PARTPILOT:SETTINGS_RESET_DIALOG:V412"
+          data-partpilot-reset-refinement="PARTPILOT:SETTINGS_RESET_DIALOG_REFINEMENT:V415"
+        >
+          <section
+            className="settings-reset-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-reset-dialog-title"
+            aria-describedby="settings-reset-dialog-description"
+          >
+            <header>
+              <p className="eyebrow">Final confirmation</p>
+              <h2 id="settings-reset-dialog-title">
+                Erase the Part Pilot database?
+              </h2>
+            </header>
+            <div className="settings-reset-dialog-content">
+              <p id="settings-reset-dialog-description">
+                This immediately removes every local database record
+                and signs you out. This action cannot be undone.
+              </p>
+              <dl>
+                <div>
+                  <dt>Scope</dt>
+                  <dd>Accounts, inventory, workflows, history, settings</dd>
+                </div>
+              </dl>
+              <label className="settings-reset-confirmation">
+                <span>
+                  Type <code>{RESET_CONFIRMATION}</code> to continue
+                </span>
+                <input
+                  type="text"
+                  value={confirmation}
+                  onChange={(event) => {
+                    setConfirmation(event.target.value);
+                    setResetError(null);
+                  }}
+                  placeholder={RESET_CONFIRMATION}
+                  autoComplete="off"
+                  spellCheck={false}
+                  autoFocus
+                  aria-invalid={Boolean(resetError)}
+                />
               </label>
-            ) : (
-              <p className="settings-reservation-summary">
-                New reservations will start with no expiry selected.
-              </p>
-            )}
-
-            {reservationDaysError ? (
-              <p className="settings-preference-state is-error" role="alert">
-                {reservationDaysError}
-              </p>
-            ) : null}
-
-            <div className="settings-action-row">
+              {resetError ? (
+                <p className="form-error" role="alert">
+                  {resetError}
+                </p>
+              ) : null}
+            </div>
+            <footer>
               <button
                 className="settings-action settings-action-secondary"
                 type="button"
-                onClick={resetReservationDraft}
-                disabled={
-                  !reservationSettingsChanged || reservationSettingsSaving
-                }
+                disabled={isResetting}
+                onClick={closeDatabaseResetDialog}
               >
-                Reset changes
+                Keep existing data
               </button>
               <button
-                className="settings-action settings-action-primary"
+                className="danger-button"
                 type="button"
-                onClick={() => void saveReservationDefaults()}
-                disabled={
-                  !reservationSettingsChanged ||
-                  reservationSettingsSaving ||
-                  Boolean(reservationDaysError)
-                }
-              >
-                {reservationSettingsSaving
-                  ? "Saving reservation defaults..."
-                  : "Save reservation defaults"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {reservationSettingsError && !reservationDaysError ? (
-          <div className="settings-preference-state is-error" role="alert">
-            <span>{reservationSettingsError}</span>
-            {!reservationDraft ? (
-              <button
-                type="button"
+                disabled={!canReset}
                 onClick={() =>
-                  setReservationReloadVersion((value) => value + 1)
+                  void confirmDatabaseReset()
                 }
               >
-                Retry
+                {isResetting
+                  ? "Erasing database..."
+                  : "Erase database permanently"}
               </button>
-            ) : null}
-          </div>
-        ) : null}
-
-        {reservationSettingsSaved && !reservationSettingsError ? (
-          <p
-            className="settings-preference-state is-success"
-            role="status"
-          >
-            Reservation defaults saved.
-          </p>
-        ) : null}
-      </section>
-
-      <section className="card settings-section">
-        <span className="card-label">Developer tools</span>
-        <h2>Database reset</h2>
-        <p>
-          Erase all database records and restart Part Pilot from the first-run
-          setup screen. Built-in part types, templates, and default settings
-          are recreated automatically.
-        </p>
-
-        <div className="danger-panel">
-          <strong>Permanent action</strong>
-          <p>
-            This deletes the owner account, all sessions, inventory, projects,
-            reservations, history, and application settings. It does not
-            delete files stored outside the database.
-          </p>
-
-          <form className="danger-reset-form" onSubmit={handleReset}>
-            <label className="field-group">
-              <span>
-                Type <code>{RESET_CONFIRMATION}</code> to confirm
-              </span>
-              <input
-                type="text"
-                value={confirmation}
-                onChange={(event) => setConfirmation(event.target.value)}
-                placeholder={RESET_CONFIRMATION}
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </label>
-
-            {error ? <p className="form-error">{error}</p> : null}
-
-            <button
-              className="danger-button"
-              type="submit"
-              disabled={!canReset}
-            >
-              {isResetting
-                ? "Resetting database..."
-                : "Erase database and restart setup"}
-            </button>
-          </form>
+            </footer>
+          </section>
         </div>
-      </section>
+      ) : null}
     </div>
   );
 }

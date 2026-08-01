@@ -44,3 +44,20 @@ class ReservationSettingsUpdateRequest(BaseModel):
         if self.expiry_mode == "none":
             self.default_days = None
         return self
+
+
+# PARTPILOT:APPEARANCE_SETTINGS_SCHEMA:V411
+AppearanceTheme = Literal["dark", "light", "system"]
+
+
+class AppearanceSettingsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    theme: AppearanceTheme
+    light_theme_available: bool
+
+
+class AppearanceSettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    theme: AppearanceTheme

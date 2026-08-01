@@ -2162,3 +2162,53 @@ and system-wide History are operational, responsive and browser approved.
 Do not combine Settings, backup/restore and MCP in one implementation slice.
 Preserve the six realistic Patch 401 fixtures and all existing operational
 history until an explicit cleanup or database reset.
+
+<!-- PARTPILOT:GLOBAL_APPEARANCE_ROADMAP:V417 -->
+## Current roadmap checkpoint — Settings and appearance complete
+
+### Overall progress
+
+**Working V1/public-alpha estimate: approximately 93%.**
+
+Inventory, universal search, Reservations, the complete Project lifecycle,
+system-wide History and authenticated global appearance are operational,
+responsive and browser approved.
+
+### Completed through Patch 416
+
+- [x] Protected Dark/Light/System appearance persistence and audit contract.
+- [x] Light-theme availability guard and strict invalid-value handling.
+- [x] Pre-paint bootstrap without opposite-theme flashing.
+- [x] Authenticated server synchronization and live System-theme listener.
+- [x] Responsive Settings information architecture.
+- [x] Existing Inventory and Reservation preferences preserved.
+- [x] Compact database-reset launcher with dialog-owned confirmation phrase.
+- [x] Coherent Light surfaces across all current workspaces and overlays.
+- [x] Consistent primary, neutral, destructive, active, selected, status and
+  genuinely disabled Light-mode states.
+- [x] Complete copied-database regression coverage and browser approval.
+
+### Next implementation order
+
+1. Reduce the Out-of-stock results preference to a compact control while
+   preserving its server-backed boolean behavior and accessibility.
+2. Browser-test and checkpoint that focused Settings refinement.
+3. Implement backup and restore as a separate product slice.
+4. Implement MCP read tools and safeguarded write tools.
+5. Add the authenticated MCP enable/disable control only when MCP runtime
+   and restart semantics are explicit.
+6. Complete accessibility, security and public-alpha release hardening.
+
+### Remaining major V1 areas
+
+- [ ] Compact Out-of-stock preference refinement.
+- [ ] Backup and restore.
+- [ ] MCP read tools and safeguarded write tools.
+- [ ] Authenticated MCP server enable/disable control during the MCP phase.
+- [ ] Accessibility, security and public-alpha release hardening.
+
+### Scope discipline
+
+Keep the compact Settings refinement separate from backup/restore and MCP.
+Preserve the realistic Patch 401 fixtures and all operational History until
+an explicit cleanup or database reset.

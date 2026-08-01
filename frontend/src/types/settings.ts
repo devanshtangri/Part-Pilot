@@ -20,3 +20,17 @@ export interface ReservationSettingsUpdatePayload {
   expiry_mode: ReservationExpiryMode;
   default_days: number | null;
 }
+
+
+// PARTPILOT:APPEARANCE_SETTINGS_TYPES:V412
+export type AppearanceTheme = "dark" | "light" | "system";
+export type ResolvedAppearanceTheme = "dark" | "light";
+
+export interface AppearanceSettings {
+  theme: AppearanceTheme;
+  light_theme_available: boolean;
+}
+
+export interface AppearanceSettingsUpdatePayload {
+  theme: AppearanceTheme;
+}

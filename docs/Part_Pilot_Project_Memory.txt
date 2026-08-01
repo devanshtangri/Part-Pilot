@@ -19,8 +19,8 @@ Patch and chat workflow
 - Successful scripts print exactly `Everything PASS` as their final line.
 - Response headings are `Patch N - Browser Test` or `Patch N - Fix Only`.
 - Chat 15 is `Chat 15: Project Lifecycle Completion`, owns Patch 397-426, and
-  Patch 426 is its planned boundary. Patch 410 checkpoints browser-approved
-  History; Patch 411 is next after successful execution.
+  Patch 426 is its planned boundary. Patch 417 checkpoints browser-approved
+  global appearance; Patch 418 is the next focused Settings refinement.
 - Browser-test source remains unstaged/uncommitted until explicit approval,
   followed by a separate checkpoint/commit/push script.
 - No next-chat prompt file is created. A ready prompt is posted only after a
@@ -56,7 +56,7 @@ Inventory and fixture safety
 - The user plans to reset the database before production use. Do not silently
   remove fixtures/history before explicit cleanup or reset.
 
-Completed product state through Patch 409
+Completed product state through Patch 416
 - Authentication/setup, dynamic part templates, reusable manufacturer/package/
   location catalogues and typed custom fields.
 - Inventory create/read/edit, quantity adjustment, soft delete/restore,
@@ -67,23 +67,23 @@ Completed product state through Patch 409
 - Reservation read/edit/cancel/consume/expire/delete, activity, expiry settings,
   custom dialogs, stale refresh and responsive workspace.
 - Project draft/create/update/reserve/consume/cancel lifecycle with atomic linked
-  Reservation synchronization, two-way Reserved editing, delta stock movements,
-  paired audits and historical-movement-safe terminal verification.
-- Projects and Reservations use accessible in-app confirmations, register-first
-  mobile behavior and compact summaries.
-- Protected system-wide History merges audit and stock-movement events with
-  deterministic newest-first pagination.
-- History supports 280 ms literal search, Kind/Entity/Event/Actor/User/Movement/
-  date filters, counted facets, stale-response guards and page resets.
-- History detail resolves actors/entities/Parts/Reservations/Projects, stock
-  snapshots, reasons/notes, structured Before/After and metadata.
-- Desktop History uses register/detail; mobile is register-first with explicit
-  closeable detail. Browser approval is complete through Patch 409.
+  Reservation synchronization, two-way Reserved editing, delta movements and
+  paired audits.
+- Protected system-wide History merges audits and movements newest-first with
+  literal search, counted filters, context hydration, snapshots and structured
+  evidence. Desktop is register/detail; mobile is register-first.
 - History intentionally has no general column sorting. Chronology is primary;
-  filters support investigation. Oldest-first is deferred unless proven useful.
-- Patch 406 failed in copied smoke on an invalid fixture username; Patch 407
-  recovered. Patch 408 failed on a CSS comment marker stripped by Vite; Patch
-  409 added minifier-safe markers and passed full verification.
+  Oldest-first remains deferred unless a real investigation requires it.
+- Protected appearance settings persist Dark/Light/System, enforce Light
+  availability, validate values and write actor-attributed audits.
+- Pre-paint theme application prevents opposite-theme flashes. System follows
+  OS changes live; authenticated synchronization restores failed optimistic saves.
+- Responsive Settings preserves Inventory and Reservation preferences and uses
+  a compact database-reset launcher with dialog-owned phrase confirmation.
+- Light mode covers every current workspace and overlay with explicit primary,
+  neutral, destructive, active, selected, status and truly disabled states.
+- Browser approval is complete through Patch 416. Patches 412-414 recovered
+  minified-selector, SQLite-byte-layout and brittle-evidence failures safely.
 
 Deferred MCP Settings requirement
 - During the MCP phase add an authenticated Settings control to enable/disable
@@ -92,6 +92,7 @@ Deferred MCP Settings requirement
   gating, invalid-value recovery, disabled-state feedback and audit events.
 
 Next implementation
-- Complete Settings and appearance as a separate product slice.
-- Inspect existing persisted settings and UI foundations before implementation.
+- Compact the Out-of-stock results preference without changing its persisted
+  server-backed boolean behavior or accessibility.
+- Browser-test and checkpoint that focused Settings refinement.
 - Keep backup/restore and MCP separate from Settings.

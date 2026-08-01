@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "./AppLayout";
+import { AppearanceProvider } from "../appearance/AppearanceContext";
 import { AuthProvider, useAuth } from "../auth/AuthContext";
 import { AuthScreen } from "../pages/AuthScreen";
 import { Dashboard } from "../pages/Dashboard";
@@ -62,7 +63,9 @@ function AppRoutes() {
 export function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <AppearanceProvider>
+        <AppRoutes />
+      </AppearanceProvider>
     </AuthProvider>
   );
 }
