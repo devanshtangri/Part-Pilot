@@ -34,6 +34,7 @@ class SPAStaticFiles(StaticFiles):
             return await super().get_response("index.html", scope)
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.routing import Route
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.health import router as health_router
@@ -69,6 +70,8 @@ from app.core.lifecycle import (
     application_lifecycle,
 )
 from app.db.session import dispose_database_engine
+# PARTPILOT:MCP_STREAMABLE_HTTP_IMPORT:V469
+from app.mcp.runtime import mcp_http_endpoint, mcp_runtime_lifespan
 
 settings = get_settings()
 
@@ -77,7 +80,8 @@ settings = get_settings()
 async def lifespan(_app: FastAPI):
     application_lifecycle.mark_started()
     try:
-        yield
+        async with mcp_runtime_lifespan():
+            yield
     finally:
         application_lifecycle.begin_shutdown()
         await asyncio.to_thread(
@@ -142,6 +146,17 @@ app.include_router(backups_router, prefix="/api")
 app.include_router(restores_router, prefix="/api")
 # PARTPILOT:MCP_OAUTH_HTTP_REGISTRATION:V467
 app.include_router(mcp_oauth_router)
+
+# PARTPILOT:MCP_STREAMABLE_HTTP_ROUTE:V469
+app.router.routes.append(
+    Route(
+        "/mcp",
+        endpoint=mcp_http_endpoint,
+        methods=["GET", "POST", "DELETE"],
+        name="mcp-streamable-http",
+        include_in_schema=False,
+    )
+)
 
 frontend_dist = Path("/app/frontend_dist")
 if frontend_dist.exists():
