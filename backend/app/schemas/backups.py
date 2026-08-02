@@ -48,3 +48,20 @@ class BackupManifest(BackupManifestModel):
     restore_policy: BackupRestorePolicyManifest
     schema: BackupSchemaManifest
     scope: BackupScopeManifest
+
+# PARTPILOT:MANUAL_BACKUP_STATUS_SCHEMA:V452
+class LatestManualBackupStatus(BackupManifestModel):
+    generated_at_utc: str
+    filename: str = Field(min_length=1, max_length=255)
+    archive_size_bytes: int = Field(ge=0)
+    database_size_bytes: int = Field(ge=0)
+    format_version: Literal[1]
+    alembic_revision: str = Field(min_length=1, max_length=128)
+
+
+class ManualBackupStatusResponse(BackupManifestModel):
+    mode: Literal["manual_download"]
+    scheduled_backups_active: Literal[False]
+    server_copy_retained: Literal[False]
+    recorded_download_count: int = Field(ge=0)
+    latest_manual_backup: LatestManualBackupStatus | None

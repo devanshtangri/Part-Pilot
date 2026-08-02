@@ -563,6 +563,13 @@ def check_backup_download_api() -> None:
                 "Backup download OpenAPI contract is incorrect: "
                 f"{paths.get('/api/backups/download')}"
             )
+        if set(
+            paths.get("/api/backups/status", {})
+        ) != {"get"}:
+            fail(
+                "Backup status OpenAPI contract is incorrect: "
+                f"{paths.get('/api/backups/status')}"
+            )
         if "post" not in paths.get(
             "/api/parts/{part_id}/restore",
             {},
@@ -578,6 +585,14 @@ def check_backup_download_api() -> None:
             fail(
                 "Backup download should require authentication: "
                 f"{unauthenticated.status_code}"
+            )
+        unauthenticated_status = client.get(
+            "/api/backups/status"
+        )
+        if unauthenticated_status.status_code != 401:
+            fail(
+                "Backup status should require authentication: "
+                f"{unauthenticated_status.status_code}"
             )
 
         with SessionLocal() as db:
@@ -603,6 +618,45 @@ def check_backup_download_api() -> None:
         headers = {
             "Authorization": f"Bearer {token}"
         }
+        before_status = logical_snapshot(source_path)
+        status_before_response = client.get(
+            "/api/backups/status",
+            headers=headers,
+        )
+        if status_before_response.status_code != 200:
+            fail(
+                "Authenticated backup status failed: "
+                f"{status_before_response.status_code}: "
+                f"{status_before_response.text}"
+            )
+        if (
+            status_before_response.headers.get("cache-control")
+            != "no-store, max-age=0"
+            or status_before_response.headers.get("pragma") != "no-cache"
+            or status_before_response.headers.get("x-content-type-options")
+            != "nosniff"
+        ):
+            fail(
+                "Backup status no-cache/security headers are incorrect."
+            )
+        status_before = status_before_response.json()
+        if (
+            status_before.get("mode") != "manual_download"
+            or status_before.get("scheduled_backups_active") is not False
+            or status_before.get("server_copy_retained") is not False
+            or not isinstance(
+                status_before.get("recorded_download_count"),
+                int,
+            )
+            or status_before.get("recorded_download_count") < 0
+        ):
+            fail(
+                "Backup status capability flags are incorrect: "
+                f"{status_before}"
+            )
+        if logical_snapshot(source_path) != before_status:
+            fail("Backup status read changed the copied database.")
+
         before_request = logical_snapshot(source_path)
         before_audits = len(
             before_request["audit_log"]
@@ -769,6 +823,37 @@ def check_backup_download_api() -> None:
             fail(
                 "Backup audit actor, summary, or filename is incorrect."
             )
+
+        status_after_response = client.get(
+            "/api/backups/status",
+            headers=headers,
+        )
+        if status_after_response.status_code != 200:
+            fail(
+                "Post-download backup status failed: "
+                f"{status_after_response.status_code}: "
+                f"{status_after_response.text}"
+            )
+        status_after = status_after_response.json()
+        latest = status_after.get("latest_manual_backup")
+        if (
+            status_after.get("recorded_download_count")
+            != status_before["recorded_download_count"] + 1
+            or not isinstance(latest, dict)
+            or latest.get("filename") != disposition_filename
+            or latest.get("archive_size_bytes") != len(response.content)
+            or latest.get("database_size_bytes")
+            != manifest.database.size_bytes
+            or latest.get("format_version") != 1
+            or latest.get("alembic_revision")
+            != EXPECTED_ALEMBIC_REVISION
+            or not isinstance(latest.get("generated_at_utc"), str)
+            or not latest["generated_at_utc"].endswith("Z")
+        ):
+            fail(
+                "Backup status did not reflect the new manual "
+                f"download accurately: {status_after}"
+            )
         if (
             after_json.get("format")
             != "part-pilot-backup"
@@ -905,11 +990,13 @@ def check_backup_download_api() -> None:
         )
 
     print(
-        "[PASS] Protected backup download enforces authentication, "
-        "returns a canonical no-store .ppbackup file, records one "
-        "actor-attributed post-snapshot audit without backups rows "
-        "or inventory mutations, limits concurrent generation, "
-        "sanitizes failures, and cleans operation-owned files"
+        "[PASS] Protected backup download and status enforce "
+        "authentication, expose truthful no-store manual-download "
+        "metadata without implying scheduling or retained server copies, "
+        "return a canonical .ppbackup file, record one actor-attributed "
+        "post-snapshot audit without backups rows or inventory mutations, "
+        "limit concurrent generation, sanitize failures, and clean "
+        "operation-owned files"
     )
 
 def main() -> None:

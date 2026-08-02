@@ -14,6 +14,7 @@ import tempfile
 from typing import Any
 import zipfile
 
+from sqlalchemy import select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -25,6 +26,8 @@ from app.schemas.backups import (
     BackupRestorePolicyManifest,
     BackupSchemaManifest,
     BackupScopeManifest,
+    LatestManualBackupStatus,
+    ManualBackupStatusResponse,
 )
 
 
@@ -954,6 +957,95 @@ def create_backup_artifact(
             ignore_errors=True,
         )
         raise
+
+
+
+def _backup_audit_json_object(
+    value: Any,
+) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _manual_backup_status_from_audit(
+    audit: AuditLog,
+) -> LatestManualBackupStatus | None:
+    after = _backup_audit_json_object(audit.after_json)
+    metadata = _backup_audit_json_object(audit.metadata_json)
+    if metadata.get("manual_download") is not True:
+        return None
+
+    filename = after.get("filename")
+    archive_size = metadata.get("archive_size_bytes")
+    database_size = metadata.get("database_size_bytes")
+    format_version = after.get("format_version")
+    alembic_revision = after.get("alembic_revision")
+    created_at = audit.created_at
+
+    if (
+        not isinstance(filename, str)
+        or not filename
+        or len(filename) > 255
+        or filename != Path(filename).name
+        or not filename.lower().endswith(BACKUP_EXTENSION)
+        or isinstance(archive_size, bool)
+        or not isinstance(archive_size, int)
+        or archive_size < 0
+        or isinstance(database_size, bool)
+        or not isinstance(database_size, int)
+        or database_size < 0
+        or format_version != BACKUP_FORMAT_VERSION
+        or not isinstance(alembic_revision, str)
+        or not 1 <= len(alembic_revision) <= 128
+        or not isinstance(created_at, datetime)
+    ):
+        return None
+
+    normalized = (
+        created_at.replace(tzinfo=timezone.utc)
+        if created_at.tzinfo is None
+        else created_at.astimezone(timezone.utc)
+    )
+    return LatestManualBackupStatus(
+        generated_at_utc=normalized.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        filename=filename,
+        archive_size_bytes=archive_size,
+        database_size_bytes=database_size,
+        format_version=BACKUP_FORMAT_VERSION,
+        alembic_revision=alembic_revision,
+    )
+
+
+# PARTPILOT:MANUAL_BACKUP_STATUS_SERVICE:V452
+def get_manual_backup_status(
+    db: Session,
+) -> ManualBackupStatusResponse:
+    audits = db.scalars(
+        select(AuditLog)
+        .where(AuditLog.event_type == "backup.generated")
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+    ).all()
+
+    valid_entries: list[LatestManualBackupStatus] = []
+    for audit in audits:
+        entry = _manual_backup_status_from_audit(audit)
+        if entry is not None:
+            valid_entries.append(entry)
+
+    return ManualBackupStatusResponse(
+        mode="manual_download",
+        scheduled_backups_active=False,
+        server_copy_retained=False,
+        recorded_download_count=len(valid_entries),
+        latest_manual_backup=valid_entries[0] if valid_entries else None,
+    )
 
 
 def record_backup_generated_audit(
