@@ -28,7 +28,7 @@ from app.services.mcp_oauth import (
 from app.services.parts import get_part, list_parts
 
 
-# PARTPILOT:MCP_STREAMABLE_HTTP_SMOKE:V470
+# PARTPILOT:MCP_STREAMABLE_HTTP_SMOKE:V471
 RESOURCE = "https://partpilot.example/mcp"
 REDIRECT = "https://client.example/callback"
 VERIFIER = "v" * 64
@@ -177,7 +177,14 @@ def check_only() -> None:
     from app.mcp.runtime import mcp_registered_tool_names
 
     names = asyncio.run(mcp_registered_tool_names())
-    if names != ("get_part_details", "search_parts"):
+    if names != (
+        "get_part_details",
+        "get_project_details",
+        "get_reservation_details",
+        "list_projects",
+        "list_reservations",
+        "search_parts",
+    ):
         fail(f"Unexpected registered MCP tools: {names!r}")
 
     with TestClient(app, base_url="https://partpilot.example") as client:
@@ -192,7 +199,7 @@ def check_only() -> None:
             fail(f"Unexpected /mcp/ response: {slash.status_code}")
     print(
         "[PASS] MCP Streamable HTTP route is exact, protected by OAuth discovery, "
-        "safely rejects /mcp/, and registers the two read-only inventory tools"
+        "safely rejects /mcp/, and registers all six read-only workspace tools"
     )
 
 
@@ -226,10 +233,10 @@ def full_flow() -> None:
 
         registered = register_client(
             db,
-            client_name="Patch 470 Part Tool Smoke",
+            client_name="Patch 471 Workspace Registry Smoke",
             redirect_uris=[REDIRECT],
             token_endpoint_auth_method="none",
-            metadata={"fixture": "patch-470"},
+            metadata={"fixture": "patch-471-registry"},
             actor_user_id=user.id,
             commit=False,
         )
@@ -337,7 +344,14 @@ def full_flow() -> None:
                 for item in listed
                 if isinstance(item, dict)
             }
-            if set(listed_by_name) != {"search_parts", "get_part_details"}:
+            if set(listed_by_name) != {
+                "search_parts",
+                "get_part_details",
+                "list_projects",
+                "get_project_details",
+                "list_reservations",
+                "get_reservation_details",
+            }:
                 fail(f"Unexpected MCP tools: {sorted(listed_by_name)}")
             for name, item in listed_by_name.items():
                 annotations = item.get("annotations") or {}
@@ -511,7 +525,7 @@ def full_flow() -> None:
     print(
         "[PASS] MCP Streamable HTTP supports exact /mcp routing, OAuth bearer "
         "validation, protected-resource challenges, Origin rejection, disabled "
-        "gating, inventory search/details tools, secret-free audits, and exact cleanup"
+        "gating, six read-only workspace tools, secret-free audits, and exact cleanup"
     )
 
 

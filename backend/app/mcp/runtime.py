@@ -13,6 +13,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.mcp.part_tools import register_part_tools
+from app.mcp.workspace_tools import register_workspace_tools
 from app.services.mcp_oauth import (
     MCP_SCOPE_READ,
     McpOAuthDisabledError,
@@ -24,12 +25,12 @@ from app.services.mcp_oauth import (
 )
 
 
-# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V470
+# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V471
 _PARTPILOT_MCP = FastMCP(
     name="Part Pilot",
     instructions=(
-        "Access the authenticated Part Pilot inventory workspace. "
-        "Use the read-only tools to search active inventory and retrieve exact part details."
+        "Access the authenticated Part Pilot workspace. "
+        "Use the read-only tools to inspect inventory, Projects, and Reservations."
     ),
     stateless_http=True,
     json_response=True,
@@ -41,6 +42,7 @@ _PARTPILOT_MCP = FastMCP(
     ),
 )
 register_part_tools(_PARTPILOT_MCP)
+register_workspace_tools(_PARTPILOT_MCP)
 _SDK_APP = _PARTPILOT_MCP.streamable_http_app()
 _INVALID_HOST = re.compile(r"[\\/\s#?]")
 
