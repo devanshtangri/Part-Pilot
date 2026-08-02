@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import copy
 import json
 import sqlite3
@@ -12,7 +13,7 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.db.settings import set_app_setting
-from app.models import AppSetting, AuditLog, User
+from app.models import AppSetting, AuditLog, Part, User
 from app.services.mcp_oauth import (
     MCP_ENABLED_KEY,
     MCP_READ_ENABLED_KEY,
@@ -24,9 +25,10 @@ from app.services.mcp_oauth import (
     pkce_s256_challenge,
     register_client,
 )
+from app.services.parts import get_part, list_parts
 
 
-# PARTPILOT:MCP_STREAMABLE_HTTP_SMOKE:V469
+# PARTPILOT:MCP_STREAMABLE_HTTP_SMOKE:V470
 RESOURCE = "https://partpilot.example/mcp"
 REDIRECT = "https://client.example/callback"
 VERIFIER = "v" * 64
@@ -141,6 +143,19 @@ def tools_payload() -> dict[str, object]:
     }
 
 
+def call_tool_payload(
+    request_id: int,
+    name: str,
+    arguments: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "tools/call",
+        "params": {"name": name, "arguments": arguments},
+    }
+
+
 def assert_unauthorized(client: TestClient) -> None:
     response = client.post(
         "/mcp",
@@ -159,6 +174,11 @@ def assert_unauthorized(client: TestClient) -> None:
 
 def check_only() -> None:
     from app.main import app
+    from app.mcp.runtime import mcp_registered_tool_names
+
+    names = asyncio.run(mcp_registered_tool_names())
+    if names != ("get_part_details", "search_parts"):
+        fail(f"Unexpected registered MCP tools: {names!r}")
 
     with TestClient(app, base_url="https://partpilot.example") as client:
         assert_unauthorized(client)
@@ -172,7 +192,7 @@ def check_only() -> None:
             fail(f"Unexpected /mcp/ response: {slash.status_code}")
     print(
         "[PASS] MCP Streamable HTTP route is exact, protected by OAuth discovery, "
-        "and safely rejects the non-MCP /mcp/ trailing-slash path"
+        "safely rejects /mcp/, and registers the two read-only inventory tools"
     )
 
 
@@ -181,6 +201,7 @@ def full_flow() -> None:
     db = SessionLocal()
     client_identifier: str | None = None
     audit_ids: list[int] = []
+    expected_part_id: int | None = None
     original_settings: dict[str, tuple[object, object, object]] = {}
     try:
         user = db.execute(select(User).order_by(User.id.asc())).scalars().first()
@@ -205,10 +226,10 @@ def full_flow() -> None:
 
         registered = register_client(
             db,
-            client_name="Patch 469 Transport Smoke",
+            client_name="Patch 470 Part Tool Smoke",
             redirect_uris=[REDIRECT],
             token_endpoint_auth_method="none",
-            metadata={"fixture": "patch-469"},
+            metadata={"fixture": "patch-470"},
             actor_user_id=user.id,
             commit=False,
         )
@@ -243,16 +264,15 @@ def full_flow() -> None:
         )
         db.commit()
 
-        audit_ids = [
-            int(value)
-            for value in db.execute(
-                select(AuditLog.id).where(
-                    AuditLog.event_type.like("mcp.%"),
-                    AuditLog.metadata_json["client_id"].as_string()
-                    == client_identifier,
-                )
-            ).scalars()
-        ]
+        expected_part_id = db.execute(
+            select(Part.id)
+            .where(Part.is_deleted.is_(False))
+            .order_by(Part.id.asc())
+        ).scalars().first()
+        if expected_part_id is None:
+            fail("MCP part tool smoke requires one active inventory part")
+        expected_search = list_parts(db, limit=3, offset=0)
+        expected_detail = get_part(db, expected_part_id)
 
         from app.main import app
 
@@ -310,8 +330,124 @@ def full_flow() -> None:
                 fail(f"tools/list failed: {tools.status_code} {tools.text[:500]}")
             tools_body = tools.json()
             listed = tools_body.get("result", {}).get("tools")
-            if listed != []:
-                fail(f"Patch 469 must expose no tools, got {listed!r}")
+            if not isinstance(listed, list):
+                fail(f"tools/list returned no tool list: {tools_body}")
+            listed_by_name = {
+                item.get("name"): item
+                for item in listed
+                if isinstance(item, dict)
+            }
+            if set(listed_by_name) != {"search_parts", "get_part_details"}:
+                fail(f"Unexpected MCP tools: {sorted(listed_by_name)}")
+            for name, item in listed_by_name.items():
+                annotations = item.get("annotations") or {}
+                if annotations.get("readOnlyHint") is not True:
+                    fail(f"{name} is not marked read-only: {annotations}")
+                if annotations.get("destructiveHint") is not False:
+                    fail(f"{name} is not marked non-destructive: {annotations}")
+                if not isinstance(item.get("outputSchema"), dict):
+                    fail(f"{name} has no structured output schema")
+
+            search_response = client.post(
+                "/mcp",
+                headers=request_headers(issued.access_token),
+                json=call_tool_payload(3, "search_parts", {"limit": 3}),
+                follow_redirects=False,
+            )
+            if search_response.status_code != 200:
+                fail(
+                    "search_parts failed: "
+                    f"{search_response.status_code} {search_response.text[:500]}"
+                )
+            search_rpc = search_response.json()
+            search_result = search_rpc.get("result", {})
+            if search_result.get("isError") is True:
+                fail(f"search_parts returned a tool error: {search_result}")
+            search_data = search_result.get("structuredContent")
+            if not isinstance(search_data, dict):
+                fail(f"search_parts returned no structured content: {search_result}")
+            expected_ids = [part.id for part in expected_search.parts]
+            actual_rows = search_data.get("parts")
+            if not isinstance(actual_rows, list):
+                fail(f"search_parts returned no compact rows: {search_data}")
+            actual_ids = [row.get("id") for row in actual_rows if isinstance(row, dict)]
+            if actual_ids != expected_ids:
+                fail(f"search_parts IDs differ: {actual_ids} != {expected_ids}")
+            if search_data.get("total") != expected_search.total:
+                fail("search_parts total differs from the inventory service")
+            if search_data.get("returned") != len(expected_search.parts):
+                fail("search_parts returned count is incorrect")
+            content = search_result.get("content")
+            if (
+                not isinstance(content, list)
+                or not content
+                or not isinstance(content[0], dict)
+                or content[0].get("type") != "text"
+                or "summary" not in str(content[0].get("text", ""))
+            ):
+                fail("search_parts has no structured-compatible text fallback")
+
+            detail_response = client.post(
+                "/mcp",
+                headers=request_headers(issued.access_token),
+                json=call_tool_payload(
+                    4,
+                    "get_part_details",
+                    {"part_id": expected_part_id},
+                ),
+                follow_redirects=False,
+            )
+            if detail_response.status_code != 200:
+                fail(
+                    "get_part_details failed: "
+                    f"{detail_response.status_code} {detail_response.text[:500]}"
+                )
+            detail_result = detail_response.json().get("result", {})
+            if detail_result.get("isError") is True:
+                fail(f"get_part_details returned a tool error: {detail_result}")
+            detail_data = detail_result.get("structuredContent")
+            if not isinstance(detail_data, dict):
+                fail("get_part_details returned no structured content")
+            if detail_data.get("part") != expected_detail.model_dump(mode="json"):
+                fail("get_part_details differs from the canonical part service")
+
+            audit_check = SessionLocal()
+            try:
+                tool_audits = list(
+                    audit_check.execute(
+                        select(AuditLog)
+                        .where(AuditLog.event_type == "mcp.tool_called")
+                        .order_by(AuditLog.id.asc())
+                    ).scalars()
+                )
+                tool_audits = [
+                    row
+                    for row in tool_audits
+                    if isinstance(row.metadata_json, dict)
+                    and row.metadata_json.get("client_id") == client_identifier
+                ]
+                if len(tool_audits) != 2:
+                    fail(f"Expected two MCP tool audits, got {len(tool_audits)}")
+                if {row.metadata_json.get("tool") for row in tool_audits} != {
+                    "search_parts",
+                    "get_part_details",
+                }:
+                    fail("MCP tool audit names are incorrect")
+                for row in tool_audits:
+                    if row.actor_type != "mcp" or row.actor_user_id != user.id:
+                        fail("MCP tool audit actor attribution is incorrect")
+                    if row.metadata_json.get("success") is not True:
+                        fail("Successful MCP tool call was audited as failed")
+                    serialized = json.dumps(row.metadata_json, sort_keys=True)
+                    for secret in (
+                        issued.access_token,
+                        issued.refresh_token,
+                        code.code,
+                    ):
+                        if secret and secret in serialized:
+                            fail("MCP tool audit leaked an OAuth secret")
+            finally:
+                audit_check.close()
 
             disabled_db = SessionLocal()
             try:
@@ -338,6 +474,14 @@ def full_flow() -> None:
                 setting.updated_at = updated_at
 
             if client_identifier is not None:
+                audit_ids = [
+                    row.id
+                    for row in cleanup.execute(
+                        select(AuditLog).where(AuditLog.event_type.like("mcp.%"))
+                    ).scalars()
+                    if isinstance(row.metadata_json, dict)
+                    and row.metadata_json.get("client_id") == client_identifier
+                ]
                 from app.models import McpOAuthClient
 
                 client_row = cleanup.execute(
@@ -367,7 +511,7 @@ def full_flow() -> None:
     print(
         "[PASS] MCP Streamable HTTP supports exact /mcp routing, OAuth bearer "
         "validation, protected-resource challenges, Origin rejection, disabled "
-        "gating, initialize, empty tools/list, and exact fixture cleanup"
+        "gating, inventory search/details tools, secret-free audits, and exact cleanup"
     )
 
 

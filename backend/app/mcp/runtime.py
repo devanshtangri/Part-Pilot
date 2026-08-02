@@ -12,6 +12,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.mcp.part_tools import register_part_tools
 from app.services.mcp_oauth import (
     MCP_SCOPE_READ,
     McpOAuthDisabledError,
@@ -23,12 +24,12 @@ from app.services.mcp_oauth import (
 )
 
 
-# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V469
+# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V470
 _PARTPILOT_MCP = FastMCP(
     name="Part Pilot",
     instructions=(
         "Access the authenticated Part Pilot inventory workspace. "
-        "This foundation endpoint intentionally exposes no tools yet."
+        "Use the read-only tools to search active inventory and retrieve exact part details."
     ),
     stateless_http=True,
     json_response=True,
@@ -39,6 +40,7 @@ _PARTPILOT_MCP = FastMCP(
         enable_dns_rebinding_protection=False,
     ),
 )
+register_part_tools(_PARTPILOT_MCP)
 _SDK_APP = _PARTPILOT_MCP.streamable_http_app()
 _INVALID_HOST = re.compile(r"[\\/\s#?]")
 
@@ -278,6 +280,11 @@ class PartPilotMcpGateway:
 
 
 mcp_http_endpoint = PartPilotMcpGateway()
+
+
+async def mcp_registered_tool_names() -> tuple[str, ...]:
+    tools = await _PARTPILOT_MCP.list_tools()
+    return tuple(sorted(tool.name for tool in tools))
 
 
 @asynccontextmanager
