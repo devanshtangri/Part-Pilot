@@ -40,8 +40,12 @@ from app.services.backups import (
 )
 from app.services.restores import (
     RESTORE_ARCHIVE_FILENAME,
+    RESTORE_COMMIT_FILENAME,
     RESTORE_DATABASE_FILENAME,
     RESTORE_OPERATION_MARKER,
+    RESTORE_PREVIOUS_FILENAME,
+    RESTORE_RESULT_FILENAME,
+    RESTORE_ROLLBACK_FILENAME,
     RESTORE_STATE_FILENAME,
     RestoreStagingStateError,
     load_staged_restore,
@@ -727,32 +731,70 @@ def check_restore_validation_api() -> None:
             47,
             tzinfo=timezone.utc,
         )
-        with artifact.archive_path.open(
-            "rb"
-        ) as source:
-            expiring = stage_restore_archive(
-                source,
-                original_filename=(
-                    artifact.filename
-                ),
-                actor_user_id=user_id,
-                actor_username=username,
-                staging_root=staging_root,
-                now=fixed,
-                ttl_seconds=1,
-            )
+
+        def stage_for_sweep(
+            *,
+            ttl_seconds: int,
+        ):
+            with artifact.archive_path.open(
+                "rb"
+            ) as source:
+                return stage_restore_archive(
+                    source,
+                    original_filename=(
+                        artifact.filename
+                    ),
+                    actor_user_id=user_id,
+                    actor_username=username,
+                    staging_root=staging_root,
+                    now=fixed,
+                    ttl_seconds=ttl_seconds,
+                )
+
+        expiring = stage_for_sweep(ttl_seconds=1)
+        fresh = stage_for_sweep(ttl_seconds=60)
+        pending = stage_for_sweep(ttl_seconds=1)
+        pending_commit = pending.operation_directory / RESTORE_COMMIT_FILENAME
+        pending_commit.write_text("{}", encoding="utf-8")
+        os.chmod(pending_commit, 0o600)
+
+        completed = stage_for_sweep(ttl_seconds=1)
+        (completed.operation_directory / RESTORE_DATABASE_FILENAME).unlink()
+        for filename in (RESTORE_COMMIT_FILENAME, RESTORE_RESULT_FILENAME):
+            path = completed.operation_directory / filename
+            path.write_text("{}", encoding="utf-8")
+            os.chmod(path, 0o600)
+        for filename in (RESTORE_PREVIOUS_FILENAME, RESTORE_ROLLBACK_FILENAME):
+            path = completed.operation_directory / filename
+            shutil.copy2(database_path, path)
+            os.chmod(path, stat.S_IMODE(database_path.stat().st_mode))
+
+        unknown_extra = stage_for_sweep(ttl_seconds=1)
+        unknown_path = unknown_extra.operation_directory / "unknown-evidence.txt"
+        unknown_path.write_text("preserve", encoding="utf-8")
+        os.chmod(unknown_path, 0o600)
+
         removed = sweep_expired_restore_staging(
             staging_root,
-            now=fixed + timedelta(
-                seconds=2
-            ),
+            now=fixed + timedelta(seconds=2),
         )
         if (
             removed != 1
             or expiring.operation_directory.exists()
+            or not fresh.operation_directory.exists()
+            or not pending.operation_directory.exists()
+            or not completed.operation_directory.exists()
+            or not unknown_extra.operation_directory.exists()
         ):
             fail(
-                "Expired restore staging was not swept safely."
+                "Restore staging sweep did not remove only the "
+                "expired validation-only operation."
+            )
+
+        for preserved in (fresh, pending, completed, unknown_extra):
+            remove_staged_restore(
+                preserved.token,
+                staging_root=staging_root,
             )
 
         if staging_root.exists():
@@ -806,9 +848,11 @@ def check_restore_validation_api() -> None:
         "strict V1 .ppbackup artifacts, rejects malformed, "
         "compressed-bomb and no-active-user inputs, stages "
         "mode-0600 files under opaque user-bound expiring "
-        "tokens, exposes sanitized review metadata, and "
-        "leaves the source database unchanged without "
-        "replacing the source database during validation"
+        "tokens, exposes sanitized review metadata, sweeps "
+        "only expired validation-only operations while preserving "
+        "fresh, pending, completed and unknown evidence, and leaves "
+        "the source database unchanged without replacing the source "
+        "database during validation"
     )
 
 

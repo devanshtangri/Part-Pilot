@@ -983,6 +983,8 @@ def remove_staged_restore(
     )
 
 
+
+# PARTPILOT:RESTORE_STAGING_RETENTION:V451
 def sweep_expired_restore_staging(
     staging_root: Path,
     *,
@@ -1001,6 +1003,7 @@ def sweep_expired_restore_staging(
         raise RestoreStagingStateError(
             "Restore staging root permissions changed."
         )
+
     current = (
         now.astimezone(timezone.utc).replace(
             microsecond=0
@@ -1008,7 +1011,14 @@ def sweep_expired_restore_staging(
         if now is not None
         else _utc_now()
     )
+    validation_only_files = {
+        RESTORE_OPERATION_MARKER,
+        RESTORE_ARCHIVE_FILENAME,
+        RESTORE_DATABASE_FILENAME,
+        RESTORE_STATE_FILENAME,
+    }
     removed = 0
+
     for operation in sorted(
         root.iterdir()
     ):
@@ -1017,6 +1027,28 @@ def sweep_expired_restore_staging(
             expected_root=root,
         ):
             continue
+
+        try:
+            children = list(
+                operation.iterdir()
+            )
+        except OSError:
+            continue
+        if {
+            child.name
+            for child in children
+        } != validation_only_files:
+            continue
+        if any(
+            child.is_symlink()
+            or not child.is_file()
+            or stat.S_IMODE(
+                child.stat().st_mode
+            ) != 0o600
+            for child in children
+        ):
+            continue
+
         try:
             state = _read_state(
                 operation
@@ -1026,10 +1058,13 @@ def sweep_expired_restore_staging(
             )
         except RestoreStagingStateError:
             continue
-        if expires <= current:
-            _remove_owned_operation(
-                operation,
-                expected_root=root,
-            )
-            removed += 1
+        if expires > current:
+            continue
+
+        _remove_owned_operation(
+            operation,
+            expected_root=root,
+        )
+        removed += 1
+
     return removed
