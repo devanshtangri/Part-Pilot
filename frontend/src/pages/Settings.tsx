@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState
 } from "react";
 
@@ -13,11 +14,20 @@ import {
   resetApplicationDatabase
 } from "../services/authClient";
 import {
+  commitRestoreBackup,
+  downloadBackup,
+  validateRestoreBackup,
+  waitForPartPilotReady
+} from "../services/backupsClient";
+import {
   getReservationSettings,
   getSearchSettings,
   updateReservationSettings,
   updateSearchSettings
 } from "../services/settingsClient";
+import type {
+  RestoreValidationResponse
+} from "../types/backups";
 import type {
   AppearanceTheme,
   ReservationExpiryMode,
@@ -27,6 +37,42 @@ import type {
 import "./Settings.css";
 
 const RESET_CONFIRMATION = "RESET PART PILOT";
+const RESTORE_CONFIRMATION = "RESTORE";
+const MAX_RESTORE_FILE_BYTES = 256 * 1024 * 1024;
+const SETTINGS_SECTION_IDS = [
+  "appearance",
+  "inventory",
+  "reservations",
+  "data"
+] as const;
+type SettingsSection = (typeof SETTINGS_SECTION_IDS)[number];
+
+function settingsSectionFromHash(): SettingsSection {
+  const candidate = window.location.hash.replace(
+    "#settings-",
+    ""
+  ) as SettingsSection;
+  return SETTINGS_SECTION_IDS.includes(candidate)
+    ? candidate
+    : "appearance";
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function formatUtc(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleString();
+}
 
 const APPEARANCE_OPTIONS: Array<{
   value: AppearanceTheme;
@@ -52,6 +98,9 @@ const APPEARANCE_OPTIONS: Array<{
 
 export function Settings() {
   const { token } = useAuth();
+  const restoreFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [activeSettingsSection, setActiveSettingsSection] =
+    useState<SettingsSection>(settingsSectionFromHash);
   const {
     theme,
     lightThemeAvailable,
@@ -94,8 +143,26 @@ export function Settings() {
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
+  const [backupDownloading, setBackupDownloading] = useState(false);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreValidation, setRestoreValidation] =
+    useState<RestoreValidationResponse | null>(null);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [restoreConfirmation, setRestoreConfirmation] = useState("");
+  const [restoreValidating, setRestoreValidating] = useState(false);
+  const [restoreCommitting, setRestoreCommitting] = useState(false);
+  const [restoreRestarting, setRestoreRestarting] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+
   const canReset =
     confirmation === RESET_CONFIRMATION && !isResetting;
+  const canCommitRestore =
+    restoreConfirmation === RESTORE_CONFIRMATION &&
+    Boolean(restoreValidation) &&
+    !restoreCommitting &&
+    !restoreRestarting;
 
   const reservationSettingsChanged = Boolean(
     reservationSettings &&
@@ -222,6 +289,32 @@ export function Settings() {
     };
   }, [isResetting, resetDialogOpen]);
 
+  useEffect(() => {
+    if (!restoreDialogOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (
+        event.key === "Escape" &&
+        !restoreCommitting &&
+        !restoreRestarting
+      ) {
+        closeRestoreDialog();
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [restoreCommitting, restoreDialogOpen, restoreRestarting]);
+
   function chooseReservationExpiryMode(
     expiryMode: ReservationExpiryMode
   ): void {
@@ -313,6 +406,145 @@ export function Settings() {
     }
   }
 
+  function chooseSettingsSection(
+    section: SettingsSection
+  ): void {
+    setActiveSettingsSection(section);
+    window.history.replaceState(
+      null,
+      "",
+      `#settings-${section}`
+    );
+  }
+
+  async function handleBackupDownload(): Promise<void> {
+    if (!token || backupDownloading) {
+      return;
+    }
+
+    setBackupDownloading(true);
+    setBackupError(null);
+    setBackupMessage(null);
+    try {
+      const result = await downloadBackup(token);
+      const url = URL.createObjectURL(result.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setBackupMessage(`Downloaded ${result.filename}`);
+    } catch (caught) {
+      setBackupError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to download a backup"
+      );
+    } finally {
+      setBackupDownloading(false);
+    }
+  }
+
+  function chooseRestoreFile(file: File | null): void {
+    setRestoreValidation(null);
+    setRestoreConfirmation("");
+    setRestoreError(null);
+
+    if (!file) {
+      setRestoreFile(null);
+      return;
+    }
+    if (!file.name.toLowerCase().endsWith(".ppbackup")) {
+      setRestoreFile(null);
+      setRestoreError("Choose a Part Pilot .ppbackup file.");
+      return;
+    }
+    if (file.size < 1 || file.size > MAX_RESTORE_FILE_BYTES) {
+      setRestoreFile(null);
+      setRestoreError(
+        "The restore file must be between 1 byte and 256 MiB."
+      );
+      return;
+    }
+    setRestoreFile(file);
+  }
+
+  async function reviewRestoreBackup(): Promise<void> {
+    if (!token || !restoreFile || restoreValidating) {
+      return;
+    }
+
+    setRestoreValidating(true);
+    setRestoreError(null);
+    try {
+      const validation = await validateRestoreBackup(token, restoreFile);
+      setRestoreValidation(validation);
+      setRestoreConfirmation("");
+      setRestoreDialogOpen(true);
+    } catch (caught) {
+      setRestoreValidation(null);
+      setRestoreError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to validate the selected backup"
+      );
+    } finally {
+      setRestoreValidating(false);
+    }
+  }
+
+  function closeRestoreDialog(): void {
+    if (restoreCommitting || restoreRestarting) {
+      return;
+    }
+    setRestoreDialogOpen(false);
+    setRestoreConfirmation("");
+    setRestoreError(null);
+  }
+
+  function clearRestoreSelection(): void {
+    if (restoreValidating || restoreCommitting || restoreRestarting) {
+      return;
+    }
+    setRestoreFile(null);
+    setRestoreValidation(null);
+    setRestoreConfirmation("");
+    setRestoreError(null);
+    if (restoreFileInputRef.current) {
+      restoreFileInputRef.current.value = "";
+    }
+  }
+
+  async function confirmRestoreBackup(): Promise<void> {
+    if (!token || !restoreValidation || !canCommitRestore) {
+      return;
+    }
+
+    setRestoreCommitting(true);
+    setRestoreError(null);
+    try {
+      await commitRestoreBackup(
+        token,
+        restoreValidation.validation_token
+      );
+      setRestoreRestarting(true);
+      localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+      localStorage.removeItem(APPEARANCE_STORAGE_KEY);
+      await waitForPartPilotReady();
+      window.location.replace("/");
+    } catch (caught) {
+      setRestoreError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to schedule the restore"
+      );
+      setRestoreCommitting(false);
+      setRestoreRestarting(false);
+    }
+  }
+
   function openDatabaseResetDialog(): void {
     setConfirmation("");
     setResetError(null);
@@ -370,6 +602,9 @@ export function Settings() {
       data-reservation-settings-version="reservation-expiry-settings-v362"
       data-partpilot-appearance="PARTPILOT:SETTINGS_APPEARANCE_WORKSPACE:V412"
       data-partpilot-runtime-badge="PARTPILOT:SETTINGS_RUNTIME_BADGE_REMOVED:V428"
+      data-partpilot-backup-restore="PARTPILOT:SETTINGS_BACKUP_RESTORE_UI:V442"
+      data-partpilot-settings-tabs="PARTPILOT:SETTINGS_SECTION_TABS:V444"
+      data-partpilot-active-settings-section={activeSettingsSection}
     >
       <header className="page-header settings-page-header">
         <div>
@@ -386,16 +621,81 @@ export function Settings() {
         className="settings-section-nav"
         aria-label="Settings sections"
       >
-        <a href="#settings-appearance">Appearance</a>
-        <a href="#settings-inventory">Inventory</a>
-        <a href="#settings-reservations">Reservations</a>
-        <a href="#settings-data">Data</a>
+        <button
+          className={
+            activeSettingsSection === "appearance"
+              ? "is-active"
+              : ""
+          }
+          type="button"
+          aria-current={
+            activeSettingsSection === "appearance"
+              ? "page"
+              : undefined
+          }
+          aria-controls="settings-appearance"
+          onClick={() => chooseSettingsSection("appearance")}
+        >
+          Appearance
+        </button>
+        <button
+          className={
+            activeSettingsSection === "inventory"
+              ? "is-active"
+              : ""
+          }
+          type="button"
+          aria-current={
+            activeSettingsSection === "inventory"
+              ? "page"
+              : undefined
+          }
+          aria-controls="settings-inventory"
+          onClick={() => chooseSettingsSection("inventory")}
+        >
+          Inventory
+        </button>
+        <button
+          className={
+            activeSettingsSection === "reservations"
+              ? "is-active"
+              : ""
+          }
+          type="button"
+          aria-current={
+            activeSettingsSection === "reservations"
+              ? "page"
+              : undefined
+          }
+          aria-controls="settings-reservations"
+          onClick={() => chooseSettingsSection("reservations")}
+        >
+          Reservations
+        </button>
+        <button
+          className={
+            activeSettingsSection === "data"
+              ? "is-active"
+              : ""
+          }
+          type="button"
+          aria-current={
+            activeSettingsSection === "data"
+              ? "page"
+              : undefined
+          }
+          aria-controls="settings-data"
+          onClick={() => chooseSettingsSection("data")}
+        >
+          Data
+        </button>
       </nav>
 
       <section
         id="settings-appearance"
         className="card settings-section settings-appearance-section"
         aria-labelledby="settings-appearance-title"
+        hidden={activeSettingsSection !== "appearance"}
       >
         <div className="settings-section-heading">
           <div>
@@ -504,6 +804,7 @@ export function Settings() {
           id="settings-inventory"
           className="card settings-search-compact settings-grid-inventory"
           aria-labelledby="settings-search-title"
+          hidden={activeSettingsSection !== "inventory"}
           data-partpilot-compact-search="PARTPILOT:COMPACT_OUT_OF_STOCK_PREFERENCE:V418"
         >
           <div className="settings-search-compact-copy">
@@ -588,6 +889,7 @@ export function Settings() {
           id="settings-reservations"
           className="card settings-section settings-reservation-section settings-grid-reservations"
           aria-labelledby="settings-reservation-title"
+          hidden={activeSettingsSection !== "reservations"}
           data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362"
         >
           <div className="settings-section-heading">
@@ -777,21 +1079,124 @@ export function Settings() {
 
         <section
           id="settings-data"
-          className="card settings-section settings-danger-section settings-grid-data"
+          className="card settings-section settings-data-section settings-grid-data"
           aria-labelledby="settings-data-title"
+          hidden={activeSettingsSection !== "data"}
         >
           <div className="settings-section-heading">
             <div>
               <span className="card-label">Local data</span>
-              <h2 id="settings-data-title">Database reset</h2>
+              <h2 id="settings-data-title">Backup and restore</h2>
               <p>
-                Return this installation to first-run setup. Built-in
-                part types, templates, and default settings are recreated.
+                Download a complete portable backup or validate and
+                restore a previous Part Pilot backup.
               </p>
             </div>
-            <span className="settings-danger-badge">
-              Permanent action
-            </span>
+          </div>
+
+          <div className="settings-data-actions">
+            <article className="settings-data-action">
+              <h3>Download backup</h3>
+              <p>
+                Creates a validated snapshot while Part Pilot remains
+                available. The download contains the database and manifest.
+              </p>
+              <button
+                className="settings-action settings-action-primary"
+                type="button"
+                disabled={!token || backupDownloading}
+                onClick={() => void handleBackupDownload()}
+              >
+                {backupDownloading
+                  ? "Preparing backup..."
+                  : "Download backup"}
+              </button>
+              <p
+                className={
+                  backupError
+                    ? "settings-data-action-status is-error"
+                    : backupMessage
+                      ? "settings-data-action-status is-success"
+                      : "settings-data-action-status"
+                }
+                role={backupError ? "alert" : "status"}
+              >
+                {backupError ?? backupMessage ?? "Versioned .ppbackup file"}
+              </p>
+            </article>
+
+            <article className="settings-data-action">
+              <h3>Restore backup</h3>
+              <p>
+                Validate a backup before review. Restoring restarts Part
+                Pilot, replaces local data, and signs out every session.
+              </p>
+              <input
+                ref={restoreFileInputRef}
+                type="file"
+                accept=".ppbackup,application/vnd.partpilot.backup+zip,application/zip"
+                hidden
+                onChange={(event) =>
+                  chooseRestoreFile(event.currentTarget.files?.[0] ?? null)
+                }
+              />
+              {restoreFile ? (
+                <div className="settings-restore-file">
+                  <strong>{restoreFile.name}</strong>
+                  <span>{formatFileSize(restoreFile.size)}</span>
+                </div>
+              ) : null}
+              <div className="settings-data-action-buttons">
+                <button
+                  className="settings-action settings-action-secondary"
+                  type="button"
+                  disabled={restoreValidating}
+                  onClick={() => restoreFileInputRef.current?.click()}
+                >
+                  {restoreFile ? "Choose another file" : "Choose backup file"}
+                </button>
+                <button
+                  className="settings-action settings-action-primary"
+                  type="button"
+                  disabled={!restoreFile || restoreValidating || !token}
+                  onClick={() => void reviewRestoreBackup()}
+                >
+                  {restoreValidating
+                    ? "Validating backup..."
+                    : "Validate and review"}
+                </button>
+                {restoreFile ? (
+                  <button
+                    className="settings-action settings-action-secondary"
+                    type="button"
+                    disabled={restoreValidating}
+                    onClick={clearRestoreSelection}
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+              <p
+                className={
+                  restoreError
+                    ? "settings-data-action-status is-error"
+                    : "settings-data-action-status"
+                }
+                role={restoreError ? "alert" : "status"}
+              >
+                {restoreError ?? "Maximum upload size: 256 MiB"}
+              </p>
+            </article>
+          </div>
+
+          <hr className="settings-data-divider" />
+
+          <div className="settings-data-reset-heading">
+            <div>
+              <h3>Database reset</h3>
+              <p>Erase this installation and return to first-run setup.</p>
+            </div>
+            <span className="settings-danger-badge">Permanent action</span>
           </div>
 
           <div className="settings-danger-summary">
@@ -810,6 +1215,136 @@ export function Settings() {
           </div>
         </section>
       </div>
+
+      {restoreDialogOpen && restoreValidation ? (
+        <div
+          className="settings-restore-backdrop"
+          data-partpilot-restore-dialog="PARTPILOT:SETTINGS_RESTORE_REVIEW_DIALOG:V442"
+        >
+          <section
+            className="settings-restore-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-restore-dialog-title"
+            aria-describedby="settings-restore-dialog-description"
+          >
+            <header>
+              <p className="eyebrow">Validated backup</p>
+              <h2 id="settings-restore-dialog-title">
+                Review database restore
+              </h2>
+            </header>
+            <div className="settings-restore-dialog-content">
+              {restoreRestarting ? (
+                <div className="settings-restore-progress" role="status">
+                  <strong>Restarting Part Pilot</strong>
+                  <div className="settings-restore-pulse" aria-hidden="true" />
+                  <p>
+                    The database is being restored and all sessions are
+                    being invalidated. This page returns to sign-in when
+                    Part Pilot is ready.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p id="settings-restore-dialog-description">
+                    The backup passed archive, schema, integrity, and
+                    active-user checks. Confirm the details before Part
+                    Pilot restarts and replaces its database.
+                  </p>
+                  <dl className="settings-restore-summary">
+                    <div>
+                      <dt>File</dt>
+                      <dd>{restoreValidation.original_filename}</dd>
+                    </div>
+                    <div>
+                      <dt>Backup created</dt>
+                      <dd>{formatUtc(restoreValidation.backup_created_at_utc)}</dd>
+                    </div>
+                    <div>
+                      <dt>Database size</dt>
+                      <dd>{formatFileSize(restoreValidation.database_size_bytes)}</dd>
+                    </div>
+                    <div>
+                      <dt>Users</dt>
+                      <dd>
+                        {restoreValidation.user_count} total,{" "}
+                        {restoreValidation.active_user_count} active
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Schema</dt>
+                      <dd>{restoreValidation.alembic_revision}</dd>
+                    </div>
+                    <div>
+                      <dt>Review expires</dt>
+                      <dd>{formatUtc(restoreValidation.expires_at_utc)}</dd>
+                    </div>
+                  </dl>
+                  {restoreValidation.warnings.map((warning) => (
+                    <p className="settings-restore-warning" key={warning}>
+                      {warning}
+                    </p>
+                  ))}
+                  <p className="settings-restore-warning">
+                    Restoring replaces the current database, restarts Part
+                    Pilot, and signs out every device. Download a fresh
+                    backup first if the current data may be needed.
+                  </p>
+                  <label className="settings-restore-confirmation">
+                    <span>
+                      Type <code>{RESTORE_CONFIRMATION}</code> to continue
+                    </span>
+                    <input
+                      type="text"
+                      value={restoreConfirmation}
+                      onChange={(event) => {
+                        setRestoreConfirmation(event.target.value);
+                        setRestoreError(null);
+                      }}
+                      placeholder={RESTORE_CONFIRMATION}
+                      autoComplete="off"
+                      spellCheck={false}
+                      autoFocus
+                      disabled={restoreCommitting}
+                      aria-invalid={Boolean(restoreError)}
+                    />
+                  </label>
+                  {restoreError ? (
+                    <p className="form-error" role="alert">
+                      {restoreError}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+            <footer>
+              {!restoreRestarting ? (
+                <>
+                  <button
+                    className="settings-action settings-action-secondary"
+                    type="button"
+                    disabled={restoreCommitting}
+                    onClick={closeRestoreDialog}
+                  >
+                    Keep current database
+                  </button>
+                  <button
+                    className="danger-button"
+                    type="button"
+                    disabled={!canCommitRestore}
+                    onClick={() => void confirmRestoreBackup()}
+                  >
+                    {restoreCommitting
+                      ? "Scheduling restore..."
+                      : "Restart and restore backup"}
+                  </button>
+                </>
+              ) : null}
+            </footer>
+          </section>
+        </div>
+      ) : null}
 
       {resetDialogOpen ? (
         <div

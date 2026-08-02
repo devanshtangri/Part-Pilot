@@ -42,19 +42,33 @@
   background: var(--panel);
 }
 
-.settings-section-nav a {
+.settings-section-nav button {
   padding: 7px 11px;
+  border: 0;
   border-radius: 6px;
+  outline: none;
+  background: transparent;
   color: var(--muted);
+  cursor: pointer;
+  font: inherit;
   font-size: 0.76rem;
   font-weight: 720;
 }
 
-.settings-section-nav a:hover,
-.settings-section-nav a:focus-visible {
+.settings-section-nav button:hover,
+.settings-section-nav button:focus-visible {
   background: var(--panel-soft);
   color: var(--text);
-  outline: none;
+}
+
+.settings-section-nav button:focus-visible {
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+.settings-section-nav button.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .settings-section {
@@ -757,7 +771,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .settings-section-nav a {
+  .settings-section-nav button {
+    width: 100%;
     text-align: center;
   }
 
@@ -1153,18 +1168,361 @@
   }
 }
 
-/* PARTPILOT:SETTINGS_LOWER_CARD_HEIGHT_SYNC:V425 */
+/* PARTPILOT:SETTINGS_SECTION_TABS_STYLES:V444 */
 .settings-page {
-  --partpilot-settings-lower-card-height-v425: 1;
+  --partpilot-settings-section-tabs-v444: 1;
 }
 
-@media (min-width: 901px) {
-  .settings-content-grid > .settings-grid-reservations,
-  .settings-content-grid > .settings-grid-data {
-    align-self: stretch;
+.settings-page > [hidden],
+.settings-content-grid > [hidden] {
+  display: none !important;
+}
+
+.settings-content-grid {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "inventory"
+    "reservations"
+    "data";
+  align-items: start;
+}
+
+.settings-content-grid > .settings-grid-reservations,
+.settings-content-grid > .settings-grid-data {
+  height: auto;
+  align-self: start;
+}
+
+.settings-content-grid > .settings-grid-data {
+  align-content: start;
+}
+
+/* PARTPILOT:SETTINGS_BACKUP_RESTORE_STYLES:V442 */
+.settings-page {
+  --partpilot-settings-backup-restore-v442: 1;
+}
+
+.settings-data-section,
+.settings-data-action,
+.settings-restore-dialog-content,
+.settings-restore-progress {
+  display: grid;
+}
+
+.settings-data-section {
+  gap: 13px;
+}
+
+.settings-data-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.settings-data-action {
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.settings-data-action h3,
+.settings-data-action p,
+.settings-data-reset-heading h3,
+.settings-data-reset-heading p,
+.settings-restore-dialog header p,
+.settings-restore-dialog header h2,
+.settings-restore-dialog-content > p,
+.settings-restore-progress p {
+  margin: 0;
+}
+
+.settings-data-action h3,
+.settings-data-reset-heading h3 {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.settings-data-action p,
+.settings-data-reset-heading p {
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.48;
+}
+
+.settings-data-action .settings-action {
+  justify-self: start;
+}
+
+.settings-data-action-status {
+  min-height: 19px;
+  margin-top: auto !important;
+  color: var(--muted) !important;
+  font-size: 0.69rem !important;
+  overflow-wrap: anywhere;
+}
+
+.settings-data-action-status.is-error {
+  color: var(--danger) !important;
+}
+
+.settings-data-action-status.is-success {
+  color: var(--accent) !important;
+}
+
+.settings-restore-file {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel);
+}
+
+.settings-restore-file strong,
+.settings-restore-file span {
+  overflow-wrap: anywhere;
+}
+
+.settings-restore-file strong {
+  color: var(--text);
+  font-size: 0.72rem;
+}
+
+.settings-restore-file span {
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.settings-data-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.settings-data-divider {
+  height: 1px;
+  border: 0;
+  background: var(--panel-border);
+}
+
+.settings-data-reset-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+}
+
+.settings-data-reset-heading p {
+  margin-top: 4px;
+}
+
+.settings-restore-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 125;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 7, 13, 0.74);
+}
+
+.settings-restore-dialog {
+  width: min(660px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--panel-border));
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.settings-restore-dialog header,
+.settings-restore-dialog-content,
+.settings-restore-dialog footer {
+  padding: 16px 18px;
+}
+
+.settings-restore-dialog header,
+.settings-restore-dialog footer {
+  background: var(--panel-soft);
+}
+
+.settings-restore-dialog header {
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.settings-restore-dialog header h2 {
+  margin-top: 4px;
+  font-size: 1.3rem;
+}
+
+.settings-restore-dialog-content {
+  gap: 13px;
+}
+
+.settings-restore-dialog-content > p {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.settings-restore-summary {
+  display: grid;
+  margin: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.settings-restore-summary > div {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.settings-restore-summary > div:last-child {
+  border-bottom: 0;
+}
+
+.settings-restore-summary dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.settings-restore-summary dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.settings-restore-warning,
+.settings-restore-progress {
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--panel-border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--danger) 7%, var(--panel));
+  color: var(--danger);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.settings-restore-confirmation {
+  display: grid;
+  gap: 7px;
+}
+
+.settings-restore-confirmation > span {
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.settings-restore-confirmation code {
+  color: var(--danger);
+}
+
+.settings-restore-confirmation input {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+}
+
+.settings-restore-confirmation input:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 11%, transparent);
+}
+
+.settings-restore-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.settings-restore-progress {
+  gap: 10px;
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--panel-border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-restore-progress p {
+  color: var(--muted);
+}
+
+.settings-restore-pulse {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+}
+
+.settings-restore-pulse::after {
+  display: block;
+  width: 34%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  content: "";
+  animation: settings-restore-progress 1.15s ease-in-out infinite;
+}
+
+@keyframes settings-restore-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(310%); }
+}
+
+@media (max-width: 680px) {
+  .settings-data-actions {
+    grid-template-columns: 1fr;
   }
 
-  .settings-content-grid > .settings-grid-data {
-    align-content: space-between;
+  .settings-data-reset-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-restore-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .settings-restore-summary > div {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .settings-restore-dialog footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .settings-restore-dialog footer button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-restore-pulse::after {
+    width: 100%;
+    animation: none;
   }
 }
