@@ -11,94 +11,92 @@ Project
 Patch and chat workflow
 - Every implementation, fix, diagnostic, checkpoint, cleanup, documentation
   update and boundary is one complete downloadable sequential Python file.
-  The assistant does not place or execute numbered patches on HomeLab unless
-  explicitly asked.
 - Filenames begin with the number, never patch_. Failed user-run scripts
-  consume their number. Successful scripts print exactly `Everything PASS`.
-- Headings are `Patch N - Browser Test` or `Patch N - Fix Only`.
+  consume their number. Successful scripts end with exactly `Everything PASS`.
 - Browser-test source remains unstaged/uncommitted until explicit approval,
   followed by a separate checkpoint/commit/push script.
-- Chat 15 is `Chat 15: Project Lifecycle Completion`, owns 397-426 and ends
-  at boundary Patch 426.
-- Chat 16 is `Chat 16: Backup and Restore Foundation`, owns 427-456 and
-  Patch 456 is its planned boundary.
+- Chat 16 is `Chat 16: Backup and Restore Foundation`, owns 427-456;
+  failed boundary Patch 457 is consumed and recovery is Patch 457.
+- Chat 17 is `Chat 17: Backup Status Finalization and MCP Foundation`, owns
+  458-487 and Patch 487 is its planned boundary.
 - No next-chat starting-prompt file is created. The ready prompt is posted
-  in chat only after a successful boundary.
+  only after the boundary script ends with `Everything PASS`.
 - After two consecutive pre-write failures, repeated anchor mismatches or
-  source uncertainty, the next patch is diagnostic-only and creates
-  docs/diagonostic_*.md.
+  source uncertainty, issue a diagnostic-only patch and create a
+  `docs/diagonostic_*.md` report.
 
 HomeLab-assisted safeguards
-- Inspect exact Git/index state, source hashes, logs, deployment, OpenAPI,
-  bundles and live SQLite before high-risk patches. Local source and newest
-  handoff/diagnostic are authoritative.
-- Generate transforms in memory before backup/write. Prefer exact hashes,
-  scoped structures and semantic validation over brittle adjacency.
+- Inspect exact Git/index, source hashes, logs, deployment, OpenAPI, bundles,
+  SQLite and staging before high-risk patches.
+- Generate transforms completely in memory before backup/write. Prefer exact
+  hashes, scoped structures and semantic/minifier-safe validation.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs: /projects/Part Pilot/fixes/logs/ and ignored by Git.
-- Application patches run git diff --check, Python/TypeScript validation,
-  Docker build/deploy, Alembic/protected API/SPA marker checks, complete
-  copied-database smoke and live-data preservation.
-- Failure output includes phase, exception, actual command or in-memory
-  transform, rollback result, final Git state and log path.
+- Application patches run git diff --check, relevant compile/build, Docker
+  deploy, Alembic, protected API/SPA markers, copied-database smoke and exact
+  live-data preservation.
+- Failure output includes phase, exception, actual failing command, rollback,
+  final Git state and log path.
 - Checkpoints stage explicit allowlists, validate staged diff, push main,
-  fetch and verify local HEAD equals origin/main.
-- Keep this memory at or below 8,000 characters.
+  fetch and prove local HEAD equals origin/main.
+- Keep this file at or below 8,000 characters.
 
 Inventory and fixture safety
-- Never assume an empty database. Preserve users, catalogues, inventory,
-  Projects, Reservations, movements, audits and settings.
-- Use unique manifest-owned fixtures and clean up only recorded IDs.
-- Six realistic Patch 401 parts remain intentionally in the test database.
+- Preserve users, catalogues, Parts, Projects, Reservations, movements, audits,
+  settings and restore evidence.
+- Six realistic Patch 401 parts remain intentionally preserved.
   Manifest: /projects/Part Pilot/fixes/logs/patch_401_test_fixture_manifest.json
-- The user plans to reset before production use. Do not silently remove
+- The user plans to reset before production use. Never silently remove
   fixtures or History.
 - SQLite integrity and foreign-key checks must pass.
 
-Completed product state through Patch 425
-- Authentication/setup, dynamic part templates, typed custom fields and
-  reusable manufacturer/package/location catalogues.
-- Inventory create/read/edit, adjustment, soft delete/restore, universal
-  search, filters, pagination, Available/Out-of-stock sections, sorting and
-  persistent preferences.
-- Part history shows Physical, Reserved and Available snapshots with
-  meaningful reserve/release deltas.
-- Reservation edit/cancel/consume/expire/delete, activity, expiry defaults,
-  dialogs, stale guards and responsive register/detail workspace.
-- Project Draft/create/update/reserve/consume/cancel lifecycle with atomic
-  linked Reservation synchronization, two-way Reserved editing, delta
-  movements and paired audits.
-- Protected system-wide History merges audits and stock movements
-  newest-first with literal search, counted filters, context hydration,
-  snapshots and structured evidence. Desktop is register/detail; mobile is
-  register-first. General column sorting remains intentionally omitted.
-- Protected appearance settings persist Dark/Light/System, enforce Light
-  availability, validate values and record actor-attributed audits.
-- Pre-paint application prevents opposite-theme flashes; System follows OS
-  changes live and failed saves restore the previous state.
-- Light mode covers every current workspace and overlay with explicit
-  primary, neutral, destructive, active, selected, status and disabled
-  states.
-- Settings has full-width Appearance, compact full-width Inventory search,
-  equal-height Reservation/Data desktop cards and natural mobile stacking.
-  The Out-of-stock switch remains server-backed and accessible. Database
-  reset uses a guarded dialog with phrase confirmation.
-- Browser approval is complete through Patch 425.
-- Diagnostic 422 records the Patch 419-421 failures and validated Settings
-  composition. Patch 424 safely rolled back after Vite rewrote its media
-  query; Patch 425 recovered with minifier-safe verification.
+Completed product state through Patch 453
+- Complete authenticated inventory, reusable catalogues, typed templates,
+  universal search, pagination, stock sections, sorting, quantity workflows,
+  soft deletion/restoration and detailed History.
+- Complete Reservation and Project lifecycles with atomic linked editing,
+  reserve/release/consume accounting, paired movements/audits and responsive
+  workspaces.
+- Protected system-wide History with filters, context hydration, structured
+  evidence and desktop/mobile workflows.
+- Persisted Dark/Light/System appearance with pre-paint application and
+  complete Light-theme coverage.
+- Settings has functional Appearance, Inventory, Reservations and Data tabs,
+  one full-width active panel, natural heights and guarded database reset.
+- Versioned `.ppbackup` archives contain exactly `manifest.json` and
+  `partpilot.db`; snapshots use SQLite's online backup API.
+- Protected manual backup download uses deterministic filenames, no-store
+  headers, actor-attributed audit and operation-owned cleanup.
+- Strict restore validates archive safety, format, revision, hashes, SQLite
+  integrity, foreign keys, required schema and active-user state before commit.
+- Restore commit uses persistent same-filesystem staging, maintenance/drain,
+  pre-Uvicorn bootstrap, rollback snapshot, atomic replacement, verification,
+  session invalidation, audit evidence and rollback on failure.
+- Core backup/restore Settings UI is desktop/mobile browser approved and
+  committed through Patch 450.
+- Expired staging cleanup removes only exact validation-only operations and
+  preserves completed/pending/unknown evidence.
+- Protected GET /api/backups/status reports manual-download history,
+  scheduling inactive and no retained server copy. The backups table remains
+  unused.
+- Diagnostic 447 records exact validation-only and completed restore staging
+  shapes.
 
-Deferred MCP Settings requirement
-- During the MCP phase add an authenticated MCP server enable/disable
-  control with persisted default, startup/restart semantics, safe
-  transport/tool gating, invalid-value recovery, disabled feedback and
-  audit events.
+Current boundary state
+- Clean committed application baseline: Patch 453.
+- HEAD/origin before Patch 457:
+  76c24cdd9a634827e6f0d31f80651ae083000174
+- Deployed image before Patch 457:
+  sha256:c859bc308a8c495498924ba86ff057bf201fc6262769e010a6878367fbea3e27
+- Patches 454 and 455 left no source changes. Patch 454 rejected the wrong
+  generated marker count. Patch 455 built/deployed but searched for a CSS
+  comment removed by Vite; rollback restored source, deployment, DB and staging.
 
 Next implementation
-- Begin backup/restore as a separate product slice.
-- Use SQLite online backup, a versioned manifest and integrity evidence.
-- Restore must validate before touching live data, create a rollback
-  snapshot, define connection/restart behavior and recover atomically.
-- Add protected APIs and accessible Settings Data controls; test with copied
-  databases and preserve all current operational data.
-- Keep MCP separate until backup/restore is browser approved and checkpointed.
+- Patch 458 recovers the Patch 455 status UI candidate.
+- Verify built CSS using
+  `--partpilot-settings-manual-backup-status-v454`, not the comment.
+- Keep the four frontend files uncommitted until desktop/mobile approval.
+- After checkpointing the status UI, begin MCP diagnostics and read-tool
+  foundation. Keep safeguarded writes and the MCP Settings toggle separate
+  until transport, auth, auditing and restart semantics are explicit.

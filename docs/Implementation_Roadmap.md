@@ -2291,3 +2291,70 @@ Keep backup/restore separate from MCP. Do not silently clean the six
 realistic Patch 401 fixtures or existing History. Do not design restore as
 an unvalidated raw-file overwrite. The current database-reset action remains
 a separate permanent operation and must not be conflated with restore.
+
+<!-- PARTPILOT:CHAT17_BACKUP_STATUS_MCP_ROADMAP:V457 -->
+## Current roadmap checkpoint — backup/restore core complete
+
+### Overall progress
+
+**Working V1/public-alpha estimate: approximately 97%.**
+
+Inventory, Reservations, Projects, History, authenticated appearance, manual
+backup download, strict restore validation/commit, responsive backup/restore
+Settings controls and a truthful manual-backup status API are operational.
+
+### Completed through Patch 453
+
+- [x] Versioned `.ppbackup` artifact and manifest.
+- [x] SQLite online snapshot generation.
+- [x] Protected manual backup download with no-store headers and audit evidence.
+- [x] Strict restore upload, archive, schema, hash and SQLite validation.
+- [x] Persistent restore staging and maintenance lifecycle.
+- [x] Pre-Uvicorn restore bootstrap and controlled restart.
+- [x] Rollback snapshot, atomic replacement and post-replacement verification.
+- [x] Restored-session invalidation and forced fresh login.
+- [x] Responsive Settings backup/restore workspace.
+- [x] Functional Settings section navigation and natural panel heights.
+- [x] Desktop and mobile browser approval of the core workflow.
+- [x] Evidence-preserving expired-staging cleanup.
+- [x] Protected truthful manual-backup status API.
+- [x] Complete copied-database regression coverage.
+
+### Chat 17 — Backup Status Finalization and MCP Foundation
+
+**Required title:** `Chat 17: Backup Status Finalization and MCP Foundation`
+**Patch range:** 458–487 inclusive
+**Planned boundary:** Patch 487
+**First patch:** 458
+
+### Immediate implementation order
+
+1. Recover the Patch 455 manual-backup status UI candidate.
+2. Verify minified CSS through the durable custom property rather than a
+   stripped comment marker.
+3. Browser-test desktop and mobile status layout, loading/error states and
+   immediate refresh after a manual download.
+4. Checkpoint and push the approved four-file frontend status slice.
+5. Update public documentation to mark backup/restore fully complete.
+6. Inspect and define the MCP runtime, transport, authentication, tool
+   permissions, audit and restart contracts before implementation.
+7. Implement MCP read tools first, then safeguarded writes with explicit
+   confirmation and inventory invariants.
+8. Add the authenticated MCP enable/disable control only after runtime and
+   restart behavior are explicit.
+9. Complete accessibility, security and public-alpha release hardening.
+
+### Remaining major V1 areas
+
+- [ ] Manual-backup status UI browser approval and checkpoint.
+- [ ] MCP read tools.
+- [ ] Safeguarded MCP write tools.
+- [ ] Authenticated MCP server enable/disable control.
+- [ ] Accessibility, security and public-alpha release hardening.
+
+### Scope discipline
+
+Do not claim scheduled backups exist. Current backup behavior is manual
+download only and no server copy is retained. Preserve completed restore
+evidence, the unused `backups` table, current inventory, History and the six
+Patch 401 fixtures. Keep MCP work separate from the final status-UI checkpoint.

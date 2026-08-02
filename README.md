@@ -55,9 +55,9 @@ assistants can understand and act on inventory safely.
 
 Major remaining areas include:
 
-- Settings and appearance completion.
-- Backup and restore.
+- Manual-backup status UI finalization.
 - MCP read tools and safeguarded write tools.
+- Authenticated MCP runtime control.
 - Accessibility, security, responsive, and public-alpha polish.
 
 See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
@@ -406,3 +406,34 @@ duplicate resolved-theme text has been removed.
 Backup and restore is the next independent product area. The existing
 database-reset action remains a separate guarded permanent operation.
 <!-- PARTPILOT:SETTINGS_COMPLETION_README:V426:END -->
+
+<!-- PARTPILOT:BACKUP_RESTORE_README:V457:START -->
+## Backup and restore
+
+Part Pilot supports portable manual backups and guarded database restoration.
+
+| Capability | Status |
+|---|---|
+| Versioned `.ppbackup` artifact | Available |
+| SQLite online snapshot | Available |
+| Manifest, schema, hash and integrity evidence | Available |
+| Protected manual download | Available |
+| No-store response headers | Available |
+| Strict archive and database validation | Available |
+| Review-before-restore workflow | Available |
+| Rollback snapshot and atomic replacement | Available |
+| Session invalidation after restore | Available |
+| Responsive Settings controls | Available |
+| Manual-backup status API | Available |
+| Scheduled backups | Not implemented |
+| Retained server-side backup copies | Not implemented |
+
+A `.ppbackup` contains exactly `manifest.json` and `partpilot.db`. Restore
+validation completes before live data is touched. A successful restore uses a
+same-filesystem staged replacement, verifies the result, records an audit and
+requires every user to sign in again.
+
+Current backup behavior is manual download only. Part Pilot does not schedule
+backups and does not retain a server-side copy after the download operation.
+The compact status display for this API is the next frontend checkpoint.
+<!-- PARTPILOT:BACKUP_RESTORE_README:V457:END -->

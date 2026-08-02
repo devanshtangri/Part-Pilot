@@ -2792,3 +2792,112 @@ The next chat is `Chat 16: Backup and Restore Foundation`. It owns Patches
 427–456 inclusive; Patch 456 is its planned boundary. No starting-prompt
 file is created. The ready-to-paste prompt is provided in chat only after
 Patch 426 ends with `Everything PASS`.
+
+<!-- PARTPILOT:CHAT16_BACKUP_RESTORE_BOUNDARY_RECOVERY:V457 -->
+## Chat 16 boundary — backup and restore foundation complete
+
+**Boundary recovery patch:** 457
+**Committed application baseline:** Patch 453
+**Core browser approval:** complete through Patch 450
+**Alembic head:** `0007_projects_contract`
+**Boundary commit subject:** `Complete Chat 16 backup and restore foundation`
+
+### Completed in Chat 16
+
+- Part Pilot now creates versioned `.ppbackup` archives with exactly
+  `manifest.json` and `partpilot.db`.
+- Backup snapshots use SQLite's online backup API and record format, schema,
+  integrity, scope, hashes, sizes, timestamps and restore-policy metadata.
+- Protected manual backup downloads use no-store headers, deterministic
+  filenames, actor-attributed audits and operation-owned temporary cleanup.
+- Restore validation rejects malformed archives, unsafe paths, incompatible
+  revisions, hash mismatches, invalid SQLite databases, foreign-key failures,
+  missing tables, oversized input and unsafe staged state before live data is
+  touched.
+- Restore commit uses persistent same-filesystem staging, maintenance/drain
+  semantics, a pre-Uvicorn bootstrap, an online rollback snapshot, atomic
+  replacement, verification, session invalidation, actor-aware auditing and
+  rollback on failure.
+- Settings provides functional Appearance, Inventory, Reservations and Data
+  section controls, full-width active panels, natural card heights, responsive
+  backup/restore controls and a guarded restore-review dialog.
+- Desktop and mobile browser testing approved backup download, validation,
+  successful restore, forced reauthentication, responsive Settings tabs and
+  the complete backup/restore workspace.
+- Expired staging cleanup now removes only exact validation-only operations
+  and preserves pending, completed, malformed and unknown-extra evidence.
+- Protected `GET /api/backups/status` truthfully reports manual-download
+  history, scheduling inactive and no retained server copy. The unused
+  `backups` table remains unchanged.
+
+### Recovery and diagnostic history
+
+- Patches 427, 430, 432, 434, 436, 440 and 442 failed safely and were recovered
+  by the next sequential scripts.
+- Patches 433–441 built and checkpointed the backup artifact, download API,
+  application lifecycle, strict restore validation, bootstrap and protected
+  commit flow.
+- Patch 443 delivered the first Settings backup/restore UI and passed terminal
+  verification. Browser testing proved real download, validation and restore.
+- Patches 444 and 445 failed before writes on brittle session and staging-shape
+  assumptions. Patch 446 then failed only while formatting its diagnostic
+  report.
+- Patch 447 committed
+  `docs/diagonostic_447_settings_tabs_restore_staging.md`, documenting exact
+  validation-only and completed-success operation shapes.
+- Patch 448 failed before writes because historical Patch 444 evidence was
+  compared with the newer diagnostic HEAD.
+- Patch 449 recovered the functional Settings sections and natural panel
+  heights; desktop and mobile browser testing passed.
+- Patch 450 committed and pushed the approved four-file frontend workspace.
+- Patch 451 preserved completed restore evidence during expiry cleanup.
+- Patch 452 failed and rolled back because its schema candidate added a blank
+  line at EOF. Patch 453 recovered and pushed the protected manual-backup
+  status API.
+- Patch 454 failed before writes because its generated Settings marker count
+  expected two intentional sites instead of three.
+- Patch 455 built and deployed the status UI candidate, but its verifier
+  searched for a CSS comment stripped by Vite. Rollback restored the exact
+  clean Patch 453 source, deployment, database and staging state.
+- Patch 456 failed before documentation writes because its endpoint check
+  issued GET requests to POST-only protected routes. Patch 457 corrects
+  the method-aware verifier and completes the boundary.
+
+### Authoritative boundary state
+
+- Local `HEAD` and `origin/main` before Patch 457:
+  `76c24cdd9a634827e6f0d31f80651ae083000174`
+- Deployment image before Patch 457:
+  `sha256:c859bc308a8c495498924ba86ff057bf201fc6262769e010a6878367fbea3e27`
+- Database SHA-256 before Patch 457: `91b0a498cd75b34f4db2be624cd0652d7cbdf9683ae0e0ff859303f8a099fa7c`
+- Users: 1
+- Sessions: 2
+- Part types: 36
+- Manufacturers: 9
+- Packages: 23
+- Locations: 1
+- Parts: 15
+- Projects: 7
+- Project items: 10
+- Reservations: 9
+- Reservation items: 14
+- Stock movements: 32
+- Audits: 100
+- App settings: 17
+- Backups table rows: 0
+- Restore staging operations: 3
+- Pending restore jobs: 0
+
+The six realistic Patch 401 parts and all current History remain intentionally
+preserved.
+
+### Next chat
+
+The next chat is `Chat 17: Backup Status Finalization and MCP Foundation`.
+It owns Patches 458–487 inclusive and Patch 487 is its planned boundary.
+
+Patch 458 must recover the exact Patch 455 status-UI candidate while verifying
+the built CSS through the durable custom property
+`--partpilot-settings-manual-backup-status-v454`, not the stripped CSS comment.
+The four frontend files must remain uncommitted until desktop and mobile
+browser approval, followed by a separate checkpoint patch.
