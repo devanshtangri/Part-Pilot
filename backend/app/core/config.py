@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     host_port: int = Field(default=7890, alias="PARTPILOT_HOST_PORT")
     container_port: int = Field(default=8000, alias="PARTPILOT_CONTAINER_PORT")
 
+    # PARTPILOT:MCP_PUBLIC_BASE_URL:V467
+    public_base_url: str | None = Field(
+        default=None,
+        alias="PARTPILOT_PUBLIC_BASE_URL",
+    )
+
     database_url: str = Field(
         default="sqlite:///../data/partpilot.db",
         alias="PARTPILOT_DATABASE_URL",

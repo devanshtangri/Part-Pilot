@@ -58,6 +58,8 @@ from app.api.routes.history import router as history_router
 from app.api.routes.backups import router as backups_router
 # PARTPILOT:RESTORE_VALIDATION_ROUTER:V438
 from app.api.routes.restores import router as restores_router
+# PARTPILOT:MCP_OAUTH_HTTP_ROUTER:V467
+from app.api.routes.mcp_oauth import router as mcp_oauth_router
 from app.core.config import get_settings
 # PARTPILOT:RESTORE_UPLOAD_LIMIT:V438
 from app.core.upload_limits import RestoreUploadLimitMiddleware
@@ -138,6 +140,8 @@ app.include_router(history_router, prefix="/api")
 app.include_router(backups_router, prefix="/api")
 # PARTPILOT:RESTORE_VALIDATION_ROUTER:V438
 app.include_router(restores_router, prefix="/api")
+# PARTPILOT:MCP_OAUTH_HTTP_REGISTRATION:V467
+app.include_router(mcp_oauth_router)
 
 frontend_dist = Path("/app/frontend_dist")
 if frontend_dist.exists():
