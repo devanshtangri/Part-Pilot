@@ -1,3 +1,21 @@
+// PARTPILOT:MANUAL_BACKUP_STATUS_TYPES:V454
+export interface LatestManualBackupStatus {
+  generated_at_utc: string;
+  filename: string;
+  archive_size_bytes: number;
+  database_size_bytes: number;
+  format_version: 1;
+  alembic_revision: string;
+}
+
+export interface ManualBackupStatusResponse {
+  mode: "manual_download";
+  scheduled_backups_active: false;
+  server_copy_retained: false;
+  recorded_download_count: number;
+  latest_manual_backup: LatestManualBackupStatus | null;
+}
+
 export interface BackupDownloadResult {
   blob: Blob;
   filename: string;

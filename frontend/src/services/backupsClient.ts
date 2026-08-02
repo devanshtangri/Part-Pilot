@@ -1,5 +1,6 @@
 import type {
   BackupDownloadResult,
+  ManualBackupStatusResponse,
   RestoreCommitResponse,
   RestoreValidationResponse
 } from "../types/backups";
@@ -48,6 +49,23 @@ function contentDispositionFilename(response: Response): string {
   }
   const plainMatch = disposition.match(/filename=([^;]+)/i);
   return plainMatch?.[1]?.trim() || "part-pilot-backup.ppbackup";
+}
+
+// PARTPILOT:MANUAL_BACKUP_STATUS_CLIENT:V454
+export async function getManualBackupStatus(
+  token: string
+): Promise<ManualBackupStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/backups/status`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`
+    },
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+  return response.json() as Promise<ManualBackupStatusResponse>;
 }
 
 // PARTPILOT:BACKUP_RESTORE_CLIENT:V442

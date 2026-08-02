@@ -16,6 +16,7 @@ import {
 import {
   commitRestoreBackup,
   downloadBackup,
+  getManualBackupStatus,
   validateRestoreBackup,
   waitForPartPilotReady
 } from "../services/backupsClient";
@@ -26,6 +27,7 @@ import {
   updateSearchSettings
 } from "../services/settingsClient";
 import type {
+  ManualBackupStatusResponse,
   RestoreValidationResponse
 } from "../types/backups";
 import type {
@@ -146,6 +148,13 @@ export function Settings() {
   const [backupDownloading, setBackupDownloading] = useState(false);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
   const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupStatus, setBackupStatus] =
+    useState<ManualBackupStatusResponse | null>(null);
+  const [backupStatusLoading, setBackupStatusLoading] = useState(true);
+  const [backupStatusError, setBackupStatusError] =
+    useState<string | null>(null);
+  const [backupStatusReloadVersion, setBackupStatusReloadVersion] =
+    useState(0);
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoreValidation, setRestoreValidation] =
     useState<RestoreValidationResponse | null>(null);
@@ -266,6 +275,48 @@ export function Settings() {
       cancelled = true;
     };
   }, [reservationReloadVersion, token]);
+
+  // PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454
+  useEffect(() => {
+    if (!token) {
+      setBackupStatus(null);
+      setBackupStatusLoading(false);
+      setBackupStatusError(
+        "Your session is unavailable. Sign in again."
+      );
+      return;
+    }
+
+    let cancelled = false;
+    setBackupStatusLoading(true);
+    setBackupStatusError(null);
+
+    getManualBackupStatus(token)
+      .then((result) => {
+        if (!cancelled) {
+          setBackupStatus(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setBackupStatus(null);
+          setBackupStatusError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load backup history"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBackupStatusLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [backupStatusReloadVersion, token]);
 
   useEffect(() => {
     if (!resetDialogOpen) {
@@ -436,6 +487,18 @@ export function Settings() {
       anchor.remove();
       URL.revokeObjectURL(url);
       setBackupMessage(`Downloaded ${result.filename}`);
+
+      try {
+        const refreshedStatus = await getManualBackupStatus(token);
+        setBackupStatus(refreshedStatus);
+        setBackupStatusError(null);
+      } catch (statusCaught) {
+        setBackupStatusError(
+          statusCaught instanceof Error
+            ? statusCaught.message
+            : "Backup downloaded, but history could not be refreshed"
+        );
+      }
     } catch (caught) {
       setBackupError(
         caught instanceof Error
@@ -603,6 +666,7 @@ export function Settings() {
       data-partpilot-appearance="PARTPILOT:SETTINGS_APPEARANCE_WORKSPACE:V412"
       data-partpilot-runtime-badge="PARTPILOT:SETTINGS_RUNTIME_BADGE_REMOVED:V428"
       data-partpilot-backup-restore="PARTPILOT:SETTINGS_BACKUP_RESTORE_UI:V442"
+      data-partpilot-backup-status="PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454"
       data-partpilot-settings-tabs="PARTPILOT:SETTINGS_SECTION_TABS:V444"
       data-partpilot-active-settings-section={activeSettingsSection}
     >
@@ -1101,6 +1165,103 @@ export function Settings() {
                 Creates a validated snapshot while Part Pilot remains
                 available. The download contains the database and manifest.
               </p>
+              <div
+                className="settings-backup-status"
+                data-partpilot-backup-status="PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454"
+              >
+                {backupStatusLoading ? (
+                  <p
+                    className="settings-backup-status-state"
+                    role="status"
+                  >
+                    Loading manual backup history...
+                  </p>
+                ) : backupStatusError ? (
+                  <div
+                    className="settings-backup-status-error"
+                    role="alert"
+                  >
+                    <span>{backupStatusError}</span>
+                    <button
+                      className="settings-action settings-action-secondary"
+                      type="button"
+                      onClick={() =>
+                        setBackupStatusReloadVersion(
+                          (value) => value + 1
+                        )
+                      }
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : backupStatus?.latest_manual_backup ? (
+                  <>
+                    <div className="settings-backup-status-heading">
+                      <strong>Latest manual download</strong>
+                      <span>
+                        {backupStatus.recorded_download_count} recorded
+                      </span>
+                    </div>
+                    <dl className="settings-backup-status-summary">
+                      <div>
+                        <dt>Generated</dt>
+                        <dd>
+                          {formatUtc(
+                            backupStatus.latest_manual_backup
+                              .generated_at_utc
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Archive</dt>
+                        <dd>
+                          {formatFileSize(
+                            backupStatus.latest_manual_backup
+                              .archive_size_bytes
+                          )}
+                        </dd>
+                      </div>
+                      <div className="settings-backup-status-file">
+                        <dt>File</dt>
+                        <dd>
+                          {backupStatus.latest_manual_backup.filename}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Database</dt>
+                        <dd>
+                          {formatFileSize(
+                            backupStatus.latest_manual_backup
+                              .database_size_bytes
+                          )}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Schema</dt>
+                        <dd>
+                          {
+                            backupStatus.latest_manual_backup
+                              .alembic_revision
+                          }
+                        </dd>
+                      </div>
+                    </dl>
+                    <p className="settings-backup-status-note">
+                      Manual only. Scheduling is inactive and no server
+                      copy is retained.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <strong>No recorded manual downloads</strong>
+                    <p className="settings-backup-status-note">
+                      Backups are generated only when downloaded.
+                      Scheduling is inactive and no server copy is
+                      retained.
+                    </p>
+                  </>
+                )}
+              </div>
               <button
                 className="settings-action settings-action-primary"
                 type="button"
