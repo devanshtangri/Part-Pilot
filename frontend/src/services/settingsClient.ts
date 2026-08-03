@@ -1,6 +1,8 @@
 import type {
   AppearanceSettings,
   AppearanceSettingsUpdatePayload,
+  McpSettings,
+  McpSettingsUpdatePayload,
   ReservationSettings,
   ReservationSettingsUpdatePayload,
   SearchSettings,
@@ -116,6 +118,24 @@ export function updateAppearanceSettings(
   payload: AppearanceSettingsUpdatePayload
 ): Promise<AppearanceSettings> {
   return requestJson<AppearanceSettings>("/settings/appearance", token, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+
+// PARTPILOT:MCP_SETTINGS_CLIENT:V473
+export function getMcpSettings(
+  token: string
+): Promise<McpSettings> {
+  return requestJson<McpSettings>("/settings/mcp", token);
+}
+
+export function updateMcpSettings(
+  token: string,
+  payload: McpSettingsUpdatePayload
+): Promise<McpSettings> {
+  return requestJson<McpSettings>("/settings/mcp", token, {
     method: "PATCH",
     body: JSON.stringify(payload)
   });

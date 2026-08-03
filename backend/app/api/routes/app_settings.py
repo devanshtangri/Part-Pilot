@@ -8,6 +8,8 @@ from app.db.session import get_db
 from app.schemas.app_settings import (
     AppearanceSettingsResponse,
     AppearanceSettingsUpdateRequest,
+    McpSettingsResponse,
+    McpSettingsUpdateRequest,
     ReservationSettingsResponse,
     ReservationSettingsUpdateRequest,
     SearchSettingsResponse,
@@ -16,9 +18,11 @@ from app.schemas.app_settings import (
 from app.services.app_settings import (
     AppearanceThemeUnavailableError,
     get_appearance_settings,
+    get_mcp_settings,
     get_reservation_settings,
     get_search_settings,
     update_appearance_settings,
+    update_mcp_settings,
     update_reservation_settings,
     update_search_settings,
 )
@@ -108,3 +112,27 @@ def patch_appearance_settings(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+
+
+# PARTPILOT:MCP_SETTINGS_ROUTE:V473
+@router.get("/mcp", response_model=McpSettingsResponse)
+def read_mcp_settings(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpSettingsResponse:
+    del current_user
+    return get_mcp_settings(db)
+
+
+@router.patch("/mcp", response_model=McpSettingsResponse)
+def patch_mcp_settings(
+    payload: McpSettingsUpdateRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpSettingsResponse:
+    return update_mcp_settings(
+        db,
+        payload,
+        actor_user_id=current_user.id,
+        commit=True,
+    )

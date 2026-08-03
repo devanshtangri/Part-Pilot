@@ -61,3 +61,20 @@ class AppearanceSettingsUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     theme: AppearanceTheme
+
+
+# PARTPILOT:MCP_SETTINGS_SCHEMA:V473
+class McpSettingsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    read_tools_enabled: bool
+    write_tools_enabled: bool
+
+
+class McpSettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+    read_tools_enabled: bool
+    write_tools_enabled: bool

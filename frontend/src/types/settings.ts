@@ -34,3 +34,13 @@ export interface AppearanceSettings {
 export interface AppearanceSettingsUpdatePayload {
   theme: AppearanceTheme;
 }
+
+
+// PARTPILOT:MCP_SETTINGS_TYPES:V473
+export interface McpSettings {
+  enabled: boolean;
+  read_tools_enabled: boolean;
+  write_tools_enabled: boolean;
+}
+
+export type McpSettingsUpdatePayload = McpSettings;

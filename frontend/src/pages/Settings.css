@@ -1632,3 +1632,186 @@
     animation: none;
   }
 }
+
+
+/* PARTPILOT:MCP_SETTINGS_STYLES:V473 */
+.settings-page {
+  --partpilot-mcp-settings-v473: 1;
+}
+
+.settings-content-grid {
+  grid-template-areas:
+    "inventory"
+    "reservations"
+    "mcp"
+    "data";
+}
+
+.settings-grid-mcp {
+  grid-area: mcp;
+}
+
+.settings-mcp-section {
+  gap: 13px;
+}
+
+.settings-mcp-heading {
+  align-items: center;
+}
+
+.settings-mcp-state {
+  display: inline-flex;
+  min-height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 780;
+}
+
+.settings-mcp-state.is-enabled {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 42%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-mcp-endpoint {
+  display: grid;
+  gap: 9px;
+  padding: 13px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.settings-mcp-endpoint-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-mcp-endpoint-copy strong {
+  color: var(--text);
+  font-size: 0.79rem;
+}
+
+.settings-mcp-endpoint-copy span {
+  color: var(--muted);
+  font-size: 0.71rem;
+  line-height: 1.45;
+}
+
+.settings-mcp-url-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.settings-mcp-url-row input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.settings-mcp-url-row input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.settings-mcp-endpoint-note,
+.settings-mcp-copy-error {
+  margin: 0;
+  font-size: 0.69rem;
+  line-height: 1.45;
+}
+
+.settings-mcp-endpoint-note.is-ready {
+  color: var(--accent);
+}
+
+.settings-mcp-endpoint-note.is-warning,
+.settings-mcp-copy-error {
+  color: var(--danger);
+}
+
+.settings-mcp-toggle-list {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-mcp-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.settings-mcp-summary > div {
+  min-width: 0;
+  padding: 10px 11px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.settings-mcp-summary > div:last-child {
+  border-right: 0;
+}
+
+.settings-mcp-summary dt {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.settings-mcp-summary dd {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 720;
+}
+
+@media (max-width: 680px) {
+  .settings-mcp-heading {
+    align-items: flex-start;
+  }
+
+  .settings-mcp-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-mcp-summary > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .settings-mcp-summary > div:last-child {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-section-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .settings-mcp-url-row {
+    grid-template-columns: 1fr;
+  }
+}

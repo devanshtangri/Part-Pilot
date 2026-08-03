@@ -12,10 +12,17 @@ from app.models import AuditLog
 from app.schemas.app_settings import (
     AppearanceSettingsResponse,
     AppearanceSettingsUpdateRequest,
+    McpSettingsResponse,
+    McpSettingsUpdateRequest,
     ReservationSettingsResponse,
     ReservationSettingsUpdateRequest,
     SearchSettingsResponse,
     SearchSettingsUpdateRequest,
+)
+from app.services.mcp_oauth import (
+    MCP_ENABLED_KEY,
+    MCP_READ_ENABLED_KEY,
+    MCP_WRITE_ENABLED_KEY,
 )
 
 
@@ -313,6 +320,98 @@ def update_appearance_settings(
             db.commit()
             db.refresh(setting)
 
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return after
+
+
+# PARTPILOT:MCP_SETTINGS_SERVICE:V473
+def get_mcp_settings(db: Session) -> McpSettingsResponse:
+    return McpSettingsResponse(
+        enabled=get_bool_setting(db, MCP_ENABLED_KEY, False),
+        read_tools_enabled=get_bool_setting(
+            db, MCP_READ_ENABLED_KEY, True
+        ),
+        write_tools_enabled=get_bool_setting(
+            db, MCP_WRITE_ENABLED_KEY, False
+        ),
+    )
+
+
+def update_mcp_settings(
+    db: Session,
+    payload: McpSettingsUpdateRequest,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> McpSettingsResponse:
+    before = get_mcp_settings(db)
+    after = McpSettingsResponse(
+        enabled=payload.enabled,
+        read_tools_enabled=payload.read_tools_enabled,
+        write_tools_enabled=payload.write_tools_enabled,
+    )
+    if before == after:
+        return before
+
+    changed_fields = [
+        field_name
+        for field_name in (
+            "enabled",
+            "read_tools_enabled",
+            "write_tools_enabled",
+        )
+        if getattr(before, field_name) != getattr(after, field_name)
+    ]
+
+    try:
+        settings = [
+            set_app_setting(
+                db, MCP_ENABLED_KEY, after.enabled, commit=False
+            ),
+            set_app_setting(
+                db,
+                MCP_READ_ENABLED_KEY,
+                after.read_tools_enabled,
+                commit=False,
+            ),
+            set_app_setting(
+                db,
+                MCP_WRITE_ENABLED_KEY,
+                after.write_tools_enabled,
+                commit=False,
+            ),
+        ]
+        db.add(
+            AuditLog(
+                event_type="settings.mcp_updated",
+                entity_type="app_setting",
+                entity_id=settings[0].id,
+                actor_type=(
+                    "user" if actor_user_id is not None else "system"
+                ),
+                actor_user_id=actor_user_id,
+                summary="Updated MCP access settings",
+                before_json=before.model_dump(),
+                after_json=after.model_dump(),
+                metadata_json={
+                    "setting_keys": [
+                        MCP_ENABLED_KEY,
+                        MCP_READ_ENABLED_KEY,
+                        MCP_WRITE_ENABLED_KEY,
+                    ],
+                    "changed_fields": changed_fields,
+                },
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            for setting in settings:
+                db.refresh(setting)
     except Exception:
         if commit:
             db.rollback()

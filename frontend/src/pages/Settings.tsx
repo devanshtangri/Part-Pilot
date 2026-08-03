@@ -21,8 +21,10 @@ import {
   waitForPartPilotReady
 } from "../services/backupsClient";
 import {
+  getMcpSettings,
   getReservationSettings,
   getSearchSettings,
+  updateMcpSettings,
   updateReservationSettings,
   updateSearchSettings
 } from "../services/settingsClient";
@@ -32,6 +34,7 @@ import type {
 } from "../types/backups";
 import type {
   AppearanceTheme,
+  McpSettings,
   ReservationExpiryMode,
   ReservationSettings,
   SearchSettings
@@ -45,6 +48,7 @@ const SETTINGS_SECTION_IDS = [
   "appearance",
   "inventory",
   "reservations",
+  "mcp",
   "data"
 ] as const;
 type SettingsSection = (typeof SETTINGS_SECTION_IDS)[number];
@@ -140,6 +144,23 @@ export function Settings() {
   const [reservationReloadVersion, setReservationReloadVersion] =
     useState(0);
 
+  const [mcpSettings, setMcpSettings] =
+    useState<McpSettings | null>(null);
+  const [mcpDraft, setMcpDraft] =
+    useState<McpSettings | null>(null);
+  const [mcpSettingsLoading, setMcpSettingsLoading] =
+    useState(true);
+  const [mcpSettingsSaving, setMcpSettingsSaving] =
+    useState(false);
+  const [mcpSettingsError, setMcpSettingsError] =
+    useState<string | null>(null);
+  const [mcpSettingsSaved, setMcpSettingsSaved] =
+    useState(false);
+  const [mcpReloadVersion, setMcpReloadVersion] = useState(0);
+  const [mcpUrlCopied, setMcpUrlCopied] = useState(false);
+  const [mcpCopyError, setMcpCopyError] =
+    useState<string | null>(null);
+
   const [confirmation, setConfirmation] = useState("");
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -189,6 +210,18 @@ export function Settings() {
       Number(reservationDraft.default_days) > 3650)
       ? "Enter a whole number from 1 to 3650 days."
       : null;
+
+  const mcpSettingsChanged = Boolean(
+    mcpSettings &&
+      mcpDraft &&
+      (mcpSettings.enabled !== mcpDraft.enabled ||
+        mcpSettings.read_tools_enabled !==
+          mcpDraft.read_tools_enabled ||
+        mcpSettings.write_tools_enabled !==
+          mcpDraft.write_tools_enabled)
+  );
+  const mcpServerUrl = `${window.location.origin}/mcp`;
+  const mcpUsesPublicHttps = window.location.protocol === "https:";
 
   useEffect(() => {
     if (!token) {
@@ -275,6 +308,52 @@ export function Settings() {
       cancelled = true;
     };
   }, [reservationReloadVersion, token]);
+
+  // PARTPILOT:MCP_SETTINGS_UI:V473
+  useEffect(() => {
+    if (!token) {
+      setMcpSettings(null);
+      setMcpDraft(null);
+      setMcpSettingsLoading(false);
+      setMcpSettingsError(
+        "Your session is unavailable. Sign in again."
+      );
+      return;
+    }
+
+    let cancelled = false;
+    setMcpSettingsLoading(true);
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+
+    getMcpSettings(token)
+      .then((result) => {
+        if (!cancelled) {
+          setMcpSettings(result);
+          setMcpDraft(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setMcpSettings(null);
+          setMcpDraft(null);
+          setMcpSettingsError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load MCP settings"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setMcpSettingsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mcpReloadVersion, token]);
 
   // PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454
   useEffect(() => {
@@ -421,6 +500,80 @@ export function Settings() {
       );
     } finally {
       setReservationSettingsSaving(false);
+    }
+  }
+
+  function updateMcpDraft(
+    field: keyof McpSettings,
+    value: boolean
+  ): void {
+    if (!mcpDraft || mcpSettingsSaving) {
+      return;
+    }
+    setMcpDraft({ ...mcpDraft, [field]: value });
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+  }
+
+  function resetMcpDraft(): void {
+    if (!mcpSettings || mcpSettingsSaving) {
+      return;
+    }
+    setMcpDraft(mcpSettings);
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+  }
+
+  async function saveMcpAccess(): Promise<void> {
+    if (!token || !mcpDraft || mcpSettingsSaving) {
+      return;
+    }
+
+    setMcpSettingsSaving(true);
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+    try {
+      const saved = await updateMcpSettings(token, mcpDraft);
+      setMcpSettings(saved);
+      setMcpDraft(saved);
+      setMcpSettingsSaved(true);
+    } catch (caught) {
+      setMcpSettingsError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to save MCP settings"
+      );
+    } finally {
+      setMcpSettingsSaving(false);
+    }
+  }
+
+  async function copyMcpServerUrl(): Promise<void> {
+    setMcpCopyError(null);
+    setMcpUrlCopied(false);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(mcpServerUrl);
+      } else {
+        const field = document.createElement("textarea");
+        field.value = mcpServerUrl;
+        field.style.position = "fixed";
+        field.style.opacity = "0";
+        document.body.appendChild(field);
+        field.select();
+        const copied = document.execCommand("copy");
+        field.remove();
+        if (!copied) {
+          throw new Error("Clipboard copy was rejected.");
+        }
+      }
+      setMcpUrlCopied(true);
+    } catch (caught) {
+      setMcpCopyError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to copy the MCP server URL"
+      );
     }
   }
 
@@ -668,6 +821,7 @@ export function Settings() {
       data-partpilot-backup-restore="PARTPILOT:SETTINGS_BACKUP_RESTORE_UI:V442"
       data-partpilot-backup-status="PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454"
       data-partpilot-settings-tabs="PARTPILOT:SETTINGS_SECTION_TABS:V444"
+      data-partpilot-mcp-settings="PARTPILOT:MCP_SETTINGS_UI:V473"
       data-partpilot-active-settings-section={activeSettingsSection}
     >
       <header className="page-header settings-page-header">
@@ -676,7 +830,7 @@ export function Settings() {
           <h1>Settings</h1>
           <p>
             Manage appearance, inventory behavior, reservation defaults,
-            and local data controls for this installation.
+            MCP access, and local data controls for this installation.
           </p>
         </div>
       </header>
@@ -735,6 +889,23 @@ export function Settings() {
           onClick={() => chooseSettingsSection("reservations")}
         >
           Reservations
+        </button>
+        <button
+          className={
+            activeSettingsSection === "mcp"
+              ? "is-active"
+              : ""
+          }
+          type="button"
+          aria-current={
+            activeSettingsSection === "mcp"
+              ? "page"
+              : undefined
+          }
+          aria-controls="settings-mcp"
+          onClick={() => chooseSettingsSection("mcp")}
+        >
+          MCP
         </button>
         <button
           className={
@@ -1137,6 +1308,234 @@ export function Settings() {
               role="status"
             >
               Reservation defaults saved.
+            </p>
+          ) : null}
+        </section>
+
+        <section
+          id="settings-mcp"
+          className="card settings-section settings-mcp-section settings-grid-mcp"
+          aria-labelledby="settings-mcp-title"
+          hidden={activeSettingsSection !== "mcp"}
+        >
+          <div className="settings-section-heading settings-mcp-heading">
+            <div>
+              <span className="card-label">Integrations</span>
+              <h2 id="settings-mcp-title">Model Context Protocol</h2>
+              <p>
+                Connect Claude and other compatible clients through Part
+                Pilot&apos;s OAuth-protected Streamable HTTP endpoint.
+              </p>
+            </div>
+            {mcpDraft ? (
+              <span
+                className={
+                  mcpDraft.enabled
+                    ? "settings-mcp-state is-enabled"
+                    : "settings-mcp-state"
+                }
+              >
+                {mcpDraft.enabled ? "Server enabled" : "Server disabled"}
+              </span>
+            ) : null}
+          </div>
+
+          {mcpSettingsLoading ? (
+            <p className="settings-preference-state" role="status">
+              Loading MCP settings...
+            </p>
+          ) : null}
+
+          {!mcpSettingsLoading && mcpDraft ? (
+            <>
+              <div className="settings-mcp-endpoint">
+                <div className="settings-mcp-endpoint-copy">
+                  <strong>MCP server URL</strong>
+                  <span>Use this exact URL when adding Part Pilot to a client.</span>
+                </div>
+                <div className="settings-mcp-url-row">
+                  <input
+                    type="text"
+                    value={mcpServerUrl}
+                    readOnly
+                    aria-label="MCP server URL"
+                    onFocus={(event) => event.currentTarget.select()}
+                  />
+                  <button
+                    className="settings-action settings-action-secondary"
+                    type="button"
+                    onClick={() => void copyMcpServerUrl()}
+                  >
+                    {mcpUrlCopied ? "Copied" : "Copy URL"}
+                  </button>
+                </div>
+                <p
+                  className={
+                    mcpUsesPublicHttps
+                      ? "settings-mcp-endpoint-note is-ready"
+                      : "settings-mcp-endpoint-note is-warning"
+                  }
+                >
+                  {mcpUsesPublicHttps
+                    ? "This page is using HTTPS, which is required for remote OAuth clients."
+                    : "Remote clients such as Claude require the public Part Pilot address to use HTTPS."}
+                </p>
+                {mcpCopyError ? (
+                  <p className="settings-mcp-copy-error" role="alert">
+                    {mcpCopyError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="settings-mcp-toggle-list">
+                <label
+                  className={
+                    mcpSettingsSaving
+                      ? "settings-toggle-row is-disabled"
+                      : "settings-toggle-row"
+                  }
+                >
+                  <span className="settings-toggle-copy">
+                    <strong>Enable MCP server</strong>
+                    <span>
+                      Allow authenticated MCP clients to connect to the
+                      exact /mcp endpoint.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={mcpDraft.enabled}
+                    disabled={mcpSettingsSaving}
+                    onChange={(event) =>
+                      updateMcpDraft("enabled", event.target.checked)
+                    }
+                  />
+                  <span className="settings-switch" aria-hidden="true" />
+                </label>
+
+                <label
+                  className={
+                    mcpSettingsSaving
+                      ? "settings-toggle-row is-disabled"
+                      : "settings-toggle-row"
+                  }
+                >
+                  <span className="settings-toggle-copy">
+                    <strong>Read tools</strong>
+                    <span>
+                      Permit inventory search and details for Parts,
+                      Projects, and Reservations.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={mcpDraft.read_tools_enabled}
+                    disabled={mcpSettingsSaving}
+                    onChange={(event) =>
+                      updateMcpDraft(
+                        "read_tools_enabled",
+                        event.target.checked
+                      )
+                    }
+                  />
+                  <span className="settings-switch" aria-hidden="true" />
+                </label>
+
+                <label
+                  className={
+                    mcpSettingsSaving
+                      ? "settings-toggle-row is-disabled"
+                      : "settings-toggle-row"
+                  }
+                >
+                  <span className="settings-toggle-copy">
+                    <strong>Write authorization</strong>
+                    <span>
+                      Allow clients to request mcp:write permission. No
+                      write tools are exposed in this build.
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={mcpDraft.write_tools_enabled}
+                    disabled={mcpSettingsSaving}
+                    onChange={(event) =>
+                      updateMcpDraft(
+                        "write_tools_enabled",
+                        event.target.checked
+                      )
+                    }
+                  />
+                  <span className="settings-switch" aria-hidden="true" />
+                </label>
+              </div>
+
+              <dl className="settings-mcp-summary">
+                <div>
+                  <dt>Authentication</dt>
+                  <dd>OAuth 2.1 with PKCE</dd>
+                </div>
+                <div>
+                  <dt>Transport</dt>
+                  <dd>Streamable HTTP</dd>
+                </div>
+                <div>
+                  <dt>Available tools</dt>
+                  <dd>6 read-only tools</dd>
+                </div>
+              </dl>
+
+              <div className="settings-action-row">
+                <button
+                  className="settings-action settings-action-secondary"
+                  type="button"
+                  onClick={resetMcpDraft}
+                  disabled={!mcpSettingsChanged || mcpSettingsSaving}
+                >
+                  Reset changes
+                </button>
+                <button
+                  className="settings-action settings-action-primary"
+                  type="button"
+                  onClick={() => void saveMcpAccess()}
+                  disabled={!mcpSettingsChanged || mcpSettingsSaving}
+                >
+                  {mcpSettingsSaving
+                    ? "Saving MCP access..."
+                    : "Save MCP access"}
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {mcpSettingsError ? (
+            <div
+              className="settings-preference-state is-error"
+              role="alert"
+            >
+              <span>{mcpSettingsError}</span>
+              {!mcpDraft ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMcpReloadVersion((value) => value + 1)
+                  }
+                >
+                  Retry
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {mcpSettingsSaved && !mcpSettingsError ? (
+            <p
+              className="settings-preference-state is-success"
+              role="status"
+            >
+              MCP access settings saved.
             </p>
           ) : null}
         </section>
