@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import os
 from pathlib import Path
+import re
 import secrets
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -21,9 +22,32 @@ from app.models import AuditLog, McpDirectAuth, User
 DIRECT_AUTH_SINGLETON_ID = 1
 DIRECT_AUTH_DISABLED = "disabled"
 DIRECT_AUTH_BEARER_KEY = "bearer_key"
+DIRECT_AUTH_CUSTOM_HEADER = "custom_header"
 DIRECT_KEY_PREFIX = "pp_mcp_key_"
+CUSTOM_HEADER_KEY_PREFIX = "pp_mcp_header_"
+DEFAULT_CUSTOM_HEADER_NAME = "x-partpilot-mcp-key"
 LAST_USED_TOUCH_INTERVAL = timedelta(minutes=5)
 INSTANCE_SECRET_MIN_LENGTH = 32
+CUSTOM_HEADER_NAME_MAX_LENGTH = 120
+_CUSTOM_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+_RESERVED_CUSTOM_HEADER_NAMES = frozenset(
+    {
+        "authorization",
+        "connection",
+        "content-length",
+        "cookie",
+        "forwarded",
+        "host",
+        "origin",
+        "proxy-authorization",
+        "set-cookie",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+        "x-real-ip",
+    }
+)
 
 
 class McpDirectAuthError(RuntimeError):
@@ -31,6 +55,10 @@ class McpDirectAuthError(RuntimeError):
 
 
 class McpDirectAuthConfigurationError(McpDirectAuthError):
+    pass
+
+
+class McpDirectAuthHeaderNameError(McpDirectAuthConfigurationError):
     pass
 
 
@@ -120,11 +148,60 @@ def _fernet(secret: str) -> Fernet:
     return Fernet(base64.urlsafe_b64encode(_derive(secret, b"encryption")))
 
 
+def validate_custom_header_name(value: str) -> str:
+    if not isinstance(value, str):
+        raise McpDirectAuthHeaderNameError(
+            "The MCP custom header name must be text."
+        )
+    canonical = value.strip().casefold()
+    if not canonical:
+        raise McpDirectAuthHeaderNameError(
+            "The MCP custom header name is required."
+        )
+    if len(canonical) > CUSTOM_HEADER_NAME_MAX_LENGTH:
+        raise McpDirectAuthHeaderNameError(
+            "The MCP custom header name is too long."
+        )
+    if _CUSTOM_HEADER_NAME_PATTERN.fullmatch(canonical) is None:
+        raise McpDirectAuthHeaderNameError(
+            "The MCP custom header name contains invalid characters."
+        )
+    if (
+        canonical in _RESERVED_CUSTOM_HEADER_NAMES
+        or canonical.startswith("x-forwarded-")
+    ):
+        raise McpDirectAuthHeaderNameError(
+            "That HTTP header name is reserved and cannot carry an MCP credential."
+        )
+    return canonical
+
+
+def _generate_direct_key(prefix: str) -> str:
+    return prefix + secrets.token_urlsafe(32)
+
+
 def generate_bearer_key() -> str:
-    return DIRECT_KEY_PREFIX + secrets.token_urlsafe(32)
+    return _generate_direct_key(DIRECT_KEY_PREFIX)
 
 
-def digest_bearer_key(plaintext_key: str, *, instance_secret: str | None = None) -> str:
+def generate_custom_header_key() -> str:
+    return _generate_direct_key(CUSTOM_HEADER_KEY_PREFIX)
+
+
+def _require_key_prefix(plaintext_key: str, expected_prefix: str) -> None:
+    if not plaintext_key.startswith(expected_prefix):
+        raise McpDirectAuthConfigurationError(
+            "The MCP direct key has an invalid Part Pilot prefix."
+        )
+
+
+def _digest_direct_key(
+    plaintext_key: str,
+    *,
+    expected_prefix: str,
+    instance_secret: str | None = None,
+) -> str:
+    _require_key_prefix(plaintext_key, expected_prefix)
     secret = _instance_secret(instance_secret)
     return hmac.new(
         _derive(secret, b"validation"),
@@ -133,15 +210,24 @@ def digest_bearer_key(plaintext_key: str, *, instance_secret: str | None = None)
     ).hexdigest()
 
 
-def encrypt_bearer_key(plaintext_key: str, *, instance_secret: str | None = None) -> str:
-    if not plaintext_key.startswith(DIRECT_KEY_PREFIX):
-        raise McpDirectAuthConfigurationError("MCP direct keys must use the Part Pilot key prefix.")
+def _encrypt_direct_key(
+    plaintext_key: str,
+    *,
+    expected_prefix: str,
+    instance_secret: str | None = None,
+) -> str:
+    _require_key_prefix(plaintext_key, expected_prefix)
     return _fernet(_instance_secret(instance_secret)).encrypt(
         plaintext_key.encode("utf-8")
     ).decode("ascii")
 
 
-def decrypt_bearer_key(ciphertext: str, *, instance_secret: str | None = None) -> str:
+def _decrypt_direct_key(
+    ciphertext: str,
+    *,
+    expected_prefix: str,
+    instance_secret: str | None = None,
+) -> str:
     try:
         plaintext = _fernet(_instance_secret(instance_secret)).decrypt(
             ciphertext.encode("ascii")
@@ -150,10 +236,83 @@ def decrypt_bearer_key(ciphertext: str, *, instance_secret: str | None = None) -
         raise McpDirectAuthDecryptionError(
             "Unable to decrypt the configured MCP direct key."
         ) from exc
-    if not plaintext.startswith(DIRECT_KEY_PREFIX):
-        raise McpDirectAuthDecryptionError("The configured MCP direct key has an invalid prefix.")
+    if not plaintext.startswith(expected_prefix):
+        raise McpDirectAuthDecryptionError(
+            "The configured MCP direct key has an invalid prefix."
+        )
     return plaintext
 
+
+def digest_bearer_key(
+    plaintext_key: str,
+    *,
+    instance_secret: str | None = None,
+) -> str:
+    return _digest_direct_key(
+        plaintext_key,
+        expected_prefix=DIRECT_KEY_PREFIX,
+        instance_secret=instance_secret,
+    )
+
+
+def encrypt_bearer_key(
+    plaintext_key: str,
+    *,
+    instance_secret: str | None = None,
+) -> str:
+    return _encrypt_direct_key(
+        plaintext_key,
+        expected_prefix=DIRECT_KEY_PREFIX,
+        instance_secret=instance_secret,
+    )
+
+
+def decrypt_bearer_key(
+    ciphertext: str,
+    *,
+    instance_secret: str | None = None,
+) -> str:
+    return _decrypt_direct_key(
+        ciphertext,
+        expected_prefix=DIRECT_KEY_PREFIX,
+        instance_secret=instance_secret,
+    )
+
+
+def digest_custom_header_key(
+    plaintext_key: str,
+    *,
+    instance_secret: str | None = None,
+) -> str:
+    return _digest_direct_key(
+        plaintext_key,
+        expected_prefix=CUSTOM_HEADER_KEY_PREFIX,
+        instance_secret=instance_secret,
+    )
+
+
+def encrypt_custom_header_key(
+    plaintext_key: str,
+    *,
+    instance_secret: str | None = None,
+) -> str:
+    return _encrypt_direct_key(
+        plaintext_key,
+        expected_prefix=CUSTOM_HEADER_KEY_PREFIX,
+        instance_secret=instance_secret,
+    )
+
+
+def decrypt_custom_header_key(
+    ciphertext: str,
+    *,
+    instance_secret: str | None = None,
+) -> str:
+    return _decrypt_direct_key(
+        ciphertext,
+        expected_prefix=CUSTOM_HEADER_KEY_PREFIX,
+        instance_secret=instance_secret,
+    )
 
 def get_direct_auth(db: Session) -> McpDirectAuth | None:
     return db.get(McpDirectAuth, DIRECT_AUTH_SINGLETON_ID)
@@ -194,55 +353,64 @@ def _audit(
     )
 
 
-def rotate_bearer_key(
+def _record_snapshot(record: McpDirectAuth) -> dict[str, object]:
+    return {
+        "mode": record.mode,
+        "key_prefix": record.key_prefix,
+        "custom_header_name": record.custom_header_name,
+        "rotated_at": (
+            None if record.rotated_at is None else record.rotated_at.isoformat()
+        ),
+    }
+
+
+def _rotate_direct_key(
     db: Session,
     *,
     actor_user_id: int,
-    instance_secret: str | None = None,
-    commit: bool = True,
+    mode: str,
+    credential_prefix: str,
+    custom_header_name: str | None,
+    event_type: str,
+    summary: str,
+    instance_secret: str | None,
+    commit: bool,
 ) -> IssuedMcpDirectKey:
     _active_actor(db, actor_user_id)
     secret = _instance_secret(instance_secret, create=True)
-    plaintext = generate_bearer_key()
-    ciphertext = encrypt_bearer_key(plaintext, instance_secret=secret)
-    digest = digest_bearer_key(plaintext, instance_secret=secret)
+    plaintext = _generate_direct_key(credential_prefix)
+    ciphertext = _encrypt_direct_key(
+        plaintext,
+        expected_prefix=credential_prefix,
+        instance_secret=secret,
+    )
+    digest = _digest_direct_key(
+        plaintext,
+        expected_prefix=credential_prefix,
+        instance_secret=secret,
+    )
     prefix = plaintext[:20]
     now = _naive_utc_now()
     record = get_direct_auth(db)
-    before = None
+    before = None if record is None else _record_snapshot(record)
     if record is None:
-        record = McpDirectAuth(
-            id=DIRECT_AUTH_SINGLETON_ID,
-            mode=DIRECT_AUTH_BEARER_KEY,
-            key_ciphertext=ciphertext,
-            key_digest=digest,
-            key_prefix=prefix,
-            custom_header_name=None,
-            rotated_at=now,
-            last_used_at=None,
-        )
+        record = McpDirectAuth(id=DIRECT_AUTH_SINGLETON_ID, mode=mode)
         db.add(record)
-    else:
-        before = {
-            "mode": record.mode,
-            "key_prefix": record.key_prefix,
-            "rotated_at": None if record.rotated_at is None else record.rotated_at.isoformat(),
-        }
-        record.mode = DIRECT_AUTH_BEARER_KEY
-        record.key_ciphertext = ciphertext
-        record.key_digest = digest
-        record.key_prefix = prefix
-        record.custom_header_name = None
-        record.rotated_at = now
-        record.last_used_at = None
+    record.mode = mode
+    record.key_ciphertext = ciphertext
+    record.key_digest = digest
+    record.key_prefix = prefix
+    record.custom_header_name = custom_header_name
+    record.rotated_at = now
+    record.last_used_at = None
     db.flush()
     _audit(
         db,
-        event_type="settings.mcp_direct_key_rotated",
+        event_type=event_type,
         actor_user_id=actor_user_id,
-        summary="Rotated the MCP direct Bearer key.",
+        summary=summary,
         before=before,
-        after={"mode": DIRECT_AUTH_BEARER_KEY, "key_prefix": prefix, "rotated_at": now.isoformat()},
+        after=_record_snapshot(record),
     )
     if commit:
         db.commit()
@@ -252,39 +420,126 @@ def rotate_bearer_key(
     return IssuedMcpDirectKey(record=record, plaintext_key=plaintext)
 
 
-def reveal_bearer_key(
+def rotate_bearer_key(
     db: Session,
     *,
+    actor_user_id: int,
     instance_secret: str | None = None,
-    actor_user_id: int | None = None,
     commit: bool = True,
+) -> IssuedMcpDirectKey:
+    return _rotate_direct_key(
+        db,
+        actor_user_id=actor_user_id,
+        mode=DIRECT_AUTH_BEARER_KEY,
+        credential_prefix=DIRECT_KEY_PREFIX,
+        custom_header_name=None,
+        event_type="settings.mcp_direct_key_rotated",
+        summary="Rotated the MCP direct Bearer key.",
+        instance_secret=instance_secret,
+        commit=commit,
+    )
+
+
+def rotate_custom_header_key(
+    db: Session,
+    *,
+    actor_user_id: int,
+    header_name: str = DEFAULT_CUSTOM_HEADER_NAME,
+    instance_secret: str | None = None,
+    commit: bool = True,
+) -> IssuedMcpDirectKey:
+    canonical_header_name = validate_custom_header_name(header_name)
+    return _rotate_direct_key(
+        db,
+        actor_user_id=actor_user_id,
+        mode=DIRECT_AUTH_CUSTOM_HEADER,
+        credential_prefix=CUSTOM_HEADER_KEY_PREFIX,
+        custom_header_name=canonical_header_name,
+        event_type="settings.mcp_custom_header_key_rotated",
+        summary="Rotated the MCP custom-header key.",
+        instance_secret=instance_secret,
+        commit=commit,
+    )
+
+
+def _mode_prefix(mode: str) -> str | None:
+    if mode == DIRECT_AUTH_BEARER_KEY:
+        return DIRECT_KEY_PREFIX
+    if mode == DIRECT_AUTH_CUSTOM_HEADER:
+        return CUSTOM_HEADER_KEY_PREFIX
+    return None
+
+
+def _not_configured_message(expected_mode: str | None) -> str:
+    if expected_mode == DIRECT_AUTH_BEARER_KEY:
+        return "An MCP direct Bearer key is not configured."
+    if expected_mode == DIRECT_AUTH_CUSTOM_HEADER:
+        return "An MCP custom-header key is not configured."
+    return "An MCP direct key is not configured."
+
+
+def _reveal_direct_key(
+    db: Session,
+    *,
+    expected_mode: str | None,
+    instance_secret: str | None,
+    actor_user_id: int | None,
+    commit: bool,
 ) -> str:
     if actor_user_id is not None:
         _active_actor(db, actor_user_id)
     record = get_direct_auth(db)
-    if (
-        record is None
-        or record.mode != DIRECT_AUTH_BEARER_KEY
-        or not record.key_ciphertext
-        or not record.key_digest
-    ):
-        raise McpDirectAuthNotConfiguredError(
-            "An MCP direct Bearer key is not configured."
+    credential_prefix = None if record is None else _mode_prefix(record.mode)
+    configured = bool(
+        record is not None
+        and credential_prefix is not None
+        and (expected_mode is None or record.mode == expected_mode)
+        and record.key_ciphertext
+        and record.key_digest
+        and record.key_prefix
+        and (
+            record.mode != DIRECT_AUTH_CUSTOM_HEADER
+            or record.custom_header_name is not None
         )
-    plaintext = decrypt_bearer_key(record.key_ciphertext, instance_secret=instance_secret)
-    expected = digest_bearer_key(plaintext, instance_secret=instance_secret)
+    )
+    if not configured or record is None or credential_prefix is None:
+        raise McpDirectAuthNotConfiguredError(
+            _not_configured_message(expected_mode)
+        )
+    plaintext = _decrypt_direct_key(
+        record.key_ciphertext,
+        expected_prefix=credential_prefix,
+        instance_secret=instance_secret,
+    )
+    expected = _digest_direct_key(
+        plaintext,
+        expected_prefix=credential_prefix,
+        instance_secret=instance_secret,
+    )
     if not hmac.compare_digest(expected, record.key_digest):
         raise McpDirectAuthDecryptionError(
             "The configured MCP direct key failed integrity validation."
         )
     if actor_user_id is not None:
+        custom_mode = record.mode == DIRECT_AUTH_CUSTOM_HEADER
         _audit(
             db,
-            event_type="settings.mcp_direct_key_revealed",
+            event_type=(
+                "settings.mcp_custom_header_key_revealed"
+                if custom_mode
+                else "settings.mcp_direct_key_revealed"
+            ),
             actor_user_id=actor_user_id,
-            summary="Revealed the MCP direct Bearer key.",
+            summary=(
+                "Revealed the MCP custom-header key."
+                if custom_mode
+                else "Revealed the MCP direct Bearer key."
+            ),
             before=None,
-            after={"mode": DIRECT_AUTH_BEARER_KEY},
+            after={
+                "mode": record.mode,
+                "custom_header_name": record.custom_header_name,
+            },
         )
         if commit:
             db.commit()
@@ -293,20 +548,83 @@ def reveal_bearer_key(
     return plaintext
 
 
-def validate_bearer_key(
+def reveal_direct_key(
+    db: Session,
+    *,
+    instance_secret: str | None = None,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> str:
+    return _reveal_direct_key(
+        db,
+        expected_mode=None,
+        instance_secret=instance_secret,
+        actor_user_id=actor_user_id,
+        commit=commit,
+    )
+
+
+def reveal_bearer_key(
+    db: Session,
+    *,
+    instance_secret: str | None = None,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> str:
+    return _reveal_direct_key(
+        db,
+        expected_mode=DIRECT_AUTH_BEARER_KEY,
+        instance_secret=instance_secret,
+        actor_user_id=actor_user_id,
+        commit=commit,
+    )
+
+
+def reveal_custom_header_key(
+    db: Session,
+    *,
+    instance_secret: str | None = None,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> str:
+    return _reveal_direct_key(
+        db,
+        expected_mode=DIRECT_AUTH_CUSTOM_HEADER,
+        instance_secret=instance_secret,
+        actor_user_id=actor_user_id,
+        commit=commit,
+    )
+
+
+def _validate_direct_key(
     db: Session,
     supplied_key: str,
     *,
-    instance_secret: str | None = None,
-    touch: bool = True,
-    commit: bool = True,
+    expected_mode: str,
+    expected_prefix: str,
+    instance_secret: str | None,
+    touch: bool,
+    commit: bool,
 ) -> bool:
-    if not supplied_key.startswith(DIRECT_KEY_PREFIX):
+    if not supplied_key.startswith(expected_prefix):
         return False
     record = get_direct_auth(db)
-    if record is None or record.mode != DIRECT_AUTH_BEARER_KEY or not record.key_digest:
+    if (
+        record is None
+        or record.mode != expected_mode
+        or not record.key_digest
+        or not record.key_prefix
+        or (
+            expected_mode == DIRECT_AUTH_CUSTOM_HEADER
+            and record.custom_header_name is None
+        )
+    ):
         return False
-    supplied_digest = digest_bearer_key(supplied_key, instance_secret=instance_secret)
+    supplied_digest = _digest_direct_key(
+        supplied_key,
+        expected_prefix=expected_prefix,
+        instance_secret=instance_secret,
+    )
     if not hmac.compare_digest(supplied_digest, record.key_digest):
         return False
     now = _naive_utc_now()
@@ -323,6 +641,43 @@ def validate_bearer_key(
     return True
 
 
+def validate_bearer_key(
+    db: Session,
+    supplied_key: str,
+    *,
+    instance_secret: str | None = None,
+    touch: bool = True,
+    commit: bool = True,
+) -> bool:
+    return _validate_direct_key(
+        db,
+        supplied_key,
+        expected_mode=DIRECT_AUTH_BEARER_KEY,
+        expected_prefix=DIRECT_KEY_PREFIX,
+        instance_secret=instance_secret,
+        touch=touch,
+        commit=commit,
+    )
+
+
+def validate_custom_header_key(
+    db: Session,
+    supplied_key: str,
+    *,
+    instance_secret: str | None = None,
+    touch: bool = True,
+    commit: bool = True,
+) -> bool:
+    return _validate_direct_key(
+        db,
+        supplied_key,
+        expected_mode=DIRECT_AUTH_CUSTOM_HEADER,
+        expected_prefix=CUSTOM_HEADER_KEY_PREFIX,
+        instance_secret=instance_secret,
+        touch=touch,
+        commit=commit,
+    )
+
 def disable_direct_auth(db: Session, *, actor_user_id: int, commit: bool = True) -> bool:
     _active_actor(db, actor_user_id)
     record = get_direct_auth(db)
@@ -336,11 +691,7 @@ def disable_direct_auth(db: Session, *, actor_user_id: int, commit: bool = True)
         and record.custom_header_name is None
     ):
         return False
-    before = {
-        "mode": record.mode,
-        "key_prefix": record.key_prefix,
-        "rotated_at": None if record.rotated_at is None else record.rotated_at.isoformat(),
-    }
+    before = _record_snapshot(record)
     record.mode = DIRECT_AUTH_DISABLED
     record.key_ciphertext = None
     record.key_digest = None

@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.schemas.app_settings import (
     AppearanceSettingsResponse,
     AppearanceSettingsUpdateRequest,
+    McpDirectAuthCustomHeaderRequest,
     McpDirectAuthKeyResponse,
     McpDirectAuthStatusResponse,
     McpSettingsResponse,
@@ -19,14 +20,17 @@ from app.schemas.app_settings import (
 )
 from app.services.mcp_direct_auth import (
     DIRECT_AUTH_BEARER_KEY,
+    DIRECT_AUTH_CUSTOM_HEADER,
     DIRECT_AUTH_DISABLED,
     McpDirectAuthConfigurationError,
+    McpDirectAuthHeaderNameError,
     McpDirectAuthDecryptionError,
     McpDirectAuthNotConfiguredError,
     disable_direct_auth,
     get_direct_auth,
-    reveal_bearer_key,
+    reveal_direct_key,
     rotate_bearer_key,
+    rotate_custom_header_key,
 )
 
 from app.services.app_settings import (
@@ -152,7 +156,7 @@ def patch_mcp_settings(
     )
 
 
-# PARTPILOT:MCP_DIRECT_AUTH_API_ROUTE:V485
+# PARTPILOT:MCP_DIRECT_AUTH_API_ROUTE:V497
 def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
@@ -161,15 +165,24 @@ def _direct_auth_status(db: Session) -> McpDirectAuthStatusResponse:
     record = get_direct_auth(db)
     configured = bool(
         record is not None
-        and record.mode == DIRECT_AUTH_BEARER_KEY
+        and record.mode in {DIRECT_AUTH_BEARER_KEY, DIRECT_AUTH_CUSTOM_HEADER}
         and record.key_ciphertext
         and record.key_digest
         and record.key_prefix
+        and (
+            record.mode != DIRECT_AUTH_CUSTOM_HEADER
+            or record.custom_header_name is not None
+        )
     )
     return McpDirectAuthStatusResponse(
         mode=record.mode if record is not None else DIRECT_AUTH_DISABLED,
         configured=configured,
         masked_key=(f"{record.key_prefix}••••••••" if configured and record is not None else None),
+        custom_header_name=(
+            record.custom_header_name
+            if record is not None and record.mode == DIRECT_AUTH_CUSTOM_HEADER
+            else None
+        ),
         rotated_at=record.rotated_at if record is not None else None,
         last_used_at=record.last_used_at if record is not None else None,
     )
@@ -197,11 +210,55 @@ def rotate_mcp_direct_key(response: Response, current_user=Depends(get_current_u
     current=_direct_auth_status(db)
     return McpDirectAuthKeyResponse(**current.model_dump(),key=issued.plaintext_key)
 
+
+
+@router.post(
+    "/mcp/direct-auth/custom-header",
+    response_model=McpDirectAuthKeyResponse,
+)
+def rotate_mcp_custom_header_key(
+    payload: McpDirectAuthCustomHeaderRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectAuthKeyResponse:
+    _no_store(response)
+    try:
+        issued = rotate_custom_header_key(
+            db,
+            actor_user_id=current_user.id,
+            header_name=payload.header_name,
+            commit=True,
+        )
+    except McpDirectAuthHeaderNameError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+            headers={
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+            },
+        ) from exc
+    except McpDirectAuthConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+            headers={
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+            },
+        ) from exc
+    current = _direct_auth_status(db)
+    return McpDirectAuthKeyResponse(
+        **current.model_dump(),
+        key=issued.plaintext_key,
+    )
+
 @router.post("/mcp/direct-auth/reveal", response_model=McpDirectAuthKeyResponse)
 def reveal_mcp_direct_key(response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpDirectAuthKeyResponse:
     _no_store(response)
     try:
-        key=reveal_bearer_key(db,actor_user_id=current_user.id,commit=True)
+        key=reveal_direct_key(db,actor_user_id=current_user.id,commit=True)
     except (McpDirectAuthConfigurationError,McpDirectAuthDecryptionError,McpDirectAuthNotConfiguredError) as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

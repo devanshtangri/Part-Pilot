@@ -11,16 +11,23 @@ from app.db.base import Base
 from app.db.session import SessionLocal
 from app.models import AuditLog, McpDirectAuth, User
 from app.services.mcp_direct_auth import (
+    DEFAULT_CUSTOM_HEADER_NAME,
     McpDirectAuthConfigurationError,
     McpDirectAuthDecryptionError,
+    McpDirectAuthHeaderNameError,
     disable_direct_auth,
     reveal_bearer_key,
+    reveal_custom_header_key,
+    reveal_direct_key,
     rotate_bearer_key,
+    rotate_custom_header_key,
     validate_bearer_key,
+    validate_custom_header_key,
+    validate_custom_header_name,
 )
 
 
-# PARTPILOT:MCP_DIRECT_AUTH_SMOKE:V482
+# PARTPILOT:MCP_DIRECT_AUTH_SMOKE:V497
 EXPECTED_HEAD = "0009_mcp_direct_auth"
 SECRET_A = "patch482-direct-auth-secret-A-0123456789-ABCDEFGHIJKLMN"
 SECRET_B = "patch482-direct-auth-secret-B-0123456789-ABCDEFGHIJKLMN"
@@ -93,14 +100,17 @@ def check_service() -> None:
     try:
         baseline_records = int(db.query(McpDirectAuth).count())
         baseline_audits = int(db.query(AuditLog).count())
-        baseline_audit_id = int(db.execute(select(func.max(AuditLog.id))).scalar() or 0)
+        baseline_audit_id = int(
+            db.execute(select(func.max(AuditLog.id))).scalar() or 0
+        )
         actor = db.execute(
             select(User).where(User.is_active.is_(True)).order_by(User.id)
         ).scalars().first()
         if actor is None:
             fail("MCP direct-auth smoke requires one active user")
         if baseline_records != 0:
-            fail("Live MCP direct-auth table must be empty before configuration")
+            fail("MCP direct-auth smoke requires an unconfigured copied database")
+
         try:
             rotate_bearer_key(
                 db,
@@ -112,52 +122,154 @@ def check_service() -> None:
             pass
         else:
             fail("Short instance secret was accepted")
-        first = rotate_bearer_key(
+
+        if validate_custom_header_name(" X-PartPilot-MCP-Key ") != DEFAULT_CUSTOM_HEADER_NAME:
+            fail("Custom header name was not canonicalized")
+        for invalid_name in (
+            "",
+            "   ",
+            "x bad header",
+            "authorization",
+            "cookie",
+            "x-forwarded-for",
+            "x-real-ip",
+            "x" * 121,
+        ):
+            try:
+                validate_custom_header_name(invalid_name)
+            except McpDirectAuthHeaderNameError:
+                pass
+            else:
+                fail(f"Unsafe custom header name was accepted: {invalid_name!r}")
+
+        bearer = rotate_bearer_key(
             db,
             actor_user_id=actor.id,
             instance_secret=SECRET_A,
             commit=False,
         )
-        if not first.plaintext_key.startswith("pp_mcp_key_"):
-            fail("Generated key prefix is incorrect")
-        if first.plaintext_key in (first.record.key_ciphertext or ""):
-            fail("Plaintext key appears in ciphertext")
-        if reveal_bearer_key(db, instance_secret=SECRET_A) != first.plaintext_key:
-            fail("Encrypted key did not round-trip")
+        bearer_key = bearer.plaintext_key
+        if not bearer_key.startswith("pp_mcp_key_"):
+            fail("Generated Bearer key prefix is incorrect")
+        if bearer_key in (bearer.record.key_ciphertext or ""):
+            fail("Plaintext Bearer key appears in ciphertext")
+        if reveal_bearer_key(db, instance_secret=SECRET_A) != bearer_key:
+            fail("Encrypted Bearer key did not round-trip")
+        if reveal_direct_key(db, instance_secret=SECRET_A) != bearer_key:
+            fail("Generic reveal rejected the Bearer mode")
         try:
             reveal_bearer_key(db, instance_secret=SECRET_B)
         except McpDirectAuthDecryptionError:
             pass
         else:
-            fail("Wrong instance secret decrypted the key")
+            fail("Wrong instance secret decrypted the Bearer key")
         if not validate_bearer_key(
-            db, first.plaintext_key, instance_secret=SECRET_A, touch=False, commit=False
+            db,
+            bearer_key,
+            instance_secret=SECRET_A,
+            touch=False,
+            commit=False,
         ):
-            fail("Correct direct key was rejected")
+            fail("Correct Bearer key was rejected")
+
+        custom = rotate_custom_header_key(
+            db,
+            actor_user_id=actor.id,
+            header_name=" X-PartPilot-MCP-Key ",
+            instance_secret=SECRET_A,
+            commit=False,
+        )
+        custom_key = custom.plaintext_key
+        if not custom_key.startswith("pp_mcp_header_"):
+            fail("Generated custom-header key prefix is incorrect")
+        if custom.record.mode != "custom_header":
+            fail("Custom-header rotation stored the wrong mode")
+        if custom.record.custom_header_name != DEFAULT_CUSTOM_HEADER_NAME:
+            fail("Custom-header rotation stored the wrong header name")
+        if custom_key in (custom.record.key_ciphertext or ""):
+            fail("Plaintext custom-header key appears in ciphertext")
+        if reveal_custom_header_key(db, instance_secret=SECRET_A) != custom_key:
+            fail("Encrypted custom-header key did not round-trip")
+        if reveal_direct_key(db, instance_secret=SECRET_A) != custom_key:
+            fail("Generic reveal rejected custom-header mode")
         if validate_bearer_key(
-            db, first.plaintext_key + "wrong", instance_secret=SECRET_A, touch=False, commit=False
+            db,
+            bearer_key,
+            instance_secret=SECRET_A,
+            touch=False,
+            commit=False,
         ):
-            fail("Wrong direct key was accepted")
-        first_key = first.plaintext_key
-        first_digest = first.record.key_digest
-        second = rotate_bearer_key(
+            fail("Switching modes did not invalidate the Bearer key")
+        if validate_bearer_key(
+            db,
+            custom_key,
+            instance_secret=SECRET_A,
+            touch=False,
+            commit=False,
+        ):
+            fail("Custom-header key was accepted by Bearer validation")
+        if not validate_custom_header_key(
+            db,
+            custom_key,
+            instance_secret=SECRET_A,
+            touch=True,
+            commit=False,
+        ):
+            fail("Correct custom-header key was rejected")
+        if custom.record.last_used_at is None:
+            fail("Custom-header validation did not touch last_used_at")
+        if validate_custom_header_key(
+            db,
+            custom_key + "wrong",
+            instance_secret=SECRET_A,
+            touch=False,
+            commit=False,
+        ):
+            fail("Wrong custom-header key was accepted")
+
+        custom_two = rotate_custom_header_key(
+            db,
+            actor_user_id=actor.id,
+            header_name="X-PartPilot-Lab-Key",
+            instance_secret=SECRET_A,
+            commit=False,
+        )
+        if custom_two.plaintext_key == custom_key:
+            fail("Custom-header rotation reused old key material")
+        if custom_two.record.custom_header_name != "x-partpilot-lab-key":
+            fail("Custom-header rotation did not update the header name")
+        if validate_custom_header_key(
+            db,
+            custom_key,
+            instance_secret=SECRET_A,
+            touch=False,
+            commit=False,
+        ):
+            fail("Custom-header rotation did not invalidate the old key")
+
+        bearer_two = rotate_bearer_key(
             db,
             actor_user_id=actor.id,
             instance_secret=SECRET_A,
             commit=False,
         )
-        if second.plaintext_key == first_key or second.record.key_digest == first_digest:
-            fail("Rotation reused old key material")
-        if validate_bearer_key(
-            db, first_key, instance_secret=SECRET_A, touch=False, commit=False
-        ):
-            fail("Rotation did not invalidate the old key")
         if not validate_bearer_key(
-            db, second.plaintext_key, instance_secret=SECRET_A, touch=True, commit=False
+            db,
+            bearer_two.plaintext_key,
+            instance_secret=SECRET_A,
+            touch=False,
+            commit=False,
         ):
-            fail("Rotated key was rejected")
-        if second.record.last_used_at is None:
-            fail("Successful validation did not touch last_used_at")
+            fail("Bearer mode did not work after custom-header mode")
+        if validate_custom_header_key(
+            db,
+            custom_two.plaintext_key,
+            instance_secret=SECRET_A,
+            touch=False,
+            commit=False,
+        ):
+            fail("Switching back to Bearer did not invalidate custom-header key")
+
         audit_count_before_disable = int(db.query(AuditLog).count())
         if not disable_direct_auth(db, actor_user_id=actor.id, commit=False):
             fail("Configured direct auth was not disabled")
@@ -165,9 +277,22 @@ def check_service() -> None:
             fail("Disable did not create exactly one audit")
         if disable_direct_auth(db, actor_user_id=actor.id, commit=False):
             fail("Repeated disable was not a no-op")
+
         audits = db.execute(
-            select(AuditLog).where(AuditLog.id > baseline_audit_id).order_by(AuditLog.id)
+            select(AuditLog)
+            .where(AuditLog.id > baseline_audit_id)
+            .order_by(AuditLog.id)
         ).scalars().all()
+        events = [row.event_type for row in audits]
+        expected_events = [
+            "settings.mcp_direct_key_rotated",
+            "settings.mcp_custom_header_key_rotated",
+            "settings.mcp_custom_header_key_rotated",
+            "settings.mcp_direct_key_rotated",
+            "settings.mcp_direct_auth_disabled",
+        ]
+        if events != expected_events:
+            fail(f"Unexpected direct-auth service audit events: {events}")
         payload = json.dumps(
             [
                 {
@@ -182,12 +307,18 @@ def check_service() -> None:
             sort_keys=True,
             default=str,
         )
-        for secret in (first_key, second.plaintext_key):
+        for secret in (
+            bearer_key,
+            custom_key,
+            custom_two.plaintext_key,
+            bearer_two.plaintext_key,
+        ):
             if secret in payload:
                 fail("Plaintext direct key leaked into audit content")
     finally:
         db.rollback()
         db.close()
+
     verify = SessionLocal()
     try:
         if int(verify.query(McpDirectAuth).count()) != baseline_records:
@@ -196,7 +327,6 @@ def check_service() -> None:
             fail("Direct-auth smoke left audit rows behind")
     finally:
         verify.close()
-
 
 def main() -> None:
     check_schema()
