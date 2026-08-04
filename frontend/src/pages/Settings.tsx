@@ -21,9 +21,13 @@ import {
   waitForPartPilotReady
 } from "../services/backupsClient";
 import {
+  disableMcpDirectAuth,
+  getMcpDirectAuth,
   getMcpSettings,
   getReservationSettings,
   getSearchSettings,
+  revealMcpDirectBearerKey,
+  rotateMcpDirectBearerKey,
   updateMcpSettings,
   updateReservationSettings,
   updateSearchSettings
@@ -34,6 +38,7 @@ import type {
 } from "../types/backups";
 import type {
   AppearanceTheme,
+  McpDirectAuthStatus,
   McpSettings,
   ReservationExpiryMode,
   ReservationSettings,
@@ -160,6 +165,28 @@ export function Settings() {
   const [mcpUrlCopied, setMcpUrlCopied] = useState(false);
   const [mcpCopyError, setMcpCopyError] =
     useState<string | null>(null);
+  const [mcpDirectAuth, setMcpDirectAuth] =
+    useState<McpDirectAuthStatus | null>(null);
+  const [mcpDirectAuthLoading, setMcpDirectAuthLoading] =
+    useState(true);
+  const [mcpDirectAuthBusy, setMcpDirectAuthBusy] = useState<
+    "rotate" | "reveal" | "disable" | null
+  >(null);
+  const [mcpDirectAuthError, setMcpDirectAuthError] =
+    useState<string | null>(null);
+  const [mcpDirectAuthMessage, setMcpDirectAuthMessage] =
+    useState<string | null>(null);
+  const [mcpDirectKey, setMcpDirectKey] =
+    useState<string | null>(null);
+  const [mcpDirectKeyVisible, setMcpDirectKeyVisible] =
+    useState(false);
+  const [mcpDirectKeyCopied, setMcpDirectKeyCopied] =
+    useState(false);
+  const [mcpDirectConfirm, setMcpDirectConfirm] = useState<
+    "rotate" | "disable" | null
+  >(null);
+  const [mcpDirectReloadVersion, setMcpDirectReloadVersion] =
+    useState(0);
 
   const [confirmation, setConfirmation] = useState("");
   const [isResetting, setIsResetting] = useState(false);
@@ -354,6 +381,48 @@ export function Settings() {
       cancelled = true;
     };
   }, [mcpReloadVersion, token]);
+
+  // PARTPILOT:MCP_DIRECT_AUTH_UI:V491
+  useEffect(() => {
+    if (!token) {
+      setMcpDirectAuth(null);
+      setMcpDirectAuthLoading(false);
+      setMcpDirectAuthError(
+        "Your session is unavailable. Sign in again."
+      );
+      return;
+    }
+
+    let cancelled = false;
+    setMcpDirectAuthLoading(true);
+    setMcpDirectAuthError(null);
+
+    getMcpDirectAuth(token)
+      .then((result) => {
+        if (!cancelled) {
+          setMcpDirectAuth(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setMcpDirectAuth(null);
+          setMcpDirectAuthError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load direct authentication"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setMcpDirectAuthLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mcpDirectReloadVersion, token]);
 
   // PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454
   useEffect(() => {
@@ -573,6 +642,123 @@ export function Settings() {
         caught instanceof Error
           ? caught.message
           : "Unable to copy the MCP server URL"
+      );
+    }
+  }
+
+  function clearMcpDirectFeedback(): void {
+    setMcpDirectAuthError(null);
+    setMcpDirectAuthMessage(null);
+    setMcpDirectKeyCopied(false);
+  }
+
+  async function createOrRotateMcpDirectKey(): Promise<void> {
+    if (!token || mcpDirectAuthBusy) {
+      return;
+    }
+    setMcpDirectAuthBusy("rotate");
+    clearMcpDirectFeedback();
+    try {
+      const result = await rotateMcpDirectBearerKey(token);
+      setMcpDirectAuth(result);
+      setMcpDirectKey(result.key);
+      setMcpDirectKeyVisible(true);
+      setMcpDirectConfirm(null);
+      setMcpDirectAuthMessage(
+        mcpDirectAuth?.configured
+          ? "Bearer key rotated. Existing clients must use the new key."
+          : "Bearer key created. Copy it into your MCP client."
+      );
+    } catch (caught) {
+      setMcpDirectAuthError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to create the direct Bearer key"
+      );
+    } finally {
+      setMcpDirectAuthBusy(null);
+    }
+  }
+
+  async function revealMcpDirectKey(): Promise<void> {
+    if (!token || mcpDirectAuthBusy || !mcpDirectAuth?.configured) {
+      return;
+    }
+    setMcpDirectAuthBusy("reveal");
+    clearMcpDirectFeedback();
+    try {
+      const result = await revealMcpDirectBearerKey(token);
+      setMcpDirectAuth(result);
+      setMcpDirectKey(result.key);
+      setMcpDirectKeyVisible(true);
+      setMcpDirectAuthMessage(
+        "Bearer key revealed. Keep it private and use HTTPS."
+      );
+    } catch (caught) {
+      setMcpDirectAuthError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to reveal the direct Bearer key"
+      );
+    } finally {
+      setMcpDirectAuthBusy(null);
+    }
+  }
+
+  async function disableMcpDirectKey(): Promise<void> {
+    if (!token || mcpDirectAuthBusy || !mcpDirectAuth?.configured) {
+      return;
+    }
+    setMcpDirectAuthBusy("disable");
+    clearMcpDirectFeedback();
+    try {
+      const result = await disableMcpDirectAuth(token);
+      setMcpDirectAuth(result);
+      setMcpDirectKey(null);
+      setMcpDirectKeyVisible(false);
+      setMcpDirectConfirm(null);
+      setMcpDirectAuthMessage(
+        "Direct Bearer authentication disabled."
+      );
+    } catch (caught) {
+      setMcpDirectAuthError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to disable direct authentication"
+      );
+    } finally {
+      setMcpDirectAuthBusy(null);
+    }
+  }
+
+  async function copyMcpDirectKey(): Promise<void> {
+    if (!mcpDirectKey) {
+      return;
+    }
+    clearMcpDirectFeedback();
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(mcpDirectKey);
+      } else {
+        const field = document.createElement("textarea");
+        field.value = mcpDirectKey;
+        field.style.position = "fixed";
+        field.style.opacity = "0";
+        document.body.appendChild(field);
+        field.select();
+        const copied = document.execCommand("copy");
+        field.remove();
+        if (!copied) {
+          throw new Error("Clipboard copy was rejected.");
+        }
+      }
+      setMcpDirectKeyCopied(true);
+      setMcpDirectAuthMessage("Bearer key copied.");
+    } catch (caught) {
+      setMcpDirectAuthError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to copy the direct Bearer key"
       );
     }
   }
@@ -1317,14 +1503,15 @@ export function Settings() {
           className="card settings-section settings-mcp-section settings-grid-mcp"
           aria-labelledby="settings-mcp-title"
           hidden={activeSettingsSection !== "mcp"}
+          data-partpilot-mcp-direct-auth="PARTPILOT:MCP_DIRECT_AUTH_UI:V491"
         >
           <div className="settings-section-heading settings-mcp-heading">
             <div>
               <span className="card-label">Integrations</span>
               <h2 id="settings-mcp-title">Model Context Protocol</h2>
               <p>
-                Connect Claude and other compatible clients through Part
-                Pilot&apos;s OAuth-protected Streamable HTTP endpoint.
+                Connect compatible clients through Part Pilot&apos;s OAuth or
+                static Bearer protected Streamable HTTP endpoint.
               </p>
             </div>
             {mcpDraft ? (
@@ -1377,12 +1564,253 @@ export function Settings() {
                   }
                 >
                   {mcpUsesPublicHttps
-                    ? "This page is using HTTPS, which is required for remote OAuth clients."
-                    : "Remote clients such as Claude require the public Part Pilot address to use HTTPS."}
+                    ? "This page is using HTTPS, as required for remote MCP credentials."
+                    : "Remote MCP clients should use Part Pilot through its public HTTPS address."}
                 </p>
                 {mcpCopyError ? (
                   <p className="settings-mcp-copy-error" role="alert">
                     {mcpCopyError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="settings-mcp-direct-auth">
+                <div className="settings-mcp-direct-heading">
+                  <div>
+                    <strong>Static Bearer key</strong>
+                    <span>
+                      Use one installation-wide key for clients that cannot
+                      complete the OAuth flow.
+                    </span>
+                  </div>
+                  {mcpDirectAuth ? (
+                    <span
+                      className={
+                        mcpDirectAuth.configured
+                          ? "settings-mcp-direct-state is-configured"
+                          : "settings-mcp-direct-state"
+                      }
+                    >
+                      {mcpDirectAuth.configured
+                        ? "Configured"
+                        : "Not configured"}
+                    </span>
+                  ) : null}
+                </div>
+
+                {mcpDirectAuthLoading ? (
+                  <p className="settings-mcp-direct-note" role="status">
+                    Loading direct authentication...
+                  </p>
+                ) : null}
+
+                {!mcpDirectAuthLoading && mcpDirectAuth ? (
+                  <>
+                    <dl className="settings-mcp-direct-summary">
+                      <div>
+                        <dt>Mode</dt>
+                        <dd>
+                          {mcpDirectAuth.configured
+                            ? "Bearer key"
+                            : "Disabled"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Key</dt>
+                        <dd>{mcpDirectAuth.masked_key ?? "Not created"}</dd>
+                      </div>
+                      <div>
+                        <dt>Rotated</dt>
+                        <dd>
+                          {mcpDirectAuth.rotated_at
+                            ? formatUtc(mcpDirectAuth.rotated_at)
+                            : "Never"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Last used</dt>
+                        <dd>
+                          {mcpDirectAuth.last_used_at
+                            ? formatUtc(mcpDirectAuth.last_used_at)
+                            : "Never"}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    {mcpDirectKey ? (
+                      <div className="settings-mcp-direct-secret">
+                        <label htmlFor="settings-mcp-direct-key">
+                          Current Bearer key
+                        </label>
+                        <div className="settings-mcp-direct-secret-row">
+                          <input
+                            id="settings-mcp-direct-key"
+                            type={mcpDirectKeyVisible ? "text" : "password"}
+                            value={mcpDirectKey}
+                            readOnly
+                            spellCheck={false}
+                            autoComplete="off"
+                            onFocus={(event) =>
+                              event.currentTarget.select()
+                            }
+                          />
+                          <button
+                            className="settings-action settings-action-secondary"
+                            type="button"
+                            onClick={() =>
+                              setMcpDirectKeyVisible((value) => !value)
+                            }
+                          >
+                            {mcpDirectKeyVisible ? "Hide" : "Show"}
+                          </button>
+                          <button
+                            className="settings-action settings-action-secondary"
+                            type="button"
+                            onClick={() => void copyMcpDirectKey()}
+                          >
+                            {mcpDirectKeyCopied ? "Copied" : "Copy key"}
+                          </button>
+                        </div>
+                        <p>
+                          Treat this value like a password. Never paste it into
+                          logs, screenshots, issue reports, or chat messages.
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {mcpDirectConfirm ? (
+                      <div
+                        className={
+                          mcpDirectConfirm === "disable"
+                            ? "settings-mcp-direct-confirm is-danger"
+                            : "settings-mcp-direct-confirm"
+                        }
+                        role="alert"
+                      >
+                        <div>
+                          <strong>
+                            {mcpDirectConfirm === "rotate"
+                              ? "Rotate the Bearer key?"
+                              : "Disable direct authentication?"}
+                          </strong>
+                          <span>
+                            {mcpDirectConfirm === "rotate"
+                              ? "The existing key will stop working immediately."
+                              : "Clients using this key will be rejected immediately."}
+                          </span>
+                        </div>
+                        <div className="settings-mcp-direct-confirm-actions">
+                          <button
+                            className="settings-action settings-action-secondary"
+                            type="button"
+                            disabled={Boolean(mcpDirectAuthBusy)}
+                            onClick={() => setMcpDirectConfirm(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            className={
+                              mcpDirectConfirm === "disable"
+                                ? "settings-action settings-action-danger"
+                                : "settings-action settings-action-primary"
+                            }
+                            type="button"
+                            disabled={Boolean(mcpDirectAuthBusy)}
+                            onClick={() =>
+                              void (mcpDirectConfirm === "rotate"
+                                ? createOrRotateMcpDirectKey()
+                                : disableMcpDirectKey())
+                            }
+                          >
+                            {mcpDirectAuthBusy
+                              ? "Working..."
+                              : mcpDirectConfirm === "rotate"
+                                ? "Rotate key"
+                                : "Disable key"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="settings-mcp-direct-actions">
+                        {!mcpDirectAuth.configured ? (
+                          <button
+                            className="settings-action settings-action-primary"
+                            type="button"
+                            disabled={Boolean(mcpDirectAuthBusy)}
+                            onClick={() =>
+                              void createOrRotateMcpDirectKey()
+                            }
+                          >
+                            {mcpDirectAuthBusy === "rotate"
+                              ? "Creating key..."
+                              : "Create Bearer key"}
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              className="settings-action settings-action-secondary"
+                              type="button"
+                              disabled={Boolean(mcpDirectAuthBusy)}
+                              onClick={() => void revealMcpDirectKey()}
+                            >
+                              {mcpDirectAuthBusy === "reveal"
+                                ? "Revealing..."
+                                : "Reveal key"}
+                            </button>
+                            <button
+                              className="settings-action settings-action-secondary"
+                              type="button"
+                              disabled={Boolean(mcpDirectAuthBusy)}
+                              onClick={() => {
+                                clearMcpDirectFeedback();
+                                setMcpDirectConfirm("rotate");
+                              }}
+                            >
+                              Rotate key
+                            </button>
+                            <button
+                              className="settings-action settings-action-danger"
+                              type="button"
+                              disabled={Boolean(mcpDirectAuthBusy)}
+                              onClick={() => {
+                                clearMcpDirectFeedback();
+                                setMcpDirectConfirm("disable");
+                              }}
+                            >
+                              Disable direct key
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : null}
+
+                {mcpDirectAuthError ? (
+                  <div
+                    className="settings-preference-state is-error"
+                    role="alert"
+                  >
+                    <span>{mcpDirectAuthError}</span>
+                    {!mcpDirectAuth ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMcpDirectReloadVersion((value) => value + 1)
+                        }
+                      >
+                        Retry
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {mcpDirectAuthMessage && !mcpDirectAuthError ? (
+                  <p
+                    className="settings-preference-state is-success"
+                    role="status"
+                  >
+                    {mcpDirectAuthMessage}
                   </p>
                 ) : null}
               </div>
@@ -1476,7 +1904,7 @@ export function Settings() {
               <dl className="settings-mcp-summary">
                 <div>
                   <dt>Authentication</dt>
-                  <dd>OAuth 2.1 with PKCE</dd>
+                  <dd>OAuth 2.1 or Bearer</dd>
                 </div>
                 <div>
                   <dt>Transport</dt>

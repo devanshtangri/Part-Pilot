@@ -36,7 +36,7 @@ export interface AppearanceSettingsUpdatePayload {
 }
 
 
-// PARTPILOT:MCP_SETTINGS_TYPES:V473
+// PARTPILOT:MCP_SETTINGS_TYPES:V491
 export interface McpSettings {
   enabled: boolean;
   read_tools_enabled: boolean;
@@ -44,3 +44,24 @@ export interface McpSettings {
 }
 
 export type McpSettingsUpdatePayload = McpSettings;
+
+
+// PARTPILOT:MCP_DIRECT_AUTH_TYPES:V491
+export type McpDirectAuthMode =
+  | "disabled"
+  | "bearer_key"
+  | "custom_header"
+  | "trusted_network";
+
+export interface McpDirectAuthStatus {
+  mode: McpDirectAuthMode;
+  configured: boolean;
+  masked_key: string | null;
+  rotated_at: string | null;
+  last_used_at: string | null;
+}
+
+export interface McpDirectAuthKeyResponse
+  extends McpDirectAuthStatus {
+  key: string;
+}

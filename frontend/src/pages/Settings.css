@@ -1815,3 +1815,274 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* PARTPILOT:MCP_DIRECT_AUTH_STYLES:V491 */
+.settings-page {
+  --partpilot-mcp-direct-auth-v491: 1;
+}
+
+.settings-mcp-direct-auth {
+  display: grid;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.settings-mcp-direct-heading {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.settings-mcp-direct-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-mcp-direct-heading strong {
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.settings-mcp-direct-heading span,
+.settings-mcp-direct-note {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.settings-mcp-direct-note {
+  margin: 0;
+}
+
+.settings-mcp-direct-state {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 780;
+}
+
+.settings-mcp-direct-state.is-configured {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 42%,
+    var(--panel-border)
+  );
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-mcp-direct-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+}
+
+.settings-mcp-direct-summary > div {
+  min-width: 0;
+  padding: 9px 10px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.settings-mcp-direct-summary > div:last-child {
+  border-right: 0;
+}
+
+.settings-mcp-direct-summary dt {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.settings-mcp-direct-summary dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.69rem;
+  font-weight: 700;
+}
+
+.settings-mcp-direct-secret {
+  display: grid;
+  gap: 7px;
+  padding: 11px;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--accent) 38%,
+    var(--panel-border)
+  );
+  border-radius: 7px;
+  background: var(--accent-soft);
+}
+
+.settings-mcp-direct-secret label {
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.settings-mcp-direct-secret-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 7px;
+}
+
+.settings-mcp-direct-secret-row input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+}
+
+.settings-mcp-direct-secret-row input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.settings-mcp-direct-secret p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.66rem;
+  line-height: 1.45;
+}
+
+/* PARTPILOT:MCP_DIRECT_ACTION_ALIGNMENT:V493 */
+.settings-mcp-direct-actions,
+.settings-mcp-direct-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.settings-mcp-direct-confirm {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+}
+
+.settings-mcp-direct-confirm.is-danger {
+  border-color: color-mix(
+    in srgb,
+    var(--danger) 42%,
+    var(--panel-border)
+  );
+}
+
+.settings-mcp-direct-confirm > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-mcp-direct-confirm strong {
+  color: var(--text);
+  font-size: 0.74rem;
+}
+
+.settings-mcp-direct-confirm span {
+  color: var(--muted);
+  font-size: 0.67rem;
+  line-height: 1.4;
+}
+
+.settings-action-danger {
+  border: 1px solid color-mix(
+    in srgb,
+    var(--danger) 48%,
+    var(--panel-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--danger) 12%,
+    var(--panel)
+  );
+  color: var(--danger);
+}
+
+.settings-action-danger:hover:not(:disabled) {
+  border-color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .settings-mcp-direct-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-mcp-direct-summary > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .settings-mcp-direct-summary > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--panel-border);
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-mcp-direct-heading,
+  .settings-mcp-direct-confirm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-mcp-direct-state {
+    align-self: flex-start;
+  }
+
+  .settings-mcp-direct-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-mcp-direct-summary > div,
+  .settings-mcp-direct-summary > div:nth-child(2) {
+    border-right: 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .settings-mcp-direct-summary > div:last-child {
+    border-bottom: 0;
+  }
+
+  .settings-mcp-direct-secret-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-mcp-direct-secret-row input {
+    grid-column: 1 / -1;
+  }
+
+  .settings-mcp-direct-actions,
+  .settings-mcp-direct-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .settings-mcp-direct-actions button,
+  .settings-mcp-direct-confirm-actions button {
+    width: 100%;
+  }
+}

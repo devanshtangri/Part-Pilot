@@ -1,6 +1,8 @@
 import type {
   AppearanceSettings,
   AppearanceSettingsUpdatePayload,
+  McpDirectAuthKeyResponse,
+  McpDirectAuthStatus,
   McpSettings,
   McpSettingsUpdatePayload,
   ReservationSettings,
@@ -139,4 +141,45 @@ export function updateMcpSettings(
     method: "PATCH",
     body: JSON.stringify(payload)
   });
+}
+
+
+// PARTPILOT:MCP_DIRECT_AUTH_CLIENT:V491
+export function getMcpDirectAuth(
+  token: string
+): Promise<McpDirectAuthStatus> {
+  return requestJson<McpDirectAuthStatus>(
+    "/settings/mcp/direct-auth",
+    token
+  );
+}
+
+export function rotateMcpDirectBearerKey(
+  token: string
+): Promise<McpDirectAuthKeyResponse> {
+  return requestJson<McpDirectAuthKeyResponse>(
+    "/settings/mcp/direct-auth/bearer-key",
+    token,
+    { method: "POST" }
+  );
+}
+
+export function revealMcpDirectBearerKey(
+  token: string
+): Promise<McpDirectAuthKeyResponse> {
+  return requestJson<McpDirectAuthKeyResponse>(
+    "/settings/mcp/direct-auth/reveal",
+    token,
+    { method: "POST" }
+  );
+}
+
+export function disableMcpDirectAuth(
+  token: string
+): Promise<McpDirectAuthStatus> {
+  return requestJson<McpDirectAuthStatus>(
+    "/settings/mcp/direct-auth",
+    token,
+    { method: "DELETE" }
+  );
 }
