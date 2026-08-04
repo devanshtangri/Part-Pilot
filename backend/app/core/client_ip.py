@@ -11,6 +11,7 @@ from ipaddress import (
 )
 import json
 from typing import Any
+from urllib.parse import urlsplit
 
 
 IpAddress = IPv4Address | IPv6Address
@@ -232,3 +233,95 @@ class TrustedProxyResolver:
 
 
 # PARTPILOT:MCP_TRUSTED_PROXY_RESOLVER:V506
+
+_INVALID_ORIGIN_CHARACTERS = frozenset("\\/\r\n\t #?")
+
+
+def _normalise_origin_parts(*, scheme: object, host: object, label: str) -> str:
+    if not isinstance(scheme, str):
+        raise ClientAddressError(f"{label} scheme must be http or https.")
+    normalized_scheme = scheme.strip().casefold()
+    if normalized_scheme not in {"http", "https"}:
+        raise ClientAddressError(f"{label} scheme must be http or https.")
+    if not isinstance(host, str):
+        raise ClientAddressError(f"{label} host is missing.")
+    normalized_host = host.strip()
+    if not normalized_host or "," in normalized_host or any(
+        character in normalized_host for character in _INVALID_ORIGIN_CHARACTERS
+    ):
+        raise ClientAddressError(f"{label} host is invalid.")
+    try:
+        parsed = urlsplit(f"{normalized_scheme}://{normalized_host}")
+        parsed_port = parsed.port
+    except ValueError as exc:
+        raise ClientAddressError(f"{label} host is invalid.") from exc
+    if (
+        parsed.scheme != normalized_scheme
+        or parsed.netloc != normalized_host
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ClientAddressError(f"{label} host is invalid.")
+    if parsed_port is not None and not (1 <= parsed_port <= 65535):
+        raise ClientAddressError(f"{label} host port is invalid.")
+    return f"{normalized_scheme}://{parsed.netloc}".rstrip("/")
+
+
+def normalize_public_base_url(raw: str | None) -> str | None:
+    candidate = (raw or "").strip()
+    if not candidate:
+        return None
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError as exc:
+        raise TrustedProxyConfigurationError(
+            "PARTPILOT_PUBLIC_BASE_URL must be an http(s) origin without a path."
+        ) from exc
+    if (
+        parsed.scheme.casefold() not in {"http", "https"}
+        or not parsed.netloc
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise TrustedProxyConfigurationError(
+            "PARTPILOT_PUBLIC_BASE_URL must be an http(s) origin without a path."
+        )
+    try:
+        return _normalise_origin_parts(
+            scheme=parsed.scheme,
+            host=parsed.netloc,
+            label="PARTPILOT_PUBLIC_BASE_URL",
+        )
+    except ClientAddressError as exc:
+        raise TrustedProxyConfigurationError(str(exc)) from exc
+
+
+def resolve_public_origin(
+    scope: dict[str, Any],
+    *,
+    configured_public_base_url: str | None,
+    trusted_proxy_cidrs: str | None,
+) -> str:
+    configured = normalize_public_base_url(configured_public_base_url)
+    if configured is not None:
+        return configured
+    resolver = TrustedProxyResolver.from_raw(trusted_proxy_cidrs)
+    forwarded = resolver.forwarded_origin(scope)
+    scheme: object = scope.get("scheme") or "http"
+    host: object = _single_header(scope, "host")
+    if forwarded is not None:
+        if forwarded.scheme is not None:
+            scheme = forwarded.scheme
+        if forwarded.host is not None:
+            host = forwarded.host
+    return _normalise_origin_parts(scheme=scheme, host=host, label="MCP request")
+
+
+# PARTPILOT:MCP_FORWARDED_ORIGIN_RESOLVER:V508

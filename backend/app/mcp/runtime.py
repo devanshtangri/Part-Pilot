@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from contextlib import asynccontextmanager
 from typing import Any
 from urllib.parse import urlsplit
@@ -10,6 +9,11 @@ from urllib.parse import urlsplit
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
+from app.core.client_ip import (
+    ClientAddressError,
+    TrustedProxyConfigurationError,
+    resolve_public_origin,
+)
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.mcp.part_tools import register_part_tools
@@ -54,8 +58,6 @@ _PARTPILOT_MCP = FastMCP(
 register_part_tools(_PARTPILOT_MCP)
 register_workspace_tools(_PARTPILOT_MCP)
 _SDK_APP = _PARTPILOT_MCP.streamable_http_app()
-_INVALID_HOST = re.compile(r"[\\/\s#?]")
-
 
 def _header_values(scope: dict[str, Any], header_name: str) -> list[str]:
     target = header_name.casefold()
@@ -84,39 +86,21 @@ def _header_map(scope: dict[str, Any]) -> dict[str, str]:
     return result
 
 
-def _first_forwarded(value: str | None) -> str | None:
-    if value is None:
-        return None
-    item = value.split(",", 1)[0].strip()
-    return item or None
-
-
-def _public_origin(scope: dict[str, Any], headers: dict[str, str]) -> str:
-    configured = get_settings().public_base_url
-    if configured:
-        parsed = urlsplit(configured.strip())
-        if (
-            parsed.scheme in {"http", "https"}
-            and parsed.netloc
-            and not parsed.path.rstrip("/")
-            and not parsed.query
-            and not parsed.fragment
-        ):
-            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
-        raise RuntimeError(
-            "PARTPILOT_PUBLIC_BASE_URL must be an origin without a path."
+def _public_origin(scope: dict[str, Any]) -> str:
+    settings = get_settings()
+    try:
+        return resolve_public_origin(
+            scope,
+            configured_public_base_url=settings.public_base_url,
+            trusted_proxy_cidrs=settings.trusted_proxy_cidrs,
         )
+    except ClientAddressError as exc:
+        raise McpOAuthValidationError(str(exc)) from exc
+    except TrustedProxyConfigurationError as exc:
+        raise RuntimeError(str(exc)) from exc
 
-    scheme = _first_forwarded(headers.get("x-forwarded-proto"))
-    host = _first_forwarded(headers.get("x-forwarded-host"))
-    if scheme not in {"http", "https"}:
-        scheme = str(scope.get("scheme") or "http").casefold()
-    if not host:
-        host = headers.get("host", "").strip()
-    if not host or _INVALID_HOST.search(host):
-        raise McpOAuthValidationError("Invalid MCP request host.")
-    return f"{scheme}://{host}".rstrip("/")
 
+# PARTPILOT:MCP_FORWARDED_ORIGIN_RUNTIME:V508
 
 def _normalise_origin(value: str) -> str | None:
     parsed = urlsplit(value.strip())
@@ -328,7 +312,7 @@ class PartPilotMcpGateway:
 
         headers = _header_map(scope)
         try:
-            public_origin = _public_origin(scope, headers)
+            public_origin = _public_origin(scope)
             resource_uri = validate_resource_uri(f"{public_origin}/mcp")
         except (McpOAuthValidationError, RuntimeError) as exc:
             await _send_json(

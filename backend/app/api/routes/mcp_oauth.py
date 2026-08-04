@@ -5,7 +5,6 @@ import binascii
 import hmac
 import html
 import json
-import re
 import secrets
 from datetime import timezone
 from typing import Any
@@ -16,6 +15,11 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import (
+    ClientAddressError,
+    TrustedProxyConfigurationError,
+    resolve_public_origin,
+)
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import McpOAuthClient
@@ -100,41 +104,21 @@ def _oauth_error(
     )
 
 
-def _first_forwarded(value: str | None) -> str | None:
-    if value is None:
-        return None
-    item = value.split(",", 1)[0].strip()
-    return item or None
-
-
-def _valid_host(value: str) -> bool:
-    return bool(value) and not re.search(r"[\\/\\s#?]", value)
-
-
 def _public_origin(request: Request) -> str:
-    configured = get_settings().public_base_url
-    if configured:
-        parsed = urlsplit(configured.strip())
-        if (
-            parsed.scheme in {"http", "https"}
-            and parsed.netloc
-            and not parsed.path.rstrip("/")
-            and not parsed.query
-            and not parsed.fragment
-        ):
-            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
-        raise RuntimeError("PARTPILOT_PUBLIC_BASE_URL must be an origin without a path.")
+    settings = get_settings()
+    try:
+        return resolve_public_origin(
+            request.scope,
+            configured_public_base_url=settings.public_base_url,
+            trusted_proxy_cidrs=settings.trusted_proxy_cidrs,
+        )
+    except ClientAddressError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except TrustedProxyConfigurationError as exc:
+        raise RuntimeError(str(exc)) from exc
 
-    scheme = _first_forwarded(request.headers.get("x-forwarded-proto"))
-    host = _first_forwarded(request.headers.get("x-forwarded-host"))
-    if scheme not in {"http", "https"}:
-        scheme = request.url.scheme
-    if not host:
-        host = request.headers.get("host") or request.url.netloc
-    if not _valid_host(host):
-        raise HTTPException(status_code=400, detail="Invalid request host")
-    return f"{scheme}://{host}".rstrip("/")
 
+# PARTPILOT:MCP_FORWARDED_ORIGIN_OAUTH:V508
 
 def _resource_uri(request: Request) -> str:
     origin = _public_origin(request)
