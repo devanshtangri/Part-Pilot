@@ -480,6 +480,41 @@ class ReservationItem(Base, TimestampMixin):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+# PARTPILOT:MCP_DIRECT_AUTH_MODEL:V482
+class McpDirectAuth(Base, TimestampMixin):
+    __tablename__ = "mcp_direct_auth"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_mcp_direct_auth_singleton"),
+        CheckConstraint(
+            "mode IN ('disabled','bearer_key','custom_header','trusted_network')",
+            name="ck_mcp_direct_auth_mode",
+        ),
+        CheckConstraint(
+            "(key_ciphertext IS NULL AND key_digest IS NULL AND key_prefix IS NULL) OR "
+            "(key_ciphertext IS NOT NULL AND key_digest IS NOT NULL AND key_prefix IS NOT NULL)",
+            name="ck_mcp_direct_auth_key_bundle",
+        ),
+        CheckConstraint(
+            "(mode = 'bearer_key' AND key_ciphertext IS NOT NULL AND custom_header_name IS NULL) OR "
+            "(mode = 'custom_header' AND key_ciphertext IS NOT NULL AND custom_header_name IS NOT NULL) OR "
+            "(mode IN ('disabled','trusted_network') AND key_ciphertext IS NULL AND custom_header_name IS NULL)",
+            name="ck_mcp_direct_auth_mode_fields",
+        ),
+        UniqueConstraint("key_digest", name="uq_mcp_direct_auth_key_digest"),
+        Index("ix_mcp_direct_auth_mode", "mode"),
+        Index("ix_mcp_direct_auth_last_used_at", "last_used_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    mode: Mapped[str] = mapped_column(String(40), nullable=False, default="disabled")
+    key_ciphertext: Mapped[str | None] = mapped_column(Text, nullable=True)
+    key_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    key_prefix: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    custom_header_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 # PARTPILOT:MCP_OAUTH_MODELS:V465
 class McpOAuthClient(Base, TimestampMixin):
     __tablename__ = "mcp_oauth_clients"

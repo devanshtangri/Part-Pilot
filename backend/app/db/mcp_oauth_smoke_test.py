@@ -12,7 +12,7 @@ import app.models  # noqa: F401 - register ORM models
 
 
 # PARTPILOT:MCP_OAUTH_SCHEMA_SMOKE:V465
-EXPECTED_HEAD = "0008_mcp_oauth"
+EXPECTED_HEAD = "0009_mcp_direct_auth"
 TABLES = (
     "mcp_oauth_clients",
     "mcp_oauth_authorization_codes",

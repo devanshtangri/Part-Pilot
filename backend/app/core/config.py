@@ -18,6 +18,12 @@ class Settings(BaseSettings):
         alias="PARTPILOT_PUBLIC_BASE_URL",
     )
 
+    # PARTPILOT:MCP_INSTANCE_SECRET:V482
+    instance_secret: str | None = Field(
+        default=None,
+        alias="PARTPILOT_INSTANCE_SECRET",
+    )
+
     database_url: str = Field(
         default="sqlite:///../data/partpilot.db",
         alias="PARTPILOT_DATABASE_URL",

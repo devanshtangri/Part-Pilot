@@ -13,3 +13,6 @@ httpx
 
 # Stable MCP Streamable HTTP runtime
 mcp==1.27.2
+
+# MCP direct-key encryption at rest
+cryptography
