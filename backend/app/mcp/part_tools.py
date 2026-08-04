@@ -16,7 +16,7 @@ from app.services.mcp_oauth import MCP_SCOPE_READ, available_scopes
 from app.services.parts import PartNotFoundError, get_part, list_parts
 
 
-# PARTPILOT:MCP_PART_READ_TOOLS:V488
+# PARTPILOT:MCP_PART_READ_TOOLS:V499
 PART_TOOL_NAMES = ("get_part_details", "search_parts")
 _SORT_FIELDS = {
     "default",
@@ -74,7 +74,7 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
         raise RuntimeError("Authenticated MCP principal is unavailable.")
 
     auth_method = principal.get("auth_method")
-    if auth_method not in {"oauth", "direct_bearer"}:
+    if auth_method not in {"oauth", "direct_bearer", "direct_custom_header"}:
         raise RuntimeError("Authenticated MCP principal is invalid.")
     if principal.get("actor_type") != "mcp":
         raise RuntimeError("Authenticated MCP principal is invalid.")
@@ -173,7 +173,7 @@ def _append_tool_audit(
         oauth = principal["oauth"]
         metadata["client_id"] = oauth["client_id"]
         metadata["token_id"] = oauth["token_id"]
-    elif auth_method == "direct_bearer":
+    elif auth_method in {"direct_bearer", "direct_custom_header"}:
         metadata["direct_auth_id"] = principal["direct_auth_id"]
     else:
         raise RuntimeError("Authenticated MCP principal is invalid.")

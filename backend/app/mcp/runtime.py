@@ -15,10 +15,13 @@ from app.db.session import SessionLocal
 from app.mcp.part_tools import register_part_tools
 from app.mcp.workspace_tools import register_workspace_tools
 from app.services.mcp_direct_auth import (
+    DIRECT_AUTH_CUSTOM_HEADER,
     DIRECT_AUTH_SINGLETON_ID,
     DIRECT_KEY_PREFIX,
     McpDirectAuthConfigurationError,
+    get_direct_auth,
     validate_bearer_key,
+    validate_custom_header_key,
 )
 from app.services.mcp_oauth import (
     MCP_SCOPE_READ,
@@ -32,7 +35,7 @@ from app.services.mcp_oauth import (
 )
 
 
-# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V488
+# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V499
 _PARTPILOT_MCP = FastMCP(
     name="Part Pilot",
     instructions=(
@@ -52,6 +55,20 @@ register_part_tools(_PARTPILOT_MCP)
 register_workspace_tools(_PARTPILOT_MCP)
 _SDK_APP = _PARTPILOT_MCP.streamable_http_app()
 _INVALID_HOST = re.compile(r"[\\/\s#?]")
+
+
+def _header_values(scope: dict[str, Any], header_name: str) -> list[str]:
+    target = header_name.casefold()
+    values: list[str] = []
+    for raw_name, raw_value in scope.get("headers", []):
+        try:
+            name = raw_name.decode("latin-1").casefold()
+            value = raw_value.decode("latin-1")
+        except (AttributeError, UnicodeDecodeError):
+            continue
+        if name == target:
+            values.append(value)
+    return values
 
 
 def _header_map(scope: dict[str, Any]) -> dict[str, str]:
@@ -116,13 +133,51 @@ def _normalise_origin(value: str) -> str | None:
     return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
 
 
-def _bearer_token(headers: dict[str, str]) -> str | None:
-    authorization = headers.get("authorization", "")
-    scheme, separator, token = authorization.partition(" ")
+def _bearer_credential(scope: dict[str, Any]) -> tuple[bool, str | None]:
+    values = _header_values(scope, "authorization")
+    if len(values) > 1:
+        raise McpOAuthValidationError(
+            "Duplicate Authorization headers are not allowed for MCP requests."
+        )
+    if not values:
+        return False, None
+    scheme, separator, token = values[0].partition(" ")
     if not separator or scheme.casefold() != "bearer":
-        return None
+        return False, None
     value = token.strip()
-    return value or None
+    return True, value or None
+
+
+def _configured_custom_header_name() -> str | None:
+    db = SessionLocal()
+    try:
+        record = get_direct_auth(db)
+        if (
+            record is not None
+            and record.mode == DIRECT_AUTH_CUSTOM_HEADER
+            and record.custom_header_name
+        ):
+            return record.custom_header_name
+        return None
+    finally:
+        db.close()
+
+
+def _custom_header_credential(
+    scope: dict[str, Any],
+    header_name: str | None,
+) -> tuple[bool, str | None]:
+    if header_name is None:
+        return False, None
+    values = _header_values(scope, header_name)
+    if len(values) > 1:
+        raise McpOAuthValidationError(
+            "Duplicate MCP custom credential headers are not allowed."
+        )
+    if not values:
+        return False, None
+    value = values[0].strip()
+    return True, value or None
 
 
 async def _send_json(
@@ -217,6 +272,48 @@ def _direct_bearer_principal(token: str, resource_uri: str) -> dict[str, Any]:
         db.close()
 
 
+def _direct_custom_header_principal(
+    supplied_key: str,
+    resource_uri: str,
+) -> dict[str, Any]:
+    db = SessionLocal()
+    try:
+        try:
+            accepted = validate_custom_header_key(
+                db,
+                supplied_key,
+                touch=True,
+                commit=False,
+            )
+        except McpDirectAuthConfigurationError as exc:
+            raise McpOAuthInvalidTokenError(
+                "Invalid MCP custom-header key."
+            ) from exc
+        if not accepted:
+            raise McpOAuthInvalidTokenError(
+                "Invalid MCP custom-header key."
+            )
+        scopes = available_scopes(db, require_enabled=True)
+        if MCP_SCOPE_READ not in scopes:
+            raise McpOAuthInsufficientScopeError(
+                "MCP read tools are disabled in Part Pilot settings."
+            )
+        db.commit()
+        return {
+            "auth_method": "direct_custom_header",
+            "actor_type": "mcp",
+            "actor_user_id": None,
+            "scopes": [MCP_SCOPE_READ],
+            "resource_uri": resource_uri,
+            "direct_auth_id": DIRECT_AUTH_SINGLETON_ID,
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def _validate_bearer(token: str, resource_uri: str) -> dict[str, Any]:
     if token.startswith(DIRECT_KEY_PREFIX):
         return _direct_bearer_principal(token, resource_uri)
@@ -263,26 +360,83 @@ class PartPilotMcpGateway:
             + MCP_SCOPE_READ
             + '"'
         )
-        token = _bearer_token(headers)
-        if token is None:
+        try:
+            bearer_present, token = _bearer_credential(scope)
+            custom_header_name = await asyncio.to_thread(
+                _configured_custom_header_name
+            )
+            custom_present, custom_key = _custom_header_credential(
+                scope,
+                custom_header_name,
+            )
+        except McpOAuthValidationError as exc:
+            await _send_json(
+                send,
+                status=400,
+                content={
+                    "error": "invalid_request",
+                    "error_description": str(exc),
+                },
+            )
+            return
+
+        if bearer_present and custom_present:
+            await _send_json(
+                send,
+                status=400,
+                content={
+                    "error": "invalid_request",
+                    "error_description": (
+                        "MCP requests must use exactly one authentication credential."
+                    ),
+                },
+            )
+            return
+
+        auth_method: str
+        credential: str | None
+        if custom_present:
+            auth_method = "direct_custom_header"
+            credential = custom_key
+        elif bearer_present:
+            auth_method = (
+                "direct_bearer"
+                if token is not None and token.startswith(DIRECT_KEY_PREFIX)
+                else "oauth"
+            )
+            credential = token
+        else:
+            auth_method = "missing"
+            credential = None
+
+        if credential is None:
             await _send_json(
                 send,
                 status=401,
                 content={
                     "error": "invalid_token",
-                    "error_description": "A valid OAuth bearer token is required.",
+                    "error_description": (
+                        "A valid OAuth bearer token or configured MCP direct key "
+                        "is required."
+                    ),
                 },
                 headers=[(b"www-authenticate", challenge.encode("latin-1"))],
             )
             return
 
-        is_direct_bearer = token.startswith(DIRECT_KEY_PREFIX)
         try:
-            principal = await asyncio.to_thread(
-                _validate_bearer,
-                token,
-                resource_uri,
-            )
+            if auth_method == "direct_custom_header":
+                principal = await asyncio.to_thread(
+                    _direct_custom_header_principal,
+                    credential,
+                    resource_uri,
+                )
+            else:
+                principal = await asyncio.to_thread(
+                    _validate_bearer,
+                    credential,
+                    resource_uri,
+                )
         except McpOAuthDisabledError:
             await _send_json(
                 send,
@@ -302,7 +456,10 @@ class PartPilotMcpGateway:
                     "error": "insufficient_scope",
                     "error_description": (
                         "MCP read tools are disabled in Part Pilot settings."
-                        if is_direct_bearer
+                        if auth_method in {
+                            "direct_bearer",
+                            "direct_custom_header",
+                        }
                         else "The OAuth token lacks MCP read access."
                     ),
                 },
@@ -325,8 +482,12 @@ class PartPilotMcpGateway:
                     "error": "invalid_token",
                     "error_description": (
                         "The Part Pilot direct Bearer key is invalid."
-                        if is_direct_bearer
-                        else "The OAuth bearer token is invalid or expired."
+                        if auth_method == "direct_bearer"
+                        else (
+                            "The Part Pilot custom-header key is invalid."
+                            if auth_method == "direct_custom_header"
+                            else "The OAuth bearer token is invalid or expired."
+                        )
                     ),
                 },
                 headers=[(b"www-authenticate", challenge.encode("latin-1"))],
