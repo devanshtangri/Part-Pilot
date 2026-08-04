@@ -1,6 +1,7 @@
 import type {
   AppearanceSettings,
   AppearanceSettingsUpdatePayload,
+  McpDirectAuthCustomHeaderPayload,
   McpDirectAuthKeyResponse,
   McpDirectAuthStatus,
   McpSettings,
@@ -144,7 +145,7 @@ export function updateMcpSettings(
 }
 
 
-// PARTPILOT:MCP_DIRECT_AUTH_CLIENT:V491
+// PARTPILOT:MCP_DIRECT_AUTH_CLIENT:V500
 export function getMcpDirectAuth(
   token: string
 ): Promise<McpDirectAuthStatus> {
@@ -164,7 +165,21 @@ export function rotateMcpDirectBearerKey(
   );
 }
 
-export function revealMcpDirectBearerKey(
+export function rotateMcpDirectCustomHeaderKey(
+  token: string,
+  payload: McpDirectAuthCustomHeaderPayload
+): Promise<McpDirectAuthKeyResponse> {
+  return requestJson<McpDirectAuthKeyResponse>(
+    "/settings/mcp/direct-auth/custom-header",
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export function revealMcpDirectKey(
   token: string
 ): Promise<McpDirectAuthKeyResponse> {
   return requestJson<McpDirectAuthKeyResponse>(

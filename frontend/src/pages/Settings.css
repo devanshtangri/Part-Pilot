@@ -1817,9 +1817,9 @@
 }
 
 
-/* PARTPILOT:MCP_DIRECT_AUTH_STYLES:V491 */
+/* PARTPILOT:MCP_DIRECT_AUTH_STYLES:V500 */
 .settings-page {
-  --partpilot-mcp-direct-auth-v491: 1;
+  --partpilot-mcp-direct-auth-v500: 1;
 }
 
 .settings-mcp-direct-auth {
@@ -1914,6 +1914,112 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.69rem;
   font-weight: 700;
+}
+
+.settings-mcp-direct-summary dd small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 650;
+}
+
+.settings-mcp-direct-mode {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-mcp-direct-mode button {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 9px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings-mcp-direct-mode button:hover:not(:disabled) {
+  border-color: color-mix(
+    in srgb,
+    var(--accent) 46%,
+    var(--panel-border)
+  );
+}
+
+.settings-mcp-direct-mode button.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.settings-mcp-direct-mode button:focus-visible,
+.settings-mcp-direct-header-config input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.settings-mcp-direct-mode button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.settings-mcp-direct-mode strong {
+  font-size: 0.72rem;
+}
+
+.settings-mcp-direct-mode span,
+.settings-mcp-direct-switch-note,
+.settings-mcp-direct-header-config p {
+  color: var(--muted);
+  font-size: 0.65rem;
+  line-height: 1.45;
+}
+
+.settings-mcp-direct-switch-note,
+.settings-mcp-direct-header-config p {
+  margin: 0;
+}
+
+.settings-mcp-direct-header-config {
+  display: grid;
+  gap: 6px;
+  padding: 10px 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+}
+
+.settings-mcp-direct-header-config label {
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 760;
+}
+
+.settings-mcp-direct-header-config input {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+}
+
+.settings-mcp-direct-header-config input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.settings-mcp-direct-header-config p.is-error {
+  color: var(--danger);
 }
 
 .settings-mcp-direct-secret {
@@ -2043,6 +2149,10 @@
 }
 
 @media (max-width: 520px) {
+  .settings-mcp-direct-mode {
+    grid-template-columns: 1fr;
+  }
+
   .settings-mcp-direct-heading,
   .settings-mcp-direct-confirm {
     align-items: stretch;
