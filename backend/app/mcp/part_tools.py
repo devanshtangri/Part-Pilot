@@ -11,11 +11,12 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models import AuditLog
 from app.schemas.parts import PartResponse
+from app.services.mcp_direct_auth import DIRECT_AUTH_SINGLETON_ID
 from app.services.mcp_oauth import MCP_SCOPE_READ, available_scopes
 from app.services.parts import PartNotFoundError, get_part, list_parts
 
 
-# PARTPILOT:MCP_PART_READ_TOOLS:V470
+# PARTPILOT:MCP_PART_READ_TOOLS:V488
 PART_TOOL_NAMES = ("get_part_details", "search_parts")
 _SORT_FIELDS = {
     "default",
@@ -72,19 +73,46 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
     if not isinstance(principal, dict):
         raise RuntimeError("Authenticated MCP principal is unavailable.")
 
-    required = {
-        "token_id": int,
-        "user_id": int,
-        "client_database_id": int,
-        "client_id": str,
-        "scopes": list,
-        "resource_uri": str,
-    }
-    for key, expected_type in required.items():
-        if not isinstance(principal.get(key), expected_type):
-            raise RuntimeError("Authenticated MCP principal is invalid.")
-    if MCP_SCOPE_READ not in principal["scopes"]:
+    auth_method = principal.get("auth_method")
+    if auth_method not in {"oauth", "direct_bearer"}:
+        raise RuntimeError("Authenticated MCP principal is invalid.")
+    if principal.get("actor_type") != "mcp":
+        raise RuntimeError("Authenticated MCP principal is invalid.")
+    scopes = principal.get("scopes")
+    if (
+        not isinstance(scopes, list)
+        or any(not isinstance(scope_name, str) for scope_name in scopes)
+        or MCP_SCOPE_READ not in scopes
+    ):
         raise RuntimeError("Authenticated MCP principal lacks read access.")
+    if not isinstance(principal.get("resource_uri"), str):
+        raise RuntimeError("Authenticated MCP principal is invalid.")
+
+    if auth_method == "oauth":
+        actor_user_id = principal.get("actor_user_id")
+        oauth = principal.get("oauth")
+        if type(actor_user_id) is not int or not isinstance(oauth, dict):
+            raise RuntimeError("Authenticated MCP OAuth principal is invalid.")
+        expected = {
+            "token_id": int,
+            "client_database_id": int,
+            "client_id": str,
+        }
+        for key, expected_type in expected.items():
+            value = oauth.get(key)
+            if expected_type is int:
+                valid = type(value) is int
+            else:
+                valid = isinstance(value, expected_type)
+            if not valid:
+                raise RuntimeError("Authenticated MCP OAuth principal is invalid.")
+    else:
+        if principal.get("actor_user_id") is not None:
+            raise RuntimeError("Authenticated MCP direct principal is invalid.")
+        if principal.get("direct_auth_id") != DIRECT_AUTH_SINGLETON_ID:
+            raise RuntimeError("Authenticated MCP direct principal is invalid.")
+        if "oauth" in principal:
+            raise RuntimeError("Authenticated MCP direct principal is invalid.")
     return principal
 
 
@@ -133,14 +161,22 @@ def _append_tool_audit(
     result: dict[str, Any] | None = None,
     error_type: str | None = None,
 ) -> None:
+    auth_method = principal["auth_method"]
     metadata: dict[str, Any] = {
         "tool": tool_name,
-        "client_id": principal["client_id"],
-        "token_id": principal["token_id"],
+        "auth_method": auth_method,
         "request_id": request_id,
         "success": success,
         "arguments": arguments,
     }
+    if auth_method == "oauth":
+        oauth = principal["oauth"]
+        metadata["client_id"] = oauth["client_id"]
+        metadata["token_id"] = oauth["token_id"]
+    elif auth_method == "direct_bearer":
+        metadata["direct_auth_id"] = principal["direct_auth_id"]
+    else:
+        raise RuntimeError("Authenticated MCP principal is invalid.")
     if result is not None:
         metadata["result"] = result
     if error_type is not None:
@@ -151,8 +187,8 @@ def _append_tool_audit(
             event_type="mcp.tool_called",
             entity_type="mcp_tool",
             entity_id=None,
-            actor_type="mcp",
-            actor_user_id=principal["user_id"],
+            actor_type=principal["actor_type"],
+            actor_user_id=principal["actor_user_id"],
             summary=(
                 f"MCP client called {tool_name} successfully."
                 if success

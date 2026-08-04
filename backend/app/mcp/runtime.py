@@ -14,18 +14,25 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.mcp.part_tools import register_part_tools
 from app.mcp.workspace_tools import register_workspace_tools
+from app.services.mcp_direct_auth import (
+    DIRECT_AUTH_SINGLETON_ID,
+    DIRECT_KEY_PREFIX,
+    McpDirectAuthConfigurationError,
+    validate_bearer_key,
+)
 from app.services.mcp_oauth import (
     MCP_SCOPE_READ,
     McpOAuthDisabledError,
     McpOAuthInsufficientScopeError,
     McpOAuthInvalidTokenError,
     McpOAuthValidationError,
+    available_scopes,
     validate_access_token,
     validate_resource_uri,
 )
 
 
-# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V471
+# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V488
 _PARTPILOT_MCP = FastMCP(
     name="Part Pilot",
     instructions=(
@@ -145,7 +152,7 @@ async def _send_json(
     await send({"type": "http.response.body", "body": body})
 
 
-def _validate_bearer(token: str, resource_uri: str) -> dict[str, Any]:
+def _oauth_principal(token: str, resource_uri: str) -> dict[str, Any]:
     db = SessionLocal()
     try:
         principal = validate_access_token(
@@ -157,18 +164,63 @@ def _validate_bearer(token: str, resource_uri: str) -> dict[str, Any]:
             commit=True,
         )
         return {
-            "token_id": principal.token_id,
-            "user_id": principal.user_id,
-            "client_database_id": principal.client_database_id,
-            "client_id": principal.client_id,
+            "auth_method": "oauth",
+            "actor_type": "mcp",
+            "actor_user_id": principal.user_id,
             "scopes": sorted(principal.scopes),
             "resource_uri": principal.resource_uri,
+            "oauth": {
+                "token_id": principal.token_id,
+                "client_database_id": principal.client_database_id,
+                "client_id": principal.client_id,
+            },
         }
     except Exception:
         db.rollback()
         raise
     finally:
         db.close()
+
+
+def _direct_bearer_principal(token: str, resource_uri: str) -> dict[str, Any]:
+    db = SessionLocal()
+    try:
+        try:
+            accepted = validate_bearer_key(
+                db,
+                token,
+                touch=True,
+                commit=False,
+            )
+        except McpDirectAuthConfigurationError as exc:
+            raise McpOAuthInvalidTokenError("Invalid MCP direct Bearer key.") from exc
+        if not accepted:
+            raise McpOAuthInvalidTokenError("Invalid MCP direct Bearer key.")
+        scopes = available_scopes(db, require_enabled=True)
+        if MCP_SCOPE_READ not in scopes:
+            raise McpOAuthInsufficientScopeError(
+                "MCP read tools are disabled in Part Pilot settings."
+            )
+        db.commit()
+        return {
+            "auth_method": "direct_bearer",
+            "actor_type": "mcp",
+            "actor_user_id": None,
+            "scopes": [MCP_SCOPE_READ],
+            "resource_uri": resource_uri,
+            "direct_auth_id": DIRECT_AUTH_SINGLETON_ID,
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def _validate_bearer(token: str, resource_uri: str) -> dict[str, Any]:
+    if token.startswith(DIRECT_KEY_PREFIX):
+        return _direct_bearer_principal(token, resource_uri)
+    return _oauth_principal(token, resource_uri)
 
 
 class PartPilotMcpGateway:
@@ -224,6 +276,7 @@ class PartPilotMcpGateway:
             )
             return
 
+        is_direct_bearer = token.startswith(DIRECT_KEY_PREFIX)
         try:
             principal = await asyncio.to_thread(
                 _validate_bearer,
@@ -247,7 +300,11 @@ class PartPilotMcpGateway:
                 status=403,
                 content={
                     "error": "insufficient_scope",
-                    "error_description": "The OAuth token lacks MCP read access.",
+                    "error_description": (
+                        "MCP read tools are disabled in Part Pilot settings."
+                        if is_direct_bearer
+                        else "The OAuth token lacks MCP read access."
+                    ),
                 },
                 headers=[
                     (
@@ -266,7 +323,11 @@ class PartPilotMcpGateway:
                 status=401,
                 content={
                     "error": "invalid_token",
-                    "error_description": "The OAuth bearer token is invalid or expired.",
+                    "error_description": (
+                        "The Part Pilot direct Bearer key is invalid."
+                        if is_direct_bearer
+                        else "The OAuth bearer token is invalid or expired."
+                    ),
                 },
                 headers=[(b"www-authenticate", challenge.encode("latin-1"))],
             )
