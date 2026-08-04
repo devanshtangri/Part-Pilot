@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
@@ -78,3 +79,18 @@ class McpSettingsUpdateRequest(BaseModel):
     enabled: bool
     read_tools_enabled: bool
     write_tools_enabled: bool
+
+
+# PARTPILOT:MCP_DIRECT_AUTH_API_SCHEMA:V485
+McpDirectAuthMode = Literal["disabled", "bearer_key", "custom_header", "trusted_network"]
+
+class McpDirectAuthStatusResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mode: McpDirectAuthMode
+    configured: bool
+    masked_key: str | None
+    rotated_at: datetime | None
+    last_used_at: datetime | None
+
+class McpDirectAuthKeyResponse(McpDirectAuthStatusResponse):
+    key: str

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
         alias="PARTPILOT_INSTANCE_SECRET",
     )
 
+    instance_secret_file: str = Field(
+        default="/data/.partpilot-instance-secret",
+        alias="PARTPILOT_INSTANCE_SECRET_FILE",
+    )
+
     database_url: str = Field(
         default="sqlite:///../data/partpilot.db",
         alias="PARTPILOT_DATABASE_URL",

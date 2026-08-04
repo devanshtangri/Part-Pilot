@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
+import os
+from pathlib import Path
 import secrets
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -50,13 +52,60 @@ def _naive_utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _instance_secret(explicit: str | None = None) -> str:
-    value = explicit if explicit is not None else get_settings().instance_secret
-    if value is None or len(value) < INSTANCE_SECRET_MIN_LENGTH:
+def _validate_instance_secret(value: str) -> str:
+    if len(value) < INSTANCE_SECRET_MIN_LENGTH:
         raise McpDirectAuthConfigurationError(
-            "PARTPILOT_INSTANCE_SECRET must contain at least 32 characters."
+            "The Part Pilot instance secret must contain at least 32 characters."
         )
     return value
+
+
+def _instance_secret(
+    explicit: str | None = None,
+    *,
+    create: bool = False,
+) -> str:
+    if explicit is not None:
+        return _validate_instance_secret(explicit)
+    settings = get_settings()
+    if settings.instance_secret is not None:
+        return _validate_instance_secret(settings.instance_secret)
+    path = Path(settings.instance_secret_file)
+    if path.is_symlink():
+        raise McpDirectAuthConfigurationError(
+            "The Part Pilot instance-secret path is unsafe."
+        )
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        if not create:
+            raise McpDirectAuthConfigurationError(
+                "The Part Pilot instance secret is not configured."
+            )
+        if not path.parent.is_dir() or path.parent.is_symlink():
+            raise McpDirectAuthConfigurationError(
+                "The Part Pilot instance-secret directory is unavailable."
+            )
+        value = secrets.token_urlsafe(48)
+        try:
+            descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            value = path.read_text(encoding="utf-8").strip()
+        else:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(value + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.chmod(path, 0o600)
+    except OSError as exc:
+        raise McpDirectAuthConfigurationError(
+            "The Part Pilot instance secret could not be read."
+        ) from exc
+    if path.is_symlink() or not path.is_file():
+        raise McpDirectAuthConfigurationError(
+            "The Part Pilot instance-secret path is unsafe."
+        )
+    return _validate_instance_secret(value)
 
 
 def _derive(secret: str, purpose: bytes) -> bytes:
@@ -153,7 +202,7 @@ def rotate_bearer_key(
     commit: bool = True,
 ) -> IssuedMcpDirectKey:
     _active_actor(db, actor_user_id)
-    secret = _instance_secret(instance_secret)
+    secret = _instance_secret(instance_secret, create=True)
     plaintext = generate_bearer_key()
     ciphertext = encrypt_bearer_key(plaintext, instance_secret=secret)
     digest = digest_bearer_key(plaintext, instance_secret=secret)
@@ -203,7 +252,15 @@ def rotate_bearer_key(
     return IssuedMcpDirectKey(record=record, plaintext_key=plaintext)
 
 
-def reveal_bearer_key(db: Session, *, instance_secret: str | None = None) -> str:
+def reveal_bearer_key(
+    db: Session,
+    *,
+    instance_secret: str | None = None,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> str:
+    if actor_user_id is not None:
+        _active_actor(db, actor_user_id)
     record = get_direct_auth(db)
     if (
         record is None
@@ -211,13 +268,28 @@ def reveal_bearer_key(db: Session, *, instance_secret: str | None = None) -> str
         or not record.key_ciphertext
         or not record.key_digest
     ):
-        raise McpDirectAuthNotConfiguredError("An MCP direct Bearer key is not configured.")
+        raise McpDirectAuthNotConfiguredError(
+            "An MCP direct Bearer key is not configured."
+        )
     plaintext = decrypt_bearer_key(record.key_ciphertext, instance_secret=instance_secret)
     expected = digest_bearer_key(plaintext, instance_secret=instance_secret)
     if not hmac.compare_digest(expected, record.key_digest):
         raise McpDirectAuthDecryptionError(
             "The configured MCP direct key failed integrity validation."
         )
+    if actor_user_id is not None:
+        _audit(
+            db,
+            event_type="settings.mcp_direct_key_revealed",
+            actor_user_id=actor_user_id,
+            summary="Revealed the MCP direct Bearer key.",
+            before=None,
+            after={"mode": DIRECT_AUTH_BEARER_KEY},
+        )
+        if commit:
+            db.commit()
+        else:
+            db.flush()
     return plaintext
 
 
