@@ -28,7 +28,7 @@ from app.services.mcp_direct_auth import (
 
 
 # PARTPILOT:MCP_DIRECT_AUTH_SMOKE:V497
-EXPECTED_HEAD = "0009_mcp_direct_auth"
+EXPECTED_HEAD = "0010_mcp_trusted_networks"
 SECRET_A = "patch482-direct-auth-secret-A-0123456789-ABCDEFGHIJKLMN"
 SECRET_B = "patch482-direct-auth-secret-B-0123456789-ABCDEFGHIJKLMN"
 
@@ -62,7 +62,7 @@ def check_schema() -> None:
             fail(f"Foreign-key violations: {violations[:20]}")
         expected = {
             "id", "mode", "key_ciphertext", "key_digest", "key_prefix",
-            "custom_header_name", "rotated_at", "last_used_at",
+            "custom_header_name", "trusted_networks_json", "rotated_at", "last_used_at",
             "created_at", "updated_at",
         }
         columns = {str(row[1]) for row in db.execute('PRAGMA table_info("mcp_direct_auth")')}

@@ -34,7 +34,7 @@ from app.schemas.part_types import (
 from app.services.part_types import create_custom_part_type
 
 EXPECTED_PART_TYPES = 34
-EXPECTED_AUTH_SCHEMA_HEAD = "0009_mcp_direct_auth"
+EXPECTED_AUTH_SCHEMA_HEAD = "0010_mcp_trusted_networks"
 MIN_TEMPLATE_FIELDS = 140
 EXPECTED_SETTINGS = {
     "setup.completed",

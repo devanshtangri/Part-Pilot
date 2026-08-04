@@ -5,9 +5,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import hashlib
 import hmac
+import ipaddress
+import json
 import os
 from pathlib import Path
 import re
+from collections.abc import Sequence
 import secrets
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -18,17 +21,19 @@ from app.core.config import get_settings
 from app.models import AuditLog, McpDirectAuth, User
 
 
-# PARTPILOT:MCP_DIRECT_AUTH_SERVICE:V482
+# PARTPILOT:MCP_DIRECT_AUTH_SERVICE:V503
 DIRECT_AUTH_SINGLETON_ID = 1
 DIRECT_AUTH_DISABLED = "disabled"
 DIRECT_AUTH_BEARER_KEY = "bearer_key"
 DIRECT_AUTH_CUSTOM_HEADER = "custom_header"
+DIRECT_AUTH_TRUSTED_NETWORK = "trusted_network"
 DIRECT_KEY_PREFIX = "pp_mcp_key_"
 CUSTOM_HEADER_KEY_PREFIX = "pp_mcp_header_"
 DEFAULT_CUSTOM_HEADER_NAME = "x-partpilot-mcp-key"
 LAST_USED_TOUCH_INTERVAL = timedelta(minutes=5)
 INSTANCE_SECRET_MIN_LENGTH = 32
 CUSTOM_HEADER_NAME_MAX_LENGTH = 120
+TRUSTED_NETWORK_MAX_ITEMS = 64
 _CUSTOM_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 _RESERVED_CUSTOM_HEADER_NAMES = frozenset(
     {
@@ -59,6 +64,10 @@ class McpDirectAuthConfigurationError(McpDirectAuthError):
 
 
 class McpDirectAuthHeaderNameError(McpDirectAuthConfigurationError):
+    pass
+
+
+class McpDirectAuthNetworkError(McpDirectAuthConfigurationError):
     pass
 
 
@@ -174,6 +183,74 @@ def validate_custom_header_name(value: str) -> str:
             "That HTTP header name is reserved and cannot carry an MCP credential."
         )
     return canonical
+
+
+def normalize_trusted_networks(values: Sequence[str]) -> list[str]:
+    if isinstance(values, (str, bytes)):
+        raise McpDirectAuthNetworkError(
+            "Trusted networks must be supplied as a list of CIDRs."
+        )
+    raw_values = list(values)
+    if not raw_values:
+        raise McpDirectAuthNetworkError(
+            "At least one trusted-network CIDR is required."
+        )
+    if len(raw_values) > TRUSTED_NETWORK_MAX_ITEMS:
+        raise McpDirectAuthNetworkError(
+            f"No more than {TRUSTED_NETWORK_MAX_ITEMS} trusted networks are allowed."
+        )
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for raw in raw_values:
+        if not isinstance(raw, str) or not raw.strip():
+            raise McpDirectAuthNetworkError(
+                "Each trusted network must be a non-empty IPv4 or IPv6 CIDR."
+            )
+        try:
+            network = ipaddress.ip_network(raw.strip(), strict=False)
+        except ValueError as exc:
+            raise McpDirectAuthNetworkError(
+                f"Invalid trusted-network CIDR: {raw!r}."
+            ) from exc
+        if (
+            network.prefixlen == 0
+            or network.is_multicast
+            or network.network_address.is_unspecified
+        ):
+            raise McpDirectAuthNetworkError(
+                f"Unsafe trusted-network CIDR: {raw!r}."
+            )
+        for existing in networks:
+            if network.version == existing.version and network.overlaps(existing):
+                raise McpDirectAuthNetworkError(
+                    f"Trusted-network CIDRs overlap: {existing} and {network}."
+                )
+        networks.append(network)
+    networks.sort(
+        key=lambda value: (value.version, int(value.network_address), value.prefixlen)
+    )
+    return [str(value) for value in networks]
+
+
+def _trusted_networks_from_json(value: str | None) -> list[str]:
+    if value is None:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise McpDirectAuthConfigurationError(
+            "The stored MCP trusted-network configuration is invalid."
+        ) from exc
+    if not isinstance(parsed, list):
+        raise McpDirectAuthConfigurationError(
+            "The stored MCP trusted-network configuration is invalid."
+        )
+    return normalize_trusted_networks(parsed)
+
+
+def trusted_networks_for_record(record: McpDirectAuth | None) -> list[str]:
+    if record is None or record.mode != DIRECT_AUTH_TRUSTED_NETWORK:
+        return []
+    return _trusted_networks_from_json(record.trusted_networks_json)
 
 
 def _generate_direct_key(prefix: str) -> str:
@@ -358,6 +435,11 @@ def _record_snapshot(record: McpDirectAuth) -> dict[str, object]:
         "mode": record.mode,
         "key_prefix": record.key_prefix,
         "custom_header_name": record.custom_header_name,
+        "trusted_networks": (
+            _trusted_networks_from_json(record.trusted_networks_json)
+            if record.mode == DIRECT_AUTH_TRUSTED_NETWORK
+            else []
+        ),
         "rotated_at": (
             None if record.rotated_at is None else record.rotated_at.isoformat()
         ),
@@ -401,6 +483,7 @@ def _rotate_direct_key(
     record.key_digest = digest
     record.key_prefix = prefix
     record.custom_header_name = custom_header_name
+    record.trusted_networks_json = None
     record.rotated_at = now
     record.last_used_at = None
     db.flush()
@@ -460,6 +543,48 @@ def rotate_custom_header_key(
         instance_secret=instance_secret,
         commit=commit,
     )
+
+
+def configure_trusted_networks(
+    db: Session,
+    *,
+    actor_user_id: int,
+    networks: Sequence[str],
+    commit: bool = True,
+) -> McpDirectAuth:
+    _active_actor(db, actor_user_id)
+    canonical = normalize_trusted_networks(networks)
+    record = get_direct_auth(db)
+    before = None if record is None else _record_snapshot(record)
+    if record is None:
+        record = McpDirectAuth(
+            id=DIRECT_AUTH_SINGLETON_ID,
+            mode=DIRECT_AUTH_TRUSTED_NETWORK,
+        )
+        db.add(record)
+    record.mode = DIRECT_AUTH_TRUSTED_NETWORK
+    record.key_ciphertext = None
+    record.key_digest = None
+    record.key_prefix = None
+    record.custom_header_name = None
+    record.trusted_networks_json = json.dumps(canonical, separators=(",", ":"))
+    record.rotated_at = None
+    record.last_used_at = None
+    db.flush()
+    _audit(
+        db,
+        event_type="settings.mcp_trusted_networks_configured",
+        actor_user_id=actor_user_id,
+        summary="Configured MCP trusted-network authentication.",
+        before=before,
+        after=_record_snapshot(record),
+    )
+    if commit:
+        db.commit()
+        db.refresh(record)
+    else:
+        db.flush()
+    return record
 
 
 def _mode_prefix(mode: str) -> str | None:
@@ -689,6 +814,7 @@ def disable_direct_auth(db: Session, *, actor_user_id: int, commit: bool = True)
         and record.key_digest is None
         and record.key_prefix is None
         and record.custom_header_name is None
+        and record.trusted_networks_json is None
     ):
         return False
     before = _record_snapshot(record)
@@ -697,6 +823,7 @@ def disable_direct_auth(db: Session, *, actor_user_id: int, commit: bool = True)
     record.key_digest = None
     record.key_prefix = None
     record.custom_header_name = None
+    record.trusted_networks_json = None
     record.rotated_at = None
     record.last_used_at = None
     _audit(

@@ -81,7 +81,7 @@ class McpSettingsUpdateRequest(BaseModel):
     write_tools_enabled: bool
 
 
-# PARTPILOT:MCP_DIRECT_AUTH_API_SCHEMA:V497
+# PARTPILOT:MCP_DIRECT_AUTH_API_SCHEMA:V503
 McpDirectAuthMode = Literal["disabled", "bearer_key", "custom_header", "trusted_network"]
 
 class McpDirectAuthStatusResponse(BaseModel):
@@ -90,6 +90,7 @@ class McpDirectAuthStatusResponse(BaseModel):
     configured: bool
     masked_key: str | None
     custom_header_name: str | None
+    trusted_networks: list[str]
     rotated_at: datetime | None
     last_used_at: datetime | None
 
@@ -101,6 +102,11 @@ class McpDirectAuthCustomHeaderRequest(BaseModel):
         min_length=1,
         max_length=120,
     )
+
+
+class McpDirectAuthTrustedNetworkRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    networks: list[str] = Field(min_length=1, max_length=64)
 
 
 class McpDirectAuthKeyResponse(McpDirectAuthStatusResponse):

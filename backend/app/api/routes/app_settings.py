@@ -11,6 +11,7 @@ from app.schemas.app_settings import (
     McpDirectAuthCustomHeaderRequest,
     McpDirectAuthKeyResponse,
     McpDirectAuthStatusResponse,
+    McpDirectAuthTrustedNetworkRequest,
     McpSettingsResponse,
     McpSettingsUpdateRequest,
     ReservationSettingsResponse,
@@ -22,15 +23,19 @@ from app.services.mcp_direct_auth import (
     DIRECT_AUTH_BEARER_KEY,
     DIRECT_AUTH_CUSTOM_HEADER,
     DIRECT_AUTH_DISABLED,
+    DIRECT_AUTH_TRUSTED_NETWORK,
     McpDirectAuthConfigurationError,
     McpDirectAuthHeaderNameError,
+    McpDirectAuthNetworkError,
     McpDirectAuthDecryptionError,
     McpDirectAuthNotConfiguredError,
+    configure_trusted_networks,
     disable_direct_auth,
     get_direct_auth,
     reveal_direct_key,
     rotate_bearer_key,
     rotate_custom_header_key,
+    trusted_networks_for_record,
 )
 
 from app.services.app_settings import (
@@ -156,14 +161,15 @@ def patch_mcp_settings(
     )
 
 
-# PARTPILOT:MCP_DIRECT_AUTH_API_ROUTE:V497
+# PARTPILOT:MCP_DIRECT_AUTH_API_ROUTE:V503
 def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
 
 def _direct_auth_status(db: Session) -> McpDirectAuthStatusResponse:
     record = get_direct_auth(db)
-    configured = bool(
+    trusted_networks = trusted_networks_for_record(record)
+    key_configured = bool(
         record is not None
         and record.mode in {DIRECT_AUTH_BEARER_KEY, DIRECT_AUTH_CUSTOM_HEADER}
         and record.key_ciphertext
@@ -174,15 +180,21 @@ def _direct_auth_status(db: Session) -> McpDirectAuthStatusResponse:
             or record.custom_header_name is not None
         )
     )
+    configured = key_configured or bool(
+        record is not None
+        and record.mode == DIRECT_AUTH_TRUSTED_NETWORK
+        and trusted_networks
+    )
     return McpDirectAuthStatusResponse(
         mode=record.mode if record is not None else DIRECT_AUTH_DISABLED,
         configured=configured,
-        masked_key=(f"{record.key_prefix}••••••••" if configured and record is not None else None),
+        masked_key=(f"{record.key_prefix}••••••••" if key_configured and record is not None else None),
         custom_header_name=(
             record.custom_header_name
             if record is not None and record.mode == DIRECT_AUTH_CUSTOM_HEADER
             else None
         ),
+        trusted_networks=trusted_networks,
         rotated_at=record.rotated_at if record is not None else None,
         last_used_at=record.last_used_at if record is not None else None,
     )
@@ -253,6 +265,39 @@ def rotate_mcp_custom_header_key(
         **current.model_dump(),
         key=issued.plaintext_key,
     )
+
+
+@router.post(
+    "/mcp/direct-auth/trusted-network",
+    response_model=McpDirectAuthStatusResponse,
+)
+def configure_mcp_trusted_networks(
+    payload: McpDirectAuthTrustedNetworkRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectAuthStatusResponse:
+    _no_store(response)
+    try:
+        configure_trusted_networks(
+            db,
+            actor_user_id=current_user.id,
+            networks=payload.networks,
+            commit=True,
+        )
+    except McpDirectAuthNetworkError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        ) from exc
+    except McpDirectAuthConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        ) from exc
+    return _direct_auth_status(db)
 
 @router.post("/mcp/direct-auth/reveal", response_model=McpDirectAuthKeyResponse)
 def reveal_mcp_direct_key(response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpDirectAuthKeyResponse:

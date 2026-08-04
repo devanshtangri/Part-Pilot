@@ -124,6 +124,7 @@ def assert_status_shape(
     mode: str,
     configured: bool,
     custom_header_name: str | None,
+    trusted_networks: list[str] | None = None,
 ) -> None:
     if payload.get("mode") != mode:
         fail(f"Unexpected direct-auth mode: {payload}")
@@ -131,6 +132,8 @@ def assert_status_shape(
         fail(f"Unexpected direct-auth configured state: {payload}")
     if payload.get("custom_header_name") != custom_header_name:
         fail(f"Unexpected custom header name: {payload}")
+    if payload.get("trusted_networks") != (trusted_networks or []):
+        fail(f"Unexpected trusted networks: {payload}")
 
 
 def main() -> None:
@@ -195,6 +198,7 @@ def main() -> None:
                 "configured": False,
                 "masked_key": None,
                 "custom_header_name": None,
+                "trusted_networks": [],
                 "rotated_at": None,
                 "last_used_at": None,
             }

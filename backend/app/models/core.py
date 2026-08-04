@@ -480,7 +480,7 @@ class ReservationItem(Base, TimestampMixin):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
-# PARTPILOT:MCP_DIRECT_AUTH_MODEL:V482
+# PARTPILOT:MCP_DIRECT_AUTH_MODEL:V503
 class McpDirectAuth(Base, TimestampMixin):
     __tablename__ = "mcp_direct_auth"
     __table_args__ = (
@@ -495,9 +495,15 @@ class McpDirectAuth(Base, TimestampMixin):
             name="ck_mcp_direct_auth_key_bundle",
         ),
         CheckConstraint(
-            "(mode = 'bearer_key' AND key_ciphertext IS NOT NULL AND custom_header_name IS NULL) OR "
-            "(mode = 'custom_header' AND key_ciphertext IS NOT NULL AND custom_header_name IS NOT NULL) OR "
-            "(mode IN ('disabled','trusted_network') AND key_ciphertext IS NULL AND custom_header_name IS NULL)",
+            "(mode = 'bearer_key' AND key_ciphertext IS NOT NULL AND "
+            "custom_header_name IS NULL AND trusted_networks_json IS NULL) OR "
+            "(mode = 'custom_header' AND key_ciphertext IS NOT NULL AND "
+            "custom_header_name IS NOT NULL AND trusted_networks_json IS NULL) OR "
+            "(mode = 'trusted_network' AND key_ciphertext IS NULL AND "
+            "custom_header_name IS NULL AND trusted_networks_json IS NOT NULL AND "
+            "length(trusted_networks_json) > 2) OR "
+            "(mode = 'disabled' AND key_ciphertext IS NULL AND "
+            "custom_header_name IS NULL AND trusted_networks_json IS NULL)",
             name="ck_mcp_direct_auth_mode_fields",
         ),
         UniqueConstraint("key_digest", name="uq_mcp_direct_auth_key_digest"),
@@ -511,6 +517,7 @@ class McpDirectAuth(Base, TimestampMixin):
     key_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     key_prefix: Mapped[str | None] = mapped_column(String(32), nullable=True)
     custom_header_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    trusted_networks_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
