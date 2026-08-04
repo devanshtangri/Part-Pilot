@@ -2358,3 +2358,66 @@ Do not claim scheduled backups exist. Current backup behavior is manual
 download only and no server copy is retained. Preserve completed restore
 evidence, the unused `backups` table, current inventory, History and the six
 Patch 401 fixtures. Keep MCP work separate from the final status-UI checkpoint.
+
+
+<!-- PARTPILOT:CHAT18_STATIC_BEARER_ROADMAP:V487 -->
+## Current roadmap checkpoint — MCP foundation complete
+
+### Overall status
+
+The core inventory application, Reservation/Project lifecycle, History,
+appearance, Settings and backup/restore workflow are operational. The
+read-only OAuth MCP path and direct-key management backend are complete.
+
+### Completed through Patch 486
+
+- [x] Manual-backup status UI and browser-approved checkpoint.
+- [x] OAuth client persistence, PKCE, consent and token lifecycle.
+- [x] Protected OAuth discovery and authorization/token endpoints.
+- [x] Stateless JSON Streamable HTTP `/mcp` runtime.
+- [x] Host/origin validation and protected-resource challenges.
+- [x] Six read-only inventory, Project and Reservation MCP tools.
+- [x] MCP global enable/read/write Settings controls.
+- [x] Encrypted direct-key persistence and rotation foundation.
+- [x] Protected direct-key status/create/reveal/disable backend API.
+- [x] Exact copied-database smoke isolation and live-data preservation.
+
+### Chat 18 — Static Bearer MCP Integration
+
+**Required title:** `Chat 18: Static Bearer MCP Integration`
+**Patch range:** 488–517 inclusive
+**Planned boundary:** Patch 517
+**First patch:** 488
+
+### Immediate implementation order
+
+1. Inspect the exact `/mcp` OAuth gateway and tool principal/audit contract.
+2. Recognize only `pp_mcp_key_...` Bearer credentials as direct keys.
+3. Validate direct keys without weakening OAuth validation.
+4. Preserve MCP enabled/read-tool gating for both authentication paths.
+5. Add a direct-key principal shape compatible with tool audit attribution.
+6. Verify invalid, rotated, disabled and missing-secret behavior.
+7. Prove OAuth and static Bearer credentials coexist.
+8. Add Settings UI for status, create, reveal, copy, rotate and disable.
+9. Browser-test desktop and mobile, then checkpoint the approved UI.
+10. Design custom-header and trusted-network modes separately.
+11. Implement safeguarded write tools only after confirmation and audit
+    contracts are explicit.
+
+### Remaining major work
+
+- [ ] Static Bearer validation in `/mcp`.
+- [ ] Direct-key tool principal and audit attribution.
+- [ ] Direct-key Settings UI and browser approval.
+- [ ] Custom-header API-key mode.
+- [ ] Trusted-network no-auth mode with strict proxy/client-IP validation.
+- [ ] Independent OAuth/direct-auth controls.
+- [ ] Safeguarded write tools and destructive-action confirmation.
+- [ ] External MCP client testing and final public-alpha hardening.
+
+### Scope discipline
+
+Do not create a key automatically. Do not expose plaintext keys in status,
+logs, audits or errors. Keep OAuth fully functional. Do not combine runtime
+integration, frontend controls, custom-header mode, trusted-network mode and
+write tools in one patch.

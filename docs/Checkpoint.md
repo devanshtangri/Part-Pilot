@@ -2901,3 +2901,87 @@ the built CSS through the durable custom property
 `--partpilot-settings-manual-backup-status-v454`, not the stripped CSS comment.
 The four frontend files must remain uncommitted until desktop and mobile
 browser approval, followed by a separate checkpoint patch.
+
+
+<!-- PARTPILOT:CHAT17_MCP_FOUNDATION_CHECKPOINT:V487 -->
+## Chat 17 boundary — backup status finalization and MCP foundation
+
+### Authoritative state after Patch 486
+
+- `HEAD` and `origin/main` before this boundary:
+  `219c0b9cd39efc2b62b5296a841432c7a0d7d5f4`
+- Alembic head: `0009_mcp_direct_auth`
+- Deployment image: `sha256:ffd7330722d3150551894ebe24cc95e3275ea3ba9d9860894966388cb54bbcad`
+- Deployment health: `healthy` with restart count
+  `0`
+- Database SHA-256: `1c242eeb874136578ee7d9af8b508c7c7a5a9e396c4b7965d31577cb9136c7b4`
+- SQLite integrity: `ok`; foreign-key violations: `0`
+- MCP direct-auth rows: `0`
+- OAuth clients: `0`
+- OAuth tokens: `0`
+- Instance-secret file exists: `false`
+- Restore staging operations: `3`
+
+### Completed in Chat 17
+
+- Manual-backup status UI was recovered, browser approved and checkpointed.
+- MCP OAuth persistence, PKCE/consent, access and refresh token lifecycle,
+  protected-resource metadata and authenticated HTTP endpoints are committed.
+- `/mcp` is a stateless JSON Streamable HTTP endpoint with host/origin
+  validation, OAuth Bearer authentication and disabled/read-scope gating.
+- Six read-only tools are committed: inventory search/detail, Project
+  list/detail and Reservation list/detail.
+- MCP Settings exposes committed global enabled/read/write controls.
+- Alembic `0009_mcp_direct_auth` adds encrypted direct-auth persistence.
+- Direct Bearer keys use the `pp_mcp_key_` prefix, keyed validation digests,
+  encrypted-at-rest recoverable plaintext, rotation, reveal, disable,
+  throttled last-use tracking and secret-free audits.
+- Protected management endpoints now provide direct-auth status, create/rotate,
+  reveal and disable operations with no-store responses.
+- No key, direct-auth row or instance-secret file is created automatically.
+
+### Recovery history
+
+- Patches 473–476 failed safely during the MCP Settings slice; Patch 477
+  committed a diagnostic, Patch 479 passed browser testing and Patch 480
+  checkpointed the controls.
+- Patch 481 committed the direct-auth design diagnostic.
+- Patch 482 failed because existing smoke tests changed only unrelated setting
+  timestamps on a disposable database. Patch 483 isolated mutating smoke and
+  committed the backend persistence/service foundation.
+- Patch 484 assumed `sqlite_sequence` always existed. Patch 485 corrected that
+  assumption but scoped instance-secret creation to the wrong helper. Both
+  rolled back cleanly.
+- Patch 486 scoped secret creation to rotation, improved error diagnostics and
+  committed the five-file authenticated management API.
+
+### Live data preserved
+
+- Users: `1`
+- Sessions: `3`
+- Part types: `36`
+- Manufacturers: `9`
+- Packages: `23`
+- Locations: `1`
+- Parts: `15`
+- Projects: `7`
+- Project items: `10`
+- Reservations: `9`
+- Reservation items: `14`
+- Stock movements: `32`
+- Audits: `105`
+- App settings: `17`
+
+### Next chat
+
+The next chat is `Chat 18: Static Bearer MCP Integration`.
+
+- Patch range: 488–517 inclusive
+- First patch: 488
+- Planned boundary: Patch 517
+
+Patch 488 must inspect the exact committed runtime and tool-audit principal
+contract, then connect only `pp_mcp_key_...` Bearer credentials to `/mcp` while
+preserving OAuth behavior. Direct-key Settings UI, browser approval,
+custom-header mode, trusted-network mode and safeguarded write tools remain
+separate later slices.

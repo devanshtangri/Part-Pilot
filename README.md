@@ -55,10 +55,11 @@ assistants can understand and act on inventory safely.
 
 Major remaining areas include:
 
-- Manual-backup status UI finalization.
-- MCP read tools and safeguarded write tools.
-- Authenticated MCP runtime control.
-- Accessibility, security, responsive, and public-alpha polish.
+- Static Bearer authentication in the MCP runtime.
+- Direct-key Settings controls and browser approval.
+- Custom-header and trusted-network MCP authentication modes.
+- Safeguarded MCP write tools.
+- Accessibility, security and public-alpha hardening.
 
 See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
 detailed build plan and [`docs/Checkpoint.md`](docs/Checkpoint.md) for durable
@@ -435,5 +436,37 @@ requires every user to sign in again.
 
 Current backup behavior is manual download only. Part Pilot does not schedule
 backups and does not retain a server-side copy after the download operation.
-The compact status display for this API is the next frontend checkpoint.
+The compact manual-backup status display is implemented and available in Settings.
 <!-- PARTPILOT:BACKUP_RESTORE_README:V457:END -->
+
+
+<!-- PARTPILOT:MCP_FOUNDATION_README:V487:START -->
+## Model Context Protocol foundation
+
+Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
+`/mcp`.
+
+| Capability | Status |
+|---|---|
+| OAuth protected-resource discovery | Available |
+| OAuth authorization code with PKCE | Available |
+| Access/refresh token rotation and revocation | Available |
+| Host and Origin validation | Available |
+| Global MCP and read/write authorization settings | Available |
+| Inventory search and part-detail tools | Available |
+| Project list and detail tools | Available |
+| Reservation list and detail tools | Available |
+| Encrypted static-key persistence | Available |
+| Protected key status/create/reveal/disable API | Available |
+| Static Bearer key accepted by `/mcp` | Not yet implemented |
+| Direct-key Settings UI | Not yet implemented |
+| Custom-header and trusted-network modes | Not yet implemented |
+| Safeguarded write tools | Not yet implemented |
+
+The direct-key backend creates no credential automatically. A real key
+rotation will generate a stable installation secret under the persistent
+`/data` volume, store only encrypted key material plus a keyed validation
+digest, and return plaintext only through authenticated no-store responses.
+OAuth remains the only active `/mcp` authentication path until static Bearer
+runtime integration is completed.
+<!-- PARTPILOT:MCP_FOUNDATION_README:V487:END -->
