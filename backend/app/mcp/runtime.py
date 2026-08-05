@@ -12,6 +12,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from app.core.client_ip import (
     ClientAddressError,
     TrustedProxyConfigurationError,
+    TrustedProxyResolver,
     resolve_public_origin,
 )
 from app.core.config import get_settings
@@ -21,11 +22,13 @@ from app.mcp.workspace_tools import register_workspace_tools
 from app.services.mcp_direct_auth import (
     DIRECT_AUTH_CUSTOM_HEADER,
     DIRECT_AUTH_SINGLETON_ID,
+    DIRECT_AUTH_TRUSTED_NETWORK,
     DIRECT_KEY_PREFIX,
     McpDirectAuthConfigurationError,
     get_direct_auth,
     validate_bearer_key,
     validate_custom_header_key,
+    validate_trusted_network_client,
 )
 from app.services.mcp_oauth import (
     MCP_SCOPE_READ,
@@ -39,7 +42,7 @@ from app.services.mcp_oauth import (
 )
 
 
-# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V499
+# PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V509
 _PARTPILOT_MCP = FastMCP(
     name="Part Pilot",
     instructions=(
@@ -298,12 +301,63 @@ def _direct_custom_header_principal(
         db.close()
 
 
+def _direct_trusted_network_principal(
+    scope: dict[str, Any],
+    resource_uri: str,
+) -> dict[str, Any]:
+    settings = get_settings()
+    try:
+        client_ip = TrustedProxyResolver.from_raw(
+            settings.trusted_proxy_cidrs
+        ).resolve_client_ip(scope)
+    except ClientAddressError as exc:
+        raise McpOAuthValidationError(str(exc)) from exc
+    except TrustedProxyConfigurationError as exc:
+        raise McpDirectAuthConfigurationError(
+            "MCP trusted-proxy configuration is invalid."
+        ) from exc
+
+    db = SessionLocal()
+    try:
+        accepted = validate_trusted_network_client(
+            db,
+            client_ip,
+            touch=True,
+            commit=False,
+        )
+        if not accepted:
+            raise McpOAuthInvalidTokenError(
+                "The MCP request source is not trusted."
+            )
+        scopes = available_scopes(db, require_enabled=True)
+        if MCP_SCOPE_READ not in scopes:
+            raise McpOAuthInsufficientScopeError(
+                "MCP read tools are disabled in Part Pilot settings."
+            )
+        db.commit()
+        return {
+            "auth_method": "direct_trusted_network",
+            "actor_type": "mcp",
+            "actor_user_id": None,
+            "scopes": [MCP_SCOPE_READ],
+            "resource_uri": resource_uri,
+            "direct_auth_id": DIRECT_AUTH_SINGLETON_ID,
+            "client_ip": str(client_ip),
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def _validate_bearer(token: str, resource_uri: str) -> dict[str, Any]:
     if token.startswith(DIRECT_KEY_PREFIX):
         return _direct_bearer_principal(token, resource_uri)
     return _oauth_principal(token, resource_uri)
 
 
+# PARTPILOT:MCP_TRUSTED_NETWORK_RUNTIME:V509
 class PartPilotMcpGateway:
     async def __call__(self, scope, receive, send) -> None:
         if scope.get("type") != "http":
@@ -390,18 +444,18 @@ class PartPilotMcpGateway:
             )
             credential = token
         else:
-            auth_method = "missing"
+            auth_method = "direct_trusted_network"
             credential = None
 
-        if credential is None:
+        if auth_method != "direct_trusted_network" and credential is None:
             await _send_json(
                 send,
                 status=401,
                 content={
                     "error": "invalid_token",
                     "error_description": (
-                        "A valid OAuth bearer token or configured MCP direct key "
-                        "is required."
+                        "A valid OAuth bearer token, configured MCP direct key, "
+                        "or trusted request source is required."
                     ),
                 },
                 headers=[(b"www-authenticate", challenge.encode("latin-1"))],
@@ -409,7 +463,13 @@ class PartPilotMcpGateway:
             return
 
         try:
-            if auth_method == "direct_custom_header":
+            if auth_method == "direct_trusted_network":
+                principal = await asyncio.to_thread(
+                    _direct_trusted_network_principal,
+                    scope,
+                    resource_uri,
+                )
+            elif auth_method == "direct_custom_header":
                 principal = await asyncio.to_thread(
                     _direct_custom_header_principal,
                     credential,
@@ -421,6 +481,19 @@ class PartPilotMcpGateway:
                     credential,
                     resource_uri,
                 )
+        except McpDirectAuthConfigurationError:
+            await _send_json(
+                send,
+                status=503,
+                content={
+                    "error": "temporarily_unavailable",
+                    "error_description": (
+                        "MCP trusted-network authentication is misconfigured."
+                    ),
+                },
+                headers=[(b"retry-after", b"60")],
+            )
+            return
         except McpOAuthDisabledError:
             await _send_json(
                 send,
@@ -443,6 +516,7 @@ class PartPilotMcpGateway:
                         if auth_method in {
                             "direct_bearer",
                             "direct_custom_header",
+                            "direct_trusted_network",
                         }
                         else "The OAuth token lacks MCP read access."
                     ),
@@ -470,7 +544,11 @@ class PartPilotMcpGateway:
                         else (
                             "The Part Pilot custom-header key is invalid."
                             if auth_method == "direct_custom_header"
-                            else "The OAuth bearer token is invalid or expired."
+                            else (
+                                "The MCP request source is not trusted."
+                                if auth_method == "direct_trusted_network"
+                                else "The OAuth bearer token is invalid or expired."
+                            )
                         )
                     ),
                 },

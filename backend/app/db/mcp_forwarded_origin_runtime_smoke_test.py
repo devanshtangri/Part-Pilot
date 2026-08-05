@@ -199,7 +199,7 @@ def main() -> int:
         "[PASS] MCP and OAuth use only configured or explicitly trusted forwarded "
         "origins, ignore spoofed forwarding from untrusted peers, reject malformed "
         "trusted forwarding, preserve protected-resource challenges, and do not "
-        "enable trusted-network authentication"
+        "authenticate requests when no trusted network is configured"
     )
     return 0
 
@@ -208,4 +208,4 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-# PARTPILOT:MCP_FORWARDED_ORIGIN_RUNTIME_SMOKE:V508
+# PARTPILOT:MCP_FORWARDED_ORIGIN_RUNTIME_SMOKE:V509

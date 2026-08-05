@@ -21,7 +21,7 @@ from app.core.config import get_settings
 from app.models import AuditLog, McpDirectAuth, User
 
 
-# PARTPILOT:MCP_DIRECT_AUTH_SERVICE:V503
+# PARTPILOT:MCP_DIRECT_AUTH_SERVICE:V509
 DIRECT_AUTH_SINGLETON_ID = 1
 DIRECT_AUTH_DISABLED = "disabled"
 DIRECT_AUTH_BEARER_KEY = "bearer_key"
@@ -721,6 +721,27 @@ def reveal_custom_header_key(
     )
 
 
+def _touch_direct_auth_last_used(
+    db: Session,
+    record: McpDirectAuth,
+    *,
+    touch: bool,
+    commit: bool,
+) -> None:
+    now = _naive_utc_now()
+    should_touch = touch and (
+        record.last_used_at is None
+        or record.last_used_at <= now - LAST_USED_TOUCH_INTERVAL
+    )
+    if not should_touch:
+        return
+    record.last_used_at = now
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+
+
 def _validate_direct_key(
     db: Session,
     supplied_key: str,
@@ -752,17 +773,50 @@ def _validate_direct_key(
     )
     if not hmac.compare_digest(supplied_digest, record.key_digest):
         return False
-    now = _naive_utc_now()
-    should_touch = touch and (
-        record.last_used_at is None
-        or record.last_used_at <= now - LAST_USED_TOUCH_INTERVAL
+    _touch_direct_auth_last_used(
+        db,
+        record,
+        touch=touch,
+        commit=commit,
     )
-    if should_touch:
-        record.last_used_at = now
-        if commit:
-            db.commit()
-        else:
-            db.flush()
+    return True
+
+
+def validate_trusted_network_client(
+    db: Session,
+    client_ip: str | ipaddress.IPv4Address | ipaddress.IPv6Address,
+    *,
+    touch: bool = True,
+    commit: bool = True,
+) -> bool:
+    record = get_direct_auth(db)
+    if record is None or record.mode != DIRECT_AUTH_TRUSTED_NETWORK:
+        return False
+    try:
+        address = (
+            client_ip
+            if isinstance(client_ip, (ipaddress.IPv4Address, ipaddress.IPv6Address))
+            else ipaddress.ip_address(client_ip)
+        )
+    except ValueError as exc:
+        raise McpDirectAuthNetworkError(
+            "The resolved MCP client address is invalid."
+        ) from exc
+    networks = [
+        ipaddress.ip_network(value, strict=True)
+        for value in trusted_networks_for_record(record)
+    ]
+    if not any(
+        address.version == network.version and address in network
+        for network in networks
+    ):
+        return False
+    _touch_direct_auth_last_used(
+        db,
+        record,
+        touch=touch,
+        commit=commit,
+    )
     return True
 
 

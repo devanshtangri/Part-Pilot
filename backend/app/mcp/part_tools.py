@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from ipaddress import ip_address
 from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -16,7 +17,7 @@ from app.services.mcp_oauth import MCP_SCOPE_READ, available_scopes
 from app.services.parts import PartNotFoundError, get_part, list_parts
 
 
-# PARTPILOT:MCP_PART_READ_TOOLS:V499
+# PARTPILOT:MCP_PART_READ_TOOLS:V509
 PART_TOOL_NAMES = ("get_part_details", "search_parts")
 _SORT_FIELDS = {
     "default",
@@ -74,7 +75,12 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
         raise RuntimeError("Authenticated MCP principal is unavailable.")
 
     auth_method = principal.get("auth_method")
-    if auth_method not in {"oauth", "direct_bearer", "direct_custom_header"}:
+    if auth_method not in {
+        "oauth",
+        "direct_bearer",
+        "direct_custom_header",
+        "direct_trusted_network",
+    }:
         raise RuntimeError("Authenticated MCP principal is invalid.")
     if principal.get("actor_type") != "mcp":
         raise RuntimeError("Authenticated MCP principal is invalid.")
@@ -112,6 +118,18 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
         if principal.get("direct_auth_id") != DIRECT_AUTH_SINGLETON_ID:
             raise RuntimeError("Authenticated MCP direct principal is invalid.")
         if "oauth" in principal:
+            raise RuntimeError("Authenticated MCP direct principal is invalid.")
+        if auth_method == "direct_trusted_network":
+            client_ip = principal.get("client_ip")
+            if not isinstance(client_ip, str):
+                raise RuntimeError("Authenticated MCP trusted-network principal is invalid.")
+            try:
+                ip_address(client_ip)
+            except ValueError as exc:
+                raise RuntimeError(
+                    "Authenticated MCP trusted-network principal is invalid."
+                ) from exc
+        elif "client_ip" in principal:
             raise RuntimeError("Authenticated MCP direct principal is invalid.")
     return principal
 
@@ -173,8 +191,14 @@ def _append_tool_audit(
         oauth = principal["oauth"]
         metadata["client_id"] = oauth["client_id"]
         metadata["token_id"] = oauth["token_id"]
-    elif auth_method in {"direct_bearer", "direct_custom_header"}:
+    elif auth_method in {
+        "direct_bearer",
+        "direct_custom_header",
+        "direct_trusted_network",
+    }:
         metadata["direct_auth_id"] = principal["direct_auth_id"]
+        if auth_method == "direct_trusted_network":
+            metadata["client_ip"] = principal["client_ip"]
     else:
         raise RuntimeError("Authenticated MCP principal is invalid.")
     if result is not None:
