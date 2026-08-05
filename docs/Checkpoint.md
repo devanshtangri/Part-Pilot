@@ -3044,3 +3044,93 @@ separate later slices.
 
 Patch 513 should inspect external-client behavior and the remaining control/write
 contracts before another application implementation slice.
+
+<!-- PARTPILOT:CHAT18_BOUNDARY_CHECKPOINT:V517 -->
+## Chat 18 boundary — MCP authentication and external-read readiness
+
+### Authoritative state before the boundary commit
+
+- `HEAD` and `origin/main`:
+  `f9520747f6123e38ac0f99be273076da79e21b8e`
+- Latest subject: `Verify isolated MCP SDK compatibility`
+- Alembic head: `0010_mcp_trusted_networks`
+- Deployment image:
+  `sha256:49ae754788fb82dc9c81bb12a7cde62194ea89d0e9628969f37faeb00d8b8fde`
+- Deployment: running, healthy, restart count `0`
+- Database SHA-256:
+  `63ed48d4f96675ec371465515eb7478572b341abc9a85e8fb81f2a9fa85bd9fa`
+- Database size: `688128` bytes
+- SQLite integrity: `ok`; foreign-key violations: `0`
+- Parts: `15`; Projects: `7`; Reservations: `9`
+- Stock movements: `32`; audits: `135`; app settings: `17`
+- MCP settings: enabled/read/write = `true/true/false`
+- Direct-auth row: mode `bearer_key`; cipher/digest/prefix lengths
+  `164/64/20`; rotation present; last-use absent
+- OAuth clients/codes/consents/tokens: `6/5/5/0`
+- Instance-secret SHA-256:
+  `19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b`
+- Restore staging fingerprint:
+  `ed92d9fb6d964aec1a23558e27b24fa6b16d3f0d1c503e5ab9ef2b4da8c75ce6`
+
+### Completed in Chat 18
+
+- Static Bearer runtime and compatible direct-principal audit attribution.
+- Direct-auth Settings management for create, reveal, rotate, disable, and mode
+  switching.
+- Custom-header management API, runtime, validation, tests, and browser UI.
+- Trusted-network persistence, protected management, strict IPv4/IPv6
+  validation, runtime dispatch, Settings UI, and browser checkpoint.
+- Explicit trusted-proxy/client-IP resolution with Uvicorn proxy rewriting
+  disabled.
+- Trusted forwarded-origin construction for MCP and OAuth.
+- Official MCP SDK proof against a copied database and the exact deployed image.
+- Live read-only MCP activation with write authorization left disabled.
+- Official SDK `initialize`, all six tools, and real `search_parts` through
+  `https://part.devansh.cc/mcp`.
+- Public metadata advertises only `mcp:read`.
+
+### External-browser finding
+
+Claude, Google, and ChatGPT successfully performed dynamic registration. Browser
+authorization accepted the Part Pilot credentials, granted `mcp:read`, issued
+authorization codes, and returned HTTP `302` callbacks. No client completed a
+token exchange.
+
+The current standalone consent page uses private inline CSS rather than the
+React design system. Browser autofill overrides its field colors. More
+importantly, the first Authorize submission succeeds and deletes the one-time
+CSRF cookie, while a second click submits the same form again and replaces the
+redirect with a raw `Authorization request expired` page.
+
+The security contract is correct; the browser UX is incomplete.
+
+### Exact abandoned external-test evidence
+
+Preserve these rows until an allowlisted cleanup after successful retesting:
+
+- OAuth client IDs `1-3`: Claude
+- OAuth client IDs `4-5`: Google
+- OAuth client ID `6`: ChatGPT
+- Authorization-code IDs `1-5`: issued and unconsumed
+- Consent IDs `1-5`: `mcp:read`
+- OAuth token rows: none
+
+Do not delete by client name or broad date range. Any cleanup must verify these
+exact IDs, zero token ownership, expected redirect URI shapes, and unchanged
+unrelated OAuth rows before deletion.
+
+### Next chat
+
+The next chat is `Chat 19: OAuth Connector Completion and MCP Write Foundation`.
+
+- Patch range: `518-547`
+- First patch: `518`
+- Planned boundary: `547`
+
+Patch 518 must repair the OAuth browser workflow before write-tool work:
+consistent standalone Part Pilot styling, autofill treatment, immediate
+submit-button locking, clicked-button progress text, duplicate-POST prevention,
+and styled expired/invalid/unavailable pages. Preserve one-time CSRF behavior.
+The application source remains browser-test pending until Claude, Google, or ChatGPT
+completes registration, consent, callback, token exchange, MCP initialization,
+tool listing, and a read-only call.

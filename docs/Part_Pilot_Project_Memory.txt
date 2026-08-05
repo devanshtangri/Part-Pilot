@@ -10,90 +10,84 @@ Project
 Patch workflow
 - Every implementation, fix, diagnostic, documentation update, checkpoint,
   commit, push and boundary is one complete downloadable sequential Python file.
-- Never place a newly generated patch inside the project for the user. Provide
-  only the downloadable file; the user places it under fixes/.
+- Never place a generated patch inside the project. Provide only the download;
+  the user places it under fixes/.
 - Filenames begin directly with the patch number. Failed user-run scripts
   consume their numbers. Success ends with exactly `Everything PASS`.
-- Validate exact repo, branch, HEAD/origin, Git/index, source hashes,
-  prerequisites and in-memory transforms before backups or writes.
+- Validate exact repo, branch, HEAD/origin, Git/index, source, prerequisites and
+  all transforms before backup/write.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs: /projects/Part Pilot/fixes/logs/
 - Diagnostic Markdown prefix: `diagonostic_`.
 - Application patches build/deploy, verify Alembic, protected APIs, SPA routes,
   complete copied-database smoke, live-data preservation and rollback.
-- Browser-test source remains uncommitted until approval, followed by a
-  separate checkpoint patch.
+- Browser-test source stays uncommitted until approval; checkpoint separately.
 - After two consecutive pre-write failures, repeated anchor mismatches or
   source uncertainty, stop and issue a diagnostic-only patch.
 - Keep this file at or below 8,000 characters.
 - Never execute numbered patch scripts for the user.
 
 Chat boundaries
-- Chat 18 is `Chat 18: Static Bearer MCP Integration`.
-- It owns Patches 488-517; Patch 517 is its planned boundary.
-- No next-chat prompt is posted until the boundary script ends with
-  `Everything PASS`.
+- Chat 18 owns Patches 488-517 and ends only after Patch 517 passes.
+- Chat 19 title: `Chat 19: OAuth Connector Completion and MCP Write Foundation`.
+- Chat 19 owns Patches 518-547; Patch 547 is its planned boundary.
+- Do not create a starting-prompt file. Post the ready prompt only after the
+  boundary script ends with `Everything PASS`.
 
 Inventory safety
-- Never assume an empty database.
-- Preserve real inventory, users, sessions, catalogues, Projects,
-  Reservations, movements, audits, settings, credentials and restore evidence.
+- Preserve real users, sessions, catalogues, inventory, Projects, Reservations,
+  movements, audits, settings, credentials and restore evidence.
 - Six realistic Patch 401 parts remain intentionally preserved.
-- Cleanup only manifest-owned fixture IDs.
+- Cleanup only exact manifest/allowlist IDs with before/after proof.
 - SQLite integrity and foreign-key checks must pass.
 
 Completed application
-- Authenticated inventory with reusable catalogues, typed templates, universal
-  search, filters/pagination/sorting, stock sections, quantity workflows, soft
-  deletion/restoration and detailed History.
+- Authenticated inventory, typed templates, reusable catalogues, universal
+  search, stock filtering/sorting/pagination, quantity workflows, soft delete,
+  restoration, and detailed History.
 - Atomic Reservation and Project reserve/release/consume/edit lifecycles.
 - Responsive dark/light/system appearance and completed Settings workspace.
-- Portable `.ppbackup` download, strict restore validation, persistent staging,
-  maintenance/drain, pre-Uvicorn bootstrap, rollback snapshot, atomic
-  replacement, session invalidation and browser-approved Settings workflow.
-- Manual-backup status API and UI are complete.
+- Portable backup download, strict restore validation, persistent staging,
+  maintenance/drain, bootstrap, rollback snapshot, atomic replacement, session
+  invalidation, and browser-approved Settings workflow.
 
-Completed MCP authentication through Patch 511
-- OAuth persistence, PKCE/consent, protected endpoints, access/refresh
-  lifecycle, revocation and protected-resource metadata.
-- Stateless JSON Streamable HTTP `/mcp` with explicit public-origin and
+Completed MCP through Chat 18
+- OAuth discovery, dynamic registration, PKCE consent, access/refresh lifecycle,
+  revocation and protected-resource metadata.
+- Stateless JSON Streamable HTTP `/mcp` with explicit public origin and strict
   Host/Origin validation.
-- Six read-only tools: part search/detail, Project list/detail, Reservation
-  list/detail.
+- Six read-only part, Project and Reservation tools.
 - Global MCP enabled/read/write Settings controls.
-- Static Bearer runtime with `pp_mcp_key_` recognition, direct principal/audit
-  attribution, rotation/reveal/disable, throttled last-use and Settings UI.
-- Custom-header protected management API, runtime dispatch, validation, tests,
-  Settings UI and browser checkpoint.
-- Alembic 0010 trusted-network persistence and protected management API.
-- Strict IPv4/IPv6 CIDR canonicalization and overlap/trust-all/multicast/
-  unspecified/duplicate rejection.
-- Uvicorn implicit proxy handling is disabled. A strict trusted-proxy/client-IP
-  resolver ignores forwarding headers from untrusted peers.
-- MCP/OAuth forwarded-origin construction uses that resolver and the explicit
-  public base URL.
-- Trusted-network runtime is credentialless only when no explicit credential is
-  supplied; invalid explicit credentials never fall back to network trust.
-- Trusted-network Settings UI is browser approved and committed.
-- OAuth, Bearer, custom-header and trusted-network regression paths coexist.
+- Static Bearer, custom-header, and trusted-network management/runtime.
+- Encrypted direct keys, keyed validation, reveal/rotation/disable, bounded
+  last-use, no-store responses, and secret-free audits.
+- Alembic 0010 trusted-network persistence and strict IPv4/IPv6 validation.
+- Uvicorn implicit proxy handling disabled; strict trusted-proxy/client-IP
+  resolution ignores untrusted forwarding headers.
+- Official MCP SDK passed initialize, six-tool listing, and structured
+  search_parts on copied data and through the public Nginx TLS route.
+- Live MCP/read settings are enabled; write authorization is disabled.
 
-Authoritative application checkpoint after Patch 511
-- Feature HEAD/origin: e0241ecc7e51271944867110714b96b4259a09f9
+Authoritative pre-boundary state
+- HEAD/origin: f9520747f6123e38ac0f99be273076da79e21b8e
 - Deployment image:
   sha256:49ae754788fb82dc9c81bb12a7cde62194ea89d0e9628969f37faeb00d8b8fde
-- Database SHA-256:
-  b720faff64ac220abb4722fe91756e03bbb79b260691c38f9a89373e50740f10
-- Parts 15; Projects 7; Reservations 9; movements 32; audits 114
-- App settings 17; direct-auth rows 1; OAuth clients/tokens 0/0
-- Active mode: rotated Bearer key; trusted-network JSON: null
-- Instance-secret SHA-256:
+- Database SHA:
+  63ed48d4f96675ec371465515eb7478572b341abc9a85e8fb81f2a9fa85bd9fa
+- Parts 15; Projects 7; Reservations 9; movements 32; audits 135
+- MCP settings true/true/false
+- Direct Bearer mode is active with a freshly rotated key; do not reveal,
+  rotate, disable, or replace it automatically.
+- OAuth clients/codes/consents/tokens: 6/5/5/0
+- Instance-secret SHA:
   19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b
 - Restore staging fingerprint:
   ed92d9fb6d964aec1a23558e27b24fa6b16d3f0d1c503e5ab9ef2b4da8c75ce6
 
-Remaining work
-- External MCP client compatibility and connection guidance.
-- Independent OAuth/direct-auth controls if a diagnostic finds a gap.
-- Safeguarded MCP write-tool confirmation, invariants and audit contracts.
-- Accessibility, security and public-alpha release hardening.
-- Patch 513 should inspect those remaining contracts before implementation.
+Chat 19 immediate work
+- Fix standalone OAuth styling, autofill colors, duplicate-submit locking and
+  polished expired/invalid/unavailable pages without weakening CSRF.
+- Complete Claude, Google, or ChatGPT callback, token exchange, connection and read call.
+- Preserve abandoned test rows until exact allowlisted cleanup:
+  clients 1-6, codes 1-5, consents 1-5, tokens none.
+- Only after external OAuth approval, define safeguarded MCP write contracts.

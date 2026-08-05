@@ -2471,3 +2471,61 @@ write tools in one patch.
 Do not activate trusted-network mode automatically. Do not trust the Docker
 gateway while the published port remains directly reachable. Do not combine
 external-client hardening and inventory-mutating write tools in one patch.
+
+<!-- PARTPILOT:CHAT19_OAUTH_CONNECTOR_ROADMAP:V517 -->
+## Current roadmap checkpoint — external OAuth connector completion
+
+### Completed through Patch 516
+
+- [x] OAuth discovery, dynamic registration, PKCE consent, token lifecycle, and
+  revocation foundations.
+- [x] Stateless public Streamable HTTP `/mcp`.
+- [x] Six read-only inventory, Project, and Reservation tools.
+- [x] Bearer, custom-header, and trusted-network authentication modes.
+- [x] Strict proxy/client-IP and public-origin handling.
+- [x] Official Python MCP SDK compatibility on copied data.
+- [x] Live public-TLS SDK initialization, tool listing, and read call.
+- [x] Live MCP/read enabled with write authorization disabled.
+- [x] Claude, Google, and ChatGPT dynamic registration, consent, and code issuance proven.
+
+### Blocking external-client issue
+
+- [ ] Prevent duplicate consent-form submissions.
+- [ ] Show progress and disable both actions immediately.
+- [ ] Match standalone OAuth fields/buttons to the Part Pilot visual system.
+- [ ] Override browser-autofill field colors.
+- [ ] Replace raw expired, invalid, unavailable, and server-error pages.
+- [ ] Complete a real Claude, Google, or ChatGPT token exchange.
+- [ ] Complete external OAuth MCP initialization, tools/list, and a read call.
+- [ ] Clean only exact abandoned tokenless test rows after successful retesting.
+
+### Chat 19
+
+**Required title:** `Chat 19: OAuth Connector Completion and MCP Write Foundation`
+**Patch range:** `518-547`
+**First patch:** `518`
+**Planned boundary:** `547`
+
+### Implementation order
+
+1. Patch 518: implement the narrow OAuth standalone-page and duplicate-submit
+   fix; build, deploy, and leave source uncommitted for browser testing.
+2. Browser-test a fresh Claude, Google, or ChatGPT connector registration. Click Authorize
+   once and verify callback, token exchange, connection, tools, and a read call.
+3. Apply any browser feedback in the next sequential patch.
+4. Checkpoint the approved OAuth source separately.
+5. Clean only verified abandoned client/code/consent IDs from Chat 18 while
+   preserving the successful external client and all unrelated rows.
+6. Add connector administration/revocation visibility if required by the test.
+7. Define safeguarded write-tool confirmation, idempotency, quantity, stock,
+   audit, and rollback contracts in a diagnostic before implementation.
+8. Implement write tools only in independent, inventory-safe slices.
+9. Complete security, accessibility, and public-alpha hardening.
+10. Complete the Chat 19 boundary at Patch 547.
+
+### Scope discipline
+
+Do not weaken or bypass the CSRF check. Do not alter the active direct Bearer
+credential. Do not delete OAuth rows by name, timestamp, or broad query.
+Do not start inventory-mutating MCP tools until one external OAuth read-only
+client is fully connected and the write contract is independently approved.

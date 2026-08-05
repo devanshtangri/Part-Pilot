@@ -440,7 +440,7 @@ The compact manual-backup status display is implemented and available in Setting
 <!-- PARTPILOT:BACKUP_RESTORE_README:V457:END -->
 
 
-<!-- PARTPILOT:MCP_AUTHENTICATION_README:V512:START -->
+<!-- PARTPILOT:MCP_AUTHENTICATION_README:V517:START -->
 ## Model Context Protocol authentication
 
 Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
@@ -454,23 +454,26 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | Explicit public-origin and Host/Origin validation | Available |
 | Global MCP and read/write authorization settings | Available |
 | Six read-only inventory, Project and Reservation tools | Available |
+| Official Python MCP SDK compatibility | Verified |
+| Public Nginx TLS Streamable HTTP path | Verified |
 | Static Bearer key authentication | Available |
 | Dedicated custom-header key authentication | Available |
 | Trusted-network authentication with IPv4/IPv6 CIDRs | Available |
 | Strict trusted-proxy and client-IP resolution | Available |
 | Direct-auth Settings management and browser UI | Available |
+| Claude/Google OAuth browser completion | UX hardening pending |
 | Safeguarded MCP write tools | Not yet implemented |
-| External-client compatibility hardening | Pending |
 
-No direct credential is created automatically. Key modes use the
-`pp_mcp_key_` prefix, encrypted-at-rest recoverable key material, a keyed
-validation digest, authenticated no-store reveal/rotation responses, and
-secret-free audit events. Trusted-network mode accepts only resolved client
-addresses in explicitly configured CIDRs. Forwarding headers are ignored unless
-the immediate proxy is explicitly trusted, and invalid explicit credentials
-never fall back to network trust.
+The live installation currently has MCP and read tools enabled while write
+authorization remains disabled. The administrator re-enabled Bearer-key direct
+authentication after the first external tests; OAuth and direct Bearer access
+therefore coexist again.
 
-OAuth, Bearer, custom-header, and trusted-network authentication coexist. The
-active live mode remains an explicitly rotated Bearer key until an administrator
-deliberately switches it in Settings.
-<!-- PARTPILOT:MCP_AUTHENTICATION_README:V512:END -->
+The official Python MCP SDK has completed `initialize`, `tools/list`, and a
+structured read-only `search_parts` call through the public Nginx TLS route.
+Initial Claude, Google, and ChatGPT browser tests proved registration, consent,
+and authorization-code issuance, but exposed an unfinished standalone OAuth
+page: duplicate form submission can replace the successful redirect with an
+unstyled expired-request response. External connector completion remains
+pending until that browser workflow is repaired and retested end to end.
+<!-- PARTPILOT:MCP_AUTHENTICATION_README:V517:END -->
