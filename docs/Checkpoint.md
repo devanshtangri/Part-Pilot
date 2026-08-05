@@ -2985,3 +2985,62 @@ contract, then connect only `pp_mcp_key_...` Bearer credentials to `/mcp` while
 preserving OAuth behavior. Direct-key Settings UI, browser approval,
 custom-header mode, trusted-network mode and safeguarded write tools remain
 separate later slices.
+
+<!-- PARTPILOT:CHAT18_MCP_AUTHENTICATION_CHECKPOINT:V512 -->
+## Chat 18 milestone — MCP authentication stack complete
+
+### Authoritative application state after Patch 511
+
+- Feature commit and `origin/main`:
+  `e0241ecc7e51271944867110714b96b4259a09f9`
+- Alembic head: `0010_mcp_trusted_networks`
+- Deployment image:
+  `sha256:49ae754788fb82dc9c81bb12a7cde62194ea89d0e9628969f37faeb00d8b8fde`
+- Deployment health: `healthy`; restart count: `0`
+- Database SHA-256:
+  `b720faff64ac220abb4722fe91756e03bbb79b260691c38f9a89373e50740f10`
+- SQLite integrity: `ok`; foreign-key violations: `0`
+- Parts: `15`; Projects: `7`; Reservations: `9`
+- Stock movements: `32`; audits: `114`; app settings: `17`
+- MCP direct-auth rows: `1`; OAuth clients/tokens: `0/0`
+- Active direct-auth mode: rotated Bearer key
+- Active custom header: none
+- Active trusted-network JSON: none
+- Instance-secret SHA-256:
+  `19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b`
+
+### Completed authentication work
+
+- Static `pp_mcp_key_` Bearer credentials are recognized without weakening
+  OAuth Bearer validation.
+- Direct principals produce compatible tool-call audit attribution.
+- Settings supports create, reveal, copy, rotate, disable, and mode switching.
+- Custom-header mode has protected management API, runtime dispatch, validation,
+  responsive Settings controls, and browser approval.
+- Alembic `0010_mcp_trusted_networks` adds trusted-network persistence.
+- Trusted-network management canonicalizes IPv4/IPv6 CIDRs and rejects empty,
+  malformed, trust-all, multicast, unspecified, duplicate, overlapping, or
+  over-limit configurations.
+- Uvicorn implicit proxy-header rewriting is disabled.
+- The explicit trusted-proxy/client-IP resolver ignores spoofed forwarding
+  headers from untrusted peers.
+- MCP and OAuth public-origin construction uses the resolver and the configured
+  public base URL.
+- Trusted-network runtime accepts keyless access only when no explicit
+  credential is supplied and the resolved client belongs to an approved CIDR.
+- Invalid explicit OAuth or direct credentials never fall back to network trust.
+- The trusted-network Settings UI was browser approved and committed by
+  Patch 511.
+- OAuth, Bearer, custom-header, and trusted-network regression paths coexist.
+- The live installation remains in Bearer-key mode; no trusted CIDR is active.
+
+### Remaining MCP work
+
+- External MCP client compatibility testing and connection guidance.
+- Independent OAuth/direct-auth administration refinements, if required.
+- Safeguarded write-tool contracts, explicit confirmation semantics, stock
+  invariants, and destructive-action auditing.
+- Accessibility, security, and public-alpha release hardening.
+
+Patch 513 should inspect external-client behavior and the remaining control/write
+contracts before another application implementation slice.

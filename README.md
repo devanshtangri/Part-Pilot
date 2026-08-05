@@ -440,8 +440,8 @@ The compact manual-backup status display is implemented and available in Setting
 <!-- PARTPILOT:BACKUP_RESTORE_README:V457:END -->
 
 
-<!-- PARTPILOT:MCP_FOUNDATION_README:V487:START -->
-## Model Context Protocol foundation
+<!-- PARTPILOT:MCP_AUTHENTICATION_README:V512:START -->
+## Model Context Protocol authentication
 
 Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 `/mcp`.
@@ -451,22 +451,26 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | OAuth protected-resource discovery | Available |
 | OAuth authorization code with PKCE | Available |
 | Access/refresh token rotation and revocation | Available |
-| Host and Origin validation | Available |
+| Explicit public-origin and Host/Origin validation | Available |
 | Global MCP and read/write authorization settings | Available |
-| Inventory search and part-detail tools | Available |
-| Project list and detail tools | Available |
-| Reservation list and detail tools | Available |
-| Encrypted static-key persistence | Available |
-| Protected key status/create/reveal/disable API | Available |
-| Static Bearer key accepted by `/mcp` | Not yet implemented |
-| Direct-key Settings UI | Not yet implemented |
-| Custom-header and trusted-network modes | Not yet implemented |
-| Safeguarded write tools | Not yet implemented |
+| Six read-only inventory, Project and Reservation tools | Available |
+| Static Bearer key authentication | Available |
+| Dedicated custom-header key authentication | Available |
+| Trusted-network authentication with IPv4/IPv6 CIDRs | Available |
+| Strict trusted-proxy and client-IP resolution | Available |
+| Direct-auth Settings management and browser UI | Available |
+| Safeguarded MCP write tools | Not yet implemented |
+| External-client compatibility hardening | Pending |
 
-The direct-key backend creates no credential automatically. A real key
-rotation will generate a stable installation secret under the persistent
-`/data` volume, store only encrypted key material plus a keyed validation
-digest, and return plaintext only through authenticated no-store responses.
-OAuth remains the only active `/mcp` authentication path until static Bearer
-runtime integration is completed.
-<!-- PARTPILOT:MCP_FOUNDATION_README:V487:END -->
+No direct credential is created automatically. Key modes use the
+`pp_mcp_key_` prefix, encrypted-at-rest recoverable key material, a keyed
+validation digest, authenticated no-store reveal/rotation responses, and
+secret-free audit events. Trusted-network mode accepts only resolved client
+addresses in explicitly configured CIDRs. Forwarding headers are ignored unless
+the immediate proxy is explicitly trusted, and invalid explicit credentials
+never fall back to network trust.
+
+OAuth, Bearer, custom-header, and trusted-network authentication coexist. The
+active live mode remains an explicitly rotated Bearer key until an administrator
+deliberately switches it in Settings.
+<!-- PARTPILOT:MCP_AUTHENTICATION_README:V512:END -->

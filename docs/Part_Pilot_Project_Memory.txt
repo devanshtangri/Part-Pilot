@@ -5,47 +5,47 @@ Project
 - Root: /projects/Part Pilot; branch: main
 - Compose service: partpilot; host port: 7890
 - React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend
-- Alembic head: 0009_mcp_direct_auth
+- Alembic head: 0010_mcp_trusted_networks
 
 Patch workflow
 - Every implementation, fix, diagnostic, documentation update, checkpoint,
   commit, push and boundary is one complete downloadable sequential Python file.
+- Never place a newly generated patch inside the project for the user. Provide
+  only the downloadable file; the user places it under fixes/.
 - Filenames begin directly with the patch number. Failed user-run scripts
   consume their numbers. Success ends with exactly `Everything PASS`.
 - Validate exact repo, branch, HEAD/origin, Git/index, source hashes,
-  prerequisites and in-memory transforms before writes.
+  prerequisites and in-memory transforms before backups or writes.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs: /projects/Part Pilot/fixes/logs/
 - Diagnostic Markdown prefix: `diagonostic_`.
 - Application patches build/deploy, verify Alembic, protected APIs, SPA routes,
   complete copied-database smoke, live-data preservation and rollback.
-- Browser-test source stays uncommitted until approval, followed by a separate
-  checkpoint patch.
+- Browser-test source remains uncommitted until approval, followed by a
+  separate checkpoint patch.
 - After two consecutive pre-write failures, repeated anchor mismatches or
   source uncertainty, stop and issue a diagnostic-only patch.
 - Keep this file at or below 8,000 characters.
 - Never execute numbered patch scripts for the user.
 
 Chat boundaries
-- Chat 17 was `Chat 17: Backup Status Finalization and MCP Foundation`.
-- It owned Patches 458–487; Patch 487 is its boundary.
 - Chat 18 is `Chat 18: Static Bearer MCP Integration`.
-- It owns Patches 488–517; Patch 517 is its planned boundary.
-- No next-chat starting-prompt file is created. The ready prompt is posted in
-  chat only after the boundary script ends with `Everything PASS`.
+- It owns Patches 488-517; Patch 517 is its planned boundary.
+- No next-chat prompt is posted until the boundary script ends with
+  `Everything PASS`.
 
 Inventory safety
 - Never assume an empty database.
 - Preserve real inventory, users, sessions, catalogues, Projects,
-  Reservations, movements, audits, settings and restore evidence.
+  Reservations, movements, audits, settings, credentials and restore evidence.
 - Six realistic Patch 401 parts remain intentionally preserved.
 - Cleanup only manifest-owned fixture IDs.
 - SQLite integrity and foreign-key checks must pass.
 
 Completed application
 - Authenticated inventory with reusable catalogues, typed templates, universal
-  search, server filters/pagination/sorting, stock sections, quantity workflows,
-  soft deletion/restoration and detailed History.
+  search, filters/pagination/sorting, stock sections, quantity workflows, soft
+  deletion/restoration and detailed History.
 - Atomic Reservation and Project reserve/release/consume/edit lifecycles.
 - Responsive dark/light/system appearance and completed Settings workspace.
 - Portable `.ppbackup` download, strict restore validation, persistent staging,
@@ -53,41 +53,47 @@ Completed application
   replacement, session invalidation and browser-approved Settings workflow.
 - Manual-backup status API and UI are complete.
 
-Completed MCP through Patch 486
-- OAuth persistence, PKCE/consent, protected HTTP endpoints, access/refresh
+Completed MCP authentication through Patch 511
+- OAuth persistence, PKCE/consent, protected endpoints, access/refresh
   lifecycle, revocation and protected-resource metadata.
-- Stateless JSON Streamable HTTP `/mcp` with host/origin validation.
+- Stateless JSON Streamable HTTP `/mcp` with explicit public-origin and
+  Host/Origin validation.
 - Six read-only tools: part search/detail, Project list/detail, Reservation
   list/detail.
 - Global MCP enabled/read/write Settings controls.
-- Alembic 0009 direct-auth singleton persistence.
-- `pp_mcp_key_` generation, encrypted-at-rest recoverable plaintext, keyed
-  validation digest, rotation, reveal, disable, throttled last-use and
-  secret-free audits.
-- Protected direct-auth status/create/reveal/disable API with no-store responses.
-- No direct-auth row, key or instance-secret file is created automatically.
-- OAuth remains the only `/mcp` runtime authentication path.
+- Static Bearer runtime with `pp_mcp_key_` recognition, direct principal/audit
+  attribution, rotation/reveal/disable, throttled last-use and Settings UI.
+- Custom-header protected management API, runtime dispatch, validation, tests,
+  Settings UI and browser checkpoint.
+- Alembic 0010 trusted-network persistence and protected management API.
+- Strict IPv4/IPv6 CIDR canonicalization and overlap/trust-all/multicast/
+  unspecified/duplicate rejection.
+- Uvicorn implicit proxy handling is disabled. A strict trusted-proxy/client-IP
+  resolver ignores forwarding headers from untrusted peers.
+- MCP/OAuth forwarded-origin construction uses that resolver and the explicit
+  public base URL.
+- Trusted-network runtime is credentialless only when no explicit credential is
+  supplied; invalid explicit credentials never fall back to network trust.
+- Trusted-network Settings UI is browser approved and committed.
+- OAuth, Bearer, custom-header and trusted-network regression paths coexist.
 
-Recovery history
-- Patch 482 failed on disposable smoke timestamp differences; Patch 483
-  committed isolated persistence/service foundation.
-- Patch 484 assumed `sqlite_sequence`; Patch 485 corrected that but created the
-  instance secret in the wrong helper. Both rolled back.
-- Patch 486 corrected scoped secret creation and committed the management API.
+Authoritative application checkpoint after Patch 511
+- Feature HEAD/origin: e0241ecc7e51271944867110714b96b4259a09f9
+- Deployment image:
+  sha256:49ae754788fb82dc9c81bb12a7cde62194ea89d0e9628969f37faeb00d8b8fde
+- Database SHA-256:
+  b720faff64ac220abb4722fe91756e03bbb79b260691c38f9a89373e50740f10
+- Parts 15; Projects 7; Reservations 9; movements 32; audits 114
+- App settings 17; direct-auth rows 1; OAuth clients/tokens 0/0
+- Active mode: rotated Bearer key; trusted-network JSON: null
+- Instance-secret SHA-256:
+  19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b
+- Restore staging fingerprint:
+  ed92d9fb6d964aec1a23558e27b24fa6b16d3f0d1c503e5ab9ef2b4da8c75ce6
 
-Authoritative pre-boundary state
-- HEAD/origin: 219c0b9cd39efc2b62b5296a841432c7a0d7d5f4
-- Deployment image: sha256:ffd7330722d3150551894ebe24cc95e3275ea3ba9d9860894966388cb54bbcad
-- Database SHA-256: 1c242eeb874136578ee7d9af8b508c7c7a5a9e396c4b7965d31577cb9136c7b4
-- Parts: 15; Projects: 7;
-  Reservations: 9; audits: 105
-- OAuth clients/tokens: 0/0; direct-auth rows: 0
-- Instance-secret file: absent until first real key rotation
-
-Next implementation
-- Patch 488 inspects the exact OAuth gateway and tool principal/audit contract.
-- Connect only `pp_mcp_key_...` Bearer credentials to `/mcp`.
-- Preserve OAuth, host/origin checks and MCP/read-tool settings gates.
-- Add direct-key principal/audit support and copied-database transport smoke.
-- Keep frontend controls, custom-header, trusted-network and write tools
-  separate.
+Remaining work
+- External MCP client compatibility and connection guidance.
+- Independent OAuth/direct-auth controls if a diagnostic finds a gap.
+- Safeguarded MCP write-tool confirmation, invariants and audit contracts.
+- Accessibility, security and public-alpha release hardening.
+- Patch 513 should inspect those remaining contracts before implementation.

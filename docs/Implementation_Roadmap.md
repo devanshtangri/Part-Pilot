@@ -2421,3 +2421,53 @@ Do not create a key automatically. Do not expose plaintext keys in status,
 logs, audits or errors. Keep OAuth fully functional. Do not combine runtime
 integration, frontend controls, custom-header mode, trusted-network mode and
 write tools in one patch.
+
+<!-- PARTPILOT:CHAT18_MCP_AUTHENTICATION_ROADMAP:V512 -->
+## Current roadmap checkpoint — MCP authentication complete
+
+### Completed through Patch 511
+
+- [x] Static Bearer validation in `/mcp`.
+- [x] Direct-key principal and audit attribution.
+- [x] Direct-key Settings UI and browser checkpoint.
+- [x] Custom-header management API, runtime, tests, and Settings UI.
+- [x] Trusted-network persistence and protected management API.
+- [x] Explicit trusted-proxy/client-IP resolver.
+- [x] Trusted forwarded-origin integration for MCP and OAuth.
+- [x] Trusted-network runtime with explicit-credential precedence.
+- [x] Trusted-network Settings UI and browser checkpoint.
+- [x] OAuth, Bearer, custom-header, and trusted-network coexistence tests.
+- [x] Live inventory, credentials, restore staging, and database preservation.
+
+### Current live posture
+
+- Active direct mode: Bearer key.
+- No trusted-network CIDRs are active.
+- Trusted proxy CIDRs remain empty because the current reverse-proxy and direct
+  published-port paths share the Docker gateway peer.
+- Public MCP/OAuth origin is explicitly configured.
+- Six read-only tools remain available.
+- Write authorization settings exist, but safeguarded write tools are not yet
+  implemented.
+
+### Next implementation order
+
+1. Inspect external MCP client compatibility and connection guidance.
+2. Resolve any remaining independent OAuth/direct-auth administration gaps.
+3. Define safeguarded write-tool confirmation, idempotency, quantity, audit,
+   and rollback contracts.
+4. Implement write tools in separate narrow slices only after the contract is
+   explicit.
+5. Complete accessibility, security, and public-alpha release hardening.
+6. Complete the Chat 18 boundary at Patch 517.
+
+### Remaining major work
+
+- [ ] External MCP client testing and connection guidance.
+- [ ] Independent OAuth/direct-auth controls, if the diagnostic finds a gap.
+- [ ] Safeguarded MCP write tools and destructive-action confirmation.
+- [ ] Accessibility, security, and public-alpha release hardening.
+
+Do not activate trusted-network mode automatically. Do not trust the Docker
+gateway while the published port remains directly reachable. Do not combine
+external-client hardening and inventory-mutating write tools in one patch.
