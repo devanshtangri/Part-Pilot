@@ -1817,9 +1817,9 @@
 }
 
 
-/* PARTPILOT:MCP_DIRECT_AUTH_STYLES:V500 */
+/* PARTPILOT:MCP_TRUSTED_NETWORK_STYLES:V510 */
 .settings-page {
-  --partpilot-mcp-direct-auth-v500: 1;
+  --partpilot-mcp-trusted-network-v510: 1;
 }
 
 .settings-mcp-direct-auth {
@@ -1927,7 +1927,7 @@
 
 .settings-mcp-direct-mode {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1959,7 +1959,8 @@
 }
 
 .settings-mcp-direct-mode button:focus-visible,
-.settings-mcp-direct-header-config input:focus-visible {
+.settings-mcp-direct-config input:focus-visible,
+.settings-mcp-direct-config textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -1975,18 +1976,18 @@
 
 .settings-mcp-direct-mode span,
 .settings-mcp-direct-switch-note,
-.settings-mcp-direct-header-config p {
+.settings-mcp-direct-config p {
   color: var(--muted);
   font-size: 0.65rem;
   line-height: 1.45;
 }
 
 .settings-mcp-direct-switch-note,
-.settings-mcp-direct-header-config p {
+.settings-mcp-direct-config p {
   margin: 0;
 }
 
-.settings-mcp-direct-header-config {
+.settings-mcp-direct-config {
   display: grid;
   gap: 6px;
   padding: 10px 11px;
@@ -1995,13 +1996,14 @@
   background: var(--panel-soft);
 }
 
-.settings-mcp-direct-header-config label {
+.settings-mcp-direct-config label {
   color: var(--text);
   font-size: 0.68rem;
   font-weight: 760;
 }
 
-.settings-mcp-direct-header-config input {
+.settings-mcp-direct-config input,
+.settings-mcp-direct-config textarea {
   width: 100%;
   min-height: 38px;
   padding: 7px 10px;
@@ -2014,13 +2016,42 @@
   font-size: 0.7rem;
 }
 
-.settings-mcp-direct-header-config input[aria-invalid="true"] {
+.settings-mcp-direct-config textarea {
+  resize: vertical;
+  min-height: 104px;
+  line-height: 1.45;
+}
+
+.settings-mcp-direct-config input[aria-invalid="true"],
+.settings-mcp-direct-config textarea[aria-invalid="true"] {
   border-color: var(--danger);
 }
 
-.settings-mcp-direct-header-config p.is-error {
+.settings-mcp-direct-config p.is-error {
   color: var(--danger);
 }
+
+
+.settings-mcp-trusted-warning {
+  padding: 8px 9px;
+  border-left: 3px solid var(--warning, #c88a18);
+  background: color-mix(in srgb, var(--warning, #c88a18) 9%, var(--panel));
+  color: var(--text) !important;
+}
+
+.settings-mcp-trusted-active {
+  display: grid;
+  gap: 7px;
+  padding: 10px 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+}
+
+.settings-mcp-trusted-active > strong { color: var(--text); font-size: 0.68rem; }
+.settings-mcp-trusted-active > div { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.settings-mcp-trusted-active code,
+.settings-mcp-trusted-active span { padding: 4px 7px; border: 1px solid var(--panel-border); border-radius: 5px; background: var(--panel); color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.63rem; }
 
 .settings-mcp-direct-secret {
   display: grid;
@@ -2135,6 +2166,10 @@
 }
 
 @media (max-width: 760px) {
+  .settings-mcp-direct-mode {
+    grid-template-columns: 1fr;
+  }
+
   .settings-mcp-direct-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2149,10 +2184,6 @@
 }
 
 @media (max-width: 520px) {
-  .settings-mcp-direct-mode {
-    grid-template-columns: 1fr;
-  }
-
   .settings-mcp-direct-heading,
   .settings-mcp-direct-confirm {
     align-items: stretch;

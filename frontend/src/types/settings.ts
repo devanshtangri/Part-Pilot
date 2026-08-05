@@ -46,20 +46,28 @@ export interface McpSettings {
 export type McpSettingsUpdatePayload = McpSettings;
 
 
-// PARTPILOT:MCP_DIRECT_AUTH_TYPES:V500
+// PARTPILOT:MCP_TRUSTED_NETWORK_TYPES:V510
 export type McpDirectAuthMode =
   | "disabled"
   | "bearer_key"
   | "custom_header"
   | "trusted_network";
 
-export type McpDirectCredentialMode = "bearer_key" | "custom_header";
+export type McpDirectSelectionMode = Exclude<
+  McpDirectAuthMode,
+  "disabled"
+>;
+export type McpDirectCredentialMode = Exclude<
+  McpDirectSelectionMode,
+  "trusted_network"
+>;
 
 export interface McpDirectAuthStatus {
   mode: McpDirectAuthMode;
   configured: boolean;
   masked_key: string | null;
   custom_header_name: string | null;
+  trusted_networks: string[];
   rotated_at: string | null;
   last_used_at: string | null;
 }
@@ -71,4 +79,8 @@ export interface McpDirectAuthKeyResponse
 
 export interface McpDirectAuthCustomHeaderPayload {
   header_name: string;
+}
+
+export interface McpDirectAuthTrustedNetworkPayload {
+  networks: string[];
 }

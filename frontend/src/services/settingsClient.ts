@@ -4,6 +4,7 @@ import type {
   McpDirectAuthCustomHeaderPayload,
   McpDirectAuthKeyResponse,
   McpDirectAuthStatus,
+  McpDirectAuthTrustedNetworkPayload,
   McpSettings,
   McpSettingsUpdatePayload,
   ReservationSettings,
@@ -145,7 +146,7 @@ export function updateMcpSettings(
 }
 
 
-// PARTPILOT:MCP_DIRECT_AUTH_CLIENT:V500
+// PARTPILOT:MCP_TRUSTED_NETWORK_CLIENT:V510
 export function getMcpDirectAuth(
   token: string
 ): Promise<McpDirectAuthStatus> {
@@ -171,6 +172,20 @@ export function rotateMcpDirectCustomHeaderKey(
 ): Promise<McpDirectAuthKeyResponse> {
   return requestJson<McpDirectAuthKeyResponse>(
     "/settings/mcp/direct-auth/custom-header",
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+export function configureMcpDirectTrustedNetworks(
+  token: string,
+  payload: McpDirectAuthTrustedNetworkPayload
+): Promise<McpDirectAuthStatus> {
+  return requestJson<McpDirectAuthStatus>(
+    "/settings/mcp/direct-auth/trusted-network",
     token,
     {
       method: "POST",
