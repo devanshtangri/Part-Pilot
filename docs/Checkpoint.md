@@ -3305,3 +3305,32 @@ MCP preference reset and destructive MCP access reset remain separate.
     model.
 13. Complete accessibility, security, documentation, and public-alpha
     hardening.
+
+<!-- PARTPILOT:CHAT19_ABANDONED_OAUTH_CLEANUP:V532 -->
+## Chat 19 abandoned OAuth operational-row cleanup
+
+Patch 532 completed the exact token-free cleanup approved by the Patch 531
+diagnostic.
+
+Removed operational rows:
+
+- OAuth client IDs: `1-8, 10-12, 14-17`
+- Authorization-code IDs: `1-8`
+- Consent IDs: `1-7`
+- Token IDs: none
+
+Preserved connected state:
+
+- Claude client `9`, code `9`, consent `8`, token family rows `1` and `3`
+- ChatGPT client `13`, code `10`, consent `9`, token row `2`
+- All 40 pre-existing OAuth audit-history rows
+- Hermes direct Bearer configuration
+- MCP enabled/read/write settings `true/true/false`
+
+Post-cleanup operational counts are two clients, two authorization codes, two
+consents, and three token rows. SQLite integrity and foreign-key checks passed.
+No application source, migration, build, deployment image, credential, README,
+inventory, Project, Reservation, user, or restore-staging state changed.
+
+The next implementation slice is connected OAuth client visibility and
+revocation in Settings.
