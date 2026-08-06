@@ -163,6 +163,14 @@ function humanise(value: string | null): string {
     .join(" ");
 }
 
+// PARTPILOT:HISTORY_ENTITY_ACRONYM_NORMALIZATION:V543
+function normaliseTechnicalLabel(value: string): string {
+  return value.replace(
+    /\b(api|cidr|csv|http|https|id|ip|json|mcp|oauth|pkce|ui|uri|url)\b/gi,
+    (word) => TECHNICAL_ACRONYMS[word.toLowerCase()] ?? word
+  );
+}
+
 function eventTitle(entry: HistoryEntry): string {
   return EVENT_TITLES[entry.event_type] ?? humanise(entry.event_type);
 }
@@ -183,7 +191,7 @@ function actorLabel(entry: HistoryEntry): string {
 
 function entityLabel(entry: HistoryEntry): string {
   if (entry.entity_label) {
-    return entry.entity_label;
+    return normaliseTechnicalLabel(entry.entity_label);
   }
   if (entry.entity_type && entry.entity_id !== null) {
     return `${humanise(entry.entity_type)} #${entry.entity_id}`;
@@ -500,6 +508,7 @@ export function History() {
       className="page-stack history-page"
       data-partpilot-history="PARTPILOT:SYSTEM_HISTORY_WORKSPACE:V408"
       data-partpilot-history-mobile="PARTPILOT:HISTORY_MOBILE_REGISTER_FIRST:V408"
+      data-partpilot-history-entity-acronyms="PARTPILOT:HISTORY_ENTITY_ACRONYM_NORMALIZATION:V543"
     >
       <header className="history-header">
         <div className="page-header">

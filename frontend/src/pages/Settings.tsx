@@ -24,10 +24,12 @@ import {
   configureMcpDirectTrustedNetworks,
   disableMcpDirectAuth,
   getMcpDirectAuth,
+  getMcpOAuthClients,
   getMcpSettings,
   getReservationSettings,
   getSearchSettings,
   revealMcpDirectKey,
+  revokeMcpOAuthClient,
   rotateMcpDirectBearerKey,
   rotateMcpDirectCustomHeaderKey,
   updateMcpSettings,
@@ -42,6 +44,7 @@ import type {
   AppearanceTheme,
   McpDirectAuthStatus,
   McpDirectSelectionMode,
+  McpOAuthClientSummary,
   McpSettings,
   ReservationExpiryMode,
   ReservationSettings,
@@ -319,6 +322,24 @@ export function Settings() {
   const [mcpUrlCopied, setMcpUrlCopied] = useState(false);
   const [mcpCopyError, setMcpCopyError] =
     useState<string | null>(null);
+  // PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_UI:V542
+  const [mcpOAuthClients, setMcpOAuthClients] = useState<
+    McpOAuthClientSummary[] | null
+  >(null);
+  const [mcpOAuthClientsLoading, setMcpOAuthClientsLoading] =
+    useState(true);
+  const [mcpOAuthClientsError, setMcpOAuthClientsError] =
+    useState<string | null>(null);
+  const [mcpOAuthClientsMessage, setMcpOAuthClientsMessage] =
+    useState<string | null>(null);
+  const [mcpOAuthReloadVersion, setMcpOAuthReloadVersion] =
+    useState(0);
+  const [mcpOAuthRevokeTarget, setMcpOAuthRevokeTarget] =
+    useState<McpOAuthClientSummary | null>(null);
+  const [mcpOAuthRevokingId, setMcpOAuthRevokingId] =
+    useState<number | null>(null);
+  const [mcpOAuthRevokeError, setMcpOAuthRevokeError] =
+    useState<string | null>(null);
   const [mcpDirectAuth, setMcpDirectAuth] =
     useState<McpDirectAuthStatus | null>(null);
   const [mcpDirectAuthLoading, setMcpDirectAuthLoading] =
@@ -577,6 +598,48 @@ export function Settings() {
     };
   }, [mcpReloadVersion, token]);
 
+  // PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_UI:V542
+  useEffect(() => {
+    if (!token) {
+      setMcpOAuthClients(null);
+      setMcpOAuthClientsLoading(false);
+      setMcpOAuthClientsError(
+        "Your session is unavailable. Sign in again."
+      );
+      return;
+    }
+
+    let cancelled = false;
+    setMcpOAuthClientsLoading(true);
+    setMcpOAuthClientsError(null);
+
+    getMcpOAuthClients(token)
+      .then((result) => {
+        if (!cancelled) {
+          setMcpOAuthClients(result.clients);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setMcpOAuthClients(null);
+          setMcpOAuthClientsError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load connected OAuth clients"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setMcpOAuthClientsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mcpOAuthReloadVersion, token]);
+
   // PARTPILOT:MCP_TRUSTED_NETWORK_UI:V510
   useEffect(() => {
     if (!token) {
@@ -722,6 +785,28 @@ export function Settings() {
     };
   }, [restoreCommitting, restoreDialogOpen, restoreRestarting]);
 
+  useEffect(() => {
+    if (!mcpOAuthRevokeTarget) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && mcpOAuthRevokingId === null) {
+        closeMcpOAuthRevokeDialog();
+      }
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mcpOAuthRevokeTarget, mcpOAuthRevokingId]);
+
   function chooseReservationExpiryMode(
     expiryMode: ReservationExpiryMode
   ): void {
@@ -851,6 +936,60 @@ export function Settings() {
           ? caught.message
           : "Unable to copy the MCP server URL"
       );
+    }
+  }
+
+  function openMcpOAuthRevokeDialog(
+    client: McpOAuthClientSummary
+  ): void {
+    if (mcpOAuthRevokingId !== null) {
+      return;
+    }
+    setMcpOAuthRevokeError(null);
+    setMcpOAuthClientsMessage(null);
+    setMcpOAuthRevokeTarget(client);
+  }
+
+  function closeMcpOAuthRevokeDialog(): void {
+    if (mcpOAuthRevokingId !== null) {
+      return;
+    }
+    setMcpOAuthRevokeTarget(null);
+    setMcpOAuthRevokeError(null);
+  }
+
+  async function confirmMcpOAuthRevocation(): Promise<void> {
+    if (
+      !token ||
+      !mcpOAuthRevokeTarget ||
+      mcpOAuthRevokingId !== null
+    ) {
+      return;
+    }
+
+    const target = mcpOAuthRevokeTarget;
+    setMcpOAuthRevokingId(target.database_id);
+    setMcpOAuthRevokeError(null);
+    setMcpOAuthClientsError(null);
+    setMcpOAuthClientsMessage(null);
+    try {
+      const result = await revokeMcpOAuthClient(
+        token,
+        target.database_id
+      );
+      setMcpOAuthClients(result.clients);
+      setMcpOAuthRevokeTarget(null);
+      setMcpOAuthClientsMessage(
+        `${target.client_name} access revoked. The client must reconnect before it can use Part Pilot again.`
+      );
+    } catch (caught) {
+      setMcpOAuthRevokeError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to revoke the OAuth client"
+      );
+    } finally {
+      setMcpOAuthRevokingId(null);
     }
   }
 
@@ -1287,6 +1426,7 @@ export function Settings() {
       data-partpilot-backup-status="PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454"
       data-partpilot-settings-tabs="PARTPILOT:SETTINGS_SECTION_TABS:V444"
       data-partpilot-mcp-settings="PARTPILOT:MCP_SETTINGS_UI:V473"
+      data-partpilot-mcp-oauth-clients="PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_UI:V542"
       data-partpilot-active-settings-section={activeSettingsSection}
     >
       <header className="page-header settings-page-header">
@@ -1789,7 +1929,7 @@ export function Settings() {
               <span className="card-label">Integrations</span>
               <h2 id="settings-mcp-title">Model Context Protocol</h2>
               <p>
-                Connect compatible clients through OAuth, a static Bearer
+                Connect compatible clients through OAuth, a static bearer
                 key, or a dedicated custom HTTP header.
               </p>
             </div>
@@ -1854,6 +1994,136 @@ export function Settings() {
               </div>
 
               <div
+                className="settings-mcp-oauth-clients"
+                data-partpilot-mcp-oauth-clients="PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_UI:V542"
+              >
+                <div className="settings-mcp-oauth-heading">
+                  <div>
+                    <strong>Connected OAuth clients</strong>
+                    <span>
+                      Review clients that currently have an active Part Pilot
+                      OAuth session. Revoking access disconnects that client
+                      immediately without deleting inventory or workflow data.
+                    </span>
+                  </div>
+                  <span className="settings-mcp-oauth-count">
+                    {mcpOAuthClientsLoading
+                      ? "Loading"
+                      : `${mcpOAuthClients?.length ?? 0} connected`}
+                  </span>
+                </div>
+
+                {mcpOAuthClientsLoading ? (
+                  <p
+                    className="settings-mcp-oauth-state"
+                    role="status"
+                  >
+                    Loading connected OAuth clients...
+                  </p>
+                ) : null}
+
+                {!mcpOAuthClientsLoading &&
+                mcpOAuthClients &&
+                mcpOAuthClients.length > 0 ? (
+                  <div className="settings-mcp-oauth-list">
+                    {mcpOAuthClients.map((client) => (
+                      <article
+                        className="settings-mcp-oauth-client"
+                        key={client.database_id}
+                      >
+                        <header>
+                          <div>
+                            <strong>{client.client_name}</strong>
+                            <span>
+                              {client.client_type === "confidential"
+                                ? "Confidential OAuth client"
+                                : "Public OAuth client"}
+                            </span>
+                          </div>
+                          <span className="settings-mcp-oauth-status">
+                            Connected
+                          </span>
+                        </header>
+                        <dl>
+                          <div>
+                            <dt>Origin</dt>
+                            <dd>{client.redirect_origins.join(", ")}</dd>
+                          </div>
+                          <div>
+                            <dt>Scopes</dt>
+                            <dd>{client.scopes.join(", ")}</dd>
+                          </div>
+                          <div>
+                            <dt>Connected</dt>
+                            <dd>{formatUtc(client.connected_at)}</dd>
+                          </div>
+                          <div>
+                            <dt>Last used</dt>
+                            <dd>
+                              {client.last_used_at
+                                ? formatUtc(client.last_used_at)
+                                : "Never"}
+                            </dd>
+                          </div>
+                        </dl>
+                        <footer>
+                          <span>
+                            {client.active_token_count} active session
+                            {client.active_token_count === 1 ? "" : "s"}
+                          </span>
+                          <button
+                            className="settings-action settings-action-danger"
+                            type="button"
+                            disabled={mcpOAuthRevokingId !== null}
+                            onClick={() =>
+                              openMcpOAuthRevokeDialog(client)
+                            }
+                          >
+                            Revoke access
+                          </button>
+                        </footer>
+                      </article>
+                    ))}
+                  </div>
+                ) : null}
+
+                {!mcpOAuthClientsLoading &&
+                mcpOAuthClients?.length === 0 ? (
+                  <p className="settings-mcp-oauth-state">
+                    No OAuth clients are currently connected.
+                  </p>
+                ) : null}
+
+                {mcpOAuthClientsError ? (
+                  <div
+                    className="settings-preference-state is-error"
+                    role="alert"
+                  >
+                    <span>{mcpOAuthClientsError}</span>
+                    {!mcpOAuthClients ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMcpOAuthReloadVersion((value) => value + 1)
+                        }
+                      >
+                        Retry
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {mcpOAuthClientsMessage && !mcpOAuthClientsError ? (
+                  <p
+                    className="settings-preference-state is-success"
+                    role="status"
+                  >
+                    {mcpOAuthClientsMessage}
+                  </p>
+                ) : null}
+              </div>
+
+              <div
                 className="settings-mcp-direct-auth"
                 data-partpilot-mcp-trusted-network="PARTPILOT:MCP_TRUSTED_NETWORK_UI:V510"
               >
@@ -1908,7 +2178,7 @@ export function Settings() {
                       <div className="settings-mcp-trusted-active"><strong>Active trusted CIDRs</strong><div>{mcpDirectActiveNetworkPreview.map((network) => <code key={network}>{network}</code>)}{mcpDirectActiveNetworks.length > 3 ? <span>+{mcpDirectActiveNetworks.length - 3} more</span> : null}</div></div>
                     ) : null}
                     {mcpDirectKey && mcpDirectConfiguredMode !== "trusted_network" ? (
-                      <div className="settings-mcp-direct-secret"><label htmlFor="settings-mcp-direct-key">Current {mcpDirectConfiguredMode === "custom_header" ? "custom-header" : "Bearer"} key</label><div className="settings-mcp-direct-secret-row"><input id="settings-mcp-direct-key" type={mcpDirectKeyVisible ? "text" : "password"} value={mcpDirectKey} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /><button className="settings-action settings-action-secondary" type="button" onClick={() => setMcpDirectKeyVisible((value) => !value)}>{mcpDirectKeyVisible ? "Hide" : "Show"}</button><button className="settings-action settings-action-secondary" type="button" onClick={() => void copyMcpDirectKey()}>{mcpDirectKeyCopied ? "Copied" : "Copy key"}</button></div><p>Treat this value like a password. Never paste it into logs, screenshots, issue reports, or chat messages.</p></div>
+                      <div className="settings-mcp-direct-secret"><label htmlFor="settings-mcp-direct-key">Current {mcpDirectConfiguredMode === "custom_header" ? "custom-header" : "bearer"} key</label><div className="settings-mcp-direct-secret-row"><input id="settings-mcp-direct-key" type={mcpDirectKeyVisible ? "text" : "password"} value={mcpDirectKey} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /><button className="settings-action settings-action-secondary" type="button" onClick={() => setMcpDirectKeyVisible((value) => !value)}>{mcpDirectKeyVisible ? "Hide" : "Show"}</button><button className="settings-action settings-action-secondary" type="button" onClick={() => void copyMcpDirectKey()}>{mcpDirectKeyCopied ? "Copied" : "Copy key"}</button></div><p>Treat this value like a password. Never paste it into logs, screenshots, issue reports, or chat messages.</p></div>
                     ) : null}
                     {mcpDirectConfirm ? (
                       <div className={mcpDirectConfirm === "disable" ? "settings-mcp-direct-confirm is-danger" : "settings-mcp-direct-confirm"} role="alert">
@@ -2015,7 +2285,7 @@ export function Settings() {
               <dl className="settings-mcp-summary">
                 <div>
                   <dt>Authentication</dt>
-                  <dd>OAuth 2.1 or Bearer</dd>
+                  <dd>OAuth 2.1 or bearer key</dd>
                 </div>
                 <div>
                   <dt>Transport</dt>
@@ -2314,6 +2584,90 @@ export function Settings() {
           </div>
         </section>
       </div>
+
+      {mcpOAuthRevokeTarget ? (
+        <div
+          className="settings-mcp-oauth-backdrop"
+          data-partpilot-mcp-oauth-revoke-dialog="PARTPILOT:MCP_OAUTH_CLIENT_REVOKE_DIALOG:V542"
+        >
+          <section
+            className="settings-mcp-oauth-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-mcp-oauth-dialog-title"
+            aria-describedby="settings-mcp-oauth-dialog-description"
+          >
+            <header>
+              <p className="eyebrow">Connected OAuth client</p>
+              <h2 id="settings-mcp-oauth-dialog-title">
+                Revoke {mcpOAuthRevokeTarget.client_name} access?
+              </h2>
+            </header>
+            <div className="settings-mcp-oauth-dialog-content">
+              <p id="settings-mcp-oauth-dialog-description">
+                The client will be disconnected immediately. Its active
+                tokens and consent will stop working, but Part Pilot data
+                will not be removed. The client can reconnect through OAuth
+                later.
+              </p>
+              <dl>
+                <div>
+                  <dt>Client</dt>
+                  <dd>{mcpOAuthRevokeTarget.client_name}</dd>
+                </div>
+                <div>
+                  <dt>Origin</dt>
+                  <dd>
+                    {mcpOAuthRevokeTarget.redirect_origins.join(", ")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Scopes</dt>
+                  <dd>{mcpOAuthRevokeTarget.scopes.join(", ")}</dd>
+                </div>
+                <div>
+                  <dt>Last used</dt>
+                  <dd>
+                    {mcpOAuthRevokeTarget.last_used_at
+                      ? formatUtc(mcpOAuthRevokeTarget.last_used_at)
+                      : "Never"}
+                  </dd>
+                </div>
+              </dl>
+              <p className="settings-mcp-oauth-warning">
+                Confirming this action will interrupt any active request from
+                this client.
+              </p>
+              {mcpOAuthRevokeError ? (
+                <p className="form-error" role="alert">
+                  {mcpOAuthRevokeError}
+                </p>
+              ) : null}
+            </div>
+            <footer>
+              <button
+                className="settings-action settings-action-secondary"
+                type="button"
+                autoFocus
+                disabled={mcpOAuthRevokingId !== null}
+                onClick={closeMcpOAuthRevokeDialog}
+              >
+                Keep connected
+              </button>
+              <button
+                className="settings-action settings-action-danger"
+                type="button"
+                disabled={mcpOAuthRevokingId !== null}
+                onClick={() => void confirmMcpOAuthRevocation()}
+              >
+                {mcpOAuthRevokingId !== null
+                  ? "Revoking access..."
+                  : "Revoke access"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
 
       {restoreDialogOpen && restoreValidation ? (
         <div
