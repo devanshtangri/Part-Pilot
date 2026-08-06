@@ -23,6 +23,11 @@ from app.models import (
     User,
 )
 
+from app.schemas.app_settings import (
+    McpOAuthClientSummaryResponse,
+    McpOAuthClientsResponse,
+)
+
 
 # PARTPILOT:MCP_OAUTH_SERVICE:V466
 MCP_ENABLED_KEY = "mcp.enabled"
@@ -1113,3 +1118,142 @@ def revoke_client(
         )
     _commit_or_flush(db, commit=commit)
     return True
+
+# PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_SERVICE:V540
+def _oauth_redirect_origins(redirect_uris: Iterable[str]) -> list[str]:
+    origins: list[str] = []
+    for redirect_uri in redirect_uris:
+        parsed = urlsplit(str(redirect_uri))
+        if not parsed.scheme or not parsed.netloc:
+            continue
+        origin = f"{parsed.scheme.casefold()}://{parsed.netloc.casefold()}"
+        if origin not in origins:
+            origins.append(origin)
+    return origins
+
+
+def _oauth_token_session_is_active(
+    token: McpOAuthToken,
+    *,
+    now: datetime,
+) -> bool:
+    if token.revoked_at is not None:
+        return False
+    access_expires_at = _to_naive_utc(token.access_expires_at)
+    refresh_expires_at = _to_naive_utc(token.refresh_expires_at)
+    return bool(
+        (access_expires_at is not None and access_expires_at > now)
+        or (refresh_expires_at is not None and refresh_expires_at > now)
+    )
+
+
+def list_connected_oauth_clients(
+    db: Session,
+    *,
+    user_id: int,
+) -> McpOAuthClientsResponse:
+    now = _naive_utc_now()
+    clients = list(
+        db.execute(
+            select(McpOAuthClient)
+            .where(McpOAuthClient.revoked_at.is_(None))
+            .order_by(McpOAuthClient.created_at.asc(), McpOAuthClient.id.asc())
+        ).scalars()
+    )
+    summaries: list[McpOAuthClientSummaryResponse] = []
+
+    for client in clients:
+        active_consents = list(
+            db.execute(
+                select(McpOAuthConsent).where(
+                    McpOAuthConsent.client_id == client.id,
+                    McpOAuthConsent.user_id == user_id,
+                    McpOAuthConsent.revoked_at.is_(None),
+                )
+            ).scalars()
+        )
+        if not active_consents:
+            continue
+
+        tokens = list(
+            db.execute(
+                select(McpOAuthToken)
+                .where(
+                    McpOAuthToken.client_id == client.id,
+                    McpOAuthToken.user_id == user_id,
+                )
+                .order_by(McpOAuthToken.created_at.asc(), McpOAuthToken.id.asc())
+            ).scalars()
+        )
+        active_tokens = [
+            token
+            for token in tokens
+            if _oauth_token_session_is_active(token, now=now)
+        ]
+        if not active_tokens:
+            continue
+
+        authorization_code_count = len(
+            list(
+                db.execute(
+                    select(McpOAuthAuthorizationCode.id).where(
+                        McpOAuthAuthorizationCode.client_id == client.id,
+                        McpOAuthAuthorizationCode.user_id == user_id,
+                    )
+                ).scalars()
+            )
+        )
+        scopes = sorted(
+            {
+                str(scope)
+                for token in active_tokens
+                for scope in (token.scopes_json or [])
+            }
+        )
+        connected_at = min(
+            _to_naive_utc(token.created_at) or token.created_at
+            for token in tokens
+        )
+        last_used_values = [
+            value
+            for value in (
+                _to_naive_utc(token.last_used_at)
+                for token in tokens
+            )
+            if value is not None
+        ]
+        token_families = {
+            str(token.token_family_id)
+            for token in active_tokens
+        }
+        auth_method = str(client.token_endpoint_auth_method)
+
+        summaries.append(
+            McpOAuthClientSummaryResponse(
+                database_id=client.id,
+                client_id=client.client_id,
+                client_name=client.client_name,
+                status="connected",
+                client_type=(
+                    "public" if auth_method == "none" else "confidential"
+                ),
+                token_endpoint_auth_method=auth_method,
+                redirect_origins=_oauth_redirect_origins(
+                    client.redirect_uris_json or []
+                ),
+                scopes=scopes,
+                created_at=client.created_at,
+                connected_at=connected_at,
+                last_used_at=(max(last_used_values) if last_used_values else None),
+                active_token_count=len(active_tokens),
+                token_family_count=len(token_families),
+                total_token_count=len(tokens),
+                authorization_code_count=authorization_code_count,
+                active_consent_count=len(active_consents),
+            )
+        )
+
+    return McpOAuthClientsResponse(
+        clients=summaries,
+        total=len(summaries),
+    )

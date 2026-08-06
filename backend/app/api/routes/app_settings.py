@@ -12,6 +12,7 @@ from app.schemas.app_settings import (
     McpDirectAuthKeyResponse,
     McpDirectAuthStatusResponse,
     McpDirectAuthTrustedNetworkRequest,
+    McpOAuthClientsResponse,
     McpSettingsResponse,
     McpSettingsUpdateRequest,
     ReservationSettingsResponse,
@@ -37,6 +38,8 @@ from app.services.mcp_direct_auth import (
     rotate_custom_header_key,
     trusted_networks_for_record,
 )
+
+from app.services.mcp_oauth import list_connected_oauth_clients
 
 from app.services.app_settings import (
     AppearanceThemeUnavailableError,
@@ -165,6 +168,23 @@ def patch_mcp_settings(
 def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
+
+
+# PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_API:V540
+@router.get(
+    "/mcp/oauth-clients",
+    response_model=McpOAuthClientsResponse,
+)
+def read_mcp_oauth_clients(
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpOAuthClientsResponse:
+    _no_store(response)
+    return list_connected_oauth_clients(
+        db,
+        user_id=current_user.id,
+    )
 
 def _direct_auth_status(db: Session) -> McpDirectAuthStatusResponse:
     record = get_direct_auth(db)

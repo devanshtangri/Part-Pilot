@@ -5,6 +5,7 @@ import type {
   McpDirectAuthKeyResponse,
   McpDirectAuthStatus,
   McpDirectAuthTrustedNetworkPayload,
+  McpOAuthClientsResponse,
   McpSettings,
   McpSettingsUpdatePayload,
   ReservationSettings,
@@ -143,6 +144,17 @@ export function updateMcpSettings(
     method: "PATCH",
     body: JSON.stringify(payload)
   });
+}
+
+
+// PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_CLIENT:V540
+export function getMcpOAuthClients(
+  token: string
+): Promise<McpOAuthClientsResponse> {
+  return requestJson<McpOAuthClientsResponse>(
+    "/settings/mcp/oauth-clients",
+    token
+  );
 }
 
 

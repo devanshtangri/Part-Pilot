@@ -81,6 +81,44 @@ class McpSettingsUpdateRequest(BaseModel):
     write_tools_enabled: bool
 
 
+# PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_SCHEMA:V540
+McpOAuthClientConnectionStatus = Literal["connected"]
+McpOAuthClientType = Literal["public", "confidential"]
+McpOAuthTokenEndpointAuthMethod = Literal[
+    "none",
+    "client_secret_post",
+    "client_secret_basic",
+]
+
+
+class McpOAuthClientSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    database_id: int = Field(ge=1)
+    client_id: str = Field(min_length=1, max_length=255)
+    client_name: str = Field(min_length=1, max_length=160)
+    status: McpOAuthClientConnectionStatus
+    client_type: McpOAuthClientType
+    token_endpoint_auth_method: McpOAuthTokenEndpointAuthMethod
+    redirect_origins: list[str]
+    scopes: list[str]
+    created_at: datetime
+    connected_at: datetime
+    last_used_at: datetime | None
+    active_token_count: int = Field(ge=1)
+    token_family_count: int = Field(ge=1)
+    total_token_count: int = Field(ge=1)
+    authorization_code_count: int = Field(ge=0)
+    active_consent_count: int = Field(ge=1)
+
+
+class McpOAuthClientsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    clients: list[McpOAuthClientSummaryResponse]
+    total: int = Field(ge=0)
+
+
 # PARTPILOT:MCP_DIRECT_AUTH_API_SCHEMA:V503
 McpDirectAuthMode = Literal["disabled", "bearer_key", "custom_header", "trusted_network"]
 
