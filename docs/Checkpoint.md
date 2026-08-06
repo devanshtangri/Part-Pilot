@@ -3334,3 +3334,105 @@ inventory, Project, Reservation, user, or restore-staging state changed.
 
 The next implementation slice is connected OAuth client visibility and
 revocation in Settings.
+
+<!-- PARTPILOT:CHAT19_BOUNDARY_CHECKPOINT:V548 -->
+## Chat 19 boundary — OAuth connector completion and client administration
+
+### Authoritative pre-boundary state
+
+- `HEAD` and `origin/main`: `35be283e7f63306aef29480ae5ab71c08225b32c`
+- Latest subject: `Diagnose manual OAuth registration readiness`
+- Git/index: clean
+- Alembic head: `0010_mcp_trusted_networks`
+- Deployment image:
+  `sha256:d601fea120915e2cdfec4d1da166c95f5afc78f5e257d7b0bce5d6ddd9075207`
+- Deployment: running, healthy, restart count `0`
+- Database SHA-256 at boundary capture:
+  `2cf5f4bb7dc8773b1b5122411bb0db63ce9ed891fb2de19bfa955bb9b5844d91`
+- Database size: `724992` bytes
+- SQLite integrity: `ok`; foreign-key violations: `0`
+- Parts: `15`; Projects: `8`;
+  Reservations: `10`
+- Stock movements: `33`; audits:
+  `175`; app settings: `17`
+- Users: `1`; sessions: `4`
+- MCP enabled/read/write: `true/true/false`
+- Direct-auth mode: `bearer_key`; Hermes credential preserved
+- OAuth client IDs: `9` Claude and `13` ChatGPT
+- Authorization-code IDs: `9, 10`
+- Consent IDs: `8, 9`
+- OAuth token rows at capture: `4`; one active token
+  and one token family for each connected client
+- OAuth revocation audit rows: `0`
+- Instance-secret SHA-256:
+  `19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b`
+- Restore staging fingerprint:
+  `ed92d9fb6d964aec1a23558e27b24fa6b16d3f0d1c503e5ab9ef2b4da8c75ce6`
+
+OAuth access and refresh rows can rotate during normal client use. Future
+validation must compare connected-client semantics, active consent/token count,
+and token-family ownership rather than hard-coding token row counts or
+timestamps.
+
+### Boundary recovery
+
+Patch 547 failed before documentation writes because its README validator
+searched for a phrase that was split across Markdown source lines. Patch 548
+consumes the next sequential number and performs this narrow documentation-only
+boundary recovery. No source, index, database, deployment, credential, commit,
+or push changed during the failed Patch 547 run.
+
+### Completed in Chat 19
+
+- Rebuilt the standalone OAuth consent and error pages with Part Pilot styling,
+  autofill treatment, submit locking, progress labels, callback-origin CSP, and
+  duplicate-POST prevention without weakening one-time CSRF behavior.
+- Completed real Claude and ChatGPT OAuth token exchange, MCP initialization,
+  tool listing, and read-only access.
+- Committed the approved OAuth browser workflow in Patch 527.
+- Diagnosed and removed only exact abandoned token-free OAuth operational rows
+  while preserving connected Claude and ChatGPT state and all audit history.
+- Added protected connected-client administration:
+  - safe current-user listing;
+  - no-store responses;
+  - exact client revocation;
+  - token-family, consent, and unused-code invalidation;
+  - secret-free audit history;
+  - copied-database restoration and unrelated-client preservation.
+- Added the responsive Connected OAuth clients Settings UI and guarded revoke
+  dialog.
+- Corrected supplied History labels so `Mcp Oauth Token` renders as
+  `MCP OAuth Token` while ordinary entity names remain unchanged.
+- Browser-approved and committed the Settings and History frontend batch in
+  Patch 545.
+- Patch 546 diagnosed manual registration readiness and proved that explicit
+  creator ownership is required before registered-but-unconnected clients can
+  be managed safely.
+
+### Manual-registration ownership finding
+
+The existing OAuth service already generates `pp_mcp_client_...` identifiers,
+generates `pp_mcp_secret_...` values for confidential clients, returns the
+plaintext secret once, stores only a digest, validates redirects, and writes a
+registration audit.
+
+The `mcp_oauth_clients` table has no creator/owner column. A newly registered
+manual client has no consent or token yet, so current-user ownership cannot be
+inferred from connected-client rows. Ownership must never be guessed from
+client names, redirect origins, timestamps, row order, or audit prose.
+
+### Next chat
+
+The next chat is `Chat 20: Manual OAuth Registration Foundation`.
+
+- Patch range: `549-578`
+- First patch: `549`
+- Planned boundary: `578`
+
+Patch 549 begins with Alembic `0011_mcp_oauth_client_ownership`, a nullable
+`registered_by_user_id` foreign key, protected registration schemas/service/API,
+one-time secret handling, and copied-database backend smoke. Existing dynamic
+registrations remain nullable; do not backfill ownership by inference.
+
+No `Chat_20_Starting_Prompt.md` file should be created. The ready-to-paste
+prompt belongs only in the chat response after Patch 548 succeeds.

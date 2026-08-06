@@ -1,5 +1,5 @@
 Part Pilot project memory
-<!-- PARTPILOT:PROJECT_MEMORY:V528 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V548 -->
 
 Project
 - Repository: https://github.com/devanshtangri/Part-Pilot.git
@@ -15,7 +15,7 @@ Patch workflow
   user places it under fixes/.
 - Failed scripts consume numbers. Success ends with exactly `Everything PASS`.
 - Validate exact repo, HEAD/origin, Git/index, source, prerequisites and all
-  transforms before write.
+  transforms before backup/write.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs: /projects/Part Pilot/fixes/logs/
 - Diagnostic Markdown prefix: `diagonostic_`.
@@ -28,8 +28,11 @@ Patch workflow
 - Never execute numbered patch scripts for the user.
 
 Chat boundary
-- Chat 19: OAuth Connector Completion and MCP Write Foundation.
-- Patch range 518-547; planned boundary 547.
+- Chat 19 planned range was 518-547.
+- Patch 547 failed before writes on a line-wrapped README prose assertion.
+- Patch 548 is the narrow Chat 19 boundary recovery.
+- Chat 20 title: `Chat 20: Manual OAuth Registration Foundation`.
+- Chat 20 patch range: 549-578; planned boundary: 578.
 - No starting-prompt file. Post the ready prompt only after boundary PASS.
 
 Inventory safety
@@ -59,59 +62,60 @@ Completed MCP/OAuth
 - Encrypted keys, reveal/rotation/disable, strict proxy/client-IP resolution,
   and secret-free audits.
 - Official SDK passed initialize, tools/list and search_parts through public TLS.
-- OAuth page styling, duplicate-submit lock, progress, validated callback CSP,
+- Standalone OAuth page styling, duplicate-submit lock, progress, callback CSP,
   and error states are approved.
 - Claude and ChatGPT are connected through OAuth with `mcp:read`.
 - Hermes is connected through direct Bearer authentication.
 - MCP/read enabled; write authorization disabled.
-- Patch 527 committed and pushed the approved OAuth source.
+- Exact abandoned OAuth rows were cleaned by verified ID allowlist.
+- Connected OAuth client GET/revoke APIs and Settings UI are implemented.
+- History displays canonical MCP/OAuth/API/HTTP/URL/ID/CIDR/PKCE terminology.
+- Patch 545 committed the approved Settings and History frontend.
 
-Authoritative current state
-- HEAD/origin: 017eb65d7c2fcf8622fb21d2c19cf0dd52a554ae
-- Subject: Complete OAuth connector browser workflow
+Authoritative pre-boundary state
+- HEAD/origin before Patch 548 recovery: 35be283e7f63306aef29480ae5ab71c08225b32c
+- Subject: Diagnose manual OAuth registration readiness
 - Deployment image:
-  sha256:a2954d8cd2f84cbd283d77d8679bc881e14f6896d0e3df737bb5e178dabbba44
+  sha256:d601fea120915e2cdfec4d1da166c95f5afc78f5e257d7b0bce5d6ddd9075207
 - Deployment running/healthy, restart count 0.
 - Alembic: 0010_mcp_trusted_networks
+- Database SHA at boundary capture:
+  2cf5f4bb7dc8773b1b5122411bb0db63ce9ed891fb2de19bfa955bb9b5844d91
+- Parts 15; Projects 8;
+  Reservations 10; movements
+  33; audits 175.
+- OAuth clients: database IDs 9 Claude and 13 ChatGPT.
+- Each has one active consent, one active token and one token family.
+- OAuth token rows may rotate; validate semantics rather than stale counts.
+- No OAuth revocation audit exists.
+- Direct Bearer remains active for Hermes; never reveal/rotate/disable
+  automatically.
 - Instance-secret SHA:
   19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b
-- Active OAuth clients must include Claude and ChatGPT with read-only scope.
-- Direct Bearer is active for Hermes; never reveal/rotate/disable automatically.
-- OAuth tokens may rotate; validate connected-client semantics, not stale counts.
+- Restore staging fingerprint:
+  ed92d9fb6d964aec1a23558e27b24fa6b16d3f0d1c503e5ab9ef2b4da8c75ce6
 
-Locked Settings/product direction
-- History must display MCP, OAuth, API, HTTP/HTTPS, URL/URI, ID, IP, CIDR,
-  PKCE, UI, CSV and JSON with canonical capitalization.
-- Settings expands to General, Appearance, Inventory, Reservations, Account &
-  Users, Integrations, Data & Maintenance, and Advanced.
-- Account: username/display name/password, sessions, built-in avatars; later
-  Owner/Admin/Operator/Viewer roles and multi-user administration.
-- REST API keys: separate `pp_api_...` credentials, one-time display, hash-only
-  storage, scopes, expiry, last use, rotation, revocation and audit.
-- OAuth administration: status visibility, exact revocation, manual
-  registration, generated client ID and one-time secret when required.
-- Direct access: master switch; no-auth, Bearer, custom header, trusted network;
-  no-auth warned/confirmed and read-only initially.
-- Evolve singleton direct auth into named clients with independent credentials,
-  tool policy, last use, rotation and revocation.
-- MCP permissions: global category/tool ceiling plus per-client
-  Inherit/Allow/Deny; Deny wins; enforce tools/list and tools/call.
-- Per-client permissions precede MCP write tools.
-- Expand General/Appearance/Inventory/Reservations/Data preferences.
-- Each section gets Restore defaults; global restore affects preferences only.
-  Credential/access reset remains separate and destructive.
+Critical Patch 546 finding
+- Existing registration already generates `pp_mcp_client_...` IDs and
+  `pp_mcp_secret_...` secrets, returns the secret once, stores only its digest,
+  validates redirects, and audits registration.
+- `mcp_oauth_clients` lacks creator ownership.
+- Registered-but-unconnected clients cannot be safely assigned to a user through
+  consent/token rows.
+- Never infer ownership from client name, redirect origin, timestamp, row order
+  or audit prose.
 
-Immediate order
-1. Patch 528 documentation checkpoint.
-2. Patch 529 History acronym normalization.
-3. Exact abandoned OAuth-row diagnostic and allowlisted cleanup.
-4. Connected OAuth client list/revocation.
-5. Manual OAuth client registration.
-6. Current-user profile/security/avatars/sessions.
-7. Scoped REST API keys.
-8. Direct master switch, no-auth, named direct clients.
-9. Global/per-client MCP tool policy.
-10. Expanded settings and restore-default controls.
-11. Multi-user roles/administration.
-12. Safeguarded MCP write tools.
-13. Accessibility, security and public-alpha hardening.
+Chat 20 immediate order
+1. Patch 549: Alembic 0011 ownership, model, protected registration POST,
+   one-time secret response, copied-database backend smoke.
+2. Patch 550: current-user manageable-client list and status semantics.
+3. Patch 551: uncommitted responsive registration/result UI.
+4. Patch 552: feedback or approved checkpoint.
+5. Current-user profile/security/avatars/sessions.
+6. Scoped REST API keys.
+7. Direct master switch, no-auth and named direct clients.
+8. Global/per-client MCP tool policy.
+9. Expanded settings and restore-default controls.
+10. Multi-user roles/administration.
+11. Safeguarded MCP write tools.
+12. Accessibility, security and public-alpha hardening.

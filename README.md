@@ -440,7 +440,7 @@ The compact manual-backup status display is implemented and available in Setting
 <!-- PARTPILOT:BACKUP_RESTORE_README:V457:END -->
 
 
-<!-- PARTPILOT:MCP_AUTHENTICATION_README:V517:START -->
+<!-- PARTPILOT:MCP_AUTHENTICATION_README:V548:START -->
 ## Model Context Protocol authentication
 
 Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
@@ -451,6 +451,9 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | OAuth protected-resource discovery | Available |
 | OAuth authorization code with PKCE | Available |
 | Access/refresh token rotation and revocation | Available |
+| Standalone OAuth consent and error experience | Available |
+| Claude and ChatGPT OAuth read-only connections | Verified |
+| Connected OAuth client listing and revocation in Settings | Available |
 | Explicit public-origin and Host/Origin validation | Available |
 | Global MCP and read/write authorization settings | Available |
 | Six read-only inventory, Project and Reservation tools | Available |
@@ -461,19 +464,21 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | Trusted-network authentication with IPv4/IPv6 CIDRs | Available |
 | Strict trusted-proxy and client-IP resolution | Available |
 | Direct-auth Settings management and browser UI | Available |
-| Claude/Google OAuth browser completion | UX hardening pending |
+| Manual OAuth client registration in Settings | Planned |
 | Safeguarded MCP write tools | Not yet implemented |
 
-The live installation currently has MCP and read tools enabled while write
-authorization remains disabled. The administrator re-enabled Bearer-key direct
-authentication after the first external tests; OAuth and direct Bearer access
-therefore coexist again.
+The live installation has MCP and read tools enabled while write authorization
+remains disabled. Claude and ChatGPT are connected through OAuth with
+`mcp:read`; Hermes remains connected through direct Bearer authentication.
 
-The official Python MCP SDK has completed `initialize`, `tools/list`, and a
-structured read-only `search_parts` call through the public Nginx TLS route.
-Initial Claude, Google, and ChatGPT browser tests proved registration, consent,
-and authorization-code issuance, but exposed an unfinished standalone OAuth
-page: duplicate form submission can replace the successful redirect with an
-unstyled expired-request response. External connector completion remains
-pending until that browser workflow is repaired and retested end to end.
-<!-- PARTPILOT:MCP_AUTHENTICATION_README:V517:END -->
+Settings can display active OAuth clients and revoke one client without
+deleting inventory or workflow history. The History workspace preserves
+canonical technical capitalization such as MCP, OAuth, API, HTTP, URL, ID,
+CIDR, PKCE, CSV, and JSON.
+
+Manual OAuth registration is the next administration milestone. Existing
+registration primitives already generate opaque client IDs, return a
+confidential secret once, and store only its digest. The protected Settings
+workflow still requires explicit current-user client ownership before it can be
+implemented safely.
+<!-- PARTPILOT:MCP_AUTHENTICATION_README:V548:END -->

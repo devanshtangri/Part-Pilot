@@ -2698,3 +2698,88 @@ Begin only after the client/tool permission model is complete.
 3. Cleanup implementation only after the diagnostic passes and is inspected.
 4. OAuth connected-client administration.
 5. Continue without combining unrelated security or data-mutation slices.
+
+<!-- PARTPILOT:CHAT20_MANUAL_OAUTH_REGISTRATION_ROADMAP:V548 -->
+## Current roadmap checkpoint — manual OAuth registration foundation
+
+### Completed through Chat 19
+
+- [x] Styled and hardened standalone OAuth consent/error workflow.
+- [x] Claude and ChatGPT connected end to end with `mcp:read`.
+- [x] Exact abandoned OAuth operational-row cleanup.
+- [x] Canonical History acronym formatting.
+- [x] Protected connected OAuth client list.
+- [x] Exact connected-client revocation and audit.
+- [x] Responsive Settings list and guarded revoke dialog.
+- [x] Browser approval and frontend checkpoint.
+- [x] Manual-registration readiness diagnostic.
+
+### Blocking ownership requirement
+
+`mcp_oauth_clients` does not identify the user who manually registered a
+client. Registered-but-unconnected clients have no consent or token through
+which current-user ownership can be derived.
+
+- [ ] Add nullable `registered_by_user_id`.
+- [ ] Keep historical dynamic registrations nullable.
+- [ ] Set ownership only for authenticated manual registration.
+- [ ] Never infer ownership from name, origin, timestamp, row order, or audit
+  prose.
+
+### Chat 20
+
+**Required title:** `Chat 20: Manual OAuth Registration Foundation`
+**Patch range:** `549-578`
+**First patch:** `549`
+**Planned boundary:** `578`
+
+### Required implementation sequence
+
+1. **Patch 549 — ownership and protected registration backend**
+   - Add Alembic `0011_mcp_oauth_client_ownership`.
+   - Add model relationship/index/foreign-key contracts.
+   - Add protected `POST /api/settings/mcp/oauth-clients`.
+   - Accept name, redirect URIs, public/confidential type, and compatible
+     token-endpoint authentication method.
+   - Fix grant types to authorization code plus refresh token.
+   - Fix response type to code.
+   - Return generated client ID and one-time secret only on creation.
+   - Store only the secret digest.
+   - Attribute the audit and owner to the authenticated user.
+   - Add copied-database tests for ownership, secret leakage, validation,
+     unauthenticated rejection, rollback, and preservation.
+
+2. **Patch 550 — manageable-client administration list**
+   - Return only clients registered by or connected to the current user.
+   - Add safe `registered`, `connected`, and `revoked` status semantics.
+   - Keep `Abandoned` deferred until an explicit age threshold is approved.
+   - Preserve current connected-client metadata and revocation behavior.
+
+3. **Patch 551 — browser-test Settings registration UI**
+   - Accessible responsive form for name, redirect URIs, type, and auth method.
+   - Public clients default to `none`.
+   - Confidential clients use `client_secret_post` or
+     `client_secret_basic`.
+   - Dedicated one-time result dialog with Show/Hide and Copy controls.
+   - Keep secrets only in component memory.
+   - Never persist secrets in storage, URLs, logs, History, or errors.
+   - Leave source uncommitted until browser approval.
+
+4. **Patch 552 — feedback or approved checkpoint**
+   - Apply browser feedback in the next sequential patch, or commit/push the
+     exact approved backend/frontend batch.
+
+5. Continue current-user profile, password, sessions, and built-in avatars only
+   after manual OAuth registration is committed and pushed.
+
+### Scope discipline
+
+- Preserve live Claude, ChatGPT, and Hermes credentials.
+- Keep MCP writes disabled.
+- Do not modify existing dynamic registration behavior unnecessarily.
+- Do not expose client-secret hashes or plaintext secrets in GET responses,
+  logs, audit metadata, or History.
+- Do not start REST API keys, named direct clients, tool policy, or
+  inventory-mutating MCP writes in the same slice.
+- Use unique copied-database fixtures and restore exact logical state after
+  smoke tests.
