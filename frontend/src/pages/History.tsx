@@ -26,6 +26,25 @@ import "./History.css";
 const PAGE_SIZE = 50;
 const SEARCH_DELAY_MS = 280;
 
+// PARTPILOT:HISTORY_TECHNICAL_ACRONYMS:V529
+const TECHNICAL_ACRONYMS: Readonly<Record<string, string>> = {
+  __partpilot_marker: "Part Pilot History Acronyms V529",
+  api: "API",
+  cidr: "CIDR",
+  csv: "CSV",
+  http: "HTTP",
+  https: "HTTPS",
+  id: "ID",
+  ip: "IP",
+  json: "JSON",
+  mcp: "MCP",
+  oauth: "OAuth",
+  pkce: "PKCE",
+  ui: "UI",
+  uri: "URI",
+  url: "URL"
+};
+
 const EMPTY_COLLECTION: HistoryCollection = {
   total: 0,
   limit: PAGE_SIZE,
@@ -130,9 +149,18 @@ function humanise(value: string | null): string {
   if (!value) {
     return "Not recorded";
   }
+
   return value
-    .replace(/[._-]+/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((word) => {
+      const normalised = word.toLowerCase();
+      return (
+        TECHNICAL_ACRONYMS[normalised] ??
+        `${normalised.charAt(0).toUpperCase()}${normalised.slice(1)}`
+      );
+    })
+    .join(" ");
 }
 
 function eventTitle(entry: HistoryEntry): string {
@@ -902,9 +930,10 @@ export function History() {
                 <div>
                   <dt>Source</dt>
                   <dd>
-                    {selectedEntry.source ??
-                      selectedEntry.actor_type ??
-                      "Not recorded"}
+                    {humanise(
+                      selectedEntry.source ??
+                        selectedEntry.actor_type
+                    )}
                   </dd>
                 </div>
                 <div>
