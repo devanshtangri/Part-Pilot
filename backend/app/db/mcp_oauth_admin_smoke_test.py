@@ -2,20 +2,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
+import tempfile
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from app.db.session import SessionLocal
-from app.models import User, UserSession
+from app.db.session import SessionLocal, dispose_database_engine
+from app.models import (
+    AuditLog,
+    McpOAuthClient,
+    McpOAuthConsent,
+    McpOAuthToken,
+    User,
+)
 from app.services.auth import create_session
 from app.services.mcp_oauth import list_connected_oauth_clients
 
 
-# PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_SMOKE:V540
+# PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_SMOKE:V541
 class SmokeFailure(RuntimeError):
     pass
 
@@ -72,71 +80,81 @@ def database_snapshot() -> dict[str, object]:
         db.close()
 
 
-def restore_sequences(snapshot: dict[str, object]) -> None:
-    db = sqlite3.connect(sqlite_path())
-    try:
-        has_sequences = db.execute(
-            "SELECT 1 FROM sqlite_master "
-            "WHERE type='table' AND name='sqlite_sequence'"
-        ).fetchone()
-        if has_sequences:
-            db.execute("DELETE FROM sqlite_sequence")
-            for name, sequence in snapshot["sequences"]:
-                db.execute(
-                    "INSERT INTO sqlite_sequence(name,seq) VALUES (?,?)",
-                    (name, sequence),
-                )
-            db.commit()
-    finally:
-        db.close()
-
-
-def check_only() -> None:
-    from app.main import app
-
-    with TestClient(app) as client:
-        unauthenticated = client.get("/api/settings/mcp/oauth-clients")
-        if unauthenticated.status_code != 401:
-            fail(
-                "GET /api/settings/mcp/oauth-clients should require "
-                f"authentication, got {unauthenticated.status_code}"
-            )
-
-        openapi = client.get("/openapi.json")
-        if openapi.status_code != 200:
-            fail("OpenAPI document is unavailable")
-        methods = openapi.json().get("paths", {}).get(
-            "/api/settings/mcp/oauth-clients",
-            {},
-        )
-        if set(methods) != {"get"}:
-            fail(
-                "Unexpected OAuth administration OpenAPI methods: "
-                f"{sorted(methods)}"
-            )
-
-    print(
-        "[PASS] Connected OAuth client administration GET route is protected "
-        "and present in OpenAPI"
+def create_database_backup() -> Path:
+    descriptor, raw_path = tempfile.mkstemp(
+        prefix="partpilot_patch541_oauth_admin_",
+        suffix=".db",
     )
+    os.close(descriptor)
+    backup_path = Path(raw_path)
+    source = sqlite3.connect(sqlite_path())
+    destination = sqlite3.connect(backup_path)
+    try:
+        source.backup(destination)
+    finally:
+        destination.close()
+        source.close()
+    return backup_path
 
 
-def validate_payload(payload: dict[str, object]) -> None:
-    if payload.get("total") != 2:
-        fail(f"Expected two connected clients, got {payload.get('total')!r}")
+def restore_database_backup(backup_path: Path) -> None:
+    dispose_database_engine()
+    database = sqlite_path()
+    for suffix in ("-wal", "-shm", "-journal"):
+        sidecar = Path(str(database) + suffix)
+        if sidecar.exists():
+            sidecar.unlink()
+    source = sqlite3.connect(backup_path)
+    destination = sqlite3.connect(database)
+    try:
+        source.backup(destination)
+    finally:
+        destination.close()
+        source.close()
+    dispose_database_engine()
+
+
+def expected_client_fields() -> set[str]:
+    return {
+        "database_id",
+        "client_id",
+        "client_name",
+        "status",
+        "client_type",
+        "token_endpoint_auth_method",
+        "redirect_origins",
+        "scopes",
+        "created_at",
+        "connected_at",
+        "last_used_at",
+        "active_token_count",
+        "token_family_count",
+        "total_token_count",
+        "authorization_code_count",
+        "active_consent_count",
+    }
+
+
+def validate_payload(
+    payload: dict[str, object],
+    *,
+    expected_names: list[str],
+) -> None:
+    if set(payload) != {"clients", "total"}:
+        fail(f"Unexpected top-level fields: {sorted(payload)}")
     clients = payload.get("clients")
-    if not isinstance(clients, list) or len(clients) != 2:
-        fail(f"Unexpected connected-client collection: {clients!r}")
-
-    names = [item.get("client_name") for item in clients]
-    if names != ["Claude", "ChatGPT"]:
-        fail(f"Unexpected connected-client order/names: {names}")
-
-    by_name = {
-        str(item["client_name"]): item
+    if not isinstance(clients, list):
+        fail(f"Connected-client collection is invalid: {clients!r}")
+    if payload.get("total") != len(expected_names):
+        fail(f"Unexpected connected-client total: {payload.get('total')!r}")
+    names = [
+        item.get("client_name")
         for item in clients
         if isinstance(item, dict)
-    }
+    ]
+    if names != expected_names:
+        fail(f"Unexpected connected-client order/names: {names}")
+
     expected = {
         "Claude": {
             "database_id": 9,
@@ -163,20 +181,30 @@ def validate_payload(payload: dict[str, object]) -> None:
             "active_consent_count": 1,
         },
     }
-    for name, expected_fields in expected.items():
-        item = by_name.get(name)
-        if item is None:
-            fail(f"Missing connected client {name}")
-        for field, expected_value in expected_fields.items():
+    for item in clients:
+        if not isinstance(item, dict):
+            fail(f"OAuth administration client is not an object: {item!r}")
+        if set(item) != expected_client_fields():
+            fail(
+                f"{item.get('client_name', 'Unknown')} has unexpected fields: "
+                f"{sorted(set(item) ^ expected_client_fields())}"
+            )
+        name = str(item["client_name"])
+        for field, expected_value in expected[name].items():
             if item.get(field) != expected_value:
                 fail(
                     f"{name} field {field} expected {expected_value!r}, "
                     f"got {item.get(field)!r}"
                 )
-        if not isinstance(item.get("client_id"), str) or not str(
-            item["client_id"]
-        ).startswith("pp_mcp_client_"):
-            fail(f"{name} client ID is missing or malformed")
+        if not str(item["client_id"]).startswith("pp_mcp_client_"):
+            fail(f"{name} client ID is malformed")
+        total_token_count = item.get("total_token_count")
+        if (
+            not isinstance(total_token_count, int)
+            or isinstance(total_token_count, bool)
+            or total_token_count < 1
+        ):
+            fail(f"{name} historical token count is invalid")
         for field in ("created_at", "connected_at"):
             if not isinstance(item.get(field), str) or not item[field]:
                 fail(f"{name} is missing {field}")
@@ -185,52 +213,6 @@ def validate_payload(payload: dict[str, object]) -> None:
             str,
         ):
             fail(f"{name} last_used_at has an invalid type")
-        total_token_count = item.get("total_token_count")
-        if (
-            not isinstance(total_token_count, int)
-            or isinstance(total_token_count, bool)
-            or total_token_count < 1
-        ):
-            fail(
-                f"{name} total_token_count must be a positive integer, "
-                f"got {total_token_count!r}"
-            )
-
-    expected_top_level_fields = {"clients", "total"}
-    if set(payload) != expected_top_level_fields:
-        fail(
-            "OAuth administration payload has unexpected top-level fields: "
-            f"{sorted(payload)}"
-        )
-
-    expected_client_fields = {
-        "database_id",
-        "client_id",
-        "client_name",
-        "status",
-        "client_type",
-        "token_endpoint_auth_method",
-        "redirect_origins",
-        "scopes",
-        "created_at",
-        "connected_at",
-        "last_used_at",
-        "active_token_count",
-        "token_family_count",
-        "total_token_count",
-        "authorization_code_count",
-        "active_consent_count",
-    }
-    for item in clients:
-        if not isinstance(item, dict):
-            fail(f"OAuth administration client is not an object: {item!r}")
-        actual_fields = set(item)
-        if actual_fields != expected_client_fields:
-            fail(
-                f"{item.get('client_name', 'Unknown')} has unexpected fields: "
-                f"missing={sorted(expected_client_fields - actual_fields)}, "
-                f"extra={sorted(actual_fields - expected_client_fields)}"
-            )
 
     serialized = json.dumps(payload, sort_keys=True).casefold()
     for forbidden_path in (
@@ -238,91 +220,208 @@ def validate_payload(payload: dict[str, object]) -> None:
         "/connector/oauth/",
     ):
         if forbidden_path in serialized:
+            fail(f"Payload exposed a callback path: {forbidden_path!r}")
+
+
+def require_no_store(response) -> None:
+    if response.headers.get("cache-control") != "no-store":
+        fail("OAuth administration response lacks Cache-Control no-store")
+    if response.headers.get("pragma") != "no-cache":
+        fail("OAuth administration response lacks Pragma no-cache")
+
+
+def check_only() -> None:
+    from app.main import app
+
+    with TestClient(app) as client:
+        get_response = client.get("/api/settings/mcp/oauth-clients")
+        if get_response.status_code != 401:
+            fail(f"Unauthenticated GET returned {get_response.status_code}")
+        delete_response = client.delete(
+            "/api/settings/mcp/oauth-clients/9"
+        )
+        if delete_response.status_code != 401:
             fail(
-                "OAuth administration payload exposed a callback path: "
-                f"{forbidden_path!r}"
+                "Unauthenticated OAuth client DELETE returned "
+                f"{delete_response.status_code}"
             )
+        openapi = client.get("/openapi.json")
+        if openapi.status_code != 200:
+            fail("OpenAPI document is unavailable")
+        paths = openapi.json().get("paths", {})
+        if set(paths.get("/api/settings/mcp/oauth-clients", {})) != {"get"}:
+            fail("OAuth client list OpenAPI contract changed")
+        if set(
+            paths.get(
+                "/api/settings/mcp/oauth-clients/{client_database_id}",
+                {},
+            )
+        ) != {"delete"}:
+            fail("OAuth client revocation OpenAPI contract changed")
+
+    print(
+        "[PASS] OAuth client GET/DELETE administration routes are protected "
+        "and have exact OpenAPI methods"
+    )
 
 
 def full_flow() -> None:
     before = database_snapshot()
-    db = SessionLocal()
-    session_id: int | None = None
+    backup_path = create_database_backup()
     try:
-        user = db.execute(
-            select(User).order_by(User.id.asc())
-        ).scalars().first()
-        if user is None:
-            fail("OAuth administration smoke requires one existing user")
-
-        canonical = list_connected_oauth_clients(
-            db,
-            user_id=user.id,
-        )
-        validate_payload(canonical.model_dump(mode="json"))
-
-        session_token = create_session(
-            db,
-            user=user,
-            user_agent="Patch 540 OAuth administration smoke",
-            ip_address="127.0.0.1",
-            commit=False,
-        )
-        session_id = session_token.session.id
-        db.commit()
-
-        headers = {"Authorization": f"Bearer {session_token.token}"}
+        db = SessionLocal()
+        try:
+            user = db.execute(
+                select(User).order_by(User.id.asc())
+            ).scalars().first()
+            if user is None:
+                fail("OAuth administration smoke requires one existing user")
+            user_id = user.id
+            canonical = list_connected_oauth_clients(db, user_id=user_id)
+            validate_payload(
+                canonical.model_dump(mode="json"),
+                expected_names=["Claude", "ChatGPT"],
+            )
+            baseline_event_ids = set(
+                db.execute(
+                    select(AuditLog.id).where(
+                        AuditLog.event_type == "mcp.oauth_client_revoked",
+                        AuditLog.entity_id == 9,
+                    )
+                ).scalars()
+            )
+            session_token = create_session(
+                db,
+                user=user,
+                user_agent="Patch 541 OAuth revocation smoke",
+                ip_address="127.0.0.1",
+                commit=True,
+            )
+            bearer = session_token.token
+            claude_client_id = canonical.clients[0].client_id
+        finally:
+            db.close()
 
         from app.main import app
 
+        headers = {"Authorization": f"Bearer {bearer}"}
         with TestClient(app) as client:
-            response = client.get(
+            missing = client.delete(
+                "/api/settings/mcp/oauth-clients/999999",
+                headers=headers,
+            )
+            if missing.status_code != 404:
+                fail(f"Unknown OAuth client DELETE returned {missing.status_code}")
+            require_no_store(missing)
+            if missing.json() != {
+                "detail": "Connected OAuth client was not found."
+            }:
+                fail(f"Unexpected not-found response: {missing.text[:500]}")
+
+            revoked = client.delete(
+                "/api/settings/mcp/oauth-clients/9",
+                headers=headers,
+            )
+            if revoked.status_code != 200:
+                fail(
+                    f"Claude revocation failed: {revoked.status_code} "
+                    f"{revoked.text[:500]}"
+                )
+            require_no_store(revoked)
+            validate_payload(
+                revoked.json(),
+                expected_names=["ChatGPT"],
+            )
+
+            listed = client.get(
                 "/api/settings/mcp/oauth-clients",
                 headers=headers,
             )
-            if response.status_code != 200:
-                fail(
-                    "Connected OAuth client GET failed: "
-                    f"{response.status_code} {response.text[:500]}"
-                )
-            if response.headers.get("cache-control") != "no-store":
-                fail("Connected OAuth client response lacks Cache-Control no-store")
-            if response.headers.get("pragma") != "no-cache":
-                fail("Connected OAuth client response lacks Pragma no-cache")
-            payload = response.json()
-            validate_payload(payload)
-            if payload != canonical.model_dump(mode="json"):
-                fail(
-                    "Connected OAuth client API differs from the canonical "
-                    "service response"
-                )
-
-        cleanup = SessionLocal()
-        try:
-            if session_id is not None:
-                session = cleanup.get(UserSession, session_id)
-                if session is not None:
-                    cleanup.delete(session)
-            cleanup.commit()
-        finally:
-            cleanup.close()
-
-        restore_sequences(before)
-        if database_snapshot() != before:
-            fail(
-                "OAuth administration smoke did not restore the exact "
-                "database snapshot"
+            if listed.status_code != 200:
+                fail(f"Post-revocation GET returned {listed.status_code}")
+            require_no_store(listed)
+            validate_payload(
+                listed.json(),
+                expected_names=["ChatGPT"],
             )
-    except Exception:
-        db.rollback()
-        raise
+
+            repeated = client.delete(
+                "/api/settings/mcp/oauth-clients/9",
+                headers=headers,
+            )
+            if repeated.status_code != 404:
+                fail(f"Repeated revocation returned {repeated.status_code}")
+            require_no_store(repeated)
+
+        verification = SessionLocal()
+        try:
+            claude = verification.get(McpOAuthClient, 9)
+            chatgpt = verification.get(McpOAuthClient, 13)
+            if claude is None or claude.revoked_at is None:
+                fail("Claude client revocation marker is missing")
+            if chatgpt is None or chatgpt.revoked_at is not None:
+                fail("ChatGPT client was modified by Claude revocation")
+            if verification.execute(
+                select(McpOAuthToken).where(
+                    McpOAuthToken.client_id == 9,
+                    McpOAuthToken.revoked_at.is_(None),
+                )
+            ).scalars().first() is not None:
+                fail("Claude retains an active OAuth token")
+            claude_consent = verification.execute(
+                select(McpOAuthConsent).where(
+                    McpOAuthConsent.client_id == 9,
+                    McpOAuthConsent.user_id == user_id,
+                )
+            ).scalar_one()
+            if claude_consent.revoked_at is None:
+                fail("Claude consent revocation marker is missing")
+            event_rows = list(
+                verification.execute(
+                    select(AuditLog).where(
+                        AuditLog.event_type == "mcp.oauth_client_revoked",
+                        AuditLog.entity_id == 9,
+                    )
+                ).scalars()
+            )
+            new_events = [
+                event
+                for event in event_rows
+                if event.id not in baseline_event_ids
+            ]
+            if len(new_events) != 1:
+                fail(
+                    "Expected one new Claude revocation audit, got "
+                    f"{len(new_events)}"
+                )
+            event = new_events[0]
+            if (
+                event.actor_type != "user"
+                or event.actor_user_id != user_id
+                or event.metadata_json != {"client_id": claude_client_id}
+            ):
+                fail("Claude revocation audit metadata is incorrect")
+            remaining = list_connected_oauth_clients(
+                verification,
+                user_id=user_id,
+            )
+            validate_payload(
+                remaining.model_dump(mode="json"),
+                expected_names=["ChatGPT"],
+            )
+        finally:
+            verification.close()
     finally:
-        db.close()
+        restore_database_backup(backup_path)
+        backup_path.unlink(missing_ok=True)
+
+    if database_snapshot() != before:
+        fail("OAuth revocation smoke did not restore the copied database exactly")
 
     print(
-        "[PASS] Connected OAuth client administration returns only the current "
-        "user's live Claude/ChatGPT connections, exposes safe metadata, sends "
-        "no-store headers, and restores the copied database exactly"
+        "[PASS] OAuth client revocation is authenticated, current-user scoped, "
+        "audited, idempotently hidden, preserves the other connection, and "
+        "restores the copied database exactly"
     )
 
 

@@ -157,6 +157,18 @@ export function getMcpOAuthClients(
   );
 }
 
+// PARTPILOT:MCP_OAUTH_CLIENT_REVOCATION_CLIENT:V541
+export function revokeMcpOAuthClient(
+  token: string,
+  clientDatabaseId: number
+): Promise<McpOAuthClientsResponse> {
+  return requestJson<McpOAuthClientsResponse>(
+    `/settings/mcp/oauth-clients/${clientDatabaseId}`,
+    token,
+    { method: "DELETE" }
+  );
+}
+
 
 // PARTPILOT:MCP_TRUSTED_NETWORK_CLIENT:V510
 export function getMcpDirectAuth(

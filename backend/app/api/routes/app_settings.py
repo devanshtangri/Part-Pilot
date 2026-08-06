@@ -39,7 +39,11 @@ from app.services.mcp_direct_auth import (
     trusted_networks_for_record,
 )
 
-from app.services.mcp_oauth import list_connected_oauth_clients
+from app.services.mcp_oauth import (
+    McpOAuthConnectedClientNotFoundError,
+    list_connected_oauth_clients,
+    revoke_connected_oauth_client,
+)
 
 from app.services.app_settings import (
     AppearanceThemeUnavailableError,
@@ -185,6 +189,36 @@ def read_mcp_oauth_clients(
         db,
         user_id=current_user.id,
     )
+
+# PARTPILOT:MCP_OAUTH_CLIENT_REVOCATION_API:V541
+@router.delete(
+    "/mcp/oauth-clients/{client_database_id}",
+    response_model=McpOAuthClientsResponse,
+)
+def delete_mcp_oauth_client(
+    client_database_id: int,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpOAuthClientsResponse:
+    _no_store(response)
+    try:
+        return revoke_connected_oauth_client(
+            db,
+            user_id=current_user.id,
+            client_database_id=client_database_id,
+            commit=True,
+        )
+    except McpOAuthConnectedClientNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+            headers={
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+            },
+        ) from exc
+
 
 def _direct_auth_status(db: Session) -> McpDirectAuthStatusResponse:
     record = get_direct_auth(db)

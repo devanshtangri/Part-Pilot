@@ -84,6 +84,11 @@ class McpOAuthRefreshReplayError(McpOAuthInvalidGrantError):
     pass
 
 
+# PARTPILOT:MCP_OAUTH_CLIENT_REVOCATION_SERVICE:V541
+class McpOAuthConnectedClientNotFoundError(McpOAuthError):
+    pass
+
+
 @dataclass(frozen=True)
 class RegisteredOAuthClient:
     client: McpOAuthClient
@@ -1257,3 +1262,54 @@ def list_connected_oauth_clients(
         clients=summaries,
         total=len(summaries),
     )
+
+
+# PARTPILOT:MCP_OAUTH_CLIENT_REVOCATION_SERVICE:V541
+def revoke_connected_oauth_client(
+    db: Session,
+    *,
+    user_id: int,
+    client_database_id: int,
+    commit: bool = True,
+) -> McpOAuthClientsResponse:
+    now = _naive_utc_now()
+    client = db.get(McpOAuthClient, client_database_id)
+    if client is None or client.revoked_at is not None:
+        raise McpOAuthConnectedClientNotFoundError(
+            "Connected OAuth client was not found."
+        )
+
+    consent = db.execute(
+        select(McpOAuthConsent).where(
+            McpOAuthConsent.client_id == client.id,
+            McpOAuthConsent.user_id == user_id,
+            McpOAuthConsent.revoked_at.is_(None),
+        )
+    ).scalar_one_or_none()
+    tokens = list(
+        db.execute(
+            select(McpOAuthToken).where(
+                McpOAuthToken.client_id == client.id,
+                McpOAuthToken.user_id == user_id,
+            )
+        ).scalars()
+    )
+    if consent is None or not any(
+        _oauth_token_session_is_active(token, now=now)
+        for token in tokens
+    ):
+        raise McpOAuthConnectedClientNotFoundError(
+            "Connected OAuth client was not found."
+        )
+
+    if not revoke_client(
+        db,
+        client_id=client.client_id,
+        actor_user_id=user_id,
+        commit=False,
+    ):
+        raise McpOAuthConnectedClientNotFoundError(
+            "Connected OAuth client was not found."
+        )
+    _commit_or_flush(db, commit=commit)
+    return list_connected_oauth_clients(db, user_id=user_id)
