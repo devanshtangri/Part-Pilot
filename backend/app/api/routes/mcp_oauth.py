@@ -235,10 +235,290 @@ def _hidden(name: str, value: str | None) -> str:
     )
 
 
+# PARTPILOT:MCP_OAUTH_STANDALONE_SHELL:V519
+OAUTH_STYLES = r"""
+:root {
+  color-scheme: dark;
+  --bg: #0b1018;
+  --sidebar: #0f1724;
+  --panel: #121a27;
+  --panel-soft: #182235;
+  --panel-raised: #1c2636;
+  --border: #273247;
+  --border-strong: #35435c;
+  --text: #f1f5f9;
+  --muted: #9aa8bd;
+  --accent: #2dd4a3;
+  --accent-strong: #42d6ab;
+  --accent-soft: rgba(45, 212, 163, 0.12);
+  --danger: #ff7b7b;
+  --danger-soft: rgba(255, 123, 123, 0.08);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+* { box-sizing: border-box; }
+::selection { background: var(--accent); color: #07130f; }
+html { min-width: 320px; min-height: 100%; background: var(--bg); }
+body {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--bg);
+  color: var(--text);
+}
+button, input { font: inherit; }
+a { color: var(--accent-strong); text-underline-offset: 3px; }
+a:hover { color: #70e6c2; }
+.oauth-shell {
+  width: min(760px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel);
+}
+.oauth-header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--sidebar);
+}
+.oauth-mark {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border: 1px solid rgba(45, 212, 163, 0.32);
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 850;
+}
+.oauth-brand strong, .oauth-brand span { display: block; }
+.oauth-brand strong { font-size: 0.94rem; }
+.oauth-brand span { margin-top: 2px; color: var(--muted); font-size: 0.72rem; }
+.oauth-content { padding: 22px; }
+.oauth-eyebrow {
+  margin: 0 0 7px;
+  color: var(--accent);
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+h1 { margin: 0; font-size: clamp(1.55rem, 5vw, 2rem); line-height: 1.15; letter-spacing: -0.025em; }
+.oauth-description { max-width: 62ch; margin: 10px 0 0; color: var(--muted); font-size: 0.88rem; line-height: 1.55; }
+.oauth-client {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px 12px;
+  margin: 18px 0 0;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+}
+.oauth-client strong { font-size: 0.83rem; }
+.oauth-client a { font-size: 0.73rem; }
+.scope-list { list-style: none; margin: 12px 0 0; padding: 0; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+.scope-list li { display: grid; gap: 4px; padding: 11px 12px; border-bottom: 1px solid var(--border); background: var(--panel-soft); }
+.scope-list li:last-child { border-bottom: 0; }
+.scope-list strong { font-size: 0.76rem; }
+.scope-list span { color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
+.oauth-error, .oauth-result {
+  margin: 15px 0 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 123, 123, 0.3);
+  border-radius: 7px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.oauth-result.is-neutral { border-color: var(--border); background: var(--panel-soft); color: var(--muted); }
+.oauth-form { margin-top: 16px; }
+.oauth-field { display: grid; gap: 6px; margin-top: 12px; }
+.oauth-field > span { color: #dbe4ef; font-size: 0.76rem; font-weight: 720; }
+.oauth-field input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel-raised);
+  color: var(--text);
+  caret-color: var(--accent);
+}
+.oauth-field input:hover { border-color: var(--border-strong); }
+.oauth-field input:focus-visible { border-color: rgba(45, 212, 163, 0.82); box-shadow: 0 0 0 3px var(--accent-soft); }
+.oauth-field input[aria-invalid="true"] { border-color: var(--danger); }
+.oauth-field input:-webkit-autofill,
+.oauth-field input:-webkit-autofill:hover,
+.oauth-field input:-webkit-autofill:focus,
+.oauth-field input:-webkit-autofill:active {
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--accent);
+  box-shadow: 0 0 0 1000px var(--panel-raised) inset;
+  transition: background-color 9999s ease-out 0s;
+}
+.oauth-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 17px; }
+.oauth-button {
+  min-height: 43px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 780;
+}
+.oauth-button:hover:not(:disabled) { border-color: var(--border-strong); background: #202a39; }
+.oauth-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.oauth-button.is-primary { border-color: rgba(45, 212, 163, 0.54); background: var(--accent-strong); color: #07130f; }
+.oauth-button.is-primary:hover:not(:disabled) { background: #55dfb8; }
+.oauth-button:disabled { cursor: wait; opacity: 0.58; }
+.oauth-form[aria-busy="true"] .oauth-field input { opacity: 0.75; }
+.oauth-privacy { margin: 14px 0 0; color: var(--muted); font-size: 0.69rem; line-height: 1.5; }
+.oauth-footer { padding: 12px 18px; border-top: 1px solid var(--border); background: var(--sidebar); color: var(--muted); font-size: 0.67rem; line-height: 1.45; }
+@media (max-width: 560px) {
+  body { place-items: start center; padding: 12px; }
+  .oauth-content { padding: 18px 16px; }
+  .oauth-header, .oauth-footer { padding-left: 16px; padding-right: 16px; }
+  .oauth-actions { grid-template-columns: 1fr; }
+  .oauth-button.is-primary { order: -1; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+"""
+
+OAUTH_SUBMIT_SCRIPT = r"""
+(() => {
+  const form = document.querySelector("[data-oauth-form]");
+  if (!form) return;
+  const buttons = Array.from(form.querySelectorAll("button[type='submit']"));
+  const approve = form.querySelector("button[value='approve']");
+  let clicked = null;
+  let decisionInput = null;
+  const originals = buttons.map((button) => ({
+    button,
+    name: button.name,
+    label: button.textContent,
+  }));
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => { clicked = button; });
+  });
+
+  form.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Enter" &&
+      event.target instanceof HTMLInputElement &&
+      form.dataset.submitting !== "true" &&
+      approve
+    ) {
+      event.preventDefault();
+      approve.click();
+    }
+  });
+
+  form.addEventListener("submit", (event) => {
+    if (form.dataset.submitting === "true") {
+      event.preventDefault();
+      return;
+    }
+    const submitter = event.submitter || clicked || approve;
+    const decision = submitter && submitter.value === "deny" ? "deny" : "approve";
+    decisionInput = document.createElement("input");
+    decisionInput.type = "hidden";
+    decisionInput.name = "decision";
+    decisionInput.value = decision;
+    decisionInput.dataset.submitLockDecision = "true";
+    form.appendChild(decisionInput);
+    form.dataset.submitting = "true";
+    form.setAttribute("aria-busy", "true");
+    originals.forEach(({ button }) => {
+      button.removeAttribute("name");
+      button.disabled = true;
+    });
+    if (submitter) {
+      submitter.textContent = decision === "deny" ? "Denying..." : "Authorizing...";
+    }
+  });
+
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    form.dataset.submitting = "false";
+    form.removeAttribute("aria-busy");
+    if (decisionInput && decisionInput.isConnected) decisionInput.remove();
+    decisionInput = null;
+    originals.forEach(({ button, name, label }) => {
+      button.disabled = false;
+      button.textContent = label;
+      if (name) button.name = name;
+    });
+    clicked = null;
+  });
+})();
+"""
+
+
+def _oauth_document(
+    *,
+    title: str,
+    eyebrow: str,
+    heading: str,
+    description: str,
+    body: str,
+    script_nonce: str | None = None,
+) -> str:
+    script = (
+        '<script nonce="'
+        + html.escape(script_nonce, quote=True)
+        + '">'
+        + OAUTH_SUBMIT_SCRIPT
+        + "</script>"
+        if script_nonce
+        else ""
+    )
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(title)} · Part Pilot</title>
+<style>{OAUTH_STYLES}</style>
+</head>
+<body>
+<main class="oauth-shell" aria-labelledby="oauth-heading">
+<header class="oauth-header">
+<div class="oauth-mark" aria-hidden="true">P</div>
+<div class="oauth-brand"><strong>Part Pilot</strong><span>Private inventory access</span></div>
+</header>
+<section class="oauth-content">
+<p class="oauth-eyebrow">{html.escape(eyebrow)}</p>
+<h1 id="oauth-heading">{html.escape(heading)}</h1>
+<p class="oauth-description">{html.escape(description)}</p>
+{body}
+</section>
+<footer class="oauth-footer">Part Pilot grants only the permissions shown in this request. Connector access can be revoked later.</footer>
+</main>
+{script}
+</body>
+</html>"""
+
+
 def _authorization_html(
     auth: dict[str, Any],
     *,
     csrf_token: str,
+    script_nonce: str,
     error_message: str | None = None,
     username: str = "",
 ) -> str:
@@ -257,7 +537,7 @@ def _authorization_html(
         else ""
     )
     client_uri = (
-        '<a class="client-link" href="'
+        '<a href="'
         + html.escape(client.client_uri, quote=True)
         + '" rel="noreferrer">View client website</a>'
         if client.client_uri
@@ -276,66 +556,45 @@ def _authorization_html(
             _hidden("resource", auth["resource"]),
         ]
     )
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Authorize {html.escape(client.client_name)} · Part Pilot</title>
-<style>
-:root {{ color-scheme: dark; font-family: "Avenir Next", "Segoe UI", sans-serif; background:#111315; color:#f3f5f6; }}
-* {{ box-sizing:border-box; }}
-body {{ margin:0; min-height:100vh; display:grid; place-items:center; padding:28px 18px; background:#111315; }}
-.oauth-shell {{ width:min(920px,100%); display:grid; grid-template-columns:minmax(0,0.9fr) minmax(360px,1.1fr); border:1px solid #30353a; background:#171a1d; box-shadow:0 24px 70px rgba(0,0,0,.28); }}
-.oauth-summary,.oauth-form {{ padding:42px; }}
-.oauth-summary {{ display:flex; flex-direction:column; justify-content:space-between; gap:48px; background:#141719; border-right:1px solid #30353a; }}
-.brand {{ display:flex; align-items:center; gap:13px; }}
-.mark {{ width:38px; height:38px; display:grid; place-items:center; border:1px solid #3daba3; color:#73d6cf; font-weight:800; }}
-.brand strong {{ display:block; font-size:16px; }} .brand span {{ display:block; margin-top:2px; color:#929ba3; font-size:13px; }}
-.eyebrow {{ margin:0 0 12px; color:#73d6cf; font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }}
-h1 {{ margin:0; font-size:clamp(30px,4vw,48px); line-height:1.05; letter-spacing:-.035em; }}
-.summary-copy {{ margin:16px 0 0; color:#aeb5bb; line-height:1.65; }}
-.installation {{ margin:0; padding-top:20px; border-top:1px solid #30353a; color:#818b93; font-size:13px; }}
-.oauth-form h2 {{ margin:0; font-size:26px; letter-spacing:-.02em; }}
-.client-name {{ margin:10px 0 4px; color:#f4f7f7; font-size:18px; font-weight:700; }}
-.client-link {{ color:#73d6cf; font-size:13px; }}
-.scope-list {{ list-style:none; margin:26px 0; padding:0; border:1px solid #30353a; }}
-.scope-list li {{ padding:15px 16px; display:grid; gap:5px; border-bottom:1px solid #30353a; }}
-.scope-list li:last-child {{ border-bottom:0; }}
-.scope-list strong {{ font-size:13px; }} .scope-list span {{ color:#9da6ad; font-size:13px; line-height:1.45; }}
-label {{ display:grid; gap:7px; margin-top:15px; color:#cdd2d6; font-size:13px; font-weight:700; }}
-input[type=text],input[type=password] {{ width:100%; border:1px solid #3a4045; border-radius:3px; background:#111315; color:#fff; padding:12px 13px; font:inherit; outline:none; }}
-input:focus {{ border-color:#62c7c0; box-shadow:0 0 0 2px rgba(98,199,192,.14); }}
-.oauth-error {{ margin:16px 0 0; padding:11px 12px; border:1px solid #8f4545; background:#2a1818; color:#ffb7b7; font-size:13px; }}
-.actions {{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:22px; }}
-button {{ min-height:44px; border-radius:3px; border:1px solid #3b4247; background:#202428; color:#f4f6f7; font:inherit; font-weight:800; cursor:pointer; }}
-button[value=approve] {{ border-color:#399d96; background:#237a74; }}
-button:hover {{ filter:brightness(1.08); }}
-.privacy {{ margin:18px 0 0; color:#7f8991; font-size:12px; line-height:1.5; }}
-@media(max-width:760px) {{ .oauth-shell {{ grid-template-columns:1fr; }} .oauth-summary {{ border-right:0; border-bottom:1px solid #30353a; gap:28px; }} .oauth-summary,.oauth-form {{ padding:28px; }} }}
-</style>
-</head>
-<body>
-<main class="oauth-shell">
-<section class="oauth-summary">
-<div><div class="brand"><div class="mark">P</div><div><strong>Part Pilot</strong><span>Private inventory access</span></div></div>
-<div style="margin-top:54px"><p class="eyebrow">MCP authorization</p><h1>Connect your assistant.</h1><p class="summary-copy">Sign in to this Part Pilot installation and explicitly approve the requested access.</p></div></div>
-<p class="installation">Tokens are stored as one-way hashes. You can revoke this connector later.</p>
-</section>
-<section class="oauth-form">
-<p class="eyebrow">Access request</p><h2>Authorize connector</h2><p class="client-name">{html.escape(client.client_name)}</p>{client_uri}
-<ul class="scope-list">{scope_items}</ul>
+    body = f"""
+<div class="oauth-client"><strong>{html.escape(client.client_name)}</strong>{client_uri}</div>
+<ul class="scope-list" aria-label="Requested permissions">{scope_items}</ul>
 {error}
-<form method="post" action="/oauth/authorize" autocomplete="on">{hidden}
-<label>Username<input type="text" name="username" value="{html.escape(username, quote=True)}" autocomplete="username" required></label>
-<label>Password<input type="password" name="password" autocomplete="current-password" required></label>
-<div class="actions"><button type="submit" name="decision" value="deny" formnovalidate>Deny</button><button type="submit" name="decision" value="approve">Authorize</button></div>
+<form class="oauth-form" method="post" action="/oauth/authorize" autocomplete="on" data-oauth-form>
+{hidden}
+<label class="oauth-field"><span>Username</span><input type="text" name="username" value="{html.escape(username, quote=True)}" autocomplete="username" required></label>
+<label class="oauth-field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required></label>
+<div class="oauth-actions"><button class="oauth-button" type="submit" name="decision" value="deny" formnovalidate>Deny</button><button class="oauth-button is-primary" type="submit" name="decision" value="approve">Authorize</button></div>
 </form>
-<p class="privacy">Only the permissions shown above will be granted. Closing this page does not authorize access.</p>
-</section>
-</main>
-</body>
-</html>"""
+<p class="oauth-privacy">Closing this page does not authorize access. Do not approve a connector you did not start.</p>
+"""
+    return _oauth_document(
+        title=f"Authorize {client.client_name}",
+        eyebrow="MCP authorization",
+        heading="Authorize connector",
+        description="Sign in to this Part Pilot installation and explicitly approve the requested access.",
+        body=body,
+        script_nonce=script_nonce,
+    )
+
+
+def _oauth_result_html(
+    *,
+    title: str,
+    heading: str,
+    description: str,
+    detail: str,
+    status: str = "error",
+) -> str:
+    result_class = "oauth-result is-neutral" if status == "neutral" else "oauth-result"
+    body = f'<p class="{result_class}" role="alert">{html.escape(detail)}</p>'
+    return _oauth_document(
+        title=title,
+        eyebrow="MCP authorization",
+        heading=heading,
+        description=description,
+        body=body,
+    )
 
 
 def _html_response(
@@ -344,15 +603,32 @@ def _html_response(
     status_code: int = 200,
     csrf_token: str | None = None,
     secure_cookie: bool = True,
+    script_nonce: str | None = None,
+    form_action_redirect_uri: str | None = None,
 ) -> HTMLResponse:
+    script_policy = (
+        "script-src 'nonce-" + script_nonce + "'; "
+        if script_nonce
+        else "script-src 'none'; "
+    )
+    form_action_policy = "form-action 'self'"
+    if form_action_redirect_uri is not None:
+        validated_redirect = validate_redirect_uri(form_action_redirect_uri)
+        redirect_parts = urlsplit(validated_redirect)
+        callback_origin = urlunsplit(
+            (redirect_parts.scheme, redirect_parts.netloc, "", "", "")
+        )
+        form_action_policy += " " + callback_origin
     response = HTMLResponse(
         content,
         status_code=status_code,
         headers={
             **_no_store_headers(),
             "Content-Security-Policy": (
-                "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
-                "base-uri 'none'; frame-ancestors 'none'"
+                "default-src 'none'; style-src 'unsafe-inline'; "
+                + script_policy
+                + form_action_policy
+                + "; base-uri 'none'; frame-ancestors 'none'"
             ),
             "Referrer-Policy": "no-referrer",
             "X-Frame-Options": "DENY",
@@ -493,14 +769,19 @@ def authorize_page(
     values = {key: value for key, value in request.query_params.items()}
     redirect_value = values.get("redirect_uri", "")
     state_value = values.get("state")
+    secure_cookie = _public_origin(request).startswith("https://")
     try:
         auth = _validated_authorization_request(db, request, values)
     except (McpOAuthInvalidClientError, McpOAuthInvalidGrantError):
         return _html_response(
-            "<!doctype html><title>Invalid authorization request</title>"
-            "<h1>Invalid authorization request</h1>",
+            _oauth_result_html(
+                title="Invalid authorization request",
+                heading="Invalid authorization request",
+                description="Part Pilot could not verify this connector request.",
+                detail="Return to the connector and start the connection again. Do not edit the authorization URL.",
+            ),
             status_code=400,
-            secure_cookie=request.url.scheme == "https",
+            secure_cookie=secure_cookie,
         )
     except (McpOAuthDisabledError, McpOAuthInsufficientScopeError) as exc:
         try:
@@ -515,9 +796,14 @@ def authorize_page(
                 state_value=state_value,
             )
         return _html_response(
-            "<!doctype html><title>MCP unavailable</title><h1>MCP is unavailable</h1>",
+            _oauth_result_html(
+                title="MCP unavailable",
+                heading="MCP is unavailable",
+                description="This Part Pilot installation is not accepting the requested MCP access.",
+                detail="Return to the connector and reconnect after the Part Pilot owner enables the required access.",
+            ),
             status_code=503,
-            secure_cookie=request.url.scheme == "https",
+            secure_cookie=secure_cookie,
         )
     except McpOAuthValidationError as exc:
         try:
@@ -535,17 +821,40 @@ def authorize_page(
                 state_value=state_value,
             )
         return _html_response(
-            "<!doctype html><title>Invalid authorization request</title>"
-            "<h1>Invalid authorization request</h1>",
+            _oauth_result_html(
+                title="Invalid authorization request",
+                heading="Invalid authorization request",
+                description="Part Pilot rejected an invalid or incomplete connector request.",
+                detail="Return to the connector and start the connection again. The request parameters cannot be repaired on this page.",
+            ),
             status_code=400,
-            secure_cookie=request.url.scheme == "https",
+            secure_cookie=secure_cookie,
+        )
+    except Exception:
+        db.rollback()
+        return _html_response(
+            _oauth_result_html(
+                title="Authorization error",
+                heading="Authorization could not continue",
+                description="Part Pilot encountered an unexpected error while preparing this request.",
+                detail="Return to the connector and reconnect. If the problem continues, ask the Part Pilot owner to review the server logs.",
+            ),
+            status_code=500,
+            secure_cookie=secure_cookie,
         )
 
     csrf_token = secrets.token_urlsafe(32)
+    script_nonce = secrets.token_urlsafe(24)
     return _html_response(
-        _authorization_html(auth, csrf_token=csrf_token),
+        _authorization_html(
+            auth,
+            csrf_token=csrf_token,
+            script_nonce=script_nonce,
+        ),
         csrf_token=csrf_token,
-        secure_cookie=_public_origin(request).startswith("https://"),
+        secure_cookie=secure_cookie,
+        script_nonce=script_nonce,
+        form_action_redirect_uri=auth["redirect_uri"],
     )
 
 
@@ -558,14 +867,31 @@ async def authorize_decision(
     values = {key: str(value) for key, value in form_data.items()}
     redirect_value = values.get("redirect_uri", "")
     state_value = values.get("state") or None
+    secure_cookie = _public_origin(request).startswith("https://")
     try:
         auth = _validated_authorization_request(db, request, values)
     except McpOAuthError:
         return _html_response(
-            "<!doctype html><title>Invalid authorization request</title>"
-            "<h1>Invalid authorization request</h1>",
+            _oauth_result_html(
+                title="Invalid authorization request",
+                heading="Invalid authorization request",
+                description="Part Pilot could not verify this submitted connector request.",
+                detail="Return to the connector and start the connection again.",
+            ),
             status_code=400,
-            secure_cookie=_public_origin(request).startswith("https://"),
+            secure_cookie=secure_cookie,
+        )
+    except Exception:
+        db.rollback()
+        return _html_response(
+            _oauth_result_html(
+                title="Authorization error",
+                heading="Authorization could not continue",
+                description="Part Pilot encountered an unexpected error while validating this request.",
+                detail="Return to the connector and reconnect. If the problem continues, ask the Part Pilot owner to review the server logs.",
+            ),
+            status_code=500,
+            secure_cookie=secure_cookie,
         )
 
     if values.get("decision") == "deny":
@@ -582,10 +908,14 @@ async def authorize_decision(
     submitted_token = values.get("csrf_token", "")
     if not cookie_token or not hmac.compare_digest(cookie_token, submitted_token):
         return _html_response(
-            "<!doctype html><title>Authorization expired</title>"
-            "<h1>Authorization request expired</h1>",
+            _oauth_result_html(
+                title="Authorization expired",
+                heading="Authorization request expired",
+                description="This one-time authorization request was already used or timed out.",
+                detail="Return to the connector and reconnect to create a fresh authorization request.",
+            ),
             status_code=400,
-            secure_cookie=_public_origin(request).startswith("https://"),
+            secure_cookie=secure_cookie,
         )
 
     username = values.get("username", "").strip()
@@ -594,16 +924,20 @@ async def authorize_decision(
     if user is None:
         db.rollback()
         csrf_token = secrets.token_urlsafe(32)
+        script_nonce = secrets.token_urlsafe(24)
         return _html_response(
             _authorization_html(
                 auth,
                 csrf_token=csrf_token,
+                script_nonce=script_nonce,
                 error_message="Invalid username or password.",
                 username=username,
             ),
             status_code=401,
             csrf_token=csrf_token,
-            secure_cookie=_public_origin(request).startswith("https://"),
+            secure_cookie=secure_cookie,
+            script_nonce=script_nonce,
+            form_action_redirect_uri=auth["redirect_uri"],
         )
 
     try:
@@ -636,7 +970,16 @@ async def authorize_decision(
         )
     except Exception:
         db.rollback()
-        raise
+        return _html_response(
+            _oauth_result_html(
+                title="Authorization error",
+                heading="Authorization could not be completed",
+                description="Part Pilot encountered an unexpected error while granting this request.",
+                detail="Return to the connector and reconnect. No connector access was granted by this failed attempt.",
+            ),
+            status_code=500,
+            secure_cookie=secure_cookie,
+        )
 
     response_values = {"code": issued.code}
     if auth["state"]:
