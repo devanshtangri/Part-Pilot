@@ -3134,3 +3134,174 @@ and styled expired/invalid/unavailable pages. Preserve one-time CSRF behavior.
 The application source remains browser-test pending until Claude, Google, or ChatGPT
 completes registration, consent, callback, token exchange, MCP initialization,
 tool listing, and a read-only call.
+
+<!-- PARTPILOT:CHAT19_SETTINGS_ADMINISTRATION_CHECKPOINT:V528 -->
+## Chat 19 product-direction checkpoint — Settings administration and integration control
+
+### Completed connector milestone
+
+- Patch 527 committed and pushed the browser-approved OAuth connector workflow.
+- Claude and ChatGPT are connected through OAuth with read-only MCP access.
+- Hermes is connected through direct Bearer authentication.
+- The standalone authorization page, duplicate-submit lock, callback-origin CSP,
+  and styled OAuth error states are approved.
+- MCP and read tools remain enabled; MCP write authorization remains disabled.
+- Failed Patches 520-526 are consumed. Patch 527 is the authoritative source
+  checkpoint.
+- README must describe only implemented behavior. Planned features stay in
+  durable project documentation until separately built and approved.
+
+### Locked terminology polish
+
+User-facing technical acronyms must preserve canonical capitalization:
+
+- `MCP`, not `Mcp`
+- `OAuth`, not `Oauth`
+- `API`, `HTTP`, `HTTPS`, `URL`, `URI`, `ID`, `IP`, `CIDR`, `PKCE`, `UI`,
+  `CSV`, and `JSON`
+
+Use the shared formatter in History titles, entity labels, filters,
+actor/authentication labels, metadata labels, and selected-event details. Raw
+stored identifiers may remain visible in explicitly technical fields.
+
+### Approved Settings information architecture
+
+The Settings page will evolve into an administration console:
+
+1. **General** — instance identity, locale, timezone, currency, date/time
+   formats, default landing page, and navigation defaults.
+2. **Appearance** — theme, accent, density, font size, reduced motion, contrast,
+   table density, sidebar behavior, and display formatting.
+3. **Inventory** — result defaults, stock rules, thresholds, required metadata,
+   duplicate warnings, quantity precision, confirmations, and default
+   catalogues.
+4. **Reservations** — expiry defaults, validation, over-reservation policy,
+   notes/Project requirements, warning thresholds, sorting, and optional
+   expiration automation.
+5. **Account & Users** — profile, username, display name, password, built-in
+   avatars, sessions, and later multi-user roles/administration.
+6. **Integrations** — MCP overview, OAuth clients, direct clients, tool
+   permissions, connection guidance, and scoped REST API keys.
+7. **Data & Maintenance** — backup, restore, exports, diagnostics, integrity,
+   retention, and explicit cleanup utilities.
+8. **Advanced** — technical, security-sensitive, and experimental controls.
+
+### Account and user administration
+
+The first account slice must support the current user:
+
+- Change display name and username.
+- Change password by providing the current password.
+- Revoke other sessions after password change by default.
+- Select a built-in Part Pilot avatar; uploaded avatars are a later storage and
+  image-processing slice.
+- View active sessions and revoke individual or all other sessions.
+
+The design must remain compatible with multiple users. Future roles are Owner,
+Administrator, Operator, and Viewer. The last Owner cannot be disabled, deleted,
+or demoted.
+
+### General REST API keys
+
+REST API keys are separate from browser sessions, MCP direct keys, OAuth access
+tokens, and OAuth client secrets.
+
+Each key must have:
+
+- User-supplied name and optional description.
+- Generated `pp_api_...` secret shown exactly once.
+- Only a cryptographic hash stored at rest.
+- Visible prefix, creator, creation time, expiration, last use, and status.
+- Scoped permissions for inventory, Projects, Reservations, History, Settings,
+  backups, and user administration.
+- Copy-once, rotate, revoke, and audit behavior.
+- Dangerous permissions disabled by default.
+
+### MCP administration and direct access
+
+Keep a simple MCP overview and place detailed controls under **Advanced
+Settings** or dedicated sub-tabs:
+
+- Overview
+- OAuth clients
+- Direct clients
+- Tools & permissions
+- Connection setup
+- Advanced
+
+Direct access gains a master switch. When enabled, supported methods are no
+authentication, Bearer key, custom header, and trusted network.
+
+No-authentication mode is disabled by default, requires a warning and typed
+confirmation, and must not authorize write tools in its first version. Local
+loopback use is the intended safe case.
+
+The eventual singleton direct-auth model becomes named clients such as Hermes
+Agent, Local Claude Code, n8n Automation, or Workshop Assistant. Each receives
+independent credentials/network rules, last-use information, tool policy,
+rotation, and revocation.
+
+### OAuth client administration
+
+Settings must distinguish Registered, Connected, Abandoned, and Revoked OAuth
+clients.
+
+The connected-client list shows name, client ID, redirect origin,
+public/confidential type, authentication method, scopes, connection time, last
+use, active token/session count, and revocation control.
+
+Revocation invalidates active token families and unused authorization codes,
+records an audit event, and preserves history rather than deleting it.
+
+Manual registration asks for client name, redirect URI(s), client type, and
+token-endpoint authentication method. Part Pilot generates the client ID and
+one-time client secret when required.
+
+### Global and per-client MCP tool policy
+
+Tool authorization uses this hierarchy:
+
+1. Global MCP enabled switch.
+2. Global read/write category switches.
+3. Global individual-tool policy.
+4. Client-specific `Inherit`, `Allow`, or `Deny` override.
+5. Runtime authorization and audit.
+
+A client override cannot exceed the global ceiling. `Deny` wins. Enforce the
+policy in both `tools/list` and `tools/call`; hiding a tool alone is not
+security.
+
+Write tools require the global write switch, individual tool enablement,
+client permission, OAuth `mcp:write` when applicable, and tool-specific
+confirmation/idempotency. Per-client policy is implemented before
+inventory-mutating MCP tools.
+
+### Preference restoration
+
+Every preference section receives a real **Restore defaults** action that shows
+a before/after summary, resets only that section's documented settings, writes
+one audit event, applies immediately, and preserves unrelated sections.
+
+A global **Restore all preference defaults** action resets preference keys only.
+It must not erase inventory, Projects, Reservations, users, passwords, API keys,
+OAuth clients, direct credentials, backups, or audit history.
+
+MCP preference reset and destructive MCP access reset remain separate.
+
+### Locked implementation order
+
+1. Normalize History technical acronyms.
+2. Diagnose and clean only exact abandoned OAuth test rows.
+3. Add connected OAuth client listing and revocation.
+4. Add manual OAuth client registration and one-time secret handling.
+5. Add current-user profile, password, session, and built-in-avatar controls.
+6. Add scoped REST API keys.
+7. Add the direct-client master switch, no-auth mode, and named direct clients.
+8. Add global individual-tool and per-client MCP policies.
+9. Expand General, Appearance, Inventory, Reservations, and Data settings.
+10. Add section-specific and global preference-default restoration.
+11. Add multi-user roles and administration.
+12. Define and implement safeguarded MCP write tools on top of the permission
+    model.
+13. Complete accessibility, security, documentation, and public-alpha
+    hardening.

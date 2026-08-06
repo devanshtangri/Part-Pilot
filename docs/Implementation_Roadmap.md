@@ -2529,3 +2529,172 @@ Do not weaken or bypass the CSRF check. Do not alter the active direct Bearer
 credential. Do not delete OAuth rows by name, timestamp, or broad query.
 Do not start inventory-mutating MCP tools until one external OAuth read-only
 client is fully connected and the write contract is independently approved.
+
+<!-- PARTPILOT:CHAT19_SETTINGS_ADMINISTRATION_ROADMAP:V528 -->
+## Settings administration and integration-control roadmap
+
+### Milestone baseline
+
+- [x] Patch 527 committed and pushed the browser-approved OAuth workflow.
+- [x] Claude and ChatGPT connected with `mcp:read`.
+- [x] Hermes connected through direct Bearer authentication.
+- [x] MCP/read enabled and MCP write authorization disabled.
+- [x] Durable Settings-administration scope approved.
+- [ ] Exact abandoned OAuth registration cleanup.
+- [ ] Administration and permission features below.
+
+### Phase A — terminology and OAuth hygiene
+
+#### A1. Technical acronym formatter
+
+- [ ] Preserve MCP, OAuth, API, HTTP, HTTPS, URL, URI, ID, IP, CIDR, PKCE, UI,
+  CSV, and JSON.
+- [ ] Apply to History rows, facets, actors, entities, details, and metadata.
+- [ ] Preserve raw stored identifiers in technical fields.
+- [ ] Browser-check desktop and mobile History.
+
+#### A2. Exact abandoned-row cleanup
+
+- [ ] Inspect current clients, codes, consents, token families, redirects, and
+  successful ownership.
+- [ ] Produce an exact ID allowlist before deletion.
+- [ ] Preserve active Claude and ChatGPT registrations, tokens, grants, and
+  refresh families.
+- [ ] Delete no rows by broad name, origin, or timestamp.
+- [ ] Verify integrity, foreign keys, connections, and before/after evidence.
+
+### Phase B — OAuth administration
+
+#### B1. Connected-client visibility
+
+- [ ] Protected API for registered/connected/abandoned/revoked summaries.
+- [ ] Derive status from registration, consent, code, token, and revocation
+  state.
+- [ ] Settings list with name, client ID, redirect origin, auth method, scopes,
+  created/connected/last-used timestamps, token count, and status.
+- [ ] Responsive loading, empty, error, and populated states.
+
+#### B2. Revocation
+
+- [ ] Review dialog with exact affected token-family/code counts.
+- [ ] Transactionally revoke client or grant, active token families, and unused
+  codes.
+- [ ] Secret-free audit event and preserved history.
+- [ ] Verify the revoked client fails while unrelated clients remain connected.
+
+#### B3. Manual client registration
+
+- [ ] Form for name, redirect URI(s), client type, grant/response types, and
+  token-endpoint authentication.
+- [ ] Generate collision-resistant client ID.
+- [ ] Generate a secret for confidential clients, display once, hash at rest,
+  and support rotation.
+- [ ] Prefer PKCE/public-client defaults for desktop/local clients.
+- [ ] Provide copyable configuration and connection guidance.
+
+### Phase C — account and API administration
+
+#### C1. Current-user profile and security
+
+- [ ] Protected profile read/update API.
+- [ ] Display-name and username changes with uniqueness/normalization.
+- [ ] Password change requiring current password.
+- [ ] Revoke other sessions by default after password change.
+- [ ] Session list and targeted/all-other revocation.
+- [ ] Built-in avatar catalogue and stored avatar ID.
+- [ ] Uploaded avatars only after safe storage/crop/metadata/backup contracts.
+
+#### C2. Multi-user foundation
+
+- [ ] Roles: Owner, Administrator, Operator, Viewer.
+- [ ] Permission checks on every protected REST/MCP operation.
+- [ ] Add, disable, reactivate, role-change, force-reset, revoke, and delete.
+- [ ] Last Owner cannot be disabled, deleted, or demoted.
+- [ ] Backward compatibility for the current single owner.
+
+#### C3. Scoped REST API keys
+
+- [ ] Dedicated API-key table and `pp_api_...` credential prefix.
+- [ ] One-time secret display and hash-only storage.
+- [ ] Name, description, creator, prefix, expiration, last use, rotation,
+  revocation, and audit.
+- [ ] Scopes for inventory, Projects, Reservations, History, Settings, backups,
+  and user administration.
+- [ ] Dangerous scopes off by default.
+- [ ] Distinguish session, API, OAuth, and MCP direct credentials.
+- [ ] Copyable curl/OpenAPI examples.
+
+### Phase D — MCP direct clients and permissions
+
+#### D1. Direct-client master switch and no-auth mode
+
+- [ ] Separate `Allow direct MCP clients` from the selected auth method.
+- [ ] Modes: no authentication, Bearer, custom header, trusted network.
+- [ ] No-auth is off by default, requires typed confirmation, warns when
+  remotely reachable, and initially permits read tools only.
+- [ ] Local-loopback and Docker-gateway guidance.
+- [ ] Show last resolved direct-client address safely.
+
+#### D2. Named direct clients
+
+- [ ] Replace or migrate the singleton direct-auth record to named clients.
+- [ ] Independent credential/network configuration, tool policy, metadata,
+  rotation, disable, and revoke.
+- [ ] Preserve existing Hermes access during migration.
+- [ ] Support Local Claude Code, n8n, tunnel agents, and other direct clients
+  without a shared identity.
+
+#### D3. Tool catalogue and policy model
+
+- [ ] Stable tool identifiers and read/write/risk metadata.
+- [ ] Global policy per individual tool.
+- [ ] Client override values: Inherit, Allow, Deny.
+- [ ] OAuth and named-direct-client assignments.
+- [ ] Deny wins; client Allow cannot exceed the global category/tool ceiling.
+- [ ] Enforce in both `tools/list` and `tools/call`.
+- [ ] Secret-free decision audits.
+- [ ] Accessible desktop/mobile permission matrix.
+
+### Phase E — expanded preferences
+
+- [ ] General: instance name, locale, timezone, currency, date/time, landing
+  page, navigation.
+- [ ] Appearance: theme, accent, density, font size, reduced motion, contrast,
+  table density, sticky headings, sidebar.
+- [ ] Inventory: default filter/sort/page size/location/type, remembered filters,
+  columns, low-stock threshold, negative-stock policy, quantity precision,
+  note/confirmation rules, required metadata, duplicate warnings.
+- [ ] Reservations: expiry, section, sorting, Project selection, quantity,
+  over-reservation, note/Project requirements, warnings, grace period, optional
+  automatic expiration.
+- [ ] Data & Maintenance: scheduled backups/retention, export/import preview,
+  storage, integrity, diagnostics, audit retention, explicit cleanup.
+
+### Phase F — restore defaults
+
+- [ ] Document defaults for every preference key.
+- [ ] Per-section preview and restore API.
+- [ ] One audit event per restore.
+- [ ] Global preference-only restore.
+- [ ] Preserve users, credentials, clients, API keys, inventory, lifecycle data,
+  backups, and history.
+- [ ] Separate MCP preference restore from destructive access reset.
+
+### Phase G — safeguarded MCP writes
+
+Begin only after the client/tool permission model is complete.
+
+- [ ] Explicit write-tool catalogue and scopes.
+- [ ] Confirmation, idempotency, quantity, stock, transaction, audit, rollback,
+  and error contracts.
+- [ ] Separate inventory-safe implementation slices.
+- [ ] Require OAuth `mcp:write`, global write, tool policy, and client permission.
+- [ ] No-auth direct clients cannot receive write access initially.
+
+### Immediate next patches
+
+1. Patch 529: History technical acronym normalization.
+2. Following patch: exact OAuth-row cleanup diagnostic/allowlist.
+3. Cleanup implementation only after the diagnostic passes and is inspected.
+4. OAuth connected-client administration.
+5. Continue without combining unrelated security or data-mutation slices.
