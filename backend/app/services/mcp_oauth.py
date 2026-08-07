@@ -382,6 +382,7 @@ def register_client(
     client_uri: str | None = None,
     metadata: dict[str, Any] | None = None,
     actor_user_id: int | None = None,
+    registered_by_user_id: int | None = None,
     commit: bool = True,
 ) -> RegisteredOAuthClient:
     name = _normalise_text(client_name, label="Client name", maximum=200)
@@ -413,7 +414,10 @@ def register_client(
 
     public_identifier = generate_client_id()
     plaintext_secret = None if method == "none" else generate_client_secret()
+    if registered_by_user_id is not None:
+        _active_user(db, registered_by_user_id)
     client = McpOAuthClient(
+        registered_by_user_id=registered_by_user_id,
         client_id=public_identifier,
         client_secret_hash=(
             None

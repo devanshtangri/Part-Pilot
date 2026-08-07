@@ -540,9 +540,15 @@ class McpOAuthClient(Base, TimestampMixin):
             name="uq_mcp_oauth_clients_secret_hash",
         ),
         Index("ix_mcp_oauth_clients_revoked_at", "revoked_at"),
+        Index("ix_mcp_oauth_clients_registered_by_user_id", "registered_by_user_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # PARTPILOT:MCP_OAUTH_CLIENT_OWNERSHIP_MODEL:V555
+    registered_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_mcp_oauth_clients_registered_by_user_id"),
+        nullable=True,
+    )
     client_id: Mapped[str] = mapped_column(
         String(160),
         nullable=False,

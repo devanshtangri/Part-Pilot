@@ -96,7 +96,7 @@ class McpOAuthClientSummaryResponse(BaseModel):
 
     database_id: int = Field(ge=1)
     client_id: str = Field(min_length=1, max_length=255)
-    client_name: str = Field(min_length=1, max_length=160)
+    client_name: str = Field(min_length=1, max_length=200)
     status: McpOAuthClientConnectionStatus
     client_type: McpOAuthClientType
     token_endpoint_auth_method: McpOAuthTokenEndpointAuthMethod
@@ -117,6 +117,26 @@ class McpOAuthClientsResponse(BaseModel):
 
     clients: list[McpOAuthClientSummaryResponse]
     total: int = Field(ge=0)
+
+
+# PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_SCHEMA:V555
+class McpOAuthClientRegistrationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    client_name: str = Field(min_length=1, max_length=200)
+    redirect_uris: list[str] = Field(min_length=1, max_length=20)
+    client_type: McpOAuthClientType
+    token_endpoint_auth_method: McpOAuthTokenEndpointAuthMethod
+
+class McpOAuthClientRegistrationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    database_id: int = Field(ge=1)
+    client_id: str = Field(min_length=1, max_length=160)
+    client_name: str = Field(min_length=1, max_length=200)
+    redirect_uris: list[str] = Field(min_length=1, max_length=20)
+    client_type: McpOAuthClientType
+    token_endpoint_auth_method: McpOAuthTokenEndpointAuthMethod
+    created_at: datetime
+    client_secret: str | None = Field(default=None, repr=False)
 
 
 # PARTPILOT:MCP_DIRECT_AUTH_API_SCHEMA:V503

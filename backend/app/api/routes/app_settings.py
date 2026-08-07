@@ -12,6 +12,8 @@ from app.schemas.app_settings import (
     McpDirectAuthKeyResponse,
     McpDirectAuthStatusResponse,
     McpDirectAuthTrustedNetworkRequest,
+    McpOAuthClientRegistrationRequest,
+    McpOAuthClientRegistrationResponse,
     McpOAuthClientsResponse,
     McpSettingsResponse,
     McpSettingsUpdateRequest,
@@ -41,7 +43,9 @@ from app.services.mcp_direct_auth import (
 
 from app.services.mcp_oauth import (
     McpOAuthConnectedClientNotFoundError,
+    McpOAuthValidationError,
     list_connected_oauth_clients,
+    register_client,
     revoke_connected_oauth_client,
 )
 
@@ -172,6 +176,30 @@ def patch_mcp_settings(
 def _no_store(response: Response) -> None:
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
+
+
+# PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_API:V555
+@router.post("/mcp/oauth-clients", response_model=McpOAuthClientRegistrationResponse, status_code=status.HTTP_201_CREATED)
+def create_mcp_oauth_client(payload: McpOAuthClientRegistrationRequest, response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpOAuthClientRegistrationResponse:
+    _no_store(response)
+    if payload.client_type == "public" and payload.token_endpoint_auth_method != "none":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Public OAuth clients must use authentication method none.",
+            headers={"Cache-Control":"no-store","Pragma":"no-cache"},
+        )
+    if payload.client_type == "confidential" and payload.token_endpoint_auth_method not in {"client_secret_post", "client_secret_basic"}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Confidential OAuth clients must use client_secret_post or client_secret_basic.",
+            headers={"Cache-Control":"no-store","Pragma":"no-cache"},
+        )
+    try:
+        registered=register_client(db,client_name=payload.client_name,redirect_uris=payload.redirect_uris,grant_types=("authorization_code","refresh_token"),response_types=("code",),token_endpoint_auth_method=payload.token_endpoint_auth_method,metadata={"registration_source":"settings","client_type":payload.client_type},actor_user_id=current_user.id,registered_by_user_id=current_user.id,commit=True)
+    except McpOAuthValidationError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,detail=str(exc),headers={"Cache-Control":"no-store","Pragma":"no-cache"}) from exc
+    client=registered.client
+    return McpOAuthClientRegistrationResponse(database_id=client.id,client_id=registered.client_id,client_name=client.client_name,redirect_uris=list(client.redirect_uris_json or []),client_type=payload.client_type,token_endpoint_auth_method=client.token_endpoint_auth_method,created_at=client.created_at,client_secret=registered.client_secret)
 
 
 # PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_API:V540

@@ -249,7 +249,7 @@ def check_only() -> None:
         if openapi.status_code != 200:
             fail("OpenAPI document is unavailable")
         paths = openapi.json().get("paths", {})
-        if set(paths.get("/api/settings/mcp/oauth-clients", {})) != {"get"}:
+        if set(paths.get("/api/settings/mcp/oauth-clients", {})) != {"get", "post"}:
             fail("OAuth client list OpenAPI contract changed")
         if set(
             paths.get(
@@ -260,7 +260,7 @@ def check_only() -> None:
             fail("OAuth client revocation OpenAPI contract changed")
 
     print(
-        "[PASS] OAuth client GET/DELETE administration routes are protected "
+        "[PASS] OAuth client GET/POST/DELETE administration routes are protected "
         "and have exact OpenAPI methods"
     )
 
