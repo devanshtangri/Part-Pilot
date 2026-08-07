@@ -10,10 +10,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
-from app.models import User, UserSession
+from app.models import AuditLog, User, UserSession
 
 DEFAULT_SESSION_DAYS = 30
 USERNAME_PATTERN = re.compile(r"^[a-z0-9._]+$")
+BUILTIN_AVATAR_IDS = (
+    "initials",
+    "chip",
+    "circuit",
+    "terminal",
+    "storage",
+    "rocket",
+)
 
 
 @dataclass(frozen=True)
@@ -55,6 +63,81 @@ def normalize_display_name(display_name: str | None, fallback_username: str) -> 
     if len(normalized) > 160:
         raise ValueError("Display name must be 160 characters or fewer")
     return normalized
+
+
+def normalize_avatar_id(avatar_id: str | None) -> str:
+    normalized = (avatar_id or "initials").strip().lower()
+    if normalized not in BUILTIN_AVATAR_IDS:
+        raise ValueError("Invalid built-in avatar")
+    return normalized
+
+
+def update_user_profile(
+    db: Session,
+    *,
+    user: User,
+    username: str,
+    display_name: str,
+    avatar_id: str,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> User:
+    normalized_username = normalize_username(username)
+    normalized_display_name = normalize_display_name(
+        display_name, normalized_username
+    )
+    normalized_avatar = normalize_avatar_id(avatar_id)
+
+    existing = db.execute(
+        select(User).where(
+            User.username == normalized_username,
+            User.id != user.id,
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise ValueError("Username already exists")
+
+    before = {
+        "username": user.username,
+        "display_name": user.display_name,
+        "avatar_id": user.avatar_id,
+    }
+    after = {
+        "username": normalized_username,
+        "display_name": normalized_display_name,
+        "avatar_id": normalized_avatar,
+    }
+    changed_fields = [
+        key for key in after if before.get(key) != after.get(key)
+    ]
+
+    try:
+        user.username = normalized_username
+        user.display_name = normalized_display_name
+        user.avatar_id = normalized_avatar
+        if changed_fields:
+            db.add(
+                AuditLog(
+                    event_type="auth.profile_updated",
+                    entity_type="user",
+                    entity_id=user.id,
+                    actor_type="user" if actor_user_id is not None else "system",
+                    actor_user_id=actor_user_id,
+                    summary="Updated current-user profile",
+                    before_json=before,
+                    after_json=after,
+                    metadata_json={"changed_fields": changed_fields},
+                )
+            )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(user)
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+    return user
 
 
 def hash_session_token(token: str) -> str:

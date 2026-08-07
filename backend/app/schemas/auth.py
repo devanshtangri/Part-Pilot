@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 USERNAME_PATTERN = r"^[a-z0-9._]+$"
 CURRENCY_PATTERN = r"^[A-Z]{3}$"
 TIMEZONE_PATTERN = r"^[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)*$"
+BuiltInAvatarId = Literal[
+    "initials", "chip", "circuit", "terminal", "storage", "rocket"
+]
 
 
 class SetupStatusResponse(BaseModel):
@@ -70,7 +75,36 @@ class CurrentUserResponse(BaseModel):
     id: int
     username: str
     display_name: str
+    avatar_id: BuiltInAvatarId
     is_active: bool
+
+
+class ProfileUpdateRequest(BaseModel):
+    username: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=USERNAME_PATTERN,
+    )
+    display_name: str = Field(min_length=1, max_length=160)
+    avatar_id: BuiltInAvatarId
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_profile_username(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def normalize_profile_display_name(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+
+class ProfileResponse(CurrentUserResponse):
+    available_avatar_ids: list[BuiltInAvatarId]
 
 
 class LogoutResponse(BaseModel):
@@ -85,4 +119,3 @@ class DebugResetResponse(BaseModel):
     recreated_part_types: int
     recreated_template_fields: int
     recreated_settings: int
-

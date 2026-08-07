@@ -11,6 +11,8 @@ from app.schemas.auth import (
     DebugResetResponse,
     LoginRequest,
     LogoutResponse,
+    ProfileResponse,
+    ProfileUpdateRequest,
     SetupPreferencesRequest,
     SetupRequest,
     SetupStatusResponse,
@@ -25,12 +27,14 @@ from app.services.debug_reset import (
     reset_application_database,
 )
 from app.services.auth import (
+    BUILTIN_AVATAR_IDS,
     authenticate_user,
     create_first_user,
     create_session,
     get_user_for_session_token,
     has_any_user,
     revoke_session,
+    update_user_profile,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -222,14 +226,56 @@ def login(
     )
 
 
-@router.get("/me", response_model=CurrentUserResponse)
-def me(current_user=Depends(get_current_user)) -> CurrentUserResponse:
+def _current_user_response(current_user) -> CurrentUserResponse:
     return CurrentUserResponse(
         id=current_user.id,
         username=current_user.username,
         display_name=current_user.display_name,
+        avatar_id=current_user.avatar_id,
         is_active=current_user.is_active,
     )
+
+
+def _profile_response(current_user) -> ProfileResponse:
+    return ProfileResponse(
+        **_current_user_response(current_user).model_dump(),
+        available_avatar_ids=list(BUILTIN_AVATAR_IDS),
+    )
+
+
+@router.get("/me", response_model=CurrentUserResponse)
+def me(current_user=Depends(get_current_user)) -> CurrentUserResponse:
+    return _current_user_response(current_user)
+
+
+@router.get("/profile", response_model=ProfileResponse)
+def read_profile(current_user=Depends(get_current_user)) -> ProfileResponse:
+    return _profile_response(current_user)
+
+
+@router.put("/profile", response_model=ProfileResponse)
+def update_profile(
+    payload: ProfileUpdateRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProfileResponse:
+    try:
+        updated = update_user_profile(
+            db,
+            user=current_user,
+            username=payload.username,
+            display_name=payload.display_name,
+            avatar_id=payload.avatar_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    return _profile_response(updated)
 
 
 @router.post("/logout", response_model=LogoutResponse)
