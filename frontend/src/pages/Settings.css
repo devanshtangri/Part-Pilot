@@ -2574,3 +2574,39 @@
     width: 100%;
   }
 }
+
+/* PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_STYLES:V569 */
+.settings-page { --partpilot-mcp-oauth-manual-registration-v569: 1; }
+.settings-mcp-oauth-heading-actions { display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+.settings-mcp-oauth-heading-actions .settings-action { min-height:32px; padding:5px 9px; }
+.settings-mcp-oauth-register-form { display:grid; gap:12px; padding:12px; border:1px solid color-mix(in srgb,var(--accent) 28%,var(--panel-border)); border-radius:7px; background:var(--panel-soft); }
+.settings-mcp-oauth-register-heading,.settings-mcp-oauth-register-heading>div { display:grid; gap:3px; }
+.settings-mcp-oauth-register-heading strong,.settings-mcp-oauth-register-grid label>span,.settings-mcp-oauth-credential-field>label { color:var(--text); font-size:.72rem; font-weight:760; }
+.settings-mcp-oauth-register-heading span,.settings-mcp-oauth-register-grid small { color:var(--muted); font-size:.67rem; line-height:1.45; }
+.settings-mcp-oauth-register-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.settings-mcp-oauth-register-grid label { display:grid; align-content:start; gap:6px; min-width:0; }
+.settings-mcp-oauth-register-wide { grid-column:1/-1; }
+.settings-mcp-oauth-register-grid input,.settings-mcp-oauth-register-grid select,.settings-mcp-oauth-register-grid textarea,.settings-mcp-oauth-credential-field input { width:100%; min-height:38px; padding:7px 9px; border:1px solid var(--panel-border); border-radius:6px; outline:none; background:var(--panel); color:var(--text); font:inherit; font-size:.73rem; }
+.settings-mcp-oauth-register-grid textarea { min-height:78px; resize:vertical; line-height:1.45; }
+.settings-mcp-oauth-register-grid input:focus,.settings-mcp-oauth-register-grid select:focus,.settings-mcp-oauth-register-grid textarea:focus,.settings-mcp-oauth-credential-field input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.settings-mcp-oauth-register-grid input[aria-invalid="true"],.settings-mcp-oauth-register-grid textarea[aria-invalid="true"] { border-color:var(--danger); }
+.settings-mcp-oauth-register-grid select:disabled { opacity:.72; }
+.settings-mcp-oauth-register-actions { display:flex; justify-content:flex-end; gap:8px; }
+.settings-mcp-oauth-register-form .form-error { margin:0; padding:8px 10px; border:1px solid color-mix(in srgb,var(--danger) 36%,var(--panel-border)); border-radius:7px; background:color-mix(in srgb,var(--danger) 7%,var(--panel)); color:var(--danger); font-size:.72rem; }
+.settings-mcp-oauth-status.is-registered { border-color:color-mix(in srgb,var(--accent) 42%,var(--panel-border)); background:color-mix(in srgb,var(--accent) 9%,var(--panel)); color:var(--accent)!important; }
+.settings-mcp-oauth-status.is-revoked { border-color:color-mix(in srgb,var(--danger) 34%,var(--panel-border)); background:color-mix(in srgb,var(--danger) 7%,var(--panel)); color:var(--danger)!important; }
+.settings-mcp-oauth-client.is-revoked { opacity:.78; }
+.settings-mcp-oauth-credential-dialog { border-color:color-mix(in srgb,var(--accent) 42%,var(--panel-border)); }
+.settings-mcp-oauth-credential-field { display:grid; gap:6px; }
+.settings-mcp-oauth-credential-field>div { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px; }
+.settings-mcp-oauth-credential-field.is-secret>div { grid-template-columns:minmax(0,1fr) auto auto; }
+.settings-mcp-oauth-secret-warning { padding:9px 10px; border:1px solid color-mix(in srgb,var(--accent) 40%,var(--panel-border)); border-radius:7px; background:color-mix(in srgb,var(--accent) 8%,var(--panel)); color:var(--accent)!important; font-size:.72rem!important; }
+@media (max-width:620px) {
+  .settings-mcp-oauth-heading-actions { align-items:stretch; flex-direction:column; }
+  .settings-mcp-oauth-register-grid { grid-template-columns:1fr; }
+  .settings-mcp-oauth-register-wide { grid-column:auto; }
+  .settings-mcp-oauth-register-actions { display:grid; grid-template-columns:1fr; }
+  .settings-mcp-oauth-register-actions button,.settings-mcp-oauth-heading-actions button { width:100%; }
+  .settings-mcp-oauth-credential-field>div,.settings-mcp-oauth-credential-field.is-secret>div { grid-template-columns:1fr 1fr; }
+  .settings-mcp-oauth-credential-field input { grid-column:1/-1; }
+}
