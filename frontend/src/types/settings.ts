@@ -79,6 +79,56 @@ export interface McpOAuthClientsResponse {
 }
 
 
+// PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_TYPES:V561
+export type McpOAuthManageableClientStatus =
+  | "registered"
+  | "connected"
+  | "revoked";
+
+export interface McpOAuthManageableClientSummary {
+  database_id: number;
+  client_id: string;
+  client_name: string;
+  status: McpOAuthManageableClientStatus;
+  client_type: McpOAuthClientType;
+  token_endpoint_auth_method: McpOAuthTokenEndpointAuthMethod;
+  redirect_origins: string[];
+  scopes: string[];
+  created_at: string;
+  connected_at: string | null;
+  last_used_at: string | null;
+  active_token_count: number;
+  token_family_count: number;
+  total_token_count: number;
+  authorization_code_count: number;
+  active_consent_count: number;
+  registered_by_current_user: boolean;
+}
+
+export interface McpOAuthManageableClientsResponse {
+  clients: McpOAuthManageableClientSummary[];
+  total: number;
+}
+
+export interface McpOAuthClientRegistrationPayload {
+  client_name: string;
+  redirect_uris: string[];
+  client_type: McpOAuthClientType;
+  token_endpoint_auth_method: McpOAuthTokenEndpointAuthMethod;
+}
+
+export interface McpOAuthClientRegistrationResponse {
+  database_id: number;
+  client_id: string;
+  client_name: string;
+  redirect_uris: string[];
+  client_type: McpOAuthClientType;
+  token_endpoint_auth_method: McpOAuthTokenEndpointAuthMethod;
+  created_at: string;
+  client_secret: string | null;
+}
+
+
 // PARTPILOT:MCP_TRUSTED_NETWORK_TYPES:V510
 export type McpDirectAuthMode =
   | "disabled"

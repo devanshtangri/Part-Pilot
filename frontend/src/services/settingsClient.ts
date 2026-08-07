@@ -5,7 +5,10 @@ import type {
   McpDirectAuthKeyResponse,
   McpDirectAuthStatus,
   McpDirectAuthTrustedNetworkPayload,
+  McpOAuthClientRegistrationPayload,
+  McpOAuthClientRegistrationResponse,
   McpOAuthClientsResponse,
+  McpOAuthManageableClientsResponse,
   McpSettings,
   McpSettingsUpdatePayload,
   ReservationSettings,
@@ -154,6 +157,31 @@ export function getMcpOAuthClients(
   return requestJson<McpOAuthClientsResponse>(
     "/settings/mcp/oauth-clients",
     token
+  );
+}
+
+
+// PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_CLIENT:V561
+export function getMcpOAuthManageableClients(
+  token: string
+): Promise<McpOAuthManageableClientsResponse> {
+  return requestJson<McpOAuthManageableClientsResponse>(
+    "/settings/mcp/oauth-clients/manageable",
+    token
+  );
+}
+
+export function registerMcpOAuthClient(
+  token: string,
+  payload: McpOAuthClientRegistrationPayload
+): Promise<McpOAuthClientRegistrationResponse> {
+  return requestJson<McpOAuthClientRegistrationResponse>(
+    "/settings/mcp/oauth-clients",
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }
   );
 }
 
