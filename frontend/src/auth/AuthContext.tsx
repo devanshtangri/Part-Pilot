@@ -39,6 +39,7 @@ interface AuthContextValue {
   completeSetup: (payload: SetupPreferencesRequest) => Promise<void>;
   login: (payload: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<AuthUser>;
   clearAuthError: () => void;
 }
 
@@ -49,6 +50,7 @@ function authUserFromTokenResponse(response: AuthTokenResponse): AuthUser {
     id: 0,
     username: response.username,
     display_name: response.display_name,
+    avatar_id: "initials",
     is_active: true
   };
 }
@@ -183,6 +185,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [token]);
 
+  // PARTPILOT:AUTH_REFRESH_CONTEXT:V591
+  const refreshUser = useCallback(async () => {
+    if (!token) {
+      throw new Error("Sign in before refreshing account details");
+    }
+
+    const currentUser = await getCurrentUser(token);
+    setUser(currentUser);
+    return currentUser;
+  }, [token]);
+
   const clearAuthError = useCallback(() => {
     setAuthError(null);
   }, []);
@@ -201,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       completeSetup,
       login,
       logout,
+      refreshUser,
       clearAuthError
     }),
     [
@@ -212,6 +226,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isBooting,
       login,
       logout,
+      refreshUser,
       setup,
       setupComplete,
       timezone,

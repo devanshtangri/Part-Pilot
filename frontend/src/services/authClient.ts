@@ -4,6 +4,13 @@ import type {
   AuthUser,
   DebugResetResponse,
   LoginRequest,
+  OtherSessionsRevokeResponse,
+  PasswordChangeRequest,
+  PasswordChangeResponse,
+  ProfileResponse,
+  ProfileUpdateRequest,
+  SessionListResponse,
+  SessionRevokeResponse,
   SetupPreferencesRequest,
   SetupRequest,
   SetupStatusResponse
@@ -162,3 +169,119 @@ export async function resetApplicationDatabase(
   return response.json();
 }
 
+// PARTPILOT:AUTH_ACCOUNT_SECURITY_CLIENT:V591
+function bearerHeaders(token: string) {
+  return {
+    Authorization: `Bearer ${token}`
+  };
+}
+
+export async function getProfile(token: string): Promise<ProfileResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+    headers: bearerHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function updateProfile(
+  token: string,
+  payload: ProfileUpdateRequest
+): Promise<ProfileResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+    method: "PUT",
+    headers: {
+      ...bearerHeaders(token),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      username: payload.username.trim().toLowerCase(),
+      display_name: payload.displayName.trim(),
+      avatar_id: payload.avatarId
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function changePassword(
+  token: string,
+  payload: PasswordChangeRequest
+): Promise<PasswordChangeResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
+    method: "POST",
+    headers: {
+      ...bearerHeaders(token),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      current_password: payload.currentPassword,
+      new_password: payload.newPassword
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function getSessions(
+  token: string
+): Promise<SessionListResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/sessions`, {
+    headers: bearerHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function revokeSession(
+  token: string,
+  sessionId: number
+): Promise<SessionRevokeResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/auth/sessions/${sessionId}`,
+    {
+      method: "DELETE",
+      headers: bearerHeaders(token)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function revokeAllOtherSessions(
+  token: string
+): Promise<OtherSessionsRevokeResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/auth/sessions/revoke-all-other`,
+    {
+      method: "POST",
+      headers: bearerHeaders(token)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
