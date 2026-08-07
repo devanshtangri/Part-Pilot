@@ -1,121 +1,126 @@
-Part Pilot project memory
-<!-- PARTPILOT:PROJECT_MEMORY:V548 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V580 -->
 
 Project
 - Repository: https://github.com/devanshtangri/Part-Pilot.git
-- Root: /projects/Part Pilot; branch: main
-- Compose service: partpilot; host port: 7890
+- Root: /projects/Part Pilot; branch main
+- Compose service: partpilot; host port 7890
 - React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend
-- Alembic head: 0010_mcp_trusted_networks
+- Alembic head: 0012_user_avatar_id
 
 Patch workflow
-- Every implementation, fix, diagnostic, documentation update, checkpoint,
-  commit, push and boundary is one downloadable sequential Python file.
-- Never place a generated patch inside the project. Provide the download; the
-  user places it under fixes/.
-- Failed scripts consume numbers. Success ends with exactly `Everything PASS`.
-- Validate exact repo, HEAD/origin, Git/index, source, prerequisites and all
-  transforms before backup/write.
+- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is
+  one downloadable sequential Python file; never manual source edits.
+- User places/runs scripts under fixes/. Never execute numbered patches for the
+  user.
+- Failed scripts consume numbers. Success final line exactly `Everything PASS`.
+- Validate exact repo/branch/origin/HEAD, Git/index, source hashes,
+  prerequisites and all transforms before backup/write.
 - Backups: /projects/Part Pilot/fixes/backups/
 - Logs: /projects/Part Pilot/fixes/logs/
 - Diagnostic Markdown prefix: `diagonostic_`.
-- Application patches build/deploy, verify Alembic, APIs/routes, copied-data
-  smoke, live-data preservation and rollback.
-- Browser-test source stays uncommitted until approval; checkpoint separately.
-- After two consecutive pre-write failures, repeated anchor mismatches or source
-  uncertainty, stop and issue a diagnostic-only patch.
-- Keep this file at or below 8,000 characters.
-- Never execute numbered patch scripts for the user.
+- Application changes build/deploy, verify Alembic, protected APIs/SPA,
+  copied-data smoke, live-data preservation and rollback.
+- Browser-test source stays uncommitted until explicit browser approval.
+- After two consecutive pre-write failures, repeated anchor mismatch or source
+  uncertainty, stop implementation and issue diagnostic-only next patch.
+- Do not rely on terminal-only failure text being present in internal logs.
+- Compile the final downloadable Python patch before delivery.
+- Keep this memory at or below 8,000 characters.
 
 Chat boundary
-- Chat 19 planned range was 518-547.
-- Patch 547 failed before writes on a line-wrapped README prose assertion.
-- Patch 548 is the narrow Chat 19 boundary recovery.
-- Chat 20 title: `Chat 20: Manual OAuth Registration Foundation`.
-- Chat 20 patch range: 549-578; planned boundary: 578.
-- No starting-prompt file. Post the ready prompt only after boundary PASS.
+- Chat 20: `Chat 20: Manual OAuth Registration Foundation`.
+- Nominal range 549-578; Patch 578 and recovery 579 failed pre-write; Patch 580 is the narrow boundary recovery.
+- Chat 21: `Chat 21: Account Security and Session Administration`.
+- Chat 21 range 581-610; planned boundary 610.
+- No starting-prompt files. Ready prompts exist only in chat after boundary
+  `Everything PASS`.
 
-Inventory safety
-- Preserve real users, sessions, catalogues, inventory, Projects, Reservations,
-  movements, audits, settings, credentials and restore evidence.
-- Six realistic Patch 401 parts remain intentionally preserved.
+Inventory/data safety
+- Preserve users, sessions, inventory, Projects, Reservations, movements,
+  audits, settings, OAuth/direct credentials, backups and restore evidence.
+- Six Patch 401 realistic parts remain intentionally preserved.
 - Cleanup only exact manifest/allowlist IDs with before/after proof.
 - Never clean OAuth rows by broad name, origin or timestamp.
-- SQLite integrity and foreign-key checks must pass.
+- SQLite integrity/foreign-key checks must pass.
 
 Completed application
-- Authenticated inventory, typed templates, reusable catalogues, universal
-  search, filtering/sorting/pagination, quantity workflows, soft delete,
-  restoration, and detailed History.
+- Authenticated typed inventory; reusable catalogues; universal
+  search/filter/sort/pagination; quantity workflows; soft delete/restore;
+  detailed History.
 - Atomic Reservation and Project reserve/release/consume/edit lifecycles.
 - Responsive dark/light/system appearance and Settings for Appearance,
-  Inventory, Reservations, MCP, and Data.
-- Portable backup/restore with strict validation, persistent staging, rollback,
-  atomic replacement and session invalidation.
+  Inventory, Reservations, MCP and Data.
+- Portable backup/restore with strict validation, staging, rollback, atomic
+  replacement and post-restore session invalidation.
 
 Completed MCP/OAuth
-- OAuth discovery, dynamic registration, PKCE consent, token rotation,
-  revocation, protected-resource metadata, and stateless `/mcp`.
-- Six read-only part, Project and Reservation tools.
-- Global MCP enabled/read/write settings.
-- Bearer, custom-header and trusted-network direct authentication.
-- Encrypted keys, reveal/rotation/disable, strict proxy/client-IP resolution,
-  and secret-free audits.
-- Official SDK passed initialize, tools/list and search_parts through public TLS.
-- Standalone OAuth page styling, duplicate-submit lock, progress, callback CSP,
-  and error states are approved.
-- Claude and ChatGPT are connected through OAuth with `mcp:read`.
-- Hermes is connected through direct Bearer authentication.
-- MCP/read enabled; write authorization disabled.
-- Exact abandoned OAuth rows were cleaned by verified ID allowlist.
-- Connected OAuth client GET/revoke APIs and Settings UI are implemented.
-- History displays canonical MCP/OAuth/API/HTTP/URL/ID/CIDR/PKCE terminology.
-- Patch 545 committed the approved Settings and History frontend.
-
-Authoritative pre-boundary state
-- HEAD/origin before Patch 548 recovery: 35be283e7f63306aef29480ae5ab71c08225b32c
-- Subject: Diagnose manual OAuth registration readiness
-- Deployment image:
-  sha256:d601fea120915e2cdfec4d1da166c95f5afc78f5e257d7b0bce5d6ddd9075207
-- Deployment running/healthy, restart count 0.
-- Alembic: 0010_mcp_trusted_networks
-- Database SHA at boundary capture:
-  2cf5f4bb7dc8773b1b5122411bb0db63ce9ed891fb2de19bfa955bb9b5844d91
-- Parts 15; Projects 8;
-  Reservations 10; movements
-  33; audits 175.
-- OAuth clients: database IDs 9 Claude and 13 ChatGPT.
-- Each has one active consent, one active token and one token family.
-- OAuth token rows may rotate; validate semantics rather than stale counts.
-- No OAuth revocation audit exists.
-- Direct Bearer remains active for Hermes; never reveal/rotate/disable
+- OAuth discovery, DCR, PKCE consent, access/refresh lifecycle, revocation,
+  protected-resource metadata and stateless `/mcp`.
+- Six read-only Part/Project/Reservation MCP tools.
+- Global MCP enabled/read/write controls; live state true/true/false.
+- Bearer, custom-header and trusted-network direct auth; encrypted credential
+  storage, reveal/rotation/disable and strict proxy/client-IP handling.
+- Standalone OAuth pages and real Claude/ChatGPT read-only flows verified.
+- Protected OAuth client administration and browser-approved manual
+  registration UI.
+- Manual registration: nullable creator ownership, public/confidential type,
+  none/secret_post/secret_basic auth, generated ID, one-time secret,
+  digest-only storage, manageable status and exact revocation.
+- Revoked clients are hidden from normal active Settings but backend
+  audit/manageable semantics retain them.
+- Manual Claude registration connected successfully using
+  `https://claude.ai/api/mcp/auth_callback` and `client_secret_post`.
+- Gemini/Google testing reached Part Pilot consent/code issuance but Google did
+  not complete token exchange; do not weaken Part Pilot OAuth based on that
+  external behavior.
+- Hermes direct Bearer remains configured; never reveal/rotate/disable it
   automatically.
-- Instance-secret SHA:
-  19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b
-- Restore staging fingerprint:
-  ed92d9fb6d964aec1a23558e27b24fa6b16d3f0d1c503e5ab9ef2b4da8c75ce6
+- MCP writes remain disabled.
 
-Critical Patch 546 finding
-- Existing registration already generates `pp_mcp_client_...` IDs and
-  `pp_mcp_secret_...` secrets, returns the secret once, stores only its digest,
-  validates redirects, and audits registration.
-- `mcp_oauth_clients` lacks creator ownership.
-- Registered-but-unconnected clients cannot be safely assigned to a user through
-  consent/token rows.
-- Never infer ownership from client name, redirect origin, timestamp, row order
-  or audit prose.
+Current-user profile foundation
+- Alembic 0012 adds users.avatar_id, default `initials`.
+- Built-ins: initials, chip, circuit, terminal, storage, rocket.
+- Protected GET/PUT /api/auth/profile.
+- Username normalization/uniqueness, display-name and avatar validation.
+- /api/auth/me includes avatar_id.
+- Profile mutation produces secret-free `auth.profile_updated` audit.
+- Existing owner remains devanshtangri / Devansh Tangri / initials.
+- Four existing sessions remain active and password hash was preserved.
 
-Chat 20 immediate order
-1. Patch 549: Alembic 0011 ownership, model, protected registration POST,
-   one-time secret response, copied-database backend smoke.
-2. Patch 550: current-user manageable-client list and status semantics.
-3. Patch 551: uncommitted responsive registration/result UI.
-4. Patch 552: feedback or approved checkpoint.
-5. Current-user profile/security/avatars/sessions.
-6. Scoped REST API keys.
-7. Direct master switch, no-auth and named direct clients.
-8. Global/per-client MCP tool policy.
-9. Expanded settings and restore-default controls.
-10. Multi-user roles/administration.
-11. Safeguarded MCP write tools.
-12. Accessibility, security and public-alpha hardening.
+Authoritative Chat 20 boundary capture
+- Pre-boundary HEAD/origin: fb5e0275f643a4420914c35093a0afb3f898c6a3
+- Deployment image: sha256:81808e52e783e7a3807ae1af899a1875aff502236cdbfb40448844cc2a6c0dd0; healthy; restart 0
+- Alembic: 0012_user_avatar_id
+- DB SHA: d010f1e4bc14333a3d32071220f7c742242a2ebc81fb9c62373e7ae450f258ea; size 741376
+- Parts 15; Projects 8;
+  Reservations 10; movements 35;
+  audits 201
+- Users 1; sessions 4; active sessions
+  4
+- OAuth operational clients 9; codes
+  6; consents 6; token rows
+  6
+- Manual Claude DB client 21 is current-user-owned, unrevoked, has active
+  consent and an unrevoked token family.
+- Instance-secret SHA: 19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b
+- Restore staging fingerprint: 6712ba4090860b1ebb77962a343549fa5fd33b45f035fd3bae4cacc4cac1a543
+- OAuth token rows can rotate/expire; validate semantics, not stale token
+  timestamps/counts.
+
+Patch 572-576 recovery lesson
+- 572: pre-write failure from baseline auth schema double-newline EOF.
+- 573: pre-write failure from blanket count==1 on intentionally repeated
+  BUILTIN_AVATAR_IDS.
+- 574: diagnostic script syntax failure before execution.
+- 575: successful diagnostic locked exact six candidate hashes/counts.
+- 576: successful profile/avatar backend implementation and push.
+- 577: successful password/session readiness diagnostic.
+
+Chat 21 immediate order
+1. Read docs/Chat_20_to_Chat_21_Handoff.md.
+2. Read docs/diagonostic_password_session_admin_readiness_patch_577.md.
+3. Patch 581: password/session backend foundation.
+4. Add frontend auth contracts/AuthContext refresh.
+5. Build Account/Security browser-test UI.
+6. Browser refinement then checkpoint.
+7. Scoped REST API keys only after account/security completion.

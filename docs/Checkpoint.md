@@ -3436,3 +3436,109 @@ registrations remain nullable; do not backfill ownership by inference.
 
 No `Chat_20_Starting_Prompt.md` file should be created. The ready-to-paste
 prompt belongs only in the chat response after Patch 548 succeeds.
+
+<!-- PARTPILOT:CHAT20_BOUNDARY_CHECKPOINT:V580 -->
+## Chat 20 boundary — manual OAuth registration and profile foundation
+
+### Authoritative pre-boundary state
+
+- `HEAD` and `origin/main`: `fb5e0275f643a4420914c35093a0afb3f898c6a3`
+- Latest subject: `Diagnose password and session administration readiness`
+- Git/index: clean
+- Alembic: `0012_user_avatar_id`
+- Deployment image: `sha256:81808e52e783e7a3807ae1af899a1875aff502236cdbfb40448844cc2a6c0dd0`
+- Deployment: running, healthy, restart count `0`
+- Database SHA-256 at capture: `d010f1e4bc14333a3d32071220f7c742242a2ebc81fb9c62373e7ae450f258ea`
+- Database size: `741376` bytes
+- SQLite integrity: `ok`; foreign-key violations:
+  `0`
+- Parts: `15`; Projects: `8`;
+  Reservations: `10`; movements:
+  `35`; audits: `201`
+- Users: `1`; sessions: `4`;
+  active sessions: `4`
+- Current owner/profile: user `1`, username `devanshtangri`, display name
+  `Devansh Tangri`, avatar `initials`
+- MCP enabled/read/write: `true/true/false`
+- Direct-auth mode: `bearer_key`; credential digest/ciphertext preserved
+- OAuth operational rows at capture: clients `9`,
+  codes `6`, consents `6`,
+  token rows `6`
+- Instance-secret SHA-256: `19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b`
+- Restore staging: `15` files; fingerprint `6712ba4090860b1ebb77962a343549fa5fd33b45f035fd3bae4cacc4cac1a543`
+
+OAuth token rows can rotate or expire during normal external-client activity.
+Future validation must compare ownership, revocation, consent and token-family
+semantics rather than hard-coding transient access-token timestamps/counts.
+
+### Completed in Chat 20
+
+- Added Alembic `0011_mcp_oauth_client_ownership` with nullable
+  `registered_by_user_id`; historical dynamic registrations were not
+  backfilled by inference.
+- Added protected manual OAuth registration with public/confidential client
+  types, compatible token-endpoint authentication, generated client IDs, and
+  one-time confidential secrets stored only as digests.
+- Added current-user manageable OAuth client listing with
+  registered/connected/revoked semantics.
+- Extended exact client revocation to current-user-owned registered clients.
+- Added typed frontend registration/manageable contracts.
+- Added and browser-approved the responsive manual registration UI,
+  one-time credential dialog, client revocation flow, revoked-client hiding,
+  submit-attempt validation, and final simplified form layout.
+- Patch 570 removed only browser fixture client `14` and its exact test audit
+  rows while preserving unrelated historical audit row `156`, then committed
+  and pushed the approved UI.
+- Real manual OAuth testing verified Claude confidential registration with
+  `client_secret_post` and callback
+  `https://claude.ai/api/mcp/auth_callback`.
+- Gemini/Google DCR reached consent and code issuance, but Google did not
+  redeem the issued code; no Part Pilot OAuth weakening was introduced for
+  that external-client behavior.
+- Added Alembic `0012_user_avatar_id`, built-in avatar catalogue, protected
+  profile read/update API, username/display-name/avatar validation, `/auth/me`
+  avatar response, secret-free profile audit, and copied-database smoke.
+- Preserved the owner's password and all four existing sessions through the
+  profile migration.
+- Patch 577 documented the exact password/session administration contract for
+  Chat 21.
+
+### Boundary recovery
+
+Patch 578 failed before any writes because its preflight contained one mistyped
+SHA-256 for `frontend/src/services/settingsClient.ts`.
+
+Patch 579 corrected that fingerprint but also failed before writes. Its
+generated Roadmap used bold field labels while the validator searched for an
+unbolded `Patch range:` marker, and that Roadmap block still carried stale
+first-patch/boundary values `579` and `608`.
+
+Patch 580 is the narrow boundary recovery. It validates both failed script/log
+pairs, validates exact formatted Roadmap fields, uses the corrected Chat 21
+range `581-610`, and consumes patch number 580 before Chat 21 starts.
+
+### Failure/recovery lessons carried forward
+
+- Patches 572 and 573 failed before writes because validators were stricter
+  than the generated source semantics: a pre-existing double-newline EOF and
+  an intentionally repeated symbol were treated as errors.
+- Patch 575 diagnosed the exact six generated candidate hashes and required
+  explicit per-marker counts plus post-transform EOF canonicalization.
+- Patch 576 used those locked hashes/counts and completed successfully.
+- Always compile the final downloadable patch itself before delivery; Patch
+  574 was consumed by an f-string syntax error before any diagnostic logic
+  executed.
+- Never search internal logs for terminal-only failure summaries.
+
+### Next chat
+
+The next chat is `Chat 21: Account Security and Session Administration`.
+
+- Patch range: `581-610`
+- First patch: `581`
+- Planned boundary: `610`
+- Patch 581 begins from
+  `docs/diagonostic_password_session_admin_readiness_patch_577.md`.
+
+No `Chat_21_Starting_Prompt.md` file should be created. The ready-to-paste
+prompt is provided only in chat after Patch 580 succeeds.

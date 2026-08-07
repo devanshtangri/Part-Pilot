@@ -2783,3 +2783,57 @@ which current-user ownership can be derived.
   inventory-mutating MCP writes in the same slice.
 - Use unique copied-database fixtures and restore exact logical state after
   smoke tests.
+
+<!-- PARTPILOT:CHAT20_BOUNDARY_ROADMAP:V580 -->
+## Current roadmap checkpoint — Chat 20 complete
+
+### Completed
+
+- [x] Manual OAuth client creator ownership.
+- [x] Protected manual OAuth registration.
+- [x] One-time confidential secret display with digest-only storage.
+- [x] Manageable registered/connected/revoked client semantics.
+- [x] Current-user-owned registered-client revocation.
+- [x] Browser-approved manual OAuth registration Settings UI.
+- [x] Revoked clients hidden from the normal active Settings list.
+- [x] Protected current-user profile read/update backend.
+- [x] Username/display-name normalization and uniqueness handling.
+- [x] Alembic `0012_user_avatar_id` and built-in avatar catalogue.
+- [x] `/auth/me` avatar identity response and profile audit.
+- [x] Password/session administration readiness diagnostic.
+
+### Chat 21 — Account Security and Session Administration
+
+**Required title:** `Chat 21: Account Security and Session Administration`
+**Patch range:** `581-610`
+**First patch:** `581`
+**Planned boundary:** `610`
+
+Implementation order:
+
+1. Add password/session backend schemas, services, routes, audit, and
+   copied-database smoke from Patch 577's locked contract.
+2. Password change requires current-password verification, rejects reuse,
+   updates the hash transactionally, revokes all other sessions by default,
+   and preserves the current session.
+3. Add safe session listing with current-session identification; never return
+   bearer tokens or token hashes.
+4. Add targeted session revocation and `revoke all other sessions`, scoped
+   strictly to the current user.
+5. Add frontend auth types/client/AuthContext refresh support.
+6. Build the Account/Security Settings browser-test UI for profile, built-in
+   avatars, password change, sessions and revocation.
+7. Refine from browser feedback, then checkpoint the approved UI.
+8. Resume scoped REST API keys only after account/security is complete.
+
+### Deferred beyond the account/security slice
+
+- Scoped REST API keys.
+- Direct-client master switch, no-auth mode and named direct clients.
+- Global individual-tool and per-client MCP policy.
+- Expanded preference/default-restoration work.
+- Multi-user roles and administration.
+- Safeguarded inventory-mutating MCP write tools.
+
+Keep MCP write authorization disabled until the permission model and
+write-tool safeguards are complete.

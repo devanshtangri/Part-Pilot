@@ -440,8 +440,8 @@ The compact manual-backup status display is implemented and available in Setting
 <!-- PARTPILOT:BACKUP_RESTORE_README:V457:END -->
 
 
-<!-- PARTPILOT:MCP_AUTHENTICATION_README:V548:START -->
-## Model Context Protocol authentication
+<!-- PARTPILOT:MCP_AUTHENTICATION_README:V580:START -->
+## Model Context Protocol authentication and OAuth administration
 
 Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 `/mcp`.
@@ -452,8 +452,12 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | OAuth authorization code with PKCE | Available |
 | Access/refresh token rotation and revocation | Available |
 | Standalone OAuth consent and error experience | Available |
-| Claude and ChatGPT OAuth read-only connections | Verified |
-| Connected OAuth client listing and revocation in Settings | Available |
+| Claude and ChatGPT OAuth read-only flows | Verified end to end |
+| Connected/manageable OAuth client administration | Available |
+| Manual OAuth client registration in Settings | Available |
+| Public clients with PKCE and no client secret | Available |
+| Confidential clients with secret POST or Basic | Available |
+| One-time confidential secret display with digest-only storage | Available |
 | Explicit public-origin and Host/Origin validation | Available |
 | Global MCP and read/write authorization settings | Available |
 | Six read-only inventory, Project and Reservation tools | Available |
@@ -462,23 +466,38 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | Static Bearer key authentication | Available |
 | Dedicated custom-header key authentication | Available |
 | Trusted-network authentication with IPv4/IPv6 CIDRs | Available |
-| Strict trusted-proxy and client-IP resolution | Available |
 | Direct-auth Settings management and browser UI | Available |
-| Manual OAuth client registration in Settings | Planned |
 | Safeguarded MCP write tools | Not yet implemented |
 
-The live installation has MCP and read tools enabled while write authorization
-remains disabled. Claude and ChatGPT are connected through OAuth with
-`mcp:read`; Hermes remains connected through direct Bearer authentication.
+The live installation keeps MCP and read tools enabled while write
+authorization remains disabled. OAuth client registration supports explicit
+current-user ownership for manually created clients, safe manageable-client
+status, exact revocation, and one-time confidential secret display. Revoked
+clients remain available to backend audit/history semantics but are hidden from
+the normal active Settings list.
 
-Settings can display active OAuth clients and revoke one client without
-deleting inventory or workflow history. The History workspace preserves
-canonical technical capitalization such as MCP, OAuth, API, HTTP, URL, ID,
-CIDR, PKCE, CSV, and JSON.
+Claude and ChatGPT OAuth connection flows have been verified end to end.
+During Chat 20, a manually registered Claude client also connected successfully
+using Claude's fixed callback and `client_secret_post`. Gemini/Google reached
+Part Pilot consent and authorization-code issuance during testing, but the
+Google callback did not complete a token exchange; Part Pilot's issued code was
+not redeemed.
 
-Manual OAuth registration is the next administration milestone. Existing
-registration primitives already generate opaque client IDs, return a
-confidential secret once, and store only its digest. The protected Settings
-workflow still requires explicit current-user client ownership before it can be
-implemented safely.
-<!-- PARTPILOT:MCP_AUTHENTICATION_README:V548:END -->
+### Current-user account foundation
+
+| Capability | Status |
+|---|---|
+| Protected profile read/update API | Available |
+| Username normalization and uniqueness | Available |
+| Display-name update | Available |
+| Built-in avatar persistence/catalogue | Available |
+| Current-user `avatar_id` in `/auth/me` | Available |
+| Secret-free profile audit | Available |
+| Password change requiring current password | Next milestone |
+| Active-session list and revocation | Next milestone |
+| Account/Security Settings UI | Next milestone |
+
+Built-in avatar IDs are `initials`, `chip`, `circuit`, `terminal`, `storage`,
+and `rocket`. Uploaded avatar storage remains deliberately deferred until a
+separate safe storage/crop/backup contract exists.
+<!-- PARTPILOT:MCP_AUTHENTICATION_README:V580:END -->
