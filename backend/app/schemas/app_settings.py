@@ -119,6 +119,35 @@ class McpOAuthClientsResponse(BaseModel):
     total: int = Field(ge=0)
 
 
+# PARTPILOT:MCP_OAUTH_MANAGEABLE_SCHEMA:V559
+McpOAuthManageableClientStatus = Literal["registered", "connected", "revoked"]
+
+class McpOAuthManageableClientSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    database_id: int = Field(ge=1)
+    client_id: str = Field(min_length=1, max_length=255)
+    client_name: str = Field(min_length=1, max_length=200)
+    status: McpOAuthManageableClientStatus
+    client_type: McpOAuthClientType
+    token_endpoint_auth_method: McpOAuthTokenEndpointAuthMethod
+    redirect_origins: list[str]
+    scopes: list[str]
+    created_at: datetime
+    connected_at: datetime | None
+    last_used_at: datetime | None
+    active_token_count: int = Field(ge=0)
+    token_family_count: int = Field(ge=0)
+    total_token_count: int = Field(ge=0)
+    authorization_code_count: int = Field(ge=0)
+    active_consent_count: int = Field(ge=0)
+    registered_by_current_user: bool
+
+class McpOAuthManageableClientsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    clients: list[McpOAuthManageableClientSummaryResponse]
+    total: int = Field(ge=0)
+
+
 # PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_SCHEMA:V555
 class McpOAuthClientRegistrationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")

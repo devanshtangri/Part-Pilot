@@ -26,6 +26,8 @@ from app.models import (
 from app.schemas.app_settings import (
     McpOAuthClientSummaryResponse,
     McpOAuthClientsResponse,
+    McpOAuthManageableClientSummaryResponse,
+    McpOAuthManageableClientsResponse,
 )
 
 
@@ -1266,6 +1268,44 @@ def list_connected_oauth_clients(
         clients=summaries,
         total=len(summaries),
     )
+
+
+# PARTPILOT:MCP_OAUTH_MANAGEABLE_SERVICE:V559
+def list_manageable_oauth_clients(db: Session, *, user_id: int) -> McpOAuthManageableClientsResponse:
+    now = _naive_utc_now()
+    clients = list(db.execute(select(McpOAuthClient).order_by(McpOAuthClient.created_at.asc(), McpOAuthClient.id.asc())).scalars())
+    summaries: list[McpOAuthManageableClientSummaryResponse] = []
+    for client in clients:
+        owned = client.registered_by_user_id == user_id
+        consents = list(db.execute(select(McpOAuthConsent).where(McpOAuthConsent.client_id == client.id, McpOAuthConsent.user_id == user_id)).scalars())
+        tokens = list(db.execute(select(McpOAuthToken).where(McpOAuthToken.client_id == client.id, McpOAuthToken.user_id == user_id).order_by(McpOAuthToken.created_at.asc(), McpOAuthToken.id.asc())).scalars())
+        if not owned and not (consents or tokens):
+            continue
+        active_consents = [c for c in consents if c.revoked_at is None]
+        active_tokens = [t for t in tokens if _oauth_token_session_is_active(t, now=now)]
+        if client.revoked_at is not None:
+            client_status = "revoked"
+        elif active_consents and active_tokens:
+            client_status = "connected"
+        elif owned:
+            client_status = "registered"
+        else:
+            continue
+        authorization_code_count = len(list(db.execute(select(McpOAuthAuthorizationCode.id).where(McpOAuthAuthorizationCode.client_id == client.id, McpOAuthAuthorizationCode.user_id == user_id)).scalars()))
+        scopes = sorted({str(scope) for token in active_tokens for scope in (token.scopes_json or [])})
+        connected_at = min((_to_naive_utc(t.created_at) or t.created_at) for t in tokens) if tokens else None
+        last_used_values = [v for v in (_to_naive_utc(t.last_used_at) for t in tokens) if v is not None]
+        token_families = {str(t.token_family_id) for t in active_tokens}
+        auth_method = str(client.token_endpoint_auth_method)
+        summaries.append(McpOAuthManageableClientSummaryResponse(
+            database_id=client.id, client_id=client.client_id, client_name=client.client_name,
+            status=client_status, client_type=("public" if auth_method == "none" else "confidential"),
+            token_endpoint_auth_method=auth_method, redirect_origins=_oauth_redirect_origins(client.redirect_uris_json or []),
+            scopes=scopes, created_at=client.created_at, connected_at=connected_at,
+            last_used_at=(max(last_used_values) if last_used_values else None), active_token_count=len(active_tokens),
+            token_family_count=len(token_families), total_token_count=len(tokens), authorization_code_count=authorization_code_count,
+            active_consent_count=len(active_consents), registered_by_current_user=owned))
+    return McpOAuthManageableClientsResponse(clients=summaries, total=len(summaries))
 
 
 # PARTPILOT:MCP_OAUTH_CLIENT_REVOCATION_SERVICE:V541

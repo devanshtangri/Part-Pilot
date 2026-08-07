@@ -15,6 +15,7 @@ from app.schemas.app_settings import (
     McpOAuthClientRegistrationRequest,
     McpOAuthClientRegistrationResponse,
     McpOAuthClientsResponse,
+    McpOAuthManageableClientsResponse,
     McpSettingsResponse,
     McpSettingsUpdateRequest,
     ReservationSettingsResponse,
@@ -45,6 +46,7 @@ from app.services.mcp_oauth import (
     McpOAuthConnectedClientNotFoundError,
     McpOAuthValidationError,
     list_connected_oauth_clients,
+    list_manageable_oauth_clients,
     register_client,
     revoke_connected_oauth_client,
 )
@@ -217,6 +219,13 @@ def read_mcp_oauth_clients(
         db,
         user_id=current_user.id,
     )
+
+# PARTPILOT:MCP_OAUTH_MANAGEABLE_API:V559
+@router.get("/mcp/oauth-clients/manageable", response_model=McpOAuthManageableClientsResponse)
+def read_manageable_mcp_oauth_clients(response: Response, current_user=Depends(get_current_user), db: Session = Depends(get_db)) -> McpOAuthManageableClientsResponse:
+    _no_store(response)
+    return list_manageable_oauth_clients(db, user_id=current_user.id)
+
 
 # PARTPILOT:MCP_OAUTH_CLIENT_REVOCATION_API:V541
 @router.delete(
