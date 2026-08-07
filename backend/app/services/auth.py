@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import re
 import secrets
+import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -138,6 +141,217 @@ def update_user_profile(
             db.rollback()
         raise
     return user
+
+
+# PARTPILOT:CUSTOM_AVATAR_SERVICE:V598
+MAX_AVATAR_UPLOAD_BYTES = 5 * 1024 * 1024
+MAX_AVATAR_SOURCE_PIXELS = 20_000_000
+AVATAR_IMAGE_EDGE_PX = 256
+AVATAR_IMAGE_MIME = "image/webp"
+ALLOWED_AVATAR_SOURCE_FORMATS = {"PNG", "JPEG", "WEBP"}
+
+
+class AvatarImageValidationError(ValueError):
+    pass
+
+
+@dataclass(frozen=True)
+class NormalizedAvatarImage:
+    data: bytes
+    mime_type: str
+    sha256: str
+    size_bytes: int
+
+
+def normalize_avatar_image(payload: bytes) -> NormalizedAvatarImage:
+    if not payload:
+        raise AvatarImageValidationError("Avatar image is empty")
+    if len(payload) > MAX_AVATAR_UPLOAD_BYTES:
+        raise AvatarImageValidationError("Avatar image exceeds the 5 MiB limit")
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(payload)) as probe:
+                source_format = str(probe.format or "").upper()
+                width, height = probe.size
+                probe.verify()
+            if source_format not in ALLOWED_AVATAR_SOURCE_FORMATS:
+                raise AvatarImageValidationError(
+                    "Avatar image must be PNG, JPEG, or WebP"
+                )
+            if (
+                width < 1
+                or height < 1
+                or width * height > MAX_AVATAR_SOURCE_PIXELS
+            ):
+                raise AvatarImageValidationError(
+                    "Avatar image dimensions are unsupported"
+                )
+            with Image.open(io.BytesIO(payload)) as source:
+                image = ImageOps.exif_transpose(source)
+                if image.width * image.height > MAX_AVATAR_SOURCE_PIXELS:
+                    raise AvatarImageValidationError(
+                        "Avatar image dimensions are unsupported"
+                    )
+                has_alpha = (
+                    image.mode in {"RGBA", "LA"}
+                    or "transparency" in image.info
+                )
+                image = image.convert("RGBA" if has_alpha else "RGB")
+                image = ImageOps.fit(
+                    image,
+                    (AVATAR_IMAGE_EDGE_PX, AVATAR_IMAGE_EDGE_PX),
+                    method=Image.Resampling.LANCZOS,
+                    centering=(0.5, 0.5),
+                )
+                output = io.BytesIO()
+                image.save(
+                    output,
+                    format="WEBP",
+                    quality=88,
+                    method=6,
+                )
+    except AvatarImageValidationError:
+        raise
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+    ) as exc:
+        raise AvatarImageValidationError("Avatar image is invalid") from exc
+
+    normalized = output.getvalue()
+    if not normalized:
+        raise AvatarImageValidationError("Avatar image normalization failed")
+    digest = hashlib.sha256(normalized).hexdigest()
+    return NormalizedAvatarImage(
+        data=normalized,
+        mime_type=AVATAR_IMAGE_MIME,
+        sha256=digest,
+        size_bytes=len(normalized),
+    )
+
+
+def _avatar_image_metadata(user: User) -> dict[str, object]:
+    present = user.avatar_image_data is not None
+    if present:
+        if (
+            user.avatar_image_mime != AVATAR_IMAGE_MIME
+            or not user.avatar_image_sha256
+            or user.avatar_image_size_bytes is None
+            or user.avatar_image_size_bytes < 1
+            or len(user.avatar_image_data or b"") != user.avatar_image_size_bytes
+            or hashlib.sha256(user.avatar_image_data or b"").hexdigest()
+            != user.avatar_image_sha256
+        ):
+            raise AvatarImageValidationError(
+                "Stored avatar image metadata is inconsistent"
+            )
+    elif any(
+        value is not None
+        for value in (
+            user.avatar_image_mime,
+            user.avatar_image_sha256,
+            user.avatar_image_size_bytes,
+        )
+    ):
+        raise AvatarImageValidationError(
+            "Stored avatar image metadata is inconsistent"
+        )
+    return {
+        "has_custom_avatar": present,
+        "mime_type": user.avatar_image_mime if present else None,
+        "sha256": user.avatar_image_sha256 if present else None,
+        "size_bytes": user.avatar_image_size_bytes if present else None,
+    }
+
+
+def set_user_avatar_image(
+    db: Session,
+    *,
+    user: User,
+    image: NormalizedAvatarImage,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> bool:
+    before = _avatar_image_metadata(user)
+    if before["sha256"] == image.sha256:
+        return False
+    try:
+        user.avatar_image_data = image.data
+        user.avatar_image_mime = image.mime_type
+        user.avatar_image_sha256 = image.sha256
+        user.avatar_image_size_bytes = image.size_bytes
+        after = _avatar_image_metadata(user)
+        db.add(
+            AuditLog(
+                event_type="auth.avatar_image_updated",
+                entity_type="user",
+                entity_id=user.id,
+                actor_type="user" if actor_user_id is not None else "system",
+                actor_user_id=actor_user_id,
+                summary="Updated current-user profile image",
+                before_json=before,
+                after_json=after,
+                metadata_json={"normalized_edge_px": AVATAR_IMAGE_EDGE_PX},
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(user)
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+    return True
+
+
+def clear_user_avatar_image(
+    db: Session,
+    *,
+    user: User,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> bool:
+    before = _avatar_image_metadata(user)
+    if not before["has_custom_avatar"]:
+        return False
+    try:
+        user.avatar_image_data = None
+        user.avatar_image_mime = None
+        user.avatar_image_sha256 = None
+        user.avatar_image_size_bytes = None
+        after = _avatar_image_metadata(user)
+        db.add(
+            AuditLog(
+                event_type="auth.avatar_image_removed",
+                entity_type="user",
+                entity_id=user.id,
+                actor_type="user" if actor_user_id is not None else "system",
+                actor_user_id=actor_user_id,
+                summary="Removed current-user profile image",
+                before_json=before,
+                after_json=after,
+                metadata_json=None,
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(user)
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+    return True
+
+
+def user_avatar_image_metadata(user: User) -> dict[str, object]:
+    return _avatar_image_metadata(user)
 
 
 def hash_session_token(token: str) -> str:

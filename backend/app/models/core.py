@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     JSON,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -67,6 +68,11 @@ class User(Base, TimestampMixin):
     avatar_id: Mapped[str] = mapped_column(
         String(40), nullable=False, default="initials", server_default="initials"
     )
+    # PARTPILOT:CUSTOM_AVATAR_MODEL:V598
+    avatar_image_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    avatar_image_mime: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    avatar_image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    avatar_image_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

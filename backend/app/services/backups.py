@@ -44,15 +44,20 @@ ARCHIVE_ENTRY_NAMES = (
     MANIFEST_ENTRY_NAME,
     DATABASE_ENTRY_NAME,
 )
-EXPECTED_ALEMBIC_REVISION = "0012_user_avatar_id"
+EXPECTED_ALEMBIC_REVISION = "0013_user_avatar_image"
 EXPECTED_CRITICAL_SCHEMA_SHA256 = (
-    "b424bcf63d7de8ccb3d9742a1f2f25a58054d4a41fba274710296112d6b17abc"
+    "322ee84f5827a24d242a6a7a54a95aac103b68871f02ec27505ef2dc523c86c1"
 )
 LEGACY_UNSUPPORTED_BACKUP_CONTRACTS = (
     (
         1,
         "0007_projects_contract",
         "c80247b636ff8476605926a15e14892aec8c3630b6f3873d29c2525e02f1f24d",
+    ),
+    (
+        2,
+        "0012_user_avatar_id",
+        "b424bcf63d7de8ccb3d9742a1f2f25a58054d4a41fba274710296112d6b17abc",
     ),
 )
 COMPATIBILITY_POLICY = "exact_revision"

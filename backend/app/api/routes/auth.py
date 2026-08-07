@@ -1,6 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Header,
+    HTTPException,
+    UploadFile,
+    status,
+)
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -27,14 +36,21 @@ from app.services.debug_reset import (
     reset_application_database,
 )
 from app.services.auth import (
+    AVATAR_IMAGE_MIME,
     BUILTIN_AVATAR_IDS,
+    MAX_AVATAR_UPLOAD_BYTES,
+    AvatarImageValidationError,
     authenticate_user,
+    clear_user_avatar_image,
     create_first_user,
     create_session,
     get_user_for_session_token,
     has_any_user,
+    normalize_avatar_image,
     revoke_session,
+    set_user_avatar_image,
     update_user_profile,
+    user_avatar_image_metadata,
 )
 
 from app.schemas.auth import (
@@ -254,6 +270,8 @@ def _current_user_response(current_user) -> CurrentUserResponse:
         username=current_user.username,
         display_name=current_user.display_name,
         avatar_id=current_user.avatar_id,
+        has_custom_avatar=current_user.avatar_image_data is not None,
+        avatar_image_sha256=current_user.avatar_image_sha256,
         is_active=current_user.is_active,
     )
 
@@ -298,6 +316,95 @@ def update_profile(
             detail=str(exc),
         ) from exc
     return _profile_response(updated)
+
+
+# PARTPILOT:CUSTOM_AVATAR_ROUTES:V598
+@router.get("/profile/avatar-image")
+def read_profile_avatar_image(
+    current_user=Depends(get_current_user),
+):
+    try:
+        metadata = user_avatar_image_metadata(current_user)
+    except AvatarImageValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Stored avatar image is invalid",
+        ) from exc
+    if not metadata["has_custom_avatar"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Custom avatar image not found",
+        )
+    return Response(
+        content=current_user.avatar_image_data or b"",
+        media_type=AVATAR_IMAGE_MIME,
+        headers={
+            "Cache-Control": "private, no-store, max-age=0",
+            "Pragma": "no-cache",
+            "ETag": f'"{current_user.avatar_image_sha256}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.put("/profile/avatar-image", response_model=ProfileResponse)
+async def upload_profile_avatar_image(
+    image: UploadFile = File(...),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProfileResponse:
+    content_type = (image.content_type or "").lower()
+    if content_type not in {"image/png", "image/jpeg", "image/webp"}:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Avatar image must be PNG, JPEG, or WebP",
+        )
+    try:
+        payload = await image.read(MAX_AVATAR_UPLOAD_BYTES + 1)
+    finally:
+        await image.close()
+    if len(payload) > MAX_AVATAR_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Avatar image exceeds the 5 MiB limit",
+        )
+    try:
+        normalized = normalize_avatar_image(payload)
+        set_user_avatar_image(
+            db,
+            user=current_user,
+            image=normalized,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except AvatarImageValidationError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    return _profile_response(current_user)
+
+
+@router.delete("/profile/avatar-image", response_model=ProfileResponse)
+def delete_profile_avatar_image(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProfileResponse:
+    try:
+        clear_user_avatar_image(
+            db,
+            user=current_user,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except AvatarImageValidationError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Stored avatar image is invalid",
+        ) from exc
+    return _profile_response(current_user)
 
 
 @router.post("/logout", response_model=LogoutResponse)

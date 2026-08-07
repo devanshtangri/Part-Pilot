@@ -77,6 +77,11 @@ class CurrentUserResponse(BaseModel):
     username: str
     display_name: str
     avatar_id: BuiltInAvatarId
+    has_custom_avatar: bool
+    avatar_image_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     is_active: bool
 
 
@@ -104,6 +109,7 @@ class ProfileUpdateRequest(BaseModel):
         return value
 
 
+# PARTPILOT:CUSTOM_AVATAR_SCHEMA:V598
 class ProfileResponse(CurrentUserResponse):
     available_avatar_ids: list[BuiltInAvatarId]
 

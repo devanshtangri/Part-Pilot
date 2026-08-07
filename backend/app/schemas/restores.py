@@ -31,7 +31,7 @@ class RestoreValidationResponse(RestoreContractModel):
     expires_at_utc: str
     format_version: Literal[2]
     alembic_revision: Literal[
-        "0012_user_avatar_id"
+        "0013_user_avatar_image"
     ]
     archive_sha256: str = Field(
         pattern=r"^[0-9a-f]{64}$"
@@ -81,7 +81,7 @@ class RestoreStageState(RestoreContractModel):
     expires_at_utc: str
     format_version: Literal[2]
     alembic_revision: Literal[
-        "0012_user_avatar_id"
+        "0013_user_avatar_image"
     ]
     critical_schema_sha256: str = Field(
         pattern=r"^[0-9a-f]{64}$"
