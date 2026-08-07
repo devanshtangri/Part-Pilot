@@ -16,6 +16,7 @@ class RestoreContractModel(BaseModel):
     )
 
 
+# PARTPILOT:RESTORE_FORMAT_V2_SCHEMA:V597
 class RestoreValidationResponse(RestoreContractModel):
     status: Literal["ready_for_review"]
     validation_token: str = Field(
@@ -28,9 +29,9 @@ class RestoreValidationResponse(RestoreContractModel):
     backup_created_at_utc: str
     validated_at_utc: str
     expires_at_utc: str
-    format_version: Literal[1]
+    format_version: Literal[2]
     alembic_revision: Literal[
-        "0007_projects_contract"
+        "0012_user_avatar_id"
     ]
     archive_sha256: str = Field(
         pattern=r"^[0-9a-f]{64}$"
@@ -78,9 +79,9 @@ class RestoreStageState(RestoreContractModel):
     backup_created_at_utc: str
     validated_at_utc: str
     expires_at_utc: str
-    format_version: Literal[1]
+    format_version: Literal[2]
     alembic_revision: Literal[
-        "0007_projects_contract"
+        "0012_user_avatar_id"
     ]
     critical_schema_sha256: str = Field(
         pattern=r"^[0-9a-f]{64}$"

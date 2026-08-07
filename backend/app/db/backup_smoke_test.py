@@ -16,6 +16,7 @@ import zipfile
 from app.core.config import get_settings
 from app.services.backups import (
     ARCHIVE_ENTRY_NAMES,
+    BACKUP_FORMAT_VERSION,
     DATABASE_ENTRY_NAME,
     EXPECTED_ALEMBIC_REVISION,
     EXPECTED_CRITICAL_SCHEMA_SHA256,
@@ -251,7 +252,7 @@ def check_backup_artifact_core() -> None:
 
         expected_filename = (
             "part-pilot-backup-20260802T000000Z-"
-            "0007-projects-contract.ppbackup"
+            "0012-user-avatar-id.ppbackup"
         )
         if artifact.filename != expected_filename:
             fail(
@@ -364,6 +365,21 @@ def check_backup_artifact_core() -> None:
         expect_rejected(
             mismatch_archive,
             contains="SHA-256",
+            validation_parent=root,
+        )
+
+        legacy_archive = root / "legacy-v1.ppbackup"
+        legacy_manifest = manifest.model_dump(mode="json")
+        legacy_manifest["format_version"] = 1
+        legacy_manifest["application"]["backup_writer_version"] = 1
+        rebuild_archive(
+            artifact.archive_path,
+            legacy_archive,
+            manifest_override=canonical_json_bytes(legacy_manifest),
+        )
+        expect_rejected(
+            legacy_archive,
+            contains="backup format version 2",
             validation_parent=root,
         )
 
@@ -485,7 +501,7 @@ def check_backup_artifact_core() -> None:
 
     print(
         "[PASS] Backup artifact core creates deterministic "
-        "version-1 online SQLite snapshots, validates canonical "
+        "version-2 online SQLite snapshots, validates canonical "
         "two-file archives, preserves all copied rows, remains "
         "consistent during concurrent writes, rejects malformed "
         "artifacts, and cleans only marker-owned directories"
@@ -504,6 +520,7 @@ def check_backup_download_api() -> None:
     from app.api.routes import backups as backups_route
     from app.db.session import SessionLocal
     from app.main import app as fastapi_app
+    from app.models import AuditLog
     from app.services.auth import create_session, create_user
 
     source_path = sqlite_path_from_database_url(
@@ -610,6 +627,36 @@ def check_backup_download_api() -> None:
                 ip_address="127.0.0.1",
                 commit=False,
             )
+            legacy_status_filename = (
+                "part-pilot-backup-20260801T000000Z-"
+                "0007-projects-contract.ppbackup"
+            )
+            db.add(
+                AuditLog(
+                    event_type="backup.generated",
+                    entity_type="backup",
+                    entity_id=None,
+                    actor_type="user",
+                    actor_user_id=user.id,
+                    summary="Generated manual Part Pilot backup",
+                    before_json=None,
+                    after_json={
+                        "filename": legacy_status_filename,
+                        "format": "part-pilot-backup",
+                        "format_version": 1,
+                        "alembic_revision": "0007_projects_contract",
+                        "database_sha256": "0" * 64,
+                        "archive_sha256": "1" * 64,
+                    },
+                    metadata_json={
+                        "manual_download": True,
+                        "archive_size_bytes": 123,
+                        "database_size_bytes": 456,
+                        "compatibility_policy": "exact_revision",
+                        "media_type": "application/vnd.partpilot.backup+zip",
+                    },
+                )
+            )
             db.commit()
             db.refresh(user)
             user_id = int(user.id)
@@ -652,6 +699,18 @@ def check_backup_download_api() -> None:
         ):
             fail(
                 "Backup status capability flags are incorrect: "
+                f"{status_before}"
+            )
+        latest_before = status_before.get("latest_manual_backup")
+        if (
+            not isinstance(latest_before, dict)
+            or latest_before.get("filename") != legacy_status_filename
+            or latest_before.get("format_version") != 1
+            or latest_before.get("alembic_revision")
+            != "0007_projects_contract"
+        ):
+            fail(
+                "Historical V1 backup status was not preserved: "
                 f"{status_before}"
             )
         if logical_snapshot(source_path) != before_status:
@@ -744,7 +803,7 @@ def check_backup_download_api() -> None:
         )
         if (
             manifest.format != "part-pilot-backup"
-            or manifest.format_version != 1
+            or manifest.format_version != BACKUP_FORMAT_VERSION
             or manifest.schema.alembic_revision
             != EXPECTED_ALEMBIC_REVISION
         ):
@@ -844,7 +903,7 @@ def check_backup_download_api() -> None:
             or latest.get("archive_size_bytes") != len(response.content)
             or latest.get("database_size_bytes")
             != manifest.database.size_bytes
-            or latest.get("format_version") != 1
+            or latest.get("format_version") != BACKUP_FORMAT_VERSION
             or latest.get("alembic_revision")
             != EXPECTED_ALEMBIC_REVISION
             or not isinstance(latest.get("generated_at_utc"), str)
@@ -857,7 +916,7 @@ def check_backup_download_api() -> None:
         if (
             after_json.get("format")
             != "part-pilot-backup"
-            or after_json.get("format_version") != 1
+            or after_json.get("format_version") != BACKUP_FORMAT_VERSION
             or after_json.get("alembic_revision")
             != EXPECTED_ALEMBIC_REVISION
             or after_json.get("database_sha256")

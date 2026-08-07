@@ -9,9 +9,10 @@ class BackupManifestModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+# PARTPILOT:BACKUP_FORMAT_V2_SCHEMA:V597
 class BackupApplicationManifest(BackupManifestModel):
     name: Literal["Part Pilot"]
-    backup_writer_version: Literal[1]
+    backup_writer_version: Literal[2]
 
 
 class BackupDatabaseManifest(BackupManifestModel):
@@ -41,7 +42,7 @@ class BackupScopeManifest(BackupManifestModel):
 
 class BackupManifest(BackupManifestModel):
     format: Literal["part-pilot-backup"]
-    format_version: Literal[1]
+    format_version: Literal[2]
     created_at_utc: str
     application: BackupApplicationManifest
     database: BackupDatabaseManifest
@@ -55,7 +56,7 @@ class LatestManualBackupStatus(BackupManifestModel):
     filename: str = Field(min_length=1, max_length=255)
     archive_size_bytes: int = Field(ge=0)
     database_size_bytes: int = Field(ge=0)
-    format_version: Literal[1]
+    format_version: Literal[1, 2]
     alembic_revision: str = Field(min_length=1, max_length=128)
 
 

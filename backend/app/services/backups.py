@@ -31,9 +31,11 @@ from app.schemas.backups import (
 )
 
 
+# PARTPILOT:BACKUP_FORMAT_V2_CURRENT_SCHEMA:V597
 BACKUP_FORMAT = "part-pilot-backup"
-BACKUP_FORMAT_VERSION = 1
-BACKUP_WRITER_VERSION = 1
+BACKUP_FORMAT_VERSION = 2
+BACKUP_WRITER_VERSION = 2
+HISTORICAL_STATUS_FORMAT_VERSIONS = (1, BACKUP_FORMAT_VERSION)
 BACKUP_EXTENSION = ".ppbackup"
 BACKUP_MEDIA_TYPE = "application/vnd.partpilot.backup+zip"
 MANIFEST_ENTRY_NAME = "manifest.json"
@@ -42,9 +44,16 @@ ARCHIVE_ENTRY_NAMES = (
     MANIFEST_ENTRY_NAME,
     DATABASE_ENTRY_NAME,
 )
-EXPECTED_ALEMBIC_REVISION = "0007_projects_contract"
+EXPECTED_ALEMBIC_REVISION = "0012_user_avatar_id"
 EXPECTED_CRITICAL_SCHEMA_SHA256 = (
-    "c80247b636ff8476605926a15e14892aec8c3630b6f3873d29c2525e02f1f24d"
+    "b424bcf63d7de8ccb3d9742a1f2f25a58054d4a41fba274710296112d6b17abc"
+)
+LEGACY_UNSUPPORTED_BACKUP_CONTRACTS = (
+    (
+        1,
+        "0007_projects_contract",
+        "c80247b636ff8476605926a15e14892aec8c3630b6f3873d29c2525e02f1f24d",
+    ),
 )
 COMPATIBILITY_POLICY = "exact_revision"
 MANIFEST_MAX_BYTES = 64 * 1024
@@ -52,7 +61,7 @@ DATABASE_MAX_BYTES = 1024 * 1024 * 1024
 ARCHIVE_MAX_BYTES = 256 * 1024 * 1024
 OPERATION_PREFIX = "partpilot-backup-"
 OPERATION_MARKER = ".partpilot-backup-operation"
-OPERATION_MARKER_CONTENT = "part-pilot-backup-operation-v1\n"
+OPERATION_MARKER_CONTENT = "part-pilot-backup-operation-v2\n"
 ALLOWED_COMPRESSION_TYPES = {
     zipfile.ZIP_STORED,
     zipfile.ZIP_DEFLATED,
@@ -66,6 +75,11 @@ REQUIRED_TABLES = (
     "backups",
     "locations",
     "manufacturers",
+    "mcp_direct_auth",
+    "mcp_oauth_authorization_codes",
+    "mcp_oauth_clients",
+    "mcp_oauth_consents",
+    "mcp_oauth_tokens",
     "packages",
     "part_field_values",
     "part_tags",
@@ -103,6 +117,8 @@ INCLUDED_SCOPE = (
     "audit_log",
     "app_settings",
     "sessions",
+    "mcp_direct_auth",
+    "mcp_oauth",
 )
 EXCLUDED_SCOPE = (
     "container_image",
@@ -220,7 +236,7 @@ def _load_manifest_bytes(payload: bytes) -> BackupManifest:
         manifest = BackupManifest.model_validate(raw)
     except Exception as exc:
         raise BackupArtifactError(
-            "Manifest does not match backup format version 1."
+            "Manifest does not match backup format version 2."
         ) from exc
 
     canonical = canonical_json_bytes(
@@ -252,11 +268,11 @@ def _validate_manifest_semantics(
         )
     if tuple(manifest.scope.included) != INCLUDED_SCOPE:
         raise BackupArtifactError(
-            "Manifest included scope does not match format version 1."
+            "Manifest included scope does not match format version 2."
         )
     if tuple(manifest.scope.excluded) != EXCLUDED_SCOPE:
         raise BackupArtifactError(
-            "Manifest excluded scope does not match format version 1."
+            "Manifest excluded scope does not match format version 2."
         )
     if (
         manifest.schema.alembic_revision
@@ -1001,7 +1017,7 @@ def _manual_backup_status_from_audit(
         or isinstance(database_size, bool)
         or not isinstance(database_size, int)
         or database_size < 0
-        or format_version != BACKUP_FORMAT_VERSION
+        or format_version not in HISTORICAL_STATUS_FORMAT_VERSIONS
         or not isinstance(alembic_revision, str)
         or not 1 <= len(alembic_revision) <= 128
         or not isinstance(created_at, datetime)
@@ -1018,7 +1034,7 @@ def _manual_backup_status_from_audit(
         filename=filename,
         archive_size_bytes=archive_size,
         database_size_bytes=database_size,
-        format_version=BACKUP_FORMAT_VERSION,
+        format_version=format_version,
         alembic_revision=alembic_revision,
     )
 

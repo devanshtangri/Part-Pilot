@@ -30,8 +30,11 @@ from app.services.auth import (
     create_user,
 )
 from app.services.backups import (
+    BACKUP_FORMAT_VERSION,
     BACKUP_MEDIA_TYPE,
+    EXPECTED_ALEMBIC_REVISION,
     DATABASE_ENTRY_NAME,
+    canonical_json_bytes,
     MANIFEST_ENTRY_NAME,
     create_backup_artifact,
     remove_backup_operation_directory,
@@ -485,9 +488,9 @@ def check_restore_validation_api() -> None:
         if (
             payload.get("status")
             != "ready_for_review"
-            or payload.get("format_version") != 1
+            or payload.get("format_version") != BACKUP_FORMAT_VERSION
             or payload.get("alembic_revision")
-            != "0007_projects_contract"
+            != EXPECTED_ALEMBIC_REVISION
             or payload.get("active_user_count", 0)
             < 1
             or not payload.get(
@@ -774,6 +777,13 @@ def check_restore_validation_api() -> None:
         unknown_path.write_text("preserve", encoding="utf-8")
         os.chmod(unknown_path, 0o600)
 
+        legacy_v1 = stage_for_sweep(ttl_seconds=1)
+        legacy_state_path = legacy_v1.operation_directory / RESTORE_STATE_FILENAME
+        legacy_state = json.loads(legacy_state_path.read_text(encoding="utf-8"))
+        legacy_state["format_version"] = 1
+        legacy_state_path.write_bytes(canonical_json_bytes(legacy_state))
+        os.chmod(legacy_state_path, 0o600)
+
         removed = sweep_expired_restore_staging(
             staging_root,
             now=fixed + timedelta(seconds=2),
@@ -785,13 +795,14 @@ def check_restore_validation_api() -> None:
             or not pending.operation_directory.exists()
             or not completed.operation_directory.exists()
             or not unknown_extra.operation_directory.exists()
+            or not legacy_v1.operation_directory.exists()
         ):
             fail(
                 "Restore staging sweep did not remove only the "
                 "expired validation-only operation."
             )
 
-        for preserved in (fresh, pending, completed, unknown_extra):
+        for preserved in (fresh, pending, completed, unknown_extra, legacy_v1):
             remove_staged_restore(
                 preserved.token,
                 staging_root=staging_root,
@@ -845,12 +856,12 @@ def check_restore_validation_api() -> None:
     print(
         "[PASS] Protected restore validation enforces "
         "authentication and ASGI/body limits, accepts only "
-        "strict V1 .ppbackup artifacts, rejects malformed, "
+        "strict V2 .ppbackup artifacts, rejects malformed, "
         "compressed-bomb and no-active-user inputs, stages "
         "mode-0600 files under opaque user-bound expiring "
         "tokens, exposes sanitized review metadata, sweeps "
         "only expired validation-only operations while preserving "
-        "fresh, pending, completed and unknown evidence, and leaves "
+        "fresh, pending, completed, legacy-version and unknown evidence, and leaves "
         "the source database unchanged without replacing the source "
         "database during validation"
     )
