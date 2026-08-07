@@ -19,6 +19,8 @@ export interface AuthUser {
   username: string;
   display_name: string;
   avatar_id: BuiltInAvatarId;
+  has_custom_avatar: boolean;
+  avatar_image_sha256: string | null;
   is_active: boolean;
 }
 
@@ -102,4 +104,3 @@ export interface OtherSessionsRevokeResponse {
   ok: boolean;
   revoked_sessions: number;
 }
-

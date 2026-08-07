@@ -212,6 +212,59 @@ export async function updateProfile(
   return response.json();
 }
 
+// PARTPILOT:AUTH_CUSTOM_AVATAR_CLIENT:V602
+export async function getProfileAvatarImage(
+  token: string
+): Promise<Blob | null> {
+  const response = await fetch(`${API_BASE_URL}/auth/profile/avatar-image`, {
+    headers: bearerHeaders(token),
+    cache: "no-store"
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.blob();
+}
+
+export async function uploadProfileAvatarImage(
+  token: string,
+  image: File
+): Promise<ProfileResponse> {
+  const form = new FormData();
+  form.append("image", image, image.name);
+  const response = await fetch(`${API_BASE_URL}/auth/profile/avatar-image`, {
+    method: "PUT",
+    headers: bearerHeaders(token),
+    body: form
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function deleteProfileAvatarImage(
+  token: string
+): Promise<ProfileResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/profile/avatar-image`, {
+    method: "DELETE",
+    headers: bearerHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
 export async function changePassword(
   token: string,
   payload: PasswordChangeRequest

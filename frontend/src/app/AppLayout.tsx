@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
+import { UserAvatar } from "../components/UserAvatar";
 
 const navItems = [
   { label: "Dashboard", path: "/" },
@@ -28,7 +29,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
 }
 
 export function AppLayout() {
-  const { user, logout } = useAuth();
+  const { user, avatarImageUrl, logout } = useAuth();
   const location = useLocation();
   const [isDrawerOpen, setDrawerOpen] = useState(false);
 
@@ -123,15 +124,31 @@ export function AppLayout() {
           ))}
         </nav>
 
-        <div className="sidebar-account">
-          <div className="sidebar-account-details">
-            <strong className="sidebar-account-name">
-              {user?.display_name ?? "Local user"}
-            </strong>
-            <span className="sidebar-account-username">
-              @{user?.username ?? "user"}
-            </span>
-          </div>
+        <div
+          className="sidebar-account"
+          data-partpilot-sidebar-avatar="PARTPILOT:SIDEBAR_USER_AVATAR:V602"
+        >
+          <NavLink
+            to="/settings#settings-account"
+            className="sidebar-account-identity sidebar-account-link"
+            aria-label="Open account settings"
+            onClick={() => setDrawerOpen(false)}
+          >
+            <UserAvatar
+              avatarId={user?.avatar_id ?? "initials"}
+              displayName={user?.display_name ?? "Local user"}
+              imageUrl={avatarImageUrl}
+              className="sidebar-account-avatar"
+            />
+            <div className="sidebar-account-details">
+              <strong className="sidebar-account-name">
+                {user?.display_name ?? "Local user"}
+              </strong>
+              <span className="sidebar-account-username">
+                @{user?.username ?? "user"}
+              </span>
+            </div>
+          </NavLink>
 
           <button
             className="sidebar-logout"

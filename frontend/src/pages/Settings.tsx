@@ -3,15 +3,25 @@ import {
   useRef,
   useState
 } from "react";
+import { useLocation } from "react-router-dom";
 
 import {
   APPEARANCE_STORAGE_KEY,
   useAppearance
 } from "../appearance/AppearanceContext";
 import { useAuth } from "../auth/AuthContext";
+import { UserAvatar } from "../components/UserAvatar";
 import {
   AUTH_TOKEN_STORAGE_KEY,
-  resetApplicationDatabase
+  changePassword,
+  deleteProfileAvatarImage,
+  getProfile,
+  getSessions,
+  resetApplicationDatabase,
+  revokeAllOtherSessions,
+  revokeSession,
+  updateProfile,
+  uploadProfileAvatarImage
 } from "../services/authClient";
 import {
   commitRestoreBackup,
@@ -37,6 +47,11 @@ import {
   updateReservationSettings,
   updateSearchSettings
 } from "../services/settingsClient";
+import type {
+  AuthSession,
+  BuiltInAvatarId,
+  ProfileResponse
+} from "../types/auth";
 import type {
   ManualBackupStatusResponse,
   RestoreValidationResponse
@@ -78,6 +93,7 @@ const MCP_RESERVED_CUSTOM_HEADERS = new Set([
 ]);
 const MAX_RESTORE_FILE_BYTES = 256 * 1024 * 1024;
 const SETTINGS_SECTION_IDS = [
+  "account",
   "appearance",
   "inventory",
   "reservations",
@@ -241,9 +257,124 @@ function formatFileSize(bytes: number): string {
 
 function formatUtc(value: string): string {
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleString();
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+}
+
+interface AccountProfileDraft {
+  username: string;
+  displayName: string;
+  avatarId: BuiltInAvatarId;
+}
+
+const ACCOUNT_AVATAR_OPTIONS: Array<{
+  value: BuiltInAvatarId;
+  label: string;
+}> = [
+  { value: "initials", label: "Initials" },
+  { value: "chip", label: "Chip" },
+  { value: "circuit", label: "Circuit" },
+  { value: "terminal", label: "Terminal" },
+  { value: "storage", label: "Storage" },
+  { value: "rocket", label: "Rocket" }
+];
+
+const ACCOUNT_AVATAR_MAX_SOURCE_BYTES = 5 * 1024 * 1024;
+const ACCOUNT_AVATAR_MAX_SOURCE_PIXELS = 20_000_000;
+const ACCOUNT_AVATAR_PREVIEW_EDGE = 512;
+const ACCOUNT_AVATAR_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp"
+]);
+
+async function prepareAccountAvatarImage(file: File): Promise<File> {
+  if (!ACCOUNT_AVATAR_TYPES.has(file.type)) {
+    throw new Error("Choose a PNG, JPEG, or WebP image.");
+  }
+  if (file.size > ACCOUNT_AVATAR_MAX_SOURCE_BYTES) {
+    throw new Error("Profile image must be 5 MiB or smaller.");
+  }
+
+  const sourceUrl = URL.createObjectURL(file);
+  try {
+    const image = document.createElement("img");
+    image.decoding = "async";
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Unable to read that image."));
+      image.src = sourceUrl;
+    });
+
+    if (
+      image.naturalWidth < 1 ||
+      image.naturalHeight < 1 ||
+      image.naturalWidth * image.naturalHeight > ACCOUNT_AVATAR_MAX_SOURCE_PIXELS
+    ) {
+      throw new Error("Profile image dimensions are unsupported.");
+    }
+
+    const crop = Math.min(image.naturalWidth, image.naturalHeight);
+    const sourceX = (image.naturalWidth - crop) / 2;
+    const sourceY = (image.naturalHeight - crop) / 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = ACCOUNT_AVATAR_PREVIEW_EDGE;
+    canvas.height = ACCOUNT_AVATAR_PREVIEW_EDGE;
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Unable to prepare the profile image.");
+    }
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      crop,
+      crop,
+      0,
+      0,
+      ACCOUNT_AVATAR_PREVIEW_EDGE,
+      ACCOUNT_AVATAR_PREVIEW_EDGE
+    );
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (value) =>
+          value
+            ? resolve(value)
+            : reject(new Error("Unable to prepare the profile image.")),
+        "image/webp",
+        0.9
+      );
+    });
+    return new File([blob], "partpilot-avatar.webp", {
+      type: "image/webp"
+    });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function sessionClientLabel(userAgent: string | null): string {
+  if (!userAgent) return "Unknown client";
+  const browser = /Edg\//.test(userAgent)
+    ? "Edge"
+    : /Firefox\//.test(userAgent)
+      ? "Firefox"
+      : /Chrome\//.test(userAgent)
+        ? "Chrome"
+        : /Safari\//.test(userAgent)
+          ? "Safari"
+          : "Browser";
+  const platform = /Android/.test(userAgent)
+    ? "Android"
+    : /iPhone|iPad/.test(userAgent)
+      ? "iOS"
+      : /Windows/.test(userAgent)
+        ? "Windows"
+        : /Mac OS X/.test(userAgent)
+          ? "macOS"
+          : /Linux/.test(userAgent)
+            ? "Linux"
+            : "device";
+  return `${browser} on ${platform}`;
 }
 
 const APPEARANCE_OPTIONS: Array<{
@@ -269,8 +400,10 @@ const APPEARANCE_OPTIONS: Array<{
 ];
 
 export function Settings() {
-  const { token } = useAuth();
+  const { token, user, avatarImageUrl, refreshUser } = useAuth();
+  const location = useLocation();
   const restoreFileInputRef = useRef<HTMLInputElement | null>(null);
+  const accountAvatarInputRef = useRef<HTMLInputElement | null>(null);
   const [activeSettingsSection, setActiveSettingsSection] =
     useState<SettingsSection>(settingsSectionFromHash);
   const {
@@ -283,6 +416,34 @@ export function Settings() {
     selectTheme,
     reload: reloadAppearance
   } = useAppearance();
+
+  // PARTPILOT:SETTINGS_ACCOUNT_SECURITY_UI:V592
+  const [accountProfile, setAccountProfile] =
+    useState<ProfileResponse | null>(null);
+  const [accountDraft, setAccountDraft] =
+    useState<AccountProfileDraft | null>(null);
+  const [accountLoading, setAccountLoading] = useState(true);
+  const [accountSaving, setAccountSaving] = useState(false);
+  const [accountAvatarUploading, setAccountAvatarUploading] = useState(false);
+  const [accountAvatarRemoving, setAccountAvatarRemoving] = useState(false);
+  const [accountAvatarPreviewUrl, setAccountAvatarPreviewUrl] =
+    useState<string | null>(null);
+  const [accountError, setAccountError] = useState<string | null>(null);
+  const [accountMessage, setAccountMessage] = useState<string | null>(null);
+  const [accountReloadVersion, setAccountReloadVersion] = useState(0);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [accountSessions, setAccountSessions] = useState<AuthSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [sessionsMessage, setSessionsMessage] = useState<string | null>(null);
+  const [sessionRevokingId, setSessionRevokingId] =
+    useState<number | null>(null);
+  const [sessionsRevokingAll, setSessionsRevokingAll] = useState(false);
 
   const [searchSettings, setSearchSettings] =
     useState<SearchSettings | null>(null);
@@ -481,6 +642,78 @@ export function Settings() {
     mcpDirectHeaderChanged || mcpDirectTrustedNetworksChanged;
   const mcpDirectActiveNetworks = mcpDirectAuth?.trusted_networks ?? [];
   const mcpDirectActiveNetworkPreview = mcpDirectActiveNetworks.slice(0, 3);
+  const activeAccountSessions = accountSessions.filter(
+    (session) => session.is_active
+  );
+  const otherActiveSessionCount = activeAccountSessions.filter(
+    (session) => !session.is_current
+  ).length;
+  const availableAccountAvatars = ACCOUNT_AVATAR_OPTIONS.filter(
+    (option) =>
+      accountProfile?.available_avatar_ids.includes(option.value) ?? true
+  );
+
+  useEffect(() => {
+    setActiveSettingsSection(settingsSectionFromHash());
+  }, [location.hash]);
+
+  useEffect(() => {
+    return () => {
+      if (accountAvatarPreviewUrl) {
+        URL.revokeObjectURL(accountAvatarPreviewUrl);
+      }
+    };
+  }, [accountAvatarPreviewUrl]);
+
+  useEffect(() => {
+    if (!token) {
+      setAccountProfile(null);
+      setAccountDraft(null);
+      setAccountSessions([]);
+      setAccountLoading(false);
+      setSessionsLoading(false);
+      setAccountError("Your session is unavailable. Sign in again.");
+      setSessionsError("Your session is unavailable. Sign in again.");
+      return;
+    }
+
+    let cancelled = false;
+    setAccountLoading(true);
+    setSessionsLoading(true);
+    setAccountError(null);
+    setSessionsError(null);
+
+    Promise.all([getProfile(token), getSessions(token)])
+      .then(([profile, sessions]) => {
+        if (cancelled) return;
+        setAccountProfile(profile);
+        setAccountDraft({
+          username: profile.username,
+          displayName: profile.display_name,
+          avatarId: profile.avatar_id
+        });
+        setAccountSessions(sessions.sessions);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        const message =
+          caught instanceof Error
+            ? caught.message
+            : "Unable to load account security settings";
+        setAccountError(message);
+        setSessionsError(message);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAccountLoading(false);
+          setSessionsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accountReloadVersion, token]);
 
   useEffect(() => {
     if (!token) {
@@ -1293,6 +1526,161 @@ export function Settings() {
     }
   }
 
+  async function saveAccountProfile(): Promise<void> {
+    if (!token || !accountDraft || accountSaving) return;
+    setAccountSaving(true);
+    setAccountError(null);
+    setAccountMessage(null);
+    try {
+      const saved = await updateProfile(token, accountDraft);
+      setAccountProfile(saved);
+      setAccountDraft({
+        username: saved.username,
+        displayName: saved.display_name,
+        avatarId: saved.avatar_id
+      });
+      await refreshUser();
+      setAccountMessage("Profile saved across Part Pilot.");
+    } catch (caught) {
+      setAccountError(
+        caught instanceof Error ? caught.message : "Unable to save profile"
+      );
+    } finally {
+      setAccountSaving(false);
+    }
+  }
+
+
+  async function uploadAccountAvatar(file: File): Promise<void> {
+    if (!token || accountAvatarUploading || accountAvatarRemoving) return;
+    setAccountAvatarUploading(true);
+    setAccountError(null);
+    setAccountMessage(null);
+    try {
+      const prepared = await prepareAccountAvatarImage(file);
+      setAccountAvatarPreviewUrl(URL.createObjectURL(prepared));
+      const saved = await uploadProfileAvatarImage(token, prepared);
+      setAccountProfile(saved);
+      await refreshUser();
+      setAccountMessage("Custom profile image updated.");
+    } catch (caught) {
+      setAccountError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to update the profile image"
+      );
+    } finally {
+      setAccountAvatarPreviewUrl(null);
+      setAccountAvatarUploading(false);
+    }
+  }
+
+  async function removeAccountAvatar(): Promise<void> {
+    if (!token || accountAvatarUploading || accountAvatarRemoving) return;
+    setAccountAvatarRemoving(true);
+    setAccountError(null);
+    setAccountMessage(null);
+    try {
+      const saved = await deleteProfileAvatarImage(token);
+      setAccountProfile(saved);
+      await refreshUser();
+      setAccountMessage("Custom profile image removed.");
+    } catch (caught) {
+      setAccountError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to remove the profile image"
+      );
+    } finally {
+      setAccountAvatarRemoving(false);
+    }
+  }
+
+  async function saveAccountPassword(): Promise<void> {
+    if (!token || passwordSaving) return;
+    setPasswordError(null);
+    setPasswordMessage(null);
+    if (!currentPassword) {
+      setPasswordError("Enter your current password.");
+      return;
+    }
+    if (newPassword.length < 8 || newPassword.length > 256) {
+      setPasswordError("New password must be 8-256 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New password confirmation does not match.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const result = await changePassword(token, {
+        currentPassword,
+        newPassword
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordMessage(
+        result.revoked_other_sessions === 1
+          ? "Password changed. 1 other session was revoked."
+          : `Password changed. ${result.revoked_other_sessions} other sessions were revoked.`
+      );
+      setAccountReloadVersion((value) => value + 1);
+    } catch (caught) {
+      setPasswordError(
+        caught instanceof Error ? caught.message : "Unable to change password"
+      );
+    } finally {
+      setPasswordSaving(false);
+    }
+  }
+
+  async function revokeAccountSession(sessionId: number): Promise<void> {
+    if (!token || sessionRevokingId !== null || sessionsRevokingAll) return;
+    setSessionRevokingId(sessionId);
+    setSessionsError(null);
+    setSessionsMessage(null);
+    try {
+      const result = await revokeSession(token, sessionId);
+      setSessionsMessage(
+        result.revoked ? "Session revoked." : "Session was already inactive."
+      );
+      setAccountReloadVersion((value) => value + 1);
+    } catch (caught) {
+      setSessionsError(
+        caught instanceof Error ? caught.message : "Unable to revoke session"
+      );
+    } finally {
+      setSessionRevokingId(null);
+    }
+  }
+
+  async function revokeOtherAccountSessions(): Promise<void> {
+    if (!token || sessionsRevokingAll || sessionRevokingId !== null) return;
+    setSessionsRevokingAll(true);
+    setSessionsError(null);
+    setSessionsMessage(null);
+    try {
+      const result = await revokeAllOtherSessions(token);
+      setSessionsMessage(
+        result.revoked_sessions === 1
+          ? "1 other session revoked."
+          : `${result.revoked_sessions} other sessions revoked.`
+      );
+      setAccountReloadVersion((value) => value + 1);
+    } catch (caught) {
+      setSessionsError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to revoke other sessions"
+      );
+    } finally {
+      setSessionsRevokingAll(false);
+    }
+  }
+
   function chooseSettingsSection(
     section: SettingsSection
   ): void {
@@ -1506,6 +1894,9 @@ export function Settings() {
       data-partpilot-settings-tabs="PARTPILOT:SETTINGS_SECTION_TABS:V444"
       data-partpilot-mcp-settings="PARTPILOT:MCP_SETTINGS_UI:V473"
       data-partpilot-mcp-oauth-clients="PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569"
+      data-partpilot-account-security="PARTPILOT:SETTINGS_ACCOUNT_SECURITY_UI:V592"
+      data-partpilot-account-avatar-refinement="PARTPILOT:SETTINGS_ACCOUNT_AVATAR_REFINEMENT:V594"
+      data-partpilot-account-custom-avatar="PARTPILOT:SETTINGS_CUSTOM_AVATAR_UI:V602"
       data-partpilot-active-settings-section={activeSettingsSection}
     >
       <header className="page-header settings-page-header">
@@ -1513,8 +1904,8 @@ export function Settings() {
           <p className="eyebrow">Application configuration</p>
           <h1>Settings</h1>
           <p>
-            Manage appearance, inventory behavior, reservation defaults,
-            MCP access, and local data controls for this installation.
+            Manage your account, security, appearance, inventory behavior,
+            reservation defaults, MCP access, and local data controls.
           </p>
         </div>
       </header>
@@ -1523,6 +1914,19 @@ export function Settings() {
         className="settings-section-nav"
         aria-label="Settings sections"
       >
+        <button
+          className={
+            activeSettingsSection === "account" ? "is-active" : ""
+          }
+          type="button"
+          aria-current={
+            activeSettingsSection === "account" ? "page" : undefined
+          }
+          aria-controls="settings-account"
+          onClick={() => chooseSettingsSection("account")}
+        >
+          Account
+        </button>
         <button
           className={
             activeSettingsSection === "appearance"
@@ -1609,6 +2013,467 @@ export function Settings() {
           Data
         </button>
       </nav>
+
+      <section
+        id="settings-account"
+        className="card settings-section settings-account-section"
+        aria-labelledby="settings-account-title"
+        hidden={activeSettingsSection !== "account"}
+        data-partpilot-account-security="PARTPILOT:SETTINGS_ACCOUNT_SECURITY_UI:V592"
+      >
+        <div className="settings-section-heading">
+          <div>
+            <span className="card-label">Owner account</span>
+            <h2 id="settings-account-title">Account &amp; Security</h2>
+            <p>
+              Update your Part Pilot identity, change your password, and
+              control active signed-in sessions.
+            </p>
+          </div>
+          <span className="settings-account-user-badge">
+            {user?.username ?? "Signed in"}
+          </span>
+        </div>
+
+        <div className="settings-account-grid">
+          <div className="settings-account-panel settings-account-primary-panel">
+            <div className="settings-account-panel-heading">
+              <div>
+                <span className="card-label">Profile</span>
+                <h3>Identity &amp; avatar</h3>
+              </div>
+              {accountDraft ? (
+                <UserAvatar
+                  avatarId={accountDraft.avatarId}
+                  displayName={accountDraft.displayName}
+                  imageUrl={accountAvatarPreviewUrl ?? avatarImageUrl}
+                  className="settings-account-preview"
+                />
+              ) : null}
+            </div>
+
+            {accountLoading || !accountDraft ? (
+              <p className="settings-account-state" role="status">
+                Loading profile...
+              </p>
+            ) : (
+              <form
+                className="settings-account-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void saveAccountProfile();
+                }}
+              >
+                <div className="settings-account-fields">
+                  <label>
+                    <span>Display name</span>
+                    <input
+                      type="text"
+                      maxLength={160}
+                      value={accountDraft.displayName}
+                      disabled={accountSaving}
+                      onChange={(event) => {
+                        setAccountDraft({
+                          ...accountDraft,
+                          displayName: event.target.value
+                        });
+                        setAccountError(null);
+                        setAccountMessage(null);
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span>Username</span>
+                    <input
+                      type="text"
+                      maxLength={80}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={accountDraft.username}
+                      disabled={accountSaving}
+                      onChange={(event) => {
+                        setAccountDraft({
+                          ...accountDraft,
+                          username: event.target.value.toLowerCase()
+                        });
+                        setAccountError(null);
+                        setAccountMessage(null);
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <fieldset
+                  className="settings-account-avatar-fieldset"
+                  disabled={
+                    accountSaving ||
+                    accountAvatarUploading ||
+                    accountAvatarRemoving
+                  }
+                >
+                  <legend>Built-in avatar</legend>
+                  <div
+                    className="settings-account-avatar-grid"
+                    role="radiogroup"
+                    aria-label="Built-in avatar"
+                  >
+                    {availableAccountAvatars.map((option) => {
+                      const selected =
+                        accountDraft.avatarId === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          className={
+                            selected
+                              ? "settings-account-avatar is-selected"
+                              : "settings-account-avatar"
+                          }
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          aria-label={option.label}
+                          title={option.label}
+                          onClick={() => {
+                            setAccountDraft({
+                              ...accountDraft,
+                              avatarId: option.value
+                            });
+                            setAccountError(null);
+                            setAccountMessage(null);
+                          }}
+                        >
+                          <UserAvatar
+                            avatarId={option.value}
+                            displayName={accountDraft.displayName}
+                            className="settings-account-avatar-visual"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+
+                <div
+                  className="settings-account-custom-avatar"
+                  data-partpilot-custom-avatar="PARTPILOT:SETTINGS_CUSTOM_AVATAR_UI:V602"
+                >
+                  <div className="settings-account-custom-avatar-copy">
+                    <strong>Custom image</strong>
+                    <span>
+                      PNG, JPEG or WebP up to 5 MiB. Images are center-cropped
+                      and normalized before storage.
+                    </span>
+                    {accountProfile?.has_custom_avatar ? (
+                      <span className="settings-account-custom-avatar-active">
+                        Custom image active. Built-in selection remains the fallback.
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="settings-account-avatar-actions">
+                    <input
+                      ref={accountAvatarInputRef}
+                      className="settings-account-avatar-input"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        event.currentTarget.value = "";
+                        if (file) {
+                          void uploadAccountAvatar(file);
+                        }
+                      }}
+                    />
+                    <button
+                      className="settings-action settings-action-secondary"
+                      type="button"
+                      disabled={
+                        accountAvatarUploading || accountAvatarRemoving
+                      }
+                      onClick={() => accountAvatarInputRef.current?.click()}
+                    >
+                      {accountAvatarUploading
+                        ? "Uploading..."
+                        : accountProfile?.has_custom_avatar
+                          ? "Replace image"
+                          : "Upload image"}
+                    </button>
+                    {accountProfile?.has_custom_avatar ? (
+                      <button
+                        className="settings-action settings-action-danger"
+                        type="button"
+                        disabled={
+                          accountAvatarUploading || accountAvatarRemoving
+                        }
+                        onClick={() => void removeAccountAvatar()}
+                      >
+                        {accountAvatarRemoving ? "Removing..." : "Remove image"}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                {accountError ? (
+                  <p
+                    className="settings-account-state is-error"
+                    role="alert"
+                  >
+                    {accountError}
+                  </p>
+                ) : null}
+                {accountMessage ? (
+                  <p
+                    className="settings-account-state is-success"
+                    role="status"
+                  >
+                    {accountMessage}
+                  </p>
+                ) : null}
+
+                <div className="settings-action-row">
+                  <button
+                    className="settings-action settings-action-primary"
+                    type="submit"
+                    disabled={
+                      accountSaving ||
+                      accountAvatarUploading ||
+                      accountAvatarRemoving ||
+                      !accountDraft.displayName.trim() ||
+                      !accountDraft.username.trim()
+                    }
+                  >
+                    {accountSaving ? "Saving profile..." : "Save profile"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
+          <div className="settings-account-panel settings-account-primary-panel">
+            <div className="settings-account-panel-heading">
+              <div>
+                <span className="card-label">Password</span>
+                <h3>Change password</h3>
+              </div>
+            </div>
+            <p className="settings-account-helper">
+              Changing your password keeps this session signed in and
+              revokes every other active session.
+            </p>
+
+            <form
+              className="settings-account-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveAccountPassword();
+              }}
+            >
+              <div className="settings-account-password-fields">
+                <label>
+                  <span>Current password</span>
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    disabled={passwordSaving}
+                    onChange={(event) => {
+                      setCurrentPassword(event.target.value);
+                      setPasswordError(null);
+                      setPasswordMessage(null);
+                    }}
+                  />
+                </label>
+                <label>
+                  <span>New password</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    maxLength={256}
+                    value={newPassword}
+                    disabled={passwordSaving}
+                    onChange={(event) => {
+                      setNewPassword(event.target.value);
+                      setPasswordError(null);
+                      setPasswordMessage(null);
+                    }}
+                  />
+                </label>
+                <label>
+                  <span>Confirm new password</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    maxLength={256}
+                    value={confirmPassword}
+                    disabled={passwordSaving}
+                    onChange={(event) => {
+                      setConfirmPassword(event.target.value);
+                      setPasswordError(null);
+                      setPasswordMessage(null);
+                    }}
+                  />
+                </label>
+              </div>
+
+              {passwordError ? (
+                <p
+                  className="settings-account-state is-error"
+                  role="alert"
+                >
+                  {passwordError}
+                </p>
+              ) : null}
+              {passwordMessage ? (
+                <p
+                  className="settings-account-state is-success"
+                  role="status"
+                >
+                  {passwordMessage}
+                </p>
+              ) : null}
+
+              <div className="settings-action-row">
+                <button
+                  className="settings-action settings-action-primary"
+                  type="submit"
+                  disabled={
+                    passwordSaving ||
+                    !currentPassword ||
+                    !newPassword ||
+                    !confirmPassword
+                  }
+                >
+                  {passwordSaving
+                    ? "Changing password..."
+                    : "Change password"}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div
+            className="settings-account-panel settings-account-sessions-panel"
+          >
+            <div className="settings-account-sessions-heading">
+              <div>
+                <span className="card-label">Security</span>
+                <h3>Active sessions</h3>
+                <p>
+                  {activeAccountSessions.length} active ·{" "}
+                  {otherActiveSessionCount} other
+                </p>
+              </div>
+              <button
+                className="settings-action settings-action-danger"
+                type="button"
+                disabled={
+                  sessionsLoading ||
+                  sessionsRevokingAll ||
+                  sessionRevokingId !== null ||
+                  otherActiveSessionCount === 0
+                }
+                onClick={() => void revokeOtherAccountSessions()}
+              >
+                {sessionsRevokingAll
+                  ? "Revoking..."
+                  : "Revoke all other sessions"}
+              </button>
+            </div>
+
+            {sessionsLoading ? (
+              <p className="settings-account-state" role="status">
+                Loading active sessions...
+              </p>
+            ) : activeAccountSessions.length === 0 ? (
+              <p className="settings-account-state">
+                No active sessions were returned.
+              </p>
+            ) : (
+              <div className="settings-account-session-list">
+                {activeAccountSessions.map((session) => (
+                  <div
+                    className={
+                      session.is_current
+                        ? "settings-account-session is-current"
+                        : "settings-account-session"
+                    }
+                    key={session.id}
+                  >
+                    <div className="settings-account-session-copy">
+                      <div className="settings-account-session-title">
+                        <strong>
+                          {sessionClientLabel(session.user_agent)}
+                        </strong>
+                        <span
+                          className={
+                            session.is_current ? "is-current" : ""
+                          }
+                        >
+                          {session.is_current ? "Current" : "Active"}
+                        </span>
+                      </div>
+                      <div className="settings-account-session-meta">
+                        <span>
+                          Signed in {formatUtc(session.created_at)}
+                        </span>
+                        <span>
+                          Expires {formatUtc(session.expires_at)}
+                        </span>
+                        {session.ip_address ? (
+                          <span>IP {session.ip_address}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    {session.is_current ? (
+                      <span className="settings-account-current-note">
+                        This device
+                      </span>
+                    ) : (
+                      <button
+                        className="settings-action settings-action-danger"
+                        type="button"
+                        disabled={
+                          sessionRevokingId !== null ||
+                          sessionsRevokingAll
+                        }
+                        onClick={() =>
+                          void revokeAccountSession(session.id)
+                        }
+                      >
+                        {sessionRevokingId === session.id
+                          ? "Revoking..."
+                          : "Revoke"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sessionsError ? (
+              <p
+                className="settings-account-state is-error"
+                role="alert"
+              >
+                {sessionsError}
+              </p>
+            ) : null}
+            {sessionsMessage ? (
+              <p
+                className="settings-account-state is-success"
+                role="status"
+              >
+                {sessionsMessage}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </section>
 
       <section
         id="settings-appearance"

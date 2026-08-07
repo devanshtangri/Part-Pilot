@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react";
 
@@ -12,6 +13,7 @@ import {
   AUTH_TOKEN_STORAGE_KEY,
   completeApplicationSetup,
   getCurrentUser,
+  getProfileAvatarImage,
   getSetupStatus,
   loginUser,
   logoutUser,
@@ -28,6 +30,7 @@ import type {
 
 interface AuthContextValue {
   user: AuthUser | null;
+  avatarImageUrl: string | null;
   token: string | null;
   accountExists: boolean | null;
   setupComplete: boolean | null;
@@ -51,12 +54,16 @@ function authUserFromTokenResponse(response: AuthTokenResponse): AuthUser {
     username: response.username,
     display_name: response.display_name,
     avatar_id: "initials",
+    has_custom_avatar: false,
+    avatar_image_sha256: null,
     is_active: true
   };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const avatarImageUrlRef = useRef<string | null>(null);
+  const [avatarImageUrl, setAvatarImageUrl] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(() =>
     localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
   );
@@ -66,6 +73,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [timezone, setTimezone] = useState<string | null>(null);
   const [isBooting, setIsBooting] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // PARTPILOT:AUTH_CUSTOM_AVATAR_CONTEXT:V602
+  const replaceAvatarImageUrl = useCallback((blob: Blob | null) => {
+    const previous = avatarImageUrlRef.current;
+    const next = blob ? URL.createObjectURL(blob) : null;
+    avatarImageUrlRef.current = next;
+    setAvatarImageUrl(next);
+    if (previous) {
+      URL.revokeObjectURL(previous);
+    }
+  }, []);
+
+  const loadAvatarImage = useCallback(
+    async (activeToken: string, currentUser: AuthUser): Promise<Blob | null> => {
+      if (!currentUser.has_custom_avatar) {
+        return null;
+      }
+      try {
+        return await getProfileAvatarImage(activeToken);
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      if (avatarImageUrlRef.current) {
+        URL.revokeObjectURL(avatarImageUrlRef.current);
+        avatarImageUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const applySetupStatus = useCallback((status: SetupStatusResponse) => {
     setAccountExists(status.account_exists);
@@ -91,10 +132,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (status.account_exists && storedToken) {
           try {
             const currentUser = await getCurrentUser(storedToken);
+            const avatarBlob = await loadAvatarImage(
+              storedToken,
+              currentUser
+            );
 
             if (!cancelled) {
               setToken(storedToken);
               setUser(currentUser);
+              replaceAvatarImageUrl(avatarBlob);
             }
           } catch {
             localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
@@ -102,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (!cancelled) {
               setToken(null);
               setUser(null);
+              replaceAvatarImageUrl(null);
             }
           }
         }
@@ -125,13 +172,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [applySetupStatus]);
+  }, [applySetupStatus, loadAvatarImage, replaceAvatarImageUrl]);
 
   const persistAuth = useCallback((response: AuthTokenResponse) => {
     localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, response.token);
     setToken(response.token);
     setUser(authUserFromTokenResponse(response));
-  }, []);
+    replaceAvatarImageUrl(null);
+  }, [replaceAvatarImageUrl]);
 
   const setup = useCallback(
     async (payload: SetupRequest) => {
@@ -165,8 +213,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await loginUser(payload);
       persistAuth(response);
       setAccountExists(true);
+      try {
+        const currentUser = await getCurrentUser(response.token);
+        const avatarBlob = await loadAvatarImage(
+          response.token,
+          currentUser
+        );
+        setUser(currentUser);
+        replaceAvatarImageUrl(avatarBlob);
+      } catch {
+        // Token-response identity remains usable if hydration is unavailable.
+      }
     },
-    [persistAuth]
+    [loadAvatarImage, persistAuth, replaceAvatarImageUrl]
   );
 
   const logout = useCallback(async () => {
@@ -175,6 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     setToken(null);
     setUser(null);
+    replaceAvatarImageUrl(null);
 
     if (activeToken) {
       try {
@@ -183,7 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Local logout still succeeds even if the server call fails.
       }
     }
-  }, [token]);
+  }, [replaceAvatarImageUrl, token]);
 
   // PARTPILOT:AUTH_REFRESH_CONTEXT:V591
   const refreshUser = useCallback(async () => {
@@ -192,9 +252,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const currentUser = await getCurrentUser(token);
+    const avatarBlob = await loadAvatarImage(token, currentUser);
     setUser(currentUser);
+    replaceAvatarImageUrl(avatarBlob);
     return currentUser;
-  }, [token]);
+  }, [loadAvatarImage, replaceAvatarImageUrl, token]);
 
   const clearAuthError = useCallback(() => {
     setAuthError(null);
@@ -203,6 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       user,
+      avatarImageUrl,
       token,
       accountExists,
       setupComplete,
@@ -220,6 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       accountExists,
       authError,
+      avatarImageUrl,
       clearAuthError,
       completeSetup,
       defaultCurrency,
