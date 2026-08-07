@@ -298,3 +298,247 @@ def logout_session(db: Session, token: str, *, commit: bool = True) -> bool:
 
 def revoke_session(db: Session, token: str, *, commit: bool = True) -> bool:
     return logout_session(db, token, commit=commit)
+
+# PARTPILOT:PASSWORD_SESSION_ADMIN_SERVICE:V584
+class CurrentPasswordInvalidError(ValueError):
+    pass
+
+
+class PasswordReuseError(ValueError):
+    pass
+
+
+class CurrentSessionUnavailableError(ValueError):
+    pass
+
+
+class SessionNotFoundError(LookupError):
+    pass
+
+
+class CurrentSessionRevocationError(ValueError):
+    pass
+
+
+def require_current_session(
+    db: Session,
+    *,
+    user: User,
+    token: str,
+) -> UserSession:
+    session = get_session_by_token(db, token)
+    if (
+        session is None
+        or session.user_id != user.id
+        or not is_session_active(session)
+    ):
+        raise CurrentSessionUnavailableError("Current session is unavailable")
+    return session
+
+
+def list_user_sessions(
+    db: Session,
+    *,
+    user: User,
+    current_session: UserSession,
+) -> list[UserSession]:
+    if current_session.user_id != user.id or not is_session_active(current_session):
+        raise CurrentSessionUnavailableError("Current session is unavailable")
+
+    sessions = list(
+        db.execute(
+            select(UserSession).where(UserSession.user_id == user.id)
+        ).scalars()
+    )
+    sessions.sort(
+        key=lambda item: _to_naive_utc(item.created_at) or datetime.min,
+        reverse=True,
+    )
+    sessions.sort(
+        key=lambda item: (
+            0
+            if item.id == current_session.id
+            else (1 if is_session_active(item) else 2)
+        )
+    )
+    return sessions
+
+
+def change_password(
+    db: Session,
+    *,
+    user: User,
+    current_session: UserSession,
+    current_password: str,
+    new_password: str,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> int:
+    if current_session.user_id != user.id or not is_session_active(current_session):
+        raise CurrentSessionUnavailableError("Current session is unavailable")
+    if not verify_password(current_password, user.password_hash):
+        raise CurrentPasswordInvalidError("Current password is incorrect")
+    if len(new_password) < 8 or len(new_password) > 256:
+        raise ValueError("New password must be between 8 and 256 characters")
+    if verify_password(new_password, user.password_hash):
+        raise PasswordReuseError("New password must be different from the current password")
+
+    new_password_hash = hash_password(new_password)
+    now = _naive_utc_now()
+    other_active_sessions = list(
+        db.execute(
+            select(UserSession).where(
+                UserSession.user_id == user.id,
+                UserSession.id != current_session.id,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
+            )
+        ).scalars()
+    )
+
+    try:
+        user.password_hash = new_password_hash
+        for session in other_active_sessions:
+            session.revoked_at = now
+
+        db.add(
+            AuditLog(
+                event_type="auth.password_changed",
+                entity_type="user",
+                entity_id=user.id,
+                actor_type="user" if actor_user_id is not None else "system",
+                actor_user_id=actor_user_id,
+                summary="Changed account password",
+                before_json=None,
+                after_json=None,
+                metadata_json={
+                    "revoked_other_sessions": len(other_active_sessions),
+                    "preserved_current_session_id": current_session.id,
+                },
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(user)
+            db.refresh(current_session)
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return len(other_active_sessions)
+
+
+def revoke_user_session(
+    db: Session,
+    *,
+    user: User,
+    current_session: UserSession,
+    session_id: int,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> tuple[UserSession, bool]:
+    if current_session.user_id != user.id or not is_session_active(current_session):
+        raise CurrentSessionUnavailableError("Current session is unavailable")
+
+    target = db.execute(
+        select(UserSession).where(
+            UserSession.id == session_id,
+            UserSession.user_id == user.id,
+        )
+    ).scalar_one_or_none()
+    if target is None:
+        raise SessionNotFoundError("Session not found")
+    if target.id == current_session.id:
+        raise CurrentSessionRevocationError(
+            "Use logout to end the current session"
+        )
+    if target.revoked_at is not None:
+        return target, False
+
+    was_active = is_session_active(target)
+    try:
+        target.revoked_at = _naive_utc_now()
+        db.add(
+            AuditLog(
+                event_type="auth.session_revoked",
+                entity_type="session",
+                entity_id=target.id,
+                actor_type="user" if actor_user_id is not None else "system",
+                actor_user_id=actor_user_id,
+                summary="Revoked account session",
+                before_json=None,
+                after_json=None,
+                metadata_json={
+                    "target_session_id": target.id,
+                    "was_active": was_active,
+                },
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(target)
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return target, True
+
+
+def revoke_all_other_sessions(
+    db: Session,
+    *,
+    user: User,
+    current_session: UserSession,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> int:
+    if current_session.user_id != user.id or not is_session_active(current_session):
+        raise CurrentSessionUnavailableError("Current session is unavailable")
+
+    now = _naive_utc_now()
+    targets = list(
+        db.execute(
+            select(UserSession).where(
+                UserSession.user_id == user.id,
+                UserSession.id != current_session.id,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
+            )
+        ).scalars()
+    )
+    if not targets:
+        return 0
+
+    try:
+        for session in targets:
+            session.revoked_at = now
+        db.add(
+            AuditLog(
+                event_type="auth.other_sessions_revoked",
+                entity_type="user",
+                entity_id=user.id,
+                actor_type="user" if actor_user_id is not None else "system",
+                actor_user_id=actor_user_id,
+                summary="Revoked all other active sessions",
+                before_json=None,
+                after_json=None,
+                metadata_json={
+                    "revoked_sessions": len(targets),
+                    "preserved_current_session_id": current_session.id,
+                },
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(current_session)
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return len(targets)

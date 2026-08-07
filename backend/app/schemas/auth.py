@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -119,3 +120,39 @@ class DebugResetResponse(BaseModel):
     recreated_part_types: int
     recreated_template_fields: int
     recreated_settings: int
+
+# PARTPILOT:PASSWORD_SESSION_ADMIN_SCHEMA:V584
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=256)
+
+
+class PasswordChangeResponse(BaseModel):
+    ok: bool
+    revoked_other_sessions: int
+
+
+class SessionResponse(BaseModel):
+    id: int
+    is_current: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None
+    user_agent: str | None
+    ip_address: str | None
+
+
+class SessionListResponse(BaseModel):
+    sessions: list[SessionResponse]
+
+
+class SessionRevokeResponse(BaseModel):
+    ok: bool
+    revoked: bool
+
+
+class OtherSessionsRevokeResponse(BaseModel):
+    ok: bool
+    revoked_sessions: int

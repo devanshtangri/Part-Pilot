@@ -37,6 +37,28 @@ from app.services.auth import (
     update_user_profile,
 )
 
+from app.schemas.auth import (
+    OtherSessionsRevokeResponse,
+    PasswordChangeRequest,
+    PasswordChangeResponse,
+    SessionListResponse,
+    SessionResponse,
+    SessionRevokeResponse,
+)
+from app.services.auth import (
+    CurrentPasswordInvalidError,
+    CurrentSessionRevocationError,
+    CurrentSessionUnavailableError,
+    PasswordReuseError,
+    SessionNotFoundError,
+    change_password as change_user_password,
+    is_session_active,
+    list_user_sessions,
+    require_current_session,
+    revoke_all_other_sessions,
+    revoke_user_session,
+)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
@@ -286,3 +308,193 @@ def logout(
     token = _extract_bearer_token(authorization)
     revoked = revoke_session(db, token, commit=True)
     return LogoutResponse(ok=revoked)
+
+# PARTPILOT:PASSWORD_SESSION_ADMIN_ROUTES:V584
+def _current_session_for_request(
+    *,
+    authorization: str | None,
+    db: Session,
+    current_user,
+):
+    token = _extract_bearer_token(authorization)
+    try:
+        return require_current_session(db, user=current_user, token=token)
+    except CurrentSessionUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        ) from exc
+
+
+def _session_response(session, current_session) -> SessionResponse:
+    user_agent = session.user_agent
+    if user_agent is not None and len(user_agent) > 512:
+        user_agent = user_agent[:512]
+    return SessionResponse(
+        id=session.id,
+        is_current=session.id == current_session.id,
+        is_active=is_session_active(session),
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+        expires_at=session.expires_at,
+        revoked_at=session.revoked_at,
+        user_agent=user_agent,
+        ip_address=session.ip_address,
+    )
+
+
+@router.post("/change-password", response_model=PasswordChangeResponse)
+def change_password_route(
+    payload: PasswordChangeRequest,
+    authorization: str | None = Header(default=None),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PasswordChangeResponse:
+    current_session = _current_session_for_request(
+        authorization=authorization,
+        db=db,
+        current_user=current_user,
+    )
+    try:
+        revoked = change_user_password(
+            db,
+            user=current_user,
+            current_session=current_session,
+            current_password=payload.current_password,
+            new_password=payload.new_password,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except CurrentPasswordInvalidError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except PasswordReuseError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except CurrentSessionUnavailableError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        ) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    return PasswordChangeResponse(ok=True, revoked_other_sessions=revoked)
+
+
+@router.get("/sessions", response_model=SessionListResponse)
+def read_sessions(
+    authorization: str | None = Header(default=None),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SessionListResponse:
+    current_session = _current_session_for_request(
+        authorization=authorization,
+        db=db,
+        current_user=current_user,
+    )
+    try:
+        sessions = list_user_sessions(
+            db,
+            user=current_user,
+            current_session=current_session,
+        )
+    except CurrentSessionUnavailableError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        ) from exc
+
+    return SessionListResponse(
+        sessions=[_session_response(item, current_session) for item in sessions]
+    )
+
+
+@router.post(
+    "/sessions/revoke-all-other",
+    response_model=OtherSessionsRevokeResponse,
+)
+def revoke_other_sessions_route(
+    authorization: str | None = Header(default=None),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> OtherSessionsRevokeResponse:
+    current_session = _current_session_for_request(
+        authorization=authorization,
+        db=db,
+        current_user=current_user,
+    )
+    try:
+        revoked = revoke_all_other_sessions(
+            db,
+            user=current_user,
+            current_session=current_session,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except CurrentSessionUnavailableError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        ) from exc
+
+    return OtherSessionsRevokeResponse(ok=True, revoked_sessions=revoked)
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    response_model=SessionRevokeResponse,
+)
+def revoke_session_route(
+    session_id: int,
+    authorization: str | None = Header(default=None),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SessionRevokeResponse:
+    current_session = _current_session_for_request(
+        authorization=authorization,
+        db=db,
+        current_user=current_user,
+    )
+    try:
+        _, revoked = revoke_user_session(
+            db,
+            user=current_user,
+            current_session=current_session,
+            session_id=session_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except SessionNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        ) from exc
+    except CurrentSessionRevocationError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except CurrentSessionUnavailableError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        ) from exc
+
+    return SessionRevokeResponse(ok=True, revoked=revoked)
