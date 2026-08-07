@@ -3542,3 +3542,25 @@ The next chat is `Chat 21: Account Security and Session Administration`.
 
 No `Chat_21_Starting_Prompt.md` file should be created. The ready-to-paste
 prompt is provided only in chat after Patch 580 succeeds.
+
+<!-- PARTPILOT:CUSTOM_AVATAR_AND_NOTIFICATIONS_SCOPE:V595 -->
+## Patch 595 scope decision — custom avatars and post-v1 notifications
+
+Custom uploaded profile images are promoted into the current Account/Security
+completion slice. The first implementation stores normalized image bytes inside
+SQLite so existing database-backed backup/restore semantics preserve them.
+`avatar_id` remains the built-in fallback.
+
+The custom-avatar implementation must use server-side image decoding and
+normalization, safe size/type limits, secret-free audit metadata, authenticated
+image access, and copied-database/backup preservation tests.
+
+The pending Account browser-test source remains uncommitted until approval.
+Desktop Profile and Password cards will be equal height, built-in avatar choices
+will be icon-only with accessible labels, and the complete sidebar identity block
+will navigate to `/settings#settings-account`.
+
+Notifications & Messaging are deferred until after the first release. Future
+scope includes optional user email, SMTP configuration with encrypted secrets,
+additional pluggable notification channels, per-user event subscriptions,
+delivery history/retry state, and event-level notification selection.

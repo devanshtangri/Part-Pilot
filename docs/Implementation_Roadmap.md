@@ -2837,3 +2837,47 @@ Implementation order:
 
 Keep MCP write authorization disabled until the permission model and
 write-tool safeguards are complete.
+
+<!-- PARTPILOT:POST_V1_NOTIFICATIONS_ROADMAP:V595 -->
+## Post-v1 deferred roadmap — Notifications & Messaging
+
+This feature family is explicitly deferred until after the first Part Pilot
+release and must not block current-release completion.
+
+### User contact and notification identity
+
+- [ ] Optional per-user email address.
+- [ ] Validation, normalization, uniqueness policy only if future product
+  requirements require uniqueness.
+- [ ] Keep notification contact data separate from login identity unless a later
+  authentication design deliberately joins them.
+
+### SMTP email channel
+
+- [ ] SMTP host, port, TLS/STARTTLS mode, username and encrypted password/secret.
+- [ ] Test-notification action before enabling the channel.
+- [ ] Never expose SMTP secrets through GET responses, logs, History or audits.
+- [ ] Delivery timeout, retry/backoff and clear failure state.
+
+### Additional channels
+
+- [ ] Pluggable channel contract so later transports can be added without
+  redesigning event subscriptions.
+- [ ] Evaluate webhook, push/mobile and other channels only when their security
+  and delivery contracts are defined.
+
+### Event subscriptions
+
+- [ ] Per-user enable/disable controls.
+- [ ] Category and individual-event selection.
+- [ ] Candidate event families: low/out-of-stock, Project and Reservation
+  lifecycle, account/security, backup/restore, and integration/API/MCP activity.
+- [ ] Respect authorization boundaries; never disclose event data a recipient is
+  not permitted to view.
+
+### Delivery history and operations
+
+- [ ] Persist safe delivery status, timestamps, channel and event identifier.
+- [ ] Retry/backoff without duplicate notification storms.
+- [ ] Secret-free audit of configuration and delivery outcomes.
+- [ ] Restore/backup and multi-user behavior defined before implementation.
