@@ -1308,7 +1308,7 @@ def list_manageable_oauth_clients(db: Session, *, user_id: int) -> McpOAuthManag
     return McpOAuthManageableClientsResponse(clients=summaries, total=len(summaries))
 
 
-# PARTPILOT:MCP_OAUTH_CLIENT_REVOCATION_SERVICE:V541
+# PARTPILOT:MCP_OAUTH_CLIENT_REVOCATION_SERVICE:V560
 def revoke_connected_oauth_client(
     db: Session,
     *,
@@ -1323,28 +1323,30 @@ def revoke_connected_oauth_client(
             "Connected OAuth client was not found."
         )
 
-    consent = db.execute(
-        select(McpOAuthConsent).where(
-            McpOAuthConsent.client_id == client.id,
-            McpOAuthConsent.user_id == user_id,
-            McpOAuthConsent.revoked_at.is_(None),
-        )
-    ).scalar_one_or_none()
-    tokens = list(
-        db.execute(
-            select(McpOAuthToken).where(
-                McpOAuthToken.client_id == client.id,
-                McpOAuthToken.user_id == user_id,
+    owned_by_user = client.registered_by_user_id == user_id
+    if not owned_by_user:
+        consent = db.execute(
+            select(McpOAuthConsent).where(
+                McpOAuthConsent.client_id == client.id,
+                McpOAuthConsent.user_id == user_id,
+                McpOAuthConsent.revoked_at.is_(None),
             )
-        ).scalars()
-    )
-    if consent is None or not any(
-        _oauth_token_session_is_active(token, now=now)
-        for token in tokens
-    ):
-        raise McpOAuthConnectedClientNotFoundError(
-            "Connected OAuth client was not found."
+        ).scalar_one_or_none()
+        tokens = list(
+            db.execute(
+                select(McpOAuthToken).where(
+                    McpOAuthToken.client_id == client.id,
+                    McpOAuthToken.user_id == user_id,
+                )
+            ).scalars()
         )
+        if consent is None or not any(
+            _oauth_token_session_is_active(token, now=now)
+            for token in tokens
+        ):
+            raise McpOAuthConnectedClientNotFoundError(
+                "Connected OAuth client was not found."
+            )
 
     if not revoke_client(
         db,

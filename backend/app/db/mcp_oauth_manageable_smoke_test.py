@@ -8,7 +8,7 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.models import AuditLog, McpOAuthClient, User, UserSession
 from app.services.auth import create_session
-from app.services.mcp_oauth import register_client, revoke_client
+from app.services.mcp_oauth import register_client
 
 class SmokeFailure(RuntimeError): pass
 def fail(message: str) -> None: raise SmokeFailure(message)
@@ -90,11 +90,9 @@ def full():
             fixture=by.get(fixture_id)
             if not fixture or fixture["status"]!="registered" or not fixture["registered_by_current_user"] or fixture["connected_at"] is not None: fail("registered fixture wrong")
             if any(fixture[k]!=0 for k in ("active_token_count","token_family_count","total_token_count","authorization_code_count","active_consent_count")): fail("registered fixture counters nonzero")
-            db=SessionLocal()
-            try:
-                row=db.get(McpOAuthClient,fixture_id)
-                if row is None or not revoke_client(db,client_id=row.client_id,actor_user_id=uid,commit=True): fail("fixture revoke failed")
-            finally: db.close()
+            revoked=client.delete(f"/api/settings/mcp/oauth-clients/{fixture_id}",headers=h)
+            if revoked.status_code!=200: fail(f"registered fixture DELETE returned {revoked.status_code}: {revoked.text[:300]}")
+            require_no_store(revoked)
             second=client.get("/api/settings/mcp/oauth-clients/manageable",headers=h)
             if second.status_code!=200: fail(f"second GET {second.status_code}: {second.text[:300]}")
             require_no_store(second); payload2=second.json(); validate_payload(payload2)
