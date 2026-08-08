@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import (
+    require_catalogues_read,
+    require_catalogues_write,
+)
 from app.db.session import get_db
 from app.schemas.part_types import (
     PartTypeCollectionResponse,
@@ -44,7 +47,7 @@ router = APIRouter(prefix="/part-types", tags=["part-types"])
 
 @router.get("", response_model=PartTypeCollectionResponse)
 def read_part_types(
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_read),
     db: Session = Depends(get_db),
 ) -> PartTypeCollectionResponse:
     del current_user
@@ -58,7 +61,7 @@ def read_part_types(
 )
 def create_part_type(
     payload: PartTypeCreateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_write),
     db: Session = Depends(get_db),
 ) -> PartTypeResponse:
     try:
@@ -88,7 +91,7 @@ def create_part_type(
 @router.get("/{part_type_id}", response_model=PartTypeResponse)
 def read_part_type(
     part_type_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_read),
     db: Session = Depends(get_db),
 ) -> PartTypeResponse:
     del current_user
@@ -108,7 +111,7 @@ def read_part_type(
 def update_part_type(
     part_type_id: int,
     payload: ManagementPartTypeUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_write),
     db: Session = Depends(get_db),
 ) -> PartTypeResponse:
     try:
@@ -149,7 +152,7 @@ def update_part_type(
 )
 def read_part_type_delete_dependencies(
     part_type_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_read),
     db: Session = Depends(get_db),
 ) -> PartTypeDeleteDependenciesResponse:
     del current_user
@@ -168,7 +171,7 @@ def read_part_type_delete_dependencies(
 )
 def delete_part_type(
     part_type_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_write),
     db: Session = Depends(get_db),
 ) -> DeleteManagementPartTypeDeleteResponse:
     try:

@@ -5,7 +5,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import (
+    require_projects_read,
+    require_projects_write,
+)
 from app.db.session import get_db
 from app.schemas.projects import (
     ProjectCollectionResponse,
@@ -44,7 +47,7 @@ def read_projects(
     ] | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_projects_read),
     db: Session = Depends(get_db),
 ) -> ProjectCollectionResponse:
     del current_user
@@ -62,7 +65,7 @@ def read_projects(
 )
 def read_project(
     project_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_projects_read),
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     del current_user
@@ -82,7 +85,7 @@ def read_project(
 )
 def create_project_record(
     payload: ProjectCreateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_projects_write),
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     try:
@@ -111,7 +114,7 @@ def create_project_record(
 def update_project_record(
     project_id: int,
     payload: ProjectUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_projects_write),
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     try:
@@ -144,7 +147,7 @@ def update_project_record(
 )
 def reserve_project_record(
     project_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_projects_write),
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     try:
@@ -177,7 +180,7 @@ def reserve_project_record(
 )
 def consume_project_record(
     project_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_projects_write),
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     from app.services.projects import consume_project
@@ -207,7 +210,7 @@ def consume_project_record(
 )
 def cancel_project_record(
     project_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_projects_write),
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     from app.services.projects import cancel_project

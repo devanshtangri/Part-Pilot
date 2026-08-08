@@ -5,7 +5,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import (
+    require_inventory_read,
+    require_inventory_write,
+)
 from app.db.session import get_db
 from app.schemas.parts import (
     PartCollectionResponse,
@@ -95,7 +98,7 @@ def read_parts(
     ] | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_read),
     db: Session = Depends(get_db),
 ) -> PartCollectionResponse:
     del current_user
@@ -125,7 +128,7 @@ def read_low_stock_parts(
     part_type_id: int | None = Query(default=None, gt=0),
     location_id: int | None = Query(default=None, gt=0),
     limit: int = Query(default=8, ge=1, le=50),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_read),
     db: Session = Depends(get_db),
 ) -> LowStockSummaryResponse:
     del current_user
@@ -146,7 +149,7 @@ def read_low_stock_parts(
 )
 def create_inventory_part(
     payload: PartCreateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_write),
     db: Session = Depends(get_db),
 ) -> PartResponse:
     try:
@@ -176,7 +179,7 @@ def create_inventory_part(
 def read_deleted_parts(
     limit: int = Query(default=100, ge=1, le=250),
     offset: int = Query(default=0, ge=0),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_read),
     db: Session = Depends(get_db),
 ) -> DeletedPartCollectionResponse:
     del current_user
@@ -196,7 +199,7 @@ def read_deleted_parts(
 )
 def purge_inventory_parts(
     payload: DeletedPartPurgeRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_write),
     db: Session = Depends(get_db),
 ) -> DeletedPartPurgeResponse:
     try:
@@ -224,7 +227,7 @@ def purge_inventory_parts(
 )
 def restore_inventory_part(
     part_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_write),
     db: Session = Depends(get_db),
 ) -> PartResponse:
     try:
@@ -252,7 +255,7 @@ def restore_inventory_part(
 )
 def delete_inventory_part(
     part_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_write),
     db: Session = Depends(get_db),
 ) -> DeletedPartResponse:
     try:
@@ -282,7 +285,7 @@ def delete_inventory_part(
 def create_part_quantity_adjustment(
     part_id: int,
     payload: PartQuantityAdjustmentRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_write),
     db: Session = Depends(get_db),
 ) -> PartQuantityAdjustmentResponse:
     try:
@@ -317,7 +320,7 @@ def create_part_quantity_adjustment(
 def read_part_movements(
     part_id: int,
     limit: int = Query(default=20, ge=1, le=100),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_read),
     db: Session = Depends(get_db),
 ) -> PartMovementCollectionResponse:
     del current_user
@@ -336,7 +339,7 @@ def read_part_movements(
 def update_inventory_part(
     part_id: int,
     payload: PartUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_write),
     db: Session = Depends(get_db),
 ) -> PartResponse:
     try:
@@ -367,7 +370,7 @@ def update_inventory_part(
 @router.get("/{part_id}", response_model=PartResponse)
 def read_part(
     part_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_inventory_read),
     db: Session = Depends(get_db),
 ) -> PartResponse:
     del current_user

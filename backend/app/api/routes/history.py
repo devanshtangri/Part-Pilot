@@ -6,7 +6,9 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import (
+    require_history_read,
+)
 from app.db.session import get_db
 from app.schemas.history import (
     HistoryCollectionResponse,
@@ -31,7 +33,7 @@ router = APIRouter(
     response_model=HistoryFilterOptionsResponse,
 )
 def read_history_filter_options(
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_history_read),
     db: Session = Depends(get_db),
 ) -> HistoryFilterOptionsResponse:
     del current_user
@@ -81,7 +83,7 @@ def read_history(
     ),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_history_read),
     db: Session = Depends(get_db),
 ) -> HistoryCollectionResponse:
     del current_user

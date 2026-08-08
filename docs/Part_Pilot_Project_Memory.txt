@@ -5,7 +5,7 @@ Project
 - Root: /projects/Part Pilot; branch main
 - Compose service: partpilot; host port 7890
 - React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend
-- Alembic head: 0012_user_avatar_id
+- Alembic head: 0014_api_keys
 
 Patch workflow
 - Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is
@@ -31,7 +31,7 @@ Chat boundary
 - Chat 20: `Chat 20: Manual OAuth Registration Foundation`.
 - Nominal range 549-578; Patch 578 and recovery 579 failed pre-write; Patch 580 is the narrow boundary recovery.
 - Chat 21: `Chat 21: Account Security and Session Administration`.
-- Chat 21 range 581-610; planned boundary 610.
+- Chat 21 extended range 581-629; boundary 629; Chat 22 starts at 630.
 - No starting-prompt files. Ready prompts exist only in chat after boundary
   `Everything PASS`.
 
@@ -86,25 +86,11 @@ Current-user account/security complete
   Four older sessions remain Unknown; never infer/backfill them.
 - Owner: devanshtangri / Devansh Tangri / built-in avatar storage.
 
-Authoritative Chat 20 boundary capture
-- Pre-boundary HEAD/origin: fb5e0275f643a4420914c35093a0afb3f898c6a3
-- Deployment image: sha256:81808e52e783e7a3807ae1af899a1875aff502236cdbfb40448844cc2a6c0dd0; healthy; restart 0
-- Alembic: 0012_user_avatar_id
-- DB SHA: d010f1e4bc14333a3d32071220f7c742242a2ebc81fb9c62373e7ae450f258ea; size 741376
-- Parts 15; Projects 8;
-  Reservations 10; movements 35;
-  audits 201
-- Users 1; sessions 4; active sessions
-  4
-- OAuth operational clients 9; codes
-  6; consents 6; token rows
-  6
-- Manual Claude DB client 21 is current-user-owned, unrevoked, has active
-  consent and an unrevoked token family.
-- Instance-secret SHA: 19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b
-- Restore staging fingerprint: 6712ba4090860b1ebb77962a343549fa5fd33b45f035fd3bae4cacc4cac1a543
-- OAuth token rows can rotate/expire; validate semantics, not stale token
-  timestamps/counts.
+Security preservation baseline
+- Instance-secret SHA: 19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b.
+- Hermes direct Bearer and manual Claude OAuth client 21 remain configured; never
+  reveal/rotate/disable credentials automatically. Validate OAuth semantics rather
+  than stale token timestamps/counts.
 
 Patch 572-576 recovery lesson
 - 572: pre-write failure from baseline auth schema double-newline EOF.
@@ -120,10 +106,13 @@ Chat 21 extended order
 - No Chat 21-to-22 handoff before Patch 629. Chat 22 starts at Patch 630.
 - Patch 614 checkpoints browser-approved V607-V609 and fixes only the legacy
   Part Type smoke audit-ID-reuse assumption. Patch 613 diagnostic is authoritative.
-- Patch 615: scoped REST API-key backend lifecycle; Alembic 0014, digest-only
-  one-time secrets, explicit scopes/expiry/rotate/revoke/last-used, session-only
-  administration, backup/restore schema coverage. Patch 616 wires route scopes.
-- Then Settings API-key UI, named/direct MCP clients and tool permissions.
+- Patch 615: scoped REST API-key lifecycle; Alembic 0014, digest-only one-time
+  secrets, scopes/expiry/rotate/revoke/last-used and backup/restore coverage.
+- Patch 616 failed before writes: frozen tracked diff omitted its new untracked
+  route-scope smoke. Patch 617 applies the same tested design with smoke bytes frozen
+  separately: scoped Inventory/Catalogue/Project/Reservation/History REST API keys;
+  session fallback; Auth/Settings/Backup/Restore session-only; 43-route introspection.
+- Next: Settings API-key UI, then named/direct MCP clients and tool permissions.
 - Settings/MCP UX: clear dividers/groups; Enable MCP server first as master;
   subordinate controls visibly grey/disabled while off; read/write/tool policy
   grouped under a clear permissions/security section.

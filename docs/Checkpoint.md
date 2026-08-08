@@ -3626,5 +3626,18 @@ revocable, and last-used tracked. Management remains authenticated user-session
 only. The initial scope catalogue covers inventory, catalogues, Projects,
 Reservations and History; Auth, Settings, Backup and Restore administration are
 intentionally excluded. Alembic advances to `0014_api_keys`, and backup/restore
-exact-schema policy includes the new table. Patch 616 wires scope enforcement
-into selected REST routes after this lifecycle contract is stable.
+exact-schema policy includes the new table. Patch 616 attempted the route-scope
+follow-up but failed before writes because its frozen tracked diff omitted the new
+untracked scope-smoke file. Patch 617 carries that tested smoke as a separate
+frozen payload and applies the same route-scope design.
+
+<!-- PARTPILOT:REST_API_KEY_ROUTE_SCOPES:V617 -->
+## Scoped REST API-key enforcement — Patch 617
+
+Patch 617 accepts `pp_api_key_` Bearer credentials only on explicitly scoped
+Inventory, Catalogue, Project, Reservation and History routes. Browser/user
+sessions retain their existing access. Missing/invalid/revoked/expired keys are
+401; valid keys missing the route scope are 403; successful key calls update
+`last_used_at`. Auth, Settings, Backup and Restore remain session-only. A route
+contract smoke introspects every registered eligible method/path so unmapped or
+mis-scoped routes fail automatically.

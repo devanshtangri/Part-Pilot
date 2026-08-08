@@ -3,7 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import (
+    require_catalogues_read,
+    require_catalogues_write,
+)
 from app.db.session import get_db
 from app.schemas.locations import (
     LocationCollectionResponse,
@@ -29,7 +32,7 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 
 @router.get("", response_model=LocationCollectionResponse)
 def read_locations(
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_read),
     db: Session = Depends(get_db),
 ) -> LocationCollectionResponse:
     del current_user
@@ -43,7 +46,7 @@ def read_locations(
 )
 def create_location_record(
     payload: LocationCreateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_write),
     db: Session = Depends(get_db),
 ) -> LocationResponse:
     try:
@@ -67,7 +70,7 @@ def create_location_record(
 def update_location_record(
     location_id: int,
     payload: LocationUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_write),
     db: Session = Depends(get_db),
 ) -> LocationResponse:
     try:
@@ -96,7 +99,7 @@ def update_location_record(
 )
 def delete_location_record(
     location_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_write),
     db: Session = Depends(get_db),
 ) -> LocationDeleteResponse:
     try:

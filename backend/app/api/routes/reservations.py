@@ -5,7 +5,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import (
+    require_reservations_read,
+    require_reservations_write,
+)
 from app.db.session import get_db
 from app.schemas.reservations import (
     ReservationCollectionResponse,
@@ -49,7 +52,7 @@ def read_reservations(
     ] | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_read),
     db: Session = Depends(get_db),
 ) -> ReservationCollectionResponse:
     del current_user
@@ -67,7 +70,7 @@ def read_reservations(
 )
 def read_reservation(
     reservation_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_read),
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     del current_user
@@ -87,7 +90,7 @@ def read_reservation(
 )
 def create_reservation_record(
     payload: ReservationCreateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_write),
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
@@ -119,7 +122,7 @@ def create_reservation_record(
 def update_reservation_record(
     reservation_id: int,
     payload: ReservationUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_write),
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
@@ -155,7 +158,7 @@ def update_reservation_record(
 def delete_reservation_record(
     reservation_id: int,
     payload: ReservationDeleteRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_write),
     db: Session = Depends(get_db),
 ) -> ReservationDeleteResponse:
     try:
@@ -190,7 +193,7 @@ def delete_reservation_record(
 )
 def cancel_reservation_record(
     reservation_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_write),
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
@@ -219,7 +222,7 @@ def cancel_reservation_record(
 )
 def consume_reservation_record(
     reservation_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_write),
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
@@ -248,7 +251,7 @@ def consume_reservation_record(
 )
 def expire_reservation_record(
     reservation_id: int,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_write),
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
@@ -285,7 +288,7 @@ def read_reservation_activity(
     reservation_id: int,
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_reservations_read),
     db: Session = Depends(get_db),
 ) -> ReservationActivityCollectionResponse:
     del current_user

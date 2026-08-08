@@ -3,7 +3,10 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import (
+    require_catalogues_read,
+    require_catalogues_write,
+)
 from app.db.session import get_db
 from app.schemas.packages import (
     PackageCollectionResponse,
@@ -22,7 +25,7 @@ router = APIRouter(prefix="/packages", tags=["packages"])
 
 @router.get("", response_model=PackageCollectionResponse)
 def read_packages(
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_read),
     db: Session = Depends(get_db),
 ) -> PackageCollectionResponse:
     del current_user
@@ -36,7 +39,7 @@ def read_packages(
 )
 def create_package_record(
     payload: PackageCreateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_catalogues_write),
     db: Session = Depends(get_db),
 ) -> PackageResponse:
     try:

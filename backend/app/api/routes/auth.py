@@ -81,6 +81,12 @@ from app.services.auth import (
     revoke_all_other_sessions,
     revoke_user_session,
 )
+from app.services.api_keys import (
+    API_KEY_PREFIX,
+    ApiKeyAuthenticationError,
+    ApiKeyScopeError,
+    validate_api_key,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -139,6 +145,65 @@ def get_current_user(
         )
 
     return user
+
+
+# PARTPILOT:REST_API_KEY_ROUTE_SCOPE_AUTH:V616
+def _get_rest_user_for_scope(
+    authorization: str | None,
+    db: Session,
+    required_scope: str,
+):
+    token = _extract_bearer_token(authorization)
+    if token.startswith(API_KEY_PREFIX):
+        try:
+            return validate_api_key(
+                db,
+                token,
+                required_scopes=(required_scope,),
+                touch_last_used=True,
+                commit=True,
+            ).user
+        except ApiKeyScopeError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API key does not grant the required scope",
+            ) from exc
+        except ApiKeyAuthenticationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key",
+            ) from exc
+
+    user = get_user_for_session_token(db, token)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        )
+    return user
+
+
+def _rest_scope_dependency(required_scope: str):
+    def dependency(
+        authorization: str | None = Header(default=None),
+        db: Session = Depends(get_db),
+    ):
+        return _get_rest_user_for_scope(authorization, db, required_scope)
+
+    dependency.__name__ = "require_" + required_scope.replace(":", "_")
+    setattr(dependency, "partpilot_api_key_scope", required_scope)
+    return dependency
+
+
+require_inventory_read = _rest_scope_dependency("inventory:read")
+require_inventory_write = _rest_scope_dependency("inventory:write")
+require_catalogues_read = _rest_scope_dependency("catalogues:read")
+require_catalogues_write = _rest_scope_dependency("catalogues:write")
+require_projects_read = _rest_scope_dependency("projects:read")
+require_projects_write = _rest_scope_dependency("projects:write")
+require_reservations_read = _rest_scope_dependency("reservations:read")
+require_reservations_write = _rest_scope_dependency("reservations:write")
+require_history_read = _rest_scope_dependency("history:read")
 
 
 def _build_setup_status(db: Session) -> SetupStatusResponse:

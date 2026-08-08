@@ -2919,16 +2919,18 @@ The user granted a one-chat exception extending this chat through Patch 629.
 
 1. [x] Scoped REST API-key backend lifecycle: named one-time secrets, digest-only
    storage, explicit scopes, expiry, rotation/revocation and last-used metadata.
-2. [ ] Wire API-key authentication and route-level scope enforcement, then add
-   safe Settings administration UI for the stable backend contract.
-3. Named/direct MCP client administration and master/no-auth policy without
+2. [x] Patch 617 wires API-key authentication and route-level scope enforcement
+   across all eligible REST routes while keeping Auth/Settings/Backup/Restore
+   session-only; Patch 616 failed before writes due to omitted untracked smoke bytes.
+3. [ ] Add safe Settings administration UI for the stable API-key backend contract.
+4. Named/direct MCP client administration and master/no-auth policy without
    weakening existing Bearer/custom-header/trusted-network authentication.
-4. Global individual-tool and per-client MCP permissions.
-5. Reorganize Settings/MCP with clear section dividers/groups. `Enable MCP server`
+5. Global individual-tool and per-client MCP permissions.
+6. Reorganize Settings/MCP with clear section dividers/groups. `Enable MCP server`
    is first as the master control; subordinate controls are greyed/disabled while
    it is off; read/write/tool authorization is grouped under a clear
    permissions/security section.
-6. Continue preference/default restoration, multi-user roles, safeguarded MCP
+7. Continue preference/default restoration, multi-user roles, safeguarded MCP
    writes, then final accessibility/security/docs/public-alpha hardening.
 
 MCP write authorization remains disabled until permission policy and safeguarded
