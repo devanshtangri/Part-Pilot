@@ -2984,3 +2984,26 @@ write tools are complete. Notifications & Messaging remain post-v1.
 6. Preference/default restoration, multi-user roles, safeguarded MCP write tools, then final accessibility/security/responsive/API-MCP regression.
 
 Notifications & Messaging remain post-v1.
+
+<!-- PARTPILOT:CHAT21_BOUNDARY_ROADMAP:V633 -->
+## Chat 21 complete — Chat 22 next
+
+Chat 21 completed current-user account/session administration, recycle-bin dependency/purge hardening, scoped REST API keys, canonical Docker-context hardening, API Access Settings administration, and named direct MCP client administration/master/no-auth policy.
+
+### Chat 22
+
+**Required title:** `Chat 22: MCP Permissions and Settings Organization`
+**Patch range:** `634-658`
+**First patch:** `634`
+**Planned boundary:** `658`
+
+Implementation order:
+
+1. Patch 634 diagnostic-only: inspect exact MCP tool registry, runtime principals, OAuth/direct-client identity, current global read/write settings, Settings UI structure, backup/restore implications and smoke-test seams for individual-tool/per-client permissions.
+2. Implement global individual-tool policy while preserving the six currently read-only tools and keeping all write tools disabled.
+3. Add per-client permission overrides for OAuth and named direct clients without giving no-auth an invented named identity.
+4. Add browser-test Settings permissions UI with accessible default/inherited/effective-state semantics; checkpoint promptly after approval.
+5. Run the broader Settings organization pass with restrained section dividers/grouping across relevant Settings areas. Keep the flat/dense enterprise language and avoid decorative over-segmentation.
+6. Then handle API docs/schema exposure hardening, persisted ISO currency selector, server-backed Stored Parts metrics, preference/default restoration, roles, safeguarded MCP writes and final alpha regression.
+
+MCP write authorization remains disabled until permission policy and safeguarded write-tool contracts are complete. Notifications & Messaging remain post-v1.

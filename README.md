@@ -469,11 +469,15 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | Static Bearer key authentication | Available |
 | Dedicated custom-header key authentication | Available |
 | Trusted-network authentication with IPv4/IPv6 CIDRs | Available |
-| Direct-auth Settings management and browser UI | Available |
+| Named direct MCP clients (Bearer/custom-header/trusted-network) | Available |
+| Direct-client master and typed-confirmed no-auth fallback | Available |
+| Individual-tool and per-client MCP permissions | Not yet implemented |
 | Safeguarded MCP write tools | Not yet implemented |
 
 The live installation keeps MCP and read tools enabled while write
-authorization remains disabled. OAuth client registration supports explicit
+authorization, named direct clients, and no-auth fallback remain disabled.
+Named direct clients can be enabled independently of OAuth; the no-auth fallback
+is read-only and requires exact typed confirmation. OAuth registration supports explicit
 current-user ownership for manually created clients, safe manageable-client
 status, exact revocation, and one-time confidential secret display. Revoked
 clients remain available to backend audit/history semantics but are hidden from

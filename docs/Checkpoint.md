@@ -3699,3 +3699,18 @@ Browser refinement fixed the named-client typography/card mapping, aligned the M
 The broader Settings task still owns restrained section dividers/grouping throughout Settings wherever hierarchy benefits. Global individual-tool/per-client MCP permissions remain next after the boundary; safeguarded MCP write tools stay disabled until that policy exists.
 
 Chat 21 boundary is now Patch 633 because Patches 628, 629 and 631 were consumed during visual/recovery work. Patch 633 must create the Chat 21-to-22 handoff; Chat 22 starts at Patch 634 only after that boundary succeeds.
+
+<!-- PARTPILOT:CHAT21_BOUNDARY:V633 -->
+## Chat 21 boundary — Patch 633
+
+Chat 21 is complete. Patch 632 checkpointed and pushed the browser-approved named-direct MCP client administration/master/no-auth work at commit `88ca83cd407d63772e027cac409357f5bc192ad0`. Patch 633 is documentation-only: it creates the Chat 21-to-22 handoff, refreshes durable docs/README, and commits/pushes the boundary without changing application source, deployment, database, credentials, fixtures or inventory.
+
+The earlier Patch 629 boundary plan was superseded after Patches 628, 629 and 631 were consumed during visual/recovery work. The authoritative next-chat identity is:
+
+- Title: `Chat 22: MCP Permissions and Settings Organization`
+- Patch range: `634-658`
+- First patch: `634`
+- Planned boundary: `658`
+- Patch 634 should be diagnostic-only for the global individual-tool/per-client MCP permission slice before implementation.
+
+Chat 22 must start by reading `docs/Chat_21_to_Chat_22_Handoff.md`, then `docs/Checkpoint.md`, `docs/Implementation_Roadmap.md`, `docs/Part_Pilot_Project_Memory.txt`, `README.md`, and the newest relevant diagnostic. Do not create a starting-prompt file.

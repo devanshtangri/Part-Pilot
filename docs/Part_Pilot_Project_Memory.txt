@@ -1,4 +1,4 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V632 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V633 -->
 
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
@@ -6,46 +6,47 @@ Project
 - Alembic head: 0015_mcp_direct_clients.
 
 Patch workflow
-- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one complete sequential Python file under fixes/. Failed attempts consume numbers; never reuse. User runs scripts; assistant must not execute numbered patches.
-- Success final line exactly `Everything PASS`. Validate exact repo/branch/origin/HEAD, index/source hashes, prerequisites and transforms before writes. Backups fixes/backups/; logs fixes/logs/; diagnostics docs/diagonostic_*.md.
-- Browser-test source stays uncommitted until explicit approval. After approval, checkpoint/commit/push promptly. Browser steps are separate from scripts.
+- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one complete sequential Python file under fixes/. Failed attempts consume numbers; never reuse. User runs scripts; assistant never executes numbered patches.
+- Success final line exactly `Everything PASS`. Validate exact repo/branch/origin/HEAD, index/source hashes, prerequisites/transforms before writes. Backups fixes/backups/; logs fixes/logs/; diagnostics docs/diagonostic_*.md.
+- Browser-test source stays uncommitted until explicit approval; checkpoint/commit/push promptly after approval. Browser instructions stay outside scripts.
 - After two consecutive pre-write failures/repeated anchors/source uncertainty, diagnostic-only next. Compile final downloadable patch before delivery.
-- App changes: git diff --check, relevant Python compile, canonical Docker build, Alembic, copied-db complete smoke, protected APIs/SPA/runtime markers, live-data preservation and rollback.
-- Exact Docker builds require committed .dockerignore plus Git-canonical backend/frontend modes; ignored pyc/filesystem-mode drift previously changed image identity. Never rehearse against live source; use isolated /tmp copies.
-- Keep this memory <=8000 bytes.
+- App changes: git diff --check, relevant Python compile, canonical Docker build, Alembic, copied-db complete smoke, protected APIs/SPA/runtime markers, live-data preservation/rollback.
+- Exact Docker image checks require .dockerignore + Git-canonical backend/frontend modes. Rehearsals must use isolated /tmp copies and must never mutate live source/deployment.
+- Keep this memory <=8000 bytes. User prefers patch-generation turns <=10 minutes.
 
 Chat boundary
-- Current: Chat 21 `Account Security and Session Administration`. Browser/recovery work consumed 628,629,631; Patch 632 is the named-direct-client checkpoint. Patch 633 is mandatory boundary/handoff. Chat 22 starts at 634 only after 633 succeeds.
-- No starting-prompt files; ready prompt only in chat after successful boundary.
+- Chat 21 `Account Security and Session Administration` completes at Patch 633. Patch 632 checkpoint commit: 88ca83cd407d63772e027cac409357f5bc192ad0.
+- Chat 22 title: `Chat 22: MCP Permissions and Settings Organization`; range 634-658; first patch 634; boundary 658.
+- Patch 634 should be diagnostic-only for individual-tool/per-client MCP permissions. No starting-prompt files; ready prompt only in chat after successful boundary.
 
 Data safety
-- Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs. SQLite integrity/FKs must pass.
+- Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs; never broad OAuth cleanup. SQLite integrity/FKs must pass.
 - 5V Relay remains recoverable in Deleted items. ESP01 was permanently purged and Development Board Part Type deleted during approved recycle-bin testing.
 - Instance-secret SHA: 19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b. Never reveal/rotate credentials automatically.
 
 Completed application
-- Authenticated typed inventory; catalogues; universal search/filter/sort/pagination; quantity workflows; soft delete/restore; History.
-- Atomic Reservation/Project reserve/release/consume/edit lifecycles.
-- Responsive dark/light/system UI and Settings; strict portable backup/restore with staging/rollback/session invalidation.
-- Recycle bin: recoverable delete by default, atomic typed-confirm permanent purge, active/reserved blockers, historical audit retention, custom Part Type dependency protection across active + deleted inventory.
-- Current-user profile/account security: username/display/avatar incl normalized DB-backed custom avatar, password change, safe sessions, targeted/revoke-all-other, current-session preservation, secret-free audit. Four older sessions remain Unknown and must not be inferred/backfilled.
+- Typed inventory/catalogues; universal search/filter/sort/pagination; quantity workflows; soft delete/restore; History; atomic Reservation/Project lifecycles.
+- Responsive dark/light/system Settings; strict portable backup/restore with staging/rollback/session invalidation.
+- Recycle bin: recoverable delete default, typed-confirm atomic purge, active/reserved blockers, audit retention, custom Part Type dependency protection across active + deleted inventory.
+- Current-user account/security: username/display/avatar incl DB-backed normalized custom avatar, password change, safe sessions, targeted/revoke-all-other, current-session preservation, secret-free audit. Four older sessions remain Unknown; never infer/backfill.
 
 REST API access
-- Alembic 0014 introduced scoped `pp_api_key_` credentials: named high-entropy one-time secrets, digest-only storage, explicit scopes/expiry, rotate/revoke/last-used.
-- Patch 617 enforces 43 exact eligible route method/path scope registrations for Inventory/Catalogue/Project/Reservation/History. Browser sessions fall back normally; Auth/Settings/Backup/Restore remain session-only. Invalid/revoked/expired=401; missing scope=403.
-- API Access Settings UI is browser-approved/checkpointed: create/edit/rotate/revoke, hidden revoked records, one-time secret, scope presets, API docs actions and modal security flows. `/docs`, `/redoc`, `/openapi.json` still need deliberate public-alpha access policy.
+- Alembic 0014: scoped `pp_api_key_` one-time credentials, digest-only storage, scopes/expiry/rotate/revoke/last-used.
+- 43 exact eligible route method/path scope registrations across Inventory/Catalogue/Project/Reservation/History. Browser-session fallback; Auth/Settings/Backup/Restore session-only. Invalid/revoked/expired=401; missing scope=403.
+- Browser-approved API Access Settings UI: create/edit/rotate/revoke, hidden revoked records, one-time secret, scope presets, API docs actions, modal security flows. `/docs`, `/redoc`, `/openapi.json` need deliberate public-alpha access policy.
 
 MCP/OAuth
-- OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata and stateless `/mcp`; six read-only Part/Project/Reservation tools. Real Claude/ChatGPT read flows verified.
-- Manual OAuth registration/admin supports creator ownership, public/confidential, none/secret_post/secret_basic, generated ID, one-time secret digest-only storage, manageable status and exact revocation. Revoked clients hidden from normal Settings.
-- Alembic 0015 replaces singleton direct-auth administration with named Bearer/custom-header/trusted-network clients. Each client has independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row is retained for audit compatibility.
-- `Enable MCP server` is master. `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed with `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
-- Browser-approved MCP UI has named-client security dialogs, aligned section widths and one readable muted disabled state. Direct clients/no-auth should remain OFF unless deliberately configured. MCP write authorization remains OFF.
+- OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata, stateless `/mcp`; six read-only Part/Project/Reservation tools. Real Claude/ChatGPT read flows verified.
+- Manual OAuth admin: creator ownership, public/confidential, none/secret_post/secret_basic, generated ID, one-time secret digest-only storage, status/revocation; revoked hidden from normal Settings.
+- Alembic 0015: named Bearer/custom-header/trusted-network direct clients with independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row retained for audit compatibility.
+- `Enable MCP server` master; `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
+- Browser-approved MCP UI: named-client security dialogs, aligned section widths, readable single-level disabled state. Direct clients/no-auth currently OFF; MCP server/read ON; write authorization OFF.
 
-Recent recovery lessons
-- 628: CSS comment runtime marker stripped by minification; use DOM/value/custom-property markers.
+Recovery lessons
+- 628: CSS comment marker stripped by minification; use DOM/value/custom-property markers.
 - 629: frozen packaged CSS hash differed from rehearsal; freeze exact script-produced bytes.
-- 631: preflight correctly detected live source already at intended final V631 bytes because a rehearsal accidentally touched live source. Never mutate live repo/deployment during rehearsal; isolated /tmp only.
+- 631: numbered preflight caught that an assistant rehearsal had accidentally applied exact intended live CSS/image. Never mutate live repo/deployment during rehearsal; isolated /tmp only.
+- Canonical Docker exact-image checks also require ignored bytecode exclusion and Git-canonical file modes.
 
 Remaining V1
 1. Global individual-tool + per-client MCP permissions.
