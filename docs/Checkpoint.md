@@ -3641,3 +3641,49 @@ sessions retain their existing access. Missing/invalid/revoked/expired keys are
 `last_used_at`. Auth, Settings, Backup and Restore remain session-only. A route
 contract smoke introspects every registered eligible method/path so unmapped or
 mis-scoped routes fail automatically.
+
+
+<!-- PARTPILOT:API_UI_AND_INVENTORY_METRICS_PLAN:V618 -->
+## API access UI and inventory metrics follow-up — Patch 619 browser-test recovery
+
+- API-key Settings administration must expose create/list/edit/rotate/revoke,
+  one-time secret copy, and a persistent `API Documentation ↗` action. The
+  create/rotate one-time-secret dialog also includes `Open API docs ↗`, opening
+  `/docs` in a new tab. API documentation access policy must be deliberately
+  protected before public alpha; API keys do not administer Settings/Auth/Data.
+- Currency was already collected and persisted during setup and already belonged
+  to the planned General Settings expansion. The missing V1 UI is an explicit
+  Settings currency selector using the stored app-wide ISO currency. Changing the
+  selector changes formatting only; it never performs live FX conversion.
+- Stored Parts needs server-backed whole-inventory summary metrics independent of
+  pagination: `Total components` is the sum of active `total_quantity`; `Inventory
+  value` is the known sum of `total_quantity × unit_price` in the selected app
+  currency. Reserved units remain physically owned and therefore remain included.
+  The value metric must disclose price-data coverage rather than presenting
+  missing prices as zero-value stock. Supporting metrics are Available, Reserved,
+  Low stock, Out of stock and distinct Part-record count.
+
+<!-- PARTPILOT:API_ACCESS_CANONICAL_BUILD_CHECKPOINT:V626 -->
+## API Access and canonical-build checkpoint — Patch 626
+
+Patch 620 is browser approved. API Access provides scoped REST key lifecycle,
+one-time-secret handling, API-documentation actions, aligned fields/readable scope
+chips, hidden revoked records and modal rotate/revoke flows. MCP direct credential
+create/rotate/mode-change/disable uses the same consequential-action dialog
+language; ordinary reversible settings remain inline. Both browser-test REST keys
+remain revoked audit records and MCP direct authentication is Disabled.
+
+Checkpoint recovery exposed two non-Git Docker-context contaminants. Patch 623
+diagnosed 112 ignored backend `.pyc` files entering Docker because `.dockerignore`
+was absent. Patch 625 then proved 26 tracked Docker-source files (16 backend, 10
+frontend) had filesystem mode `0600` while Git canonical mode was `100644`; bytes
+were identical, but Docker COPY layer identity changed. Patch 626 adds the minimal
+`.dockerignore`, normalizes tracked backend/frontend files to Git-canonical modes
+without changing bytes, and requires exact clean/contaminated/live-root image
+convergence before commit. This canonical-context rule is now a patch-workflow
+invariant for exact Docker image comparisons.
+
+The later broader Settings task must add restrained section dividers/grouping
+throughout Settings wherever hierarchy benefits, not only MCP. MCP still requires
+`Enable MCP server` first, subordinate controls muted/disabled while off, and
+read/write/tool authorization grouped under permissions/security.

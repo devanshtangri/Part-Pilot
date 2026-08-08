@@ -3037,3 +3037,592 @@
     text-align: center;
   }
 }
+
+
+/* PARTPILOT:REST_API_KEY_SETTINGS_STYLES:V618 */
+.settings-page {
+  --partpilot-rest-api-key-settings-v618: 1;
+}
+
+.settings-content-grid {
+  grid-template-areas:
+    "inventory"
+    "reservations"
+    "api"
+    "mcp"
+    "data";
+}
+
+.settings-grid-api {
+  grid-area: api;
+}
+
+.settings-api-section {
+  gap: 13px;
+}
+
+.settings-api-heading {
+  align-items: center;
+}
+
+.settings-api-heading-actions,
+.settings-api-editor-actions,
+.settings-api-confirmation > div:last-child,
+.settings-api-key footer > div,
+.settings-api-secret-dialog footer,
+.settings-api-permissions-heading > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.settings-api-heading-actions {
+  justify-content: flex-end;
+}
+
+.settings-api-heading-actions a,
+.settings-api-secret-dialog footer a {
+  text-decoration: none;
+}
+
+.settings-api-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+}
+
+.settings-api-summary > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 11px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.settings-api-summary > div:last-child {
+  border-right: 0;
+}
+
+.settings-api-summary span,
+.settings-api-key dt {
+  color: var(--muted);
+  font-size: 0.63rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.settings-api-summary strong {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.settings-api-editor,
+.settings-api-confirmation,
+.settings-api-empty,
+.settings-api-key {
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel);
+}
+
+.settings-api-editor {
+  display: grid;
+  gap: 12px;
+  padding: 13px 14px;
+}
+
+.settings-api-editor-heading,
+.settings-api-permissions-heading,
+.settings-api-key header,
+.settings-api-key footer {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.settings-api-editor-heading > div,
+.settings-api-permissions-heading > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-api-editor-heading strong,
+.settings-api-permissions-heading strong,
+.settings-api-key header strong,
+.settings-api-empty strong,
+.settings-api-secret-meta strong {
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.settings-api-editor-heading span,
+.settings-api-permissions-heading span,
+.settings-api-empty span,
+.settings-api-key footer > span,
+.settings-api-secret-meta span {
+  color: var(--muted);
+  font-size: 0.69rem;
+  line-height: 1.45;
+}
+
+.settings-api-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-api-editor-fields label,
+.settings-api-secret-content label {
+  display: grid;
+  gap: 6px;
+}
+
+.settings-api-editor-fields label {
+  align-content: start;
+}
+
+.settings-api-editor-fields label > span,
+.settings-api-secret-content label > span {
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 760;
+}
+
+.settings-api-editor-fields input,
+.settings-api-secret-content input {
+  width: 100%;
+  min-height: 39px;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  outline: none;
+  background: var(--panel-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.72rem;
+}
+
+.settings-api-secret-content input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.settings-api-editor-fields input:focus,
+.settings-api-secret-content input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.settings-api-editor-fields input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.settings-api-editor-fields small,
+.settings-api-scope-grid small {
+  color: var(--muted);
+  font-size: 0.63rem;
+  line-height: 1.4;
+}
+
+.settings-api-editor-fields small.is-error {
+  color: var(--danger);
+}
+
+.settings-api-permissions {
+  display: grid;
+  gap: 9px;
+}
+
+.settings-api-permissions-heading button {
+  padding: 5px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.65rem;
+  font-weight: 720;
+}
+
+.settings-api-permissions-heading button:hover:not(:disabled),
+.settings-api-permissions-heading button:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.settings-api-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.settings-api-scope-grid label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+.settings-api-scope-grid label.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--panel-border));
+  background: var(--accent-soft);
+}
+
+.settings-api-scope-grid input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.settings-api-scope-grid label > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.settings-api-scope-grid strong {
+  color: var(--text);
+  font-size: 0.68rem;
+}
+
+.settings-api-editor-actions {
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.settings-api-confirmation {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px;
+  background: var(--panel-soft);
+}
+
+.settings-api-confirmation > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-api-confirmation strong {
+  color: var(--text);
+  font-size: 0.75rem;
+}
+
+.settings-api-confirmation span {
+  color: var(--muted);
+  font-size: 0.67rem;
+  line-height: 1.4;
+}
+
+.settings-api-confirmation.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--panel-border));
+}
+
+.settings-api-empty {
+  display: grid;
+  gap: 4px;
+  padding: 18px;
+  text-align: center;
+  background: var(--panel-soft);
+}
+
+.settings-api-list {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-api-key {
+  display: grid;
+  gap: 10px;
+  padding: 11px 12px;
+}
+
+.settings-api-key header {
+  align-items: center;
+}
+
+.settings-api-key header > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.settings-api-key code {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.67rem;
+}
+
+.settings-api-status {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 780;
+}
+
+.settings-api-status.is-active {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--panel-border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-api-status.is-expired,
+.settings-api-status.is-revoked {
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--panel-border));
+  color: var(--danger);
+}
+
+.settings-api-scope-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.settings-api-scope-chips span {
+  padding: 3px 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 5px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.settings-api-key dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.settings-api-key dl > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.settings-api-key dl > div:last-child {
+  border-right: 0;
+}
+
+.settings-api-key dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 0.65rem;
+}
+
+.settings-api-key footer {
+  align-items: center;
+}
+
+.settings-api-secret-backdrop {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, #000 58%, transparent);
+}
+
+.settings-api-secret-dialog {
+  width: min(680px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.settings-api-secret-dialog header,
+.settings-api-secret-content,
+.settings-api-secret-dialog footer {
+  padding: 14px 16px;
+}
+
+.settings-api-secret-dialog header,
+.settings-api-secret-dialog footer {
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.settings-api-secret-dialog header h2,
+.settings-api-secret-dialog header p,
+.settings-api-secret-content p {
+  margin: 0;
+}
+
+.settings-api-secret-dialog header h2 {
+  margin-top: 4px;
+  font-size: 1.05rem;
+}
+
+.settings-api-secret-dialog header p,
+.settings-api-secret-content p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.settings-api-secret-content {
+  display: grid;
+  gap: 11px;
+}
+
+.settings-api-secret-meta {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-api-secret-content code {
+  color: var(--text);
+}
+
+.settings-api-secret-dialog footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--panel-border);
+  border-bottom: 0;
+}
+
+/* PARTPILOT:SECURITY_DIALOG_LANGUAGE:V620 */
+.settings-page {
+  --partpilot-security-dialog-language-v620: 1;
+}
+
+.settings-security-dialog-backdrop {
+  position: fixed;
+  z-index: 130;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: color-mix(in srgb, #000 58%, transparent);
+}
+
+.settings-security-dialog {
+  width: min(680px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.settings-security-dialog.is-danger { border-color: color-mix(in srgb, var(--danger) 48%, var(--panel-border)); }
+.settings-security-dialog header,
+.settings-security-dialog-content,
+.settings-security-dialog footer { padding: 14px 16px; }
+.settings-security-dialog header { border-bottom: 1px solid var(--panel-border); }
+.settings-security-dialog header h2,
+.settings-security-dialog header p,
+.settings-security-dialog-content p { margin: 0; }
+.settings-security-dialog header h2 { margin-top: 4px; color: var(--text); font-size: 1.05rem; }
+.settings-security-dialog header p,
+.settings-security-dialog-content > p { margin-top: 5px; color: var(--muted); font-size: 0.7rem; line-height: 1.45; }
+.settings-security-dialog-content { display: grid; gap: 11px; }
+.settings-security-dialog-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; overflow: hidden; border: 1px solid var(--panel-border); border-radius: 6px; }
+.settings-security-dialog-summary > div { min-width: 0; padding: 8px 9px; border-right: 1px solid var(--panel-border); border-bottom: 1px solid var(--panel-border); }
+.settings-security-dialog-summary > div:nth-child(2n) { border-right: 0; }
+.settings-security-dialog-summary > div:nth-last-child(-n + 2) { border-bottom: 0; }
+.settings-security-dialog-summary dt { color: var(--muted); font-size: 0.62rem; font-weight: 760; text-transform: uppercase; }
+.settings-security-dialog-summary dd { margin: 3px 0 0; overflow-wrap: anywhere; color: var(--text); font-size: 0.68rem; }
+.settings-security-dialog footer { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; border-top: 1px solid var(--panel-border); }
+.settings-security-credential-field { display: grid; gap: 6px; }
+.settings-security-credential-field > span { color: var(--text); font-size: 0.68rem; font-weight: 760; }
+.settings-security-credential-field input { width: 100%; min-height: 39px; padding: 7px 10px; border: 1px solid var(--panel-border); border-radius: 7px; outline: none; background: var(--panel-soft); color: var(--text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.72rem; }
+.settings-security-credential-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+@media (max-width: 820px) {
+  .settings-api-summary,
+  .settings-api-key dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-api-summary > div:nth-child(2),
+  .settings-api-key dl > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .settings-api-summary > div:nth-child(-n + 2),
+  .settings-api-key dl > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .settings-api-scope-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .settings-api-heading,
+  .settings-api-editor-heading,
+  .settings-api-permissions-heading,
+  .settings-api-confirmation,
+  .settings-api-key header,
+  .settings-api-key footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-api-heading-actions,
+  .settings-api-editor-actions,
+  .settings-api-confirmation > div:last-child,
+  .settings-api-key footer > div {
+    justify-content: stretch;
+  }
+
+  .settings-api-heading-actions > *,
+  .settings-api-editor-actions > *,
+  .settings-api-confirmation > div:last-child > *,
+  .settings-api-key footer > div > * {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  .settings-api-editor-fields,
+  .settings-api-scope-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-api-secret-backdrop {
+    align-items: end;
+    padding: 10px;
+  }
+
+  .settings-api-secret-dialog footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-api-secret-dialog footer > * {
+    width: 100%;
+    text-align: center;
+  }
+
+  .settings-security-dialog-backdrop { align-items: end; padding: 10px; }
+  .settings-security-dialog-summary { grid-template-columns: 1fr; }
+  .settings-security-dialog-summary > div,
+  .settings-security-dialog-summary > div:nth-child(2n),
+  .settings-security-dialog-summary > div:nth-last-child(-n + 2) { border-right: 0; border-bottom: 1px solid var(--panel-border); }
+  .settings-security-dialog-summary > div:last-child { border-bottom: 0; }
+  .settings-security-dialog footer { align-items: stretch; flex-direction: column; }
+  .settings-security-dialog footer > * { width: 100%; text-align: center; }
+}

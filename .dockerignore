@@ -1,0 +1,15 @@
+.git
+.gitignore
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.coverage
+**/.venv/
+**/node_modules/
+**/dist/
+data/
+fixes/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -112,12 +112,19 @@ Chat 21 extended order
   route-scope smoke. Patch 617 applies the same tested design with smoke bytes frozen
   separately: scoped Inventory/Catalogue/Project/Reservation/History REST API keys;
   session fallback; Auth/Settings/Backup/Restore session-only; 43-route introspection.
-- Next: Settings API-key UI, then named/direct MCP clients and tool permissions.
-- Settings/MCP UX: clear dividers/groups; Enable MCP server first as master;
-  subordinate controls visibly grey/disabled while off; read/write/tool policy
-  grouped under a clear permissions/security section.
-- Then preference reset, multi-user roles, safeguarded MCP writes and final
-  accessibility/security/docs/public-alpha hardening. Notifications stay post-v1.
+- 619 recovered API Access; 620 approved it. 621/622/624 failed safely; 623/625
+  diagnosed Docker bytecode/mode drift; 626 checkpoints canonical build context.
+- Currency already persists from setup and belongs in General Settings; add its
+  missing selector. Stored Parts pending metrics: total components=sum active
+  total_quantity; inventory value=sum priced quantity*unit_price with coverage;
+  plus available/reserved/low/out/distinct counts. No FX conversion on currency change.
+- Settings task: restrained dividers/groups throughout Settings where useful. MCP:
+  Enable server first; mute/disable subcontrols while off; group read/write/tools
+  under permissions/security.
+- Build invariant: exact-image checks require .dockerignore + Git-canonical modes;
+  normalize modes without changing bytes before live-root builds.
+- Then preference reset, roles, safeguarded MCP writes and alpha hardening.
+  Notifications stay post-v1.
 
 Recycle-bin contract approved through Patch 609 / checkpointed Patch 614
 - Normal Part delete stays recoverable; Deleted items remains fully restorable.

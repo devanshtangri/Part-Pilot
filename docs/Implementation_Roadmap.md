@@ -2922,16 +2922,37 @@ The user granted a one-chat exception extending this chat through Patch 629.
 2. [x] Patch 617 wires API-key authentication and route-level scope enforcement
    across all eligible REST routes while keeping Auth/Settings/Backup/Restore
    session-only; Patch 616 failed before writes due to omitted untracked smoke bytes.
-3. [ ] Add safe Settings administration UI for the stable API-key backend contract.
+3. [x] Patch 620 browser-approved API Access and shared REST/MCP security dialogs.
+   Patches 621/622/624 failed safely during checkpoint recovery; Patches 623/625
+   diagnosed Docker context bytecode and file-mode drift; Patch 626 checkpoints
+   the approved batch with a canonical Docker build context.
 4. Named/direct MCP client administration and master/no-auth policy without
    weakening existing Bearer/custom-header/trusted-network authentication.
 5. Global individual-tool and per-client MCP permissions.
-6. Reorganize Settings/MCP with clear section dividers/groups. `Enable MCP server`
-   is first as the master control; subordinate controls are greyed/disabled while
-   it is off; read/write/tool authorization is grouped under a clear
-   permissions/security section.
+6. During the broader Settings task, add restrained section dividers/groups
+   throughout Settings wherever they improve hierarchy, not only MCP. Within MCP,
+   `Enable MCP server` is first; subordinate controls are muted/disabled while off;
+   read/write/tool authorization belongs under permissions/security.
 7. Continue preference/default restoration, multi-user roles, safeguarded MCP
    writes, then final accessibility/security/docs/public-alpha hardening.
 
 MCP write authorization remains disabled until permission policy and safeguarded
 write tools are complete. Notifications & Messaging remain post-v1.
+
+
+<!-- PARTPILOT:API_UI_CURRENCY_METRICS_ROADMAP:V618 -->
+## API UI, currency and Stored Parts metrics — explicit V1 work
+
+- [x] Patch 620 browser-approved and Patch 626 checkpoints API Access: scoped key
+  lifecycle, one-time-secret handling, API-doc actions, hidden revoked records,
+  aligned fields/readable scopes, and modal rotate/revoke security flows.
+- [ ] Protect `/docs`, `/redoc` and the chosen OpenAPI-schema exposure policy
+  deliberately before public alpha while keeping actual API administration
+  session-only.
+- [ ] Surface the already-persisted app-wide currency as an explicit Settings
+  selector. Use ISO currency semantics and locale-aware formatting; changing the
+  selector does not convert stored historical price numbers.
+- [ ] Add server-backed Stored Parts summary metrics over the complete active
+  inventory, not the current page: Total components, Inventory value with
+  valuation coverage, Available, Reserved, Low stock, Out of stock and distinct
+  Part count. Reserved quantity remains part of physical inventory value.
