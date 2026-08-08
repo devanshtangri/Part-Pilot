@@ -2881,3 +2881,54 @@ release and must not block current-release completion.
 - [ ] Retry/backoff without duplicate notification storms.
 - [ ] Secret-free audit of configuration and delivery outcomes.
 - [ ] Restore/backup and multi-user behavior defined before implementation.
+
+<!-- PARTPILOT:RECYCLE_BIN_ROADMAP:V607 -->
+## Recycle-bin UX hardening — current Chat 21 browser-test slice
+
+- [x] Preserve recoverable soft deletion as the normal Part delete behavior.
+- [x] Define permanent purge for selected Deleted items with explicit `DELETE`
+  confirmation and atomic all-or-nothing semantics.
+- [x] Protect active/reserved workflows from permanent purge.
+- [x] Preserve historical audit records and detach terminal historical links.
+- [x] Split custom Part Type dependencies into active vs Deleted-items counts.
+- [x] Make blocked Part Type deletion visually unambiguous: `Cannot delete`, no
+  confirmation input/button, up to five named blockers per class, then `+N more`.
+- [x] Add dominant direct Part Type delete-dialog navigation into Deleted items
+  with the exact Part Type filter pre-applied.
+- [x] Browser approved through Patch 609. ESP01 was permanently purged,
+  Development Board was then deleted successfully, and 5V Relay remained
+  recoverable.
+- [x] Patch 614 checkpoints/pushes the approved V607-V609 batch and makes the
+  legacy Part Type update/delete smoke audit-safe when SQLite reuses entity IDs.
+
+This work does not replace the Recycle Bin with permanent-delete-only behavior.
+Deleted items remain recoverable until the user explicitly chooses permanent
+purge.
+
+<!-- PARTPILOT:CHAT21_EXTENSION_ROADMAP:V614 -->
+## Chat 21 extended implementation window
+
+The user granted a one-chat exception extending this chat through Patch 629.
+
+- Next implementation patch: **615**
+- New Chat 21 boundary/handoff patch: **629**
+- Chat 22 starts at **Patch 630**, only after Patch 629 succeeds.
+- Do not create the Chat 21-to-22 handoff before Patch 629.
+
+### Next implementation order
+
+1. Scoped REST API keys: named keys, one-time secret display, digest-only
+   storage, explicit scopes, expiry, rotation/revocation and last-used metadata.
+2. Safe Settings administration for API keys after the backend contract is stable.
+3. Named/direct MCP client administration and master/no-auth policy without
+   weakening existing Bearer/custom-header/trusted-network authentication.
+4. Global individual-tool and per-client MCP permissions.
+5. Reorganize Settings/MCP with clear section dividers/groups. `Enable MCP server`
+   is first as the master control; subordinate controls are greyed/disabled while
+   it is off; read/write/tool authorization is grouped under a clear
+   permissions/security section.
+6. Continue preference/default restoration, multi-user roles, safeguarded MCP
+   writes, then final accessibility/security/docs/public-alpha hardening.
+
+MCP write authorization remains disabled until permission policy and safeguarded
+write tools are complete. Notifications & Messaging remain post-v1.

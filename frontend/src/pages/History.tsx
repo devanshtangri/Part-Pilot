@@ -70,6 +70,7 @@ const EVENT_TITLES: Record<string, string> = {
   "package.created": "Package created",
   "part.created": "Part created",
   "part.deleted": "Part deleted",
+  "part.purged": "Part permanently deleted",
   "part.metadata_updated": "Part details updated",
   "part.quantity_adjusted": "Physical stock adjusted",
   "part.restored": "Part restored",

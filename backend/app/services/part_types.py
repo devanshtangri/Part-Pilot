@@ -31,6 +31,7 @@ from app.schemas.part_types import (
 )
 from app.models import Part as DeleteManagementPart
 from app.schemas.part_types import (
+    PartTypeDeleteDependenciesResponse,
     PartTypeDeleteResponse as DeleteManagementPartTypeDeleteResponse,
 )
 
@@ -623,6 +624,88 @@ class PartTypeDeleteConflictError(ValueError):
     pass
 
 
+# PARTPILOT:PART_TYPE_DELETE_DEPENDENCIES:V607
+# PARTPILOT:PART_TYPE_DELETE_BLOCKER_PREVIEW:V608
+PART_TYPE_DEPENDENCY_PREVIEW_LIMIT = 5
+
+
+def _part_type_dependency_preview(
+    db: Session,
+    part_type_id: int,
+    *,
+    is_deleted: bool,
+) -> list[str]:
+    rows = db.execute(
+        management_select(
+            DeleteManagementPart.id,
+            DeleteManagementPart.name,
+            DeleteManagementPart.part_number,
+        )
+        .where(
+            DeleteManagementPart.part_type_id == part_type_id,
+            DeleteManagementPart.is_deleted.is_(is_deleted),
+        )
+        .order_by(
+            func.lower(
+                func.coalesce(
+                    DeleteManagementPart.name,
+                    DeleteManagementPart.part_number,
+                    "",
+                )
+            ).asc(),
+            DeleteManagementPart.id.asc(),
+        )
+        .limit(PART_TYPE_DEPENDENCY_PREVIEW_LIMIT)
+    ).all()
+    return [
+        str(name or part_number or f"Part #{part_id}")
+        for part_id, name, part_number in rows
+    ]
+
+
+def get_part_type_delete_dependencies(
+    db: Session,
+    part_type_id: int,
+) -> PartTypeDeleteDependenciesResponse:
+    part_type = db.get(ManagementPartType, part_type_id)
+    if part_type is None:
+        raise PartTypeDeleteNotFoundError("Part type not found.")
+
+    active_part_count = int(
+        db.execute(
+            management_select(func.count(DeleteManagementPart.id)).where(
+                DeleteManagementPart.part_type_id == part_type_id,
+                DeleteManagementPart.is_deleted.is_(False),
+            )
+        ).scalar_one()
+    )
+    deleted_part_count = int(
+        db.execute(
+            management_select(func.count(DeleteManagementPart.id)).where(
+                DeleteManagementPart.part_type_id == part_type_id,
+                DeleteManagementPart.is_deleted.is_(True),
+            )
+        ).scalar_one()
+    )
+    return PartTypeDeleteDependenciesResponse(
+        id=part_type.id,
+        name=part_type.name,
+        active_part_count=active_part_count,
+        deleted_part_count=deleted_part_count,
+        active_part_names=_part_type_dependency_preview(
+            db,
+            part_type_id,
+            is_deleted=False,
+        ),
+        deleted_part_names=_part_type_dependency_preview(
+            db,
+            part_type_id,
+            is_deleted=True,
+        ),
+        can_delete=(active_part_count == 0 and deleted_part_count == 0),
+    )
+
+
 def delete_custom_part_type(
     db: Session,
     part_type_id: int,
@@ -640,20 +723,35 @@ def delete_custom_part_type(
             "Built-in part types cannot be deleted."
         )
 
-    part_count = int(
-        db.execute(
-            management_select(func.count(DeleteManagementPart.id)).where(
-                DeleteManagementPart.part_type_id == part_type_id
+    dependencies = get_part_type_delete_dependencies(db, part_type_id)
+    if not dependencies.can_delete:
+        active_count = dependencies.active_part_count
+        deleted_count = dependencies.deleted_part_count
+        fragments: list[str] = []
+        if active_count:
+            fragments.append(
+                f"{active_count} active inventory "
+                f"{'part' if active_count == 1 else 'parts'}"
             )
-        ).scalar_one()
-    )
-
-    if part_count > 0:
-        noun = "part" if part_count == 1 else "parts"
+        if deleted_count:
+            fragments.append(
+                f"{deleted_count} recoverable "
+                f"{'part' if deleted_count == 1 else 'parts'} in Deleted items"
+            )
+        dependency_text = " and ".join(fragments)
+        resolution = (
+            "Reassign or delete active parts first. "
+            if active_count
+            else ""
+        )
+        if deleted_count:
+            resolution += (
+                "Permanently delete the recoverable parts from Deleted items "
+                "before deleting this type."
+            )
         raise PartTypeDeleteConflictError(
-            f"{part_type.name!r} is used by {part_count} inventory "
-            f"{noun} and cannot be deleted. Reassign or remove those "
-            "parts first."
+            f"{part_type.name!r} cannot be deleted because it is still used by "
+            f"{dependency_text}. {resolution}".strip()
         )
 
     fields = list(

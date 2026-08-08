@@ -29,7 +29,9 @@ assistants can understand and act on inventory safely.
 - Edit existing part metadata and typed values.
 - Add, remove, consume, and correct quantities with safeguards.
 - Review recent stock movement history.
-- Soft-delete parts and restore them without losing metadata or history.
+- Move parts to Deleted items and restore them without losing metadata or history.
+- Permanently purge selected Deleted items with explicit confirmation; active
+  Reservations, Draft/Reserved Projects, and reserved quantities block purge.
 
 ### Reusable catalogues
 
@@ -38,7 +40,8 @@ assistants can understand and act on inventory safely.
 - Location catalogue with create, rename, notes, usage counts, and safe
   in-use deletion protection.
 - Custom part types with ordered dynamic fields.
-- Safe custom-type editing and deletion safeguards.
+- Safe custom-type editing and deletion safeguards, including separate active
+  and Deleted-items dependency counts with direct filtered recycle-bin navigation.
 
 ### Platform
 
@@ -483,7 +486,7 @@ Part Pilot consent and authorization-code issuance during testing, but the
 Google callback did not complete a token exchange; Part Pilot's issued code was
 not redeemed.
 
-### Current-user account foundation
+### Current-user account and session administration
 
 | Capability | Status |
 |---|---|
@@ -491,13 +494,16 @@ not redeemed.
 | Username normalization and uniqueness | Available |
 | Display-name update | Available |
 | Built-in avatar persistence/catalogue | Available |
-| Current-user `avatar_id` in `/auth/me` | Available |
-| Secret-free profile audit | Available |
-| Password change requiring current password | Next milestone |
-| Active-session list and revocation | Next milestone |
-| Account/Security Settings UI | Next milestone |
+| Database-backed custom avatar upload/crop/removal | Available |
+| Current-user avatar state in `/auth/me` | Available |
+| Password change requiring current password | Available |
+| Current-session-safe password rotation | Available |
+| Active-session list and targeted/revoke-all-other controls | Available |
+| New-session User-Agent/client-IP capture | Available |
+| Account/Security Settings UI | Available |
 
 Built-in avatar IDs are `initials`, `chip`, `circuit`, `terminal`, `storage`,
-and `rocket`. Uploaded avatar storage remains deliberately deferred until a
-separate safe storage/crop/backup contract exists.
+and `rocket`. Uploaded avatars are normalized server-side and stored in SQLite
+so backup/restore preserves them. Sessions created before client-metadata capture
+remain honestly reported as Unknown rather than being backfilled or guessed.
 <!-- PARTPILOT:MCP_AUTHENTICATION_README:V580:END -->

@@ -182,3 +182,14 @@ class PartTypeDeleteResponse(BaseModel):
     id: int
     name: str
     deleted: bool = True
+
+
+# PARTPILOT:PART_TYPE_DELETE_DEPENDENCIES:V607
+class PartTypeDeleteDependenciesResponse(BaseModel):
+    id: int
+    name: str
+    active_part_count: int
+    deleted_part_count: int
+    active_part_names: list[str] = Field(default_factory=list)
+    deleted_part_names: list[str] = Field(default_factory=list)
+    can_delete: bool

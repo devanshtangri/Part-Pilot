@@ -16,6 +16,8 @@ from app.schemas.parts import (
     PartResponse,
     PartUpdateRequest,
     DeletedPartCollectionResponse,
+    DeletedPartPurgeRequest,
+    DeletedPartPurgeResponse,
     DeletedPartResponse,
     LowStockSummaryResponse,
 )
@@ -30,6 +32,7 @@ from app.services.parts import (
     list_parts,
     update_part_metadata,
     list_deleted_parts,
+    purge_deleted_parts,
     restore_part,
     soft_delete_part,
     list_low_stock_parts,
@@ -182,6 +185,37 @@ def read_deleted_parts(
         limit=limit,
         offset=offset,
     )
+
+
+
+
+# PARTPILOT:PERMANENT_PART_PURGE_ROUTE:V607
+@router.post(
+    "/deleted/purge",
+    response_model=DeletedPartPurgeResponse,
+)
+def purge_inventory_parts(
+    payload: DeletedPartPurgeRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DeletedPartPurgeResponse:
+    try:
+        return purge_deleted_parts(
+            db,
+            payload,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except PartNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except PartConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(

@@ -26,6 +26,7 @@ import { PartLifecycleModal } from "../components/PartLifecycleModal";
 import {
   createPartType,
   getPartTypes,
+  getPartTypeDeleteDependencies,
   updatePartType,
   deletePartType,
   } from "../services/partTypesClient";
@@ -53,6 +54,7 @@ import type {
   CreatePartTypePayload,
   PartType,
   PartTypeCollection,
+  PartTypeDeleteDependencies,
   PartTypeField,
   PartTypeFieldKind,
   UpdatePartTypePayload,
@@ -585,6 +587,12 @@ export function PartManager({
   const [deleteError, setDeleteError] =
     useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteDependencies, setDeleteDependencies] =
+    useState<PartTypeDeleteDependencies | null>(null);
+  const [deleteDependenciesLoading, setDeleteDependenciesLoading] =
+    useState(false);
+  const [deleteDependenciesError, setDeleteDependenciesError] =
+    useState<string | null>(null);
   // PATCH 094: Add Part modal state
   const [isAddingPart, setIsAddingPart] = useState(false);
   const [partBeingEdited, setPartBeingEdited] =
@@ -593,6 +601,10 @@ export function PartManager({
   const [partDeleteTarget, setPartDeleteTarget] =
     useState<Part | null>(null);
   const [deletedPartsOpen, setDeletedPartsOpen] = useState(false);
+  const [deletedPartTypeFilter, setDeletedPartTypeFilter] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1597,6 +1609,8 @@ function closeCreator() {
     setDeleteTarget(partType);
     setDeleteConfirmation("");
     setDeleteError(null);
+    setDeleteDependencies(null);
+    setDeleteDependenciesError(null);
   }
 
   function closeDeleteDialog() {
@@ -1607,6 +1621,67 @@ function closeCreator() {
     setDeleteTarget(null);
     setDeleteConfirmation("");
     setDeleteError(null);
+    setDeleteDependencies(null);
+    setDeleteDependenciesError(null);
+  }
+
+  // PARTPILOT:PART_TYPE_DELETE_DEPENDENCIES_UI:V607
+  useEffect(() => {
+    if (!deleteTarget || !token) {
+      setDeleteDependencies(null);
+      setDeleteDependenciesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setDeleteDependenciesLoading(true);
+    setDeleteDependenciesError(null);
+    getPartTypeDeleteDependencies(token, deleteTarget.id)
+      .then((result) => {
+        if (!cancelled) {
+          setDeleteDependencies(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setDeleteDependencies(null);
+          setDeleteDependenciesError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to check Part Type dependencies"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setDeleteDependenciesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deleteTarget, token]);
+
+  function openDeletedPartsForType() {
+    if (!deleteTarget || !deleteDependencies?.deleted_part_count) {
+      return;
+    }
+    setDeletedPartTypeFilter({
+      id: deleteTarget.id,
+      name: deleteTarget.name
+    });
+    setDeleteTarget(null);
+    setDeleteConfirmation("");
+    setDeleteError(null);
+    setDeleteDependencies(null);
+    setDeleteDependenciesError(null);
+    setDeletedPartsOpen(true);
+  }
+
+  function closeDeletedParts() {
+    setDeletedPartsOpen(false);
+    setDeletedPartTypeFilter(null);
   }
 
   useEffect(() => {
@@ -1621,6 +1696,8 @@ function closeCreator() {
         setDeleteTarget(null);
         setDeleteConfirmation("");
         setDeleteError(null);
+        setDeleteDependencies(null);
+        setDeleteDependenciesError(null);
       }
     }
 
@@ -1651,6 +1728,11 @@ function closeCreator() {
     setDeleteError(null);
 
     try {
+      if (!deleteDependencies?.can_delete) {
+        throw new Error(
+          "This Part Type still has inventory dependencies."
+        );
+      }
       await deletePartType(token, deleteTarget.id);
       const refreshed = await getPartTypes(token);
 
@@ -1664,6 +1746,18 @@ function closeCreator() {
           ? caught.message
           : "Unable to delete the custom part type"
       );
+      if (token && deleteTarget) {
+        try {
+          setDeleteDependenciesLoading(true);
+          setDeleteDependencies(
+            await getPartTypeDeleteDependencies(token, deleteTarget.id)
+          );
+        } catch {
+          // Keep the original deletion error visible.
+        } finally {
+          setDeleteDependenciesLoading(false);
+        }
+      }
     } finally {
       setIsDeleting(false);
     }
@@ -1999,8 +2093,10 @@ function closeCreator() {
           deletedPartsOpen={deletedPartsOpen}
           onCloseDelete={closePartDeleteDialog}
           onDeleted={handlePartDeleted}
-          onCloseDeletedParts={() => setDeletedPartsOpen(false)}
+          onCloseDeletedParts={closeDeletedParts}
           onRestored={handlePartRestored}
+          partTypeFilter={deletedPartTypeFilter}
+          onClearPartTypeFilter={() => setDeletedPartTypeFilter(null)}
         />
       ) : null}
 
@@ -2336,18 +2432,35 @@ function closeCreator() {
           }}
         >
           <section
-            className="delete-type-dialog card"
+            className={
+              `delete-type-dialog card${
+                deleteDependencies && !deleteDependencies.can_delete
+                  ? " is-blocked"
+                  : ""
+              }`
+            }
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-part-type-title"
             aria-describedby="delete-part-type-description"
+            data-part-type-delete-blocked-ui="PARTPILOT:PART_TYPE_DELETE_BLOCKED_UI:V608"
           >
             <form onSubmit={handleDeletePartType}>
               <header>
                 <div>
-                  <p className="eyebrow">Permanent action</p>
+                  <p className="eyebrow">
+                    {deleteDependenciesLoading
+                      ? "Dependency check"
+                      : deleteDependencies && !deleteDependencies.can_delete
+                        ? "Deletion blocked"
+                        : "Permanent action"}
+                  </p>
                   <h2 id="delete-part-type-title">
-                    Delete custom part type?
+                    {deleteDependenciesLoading
+                      ? `Checking ${deleteTarget.name}`
+                      : deleteDependencies && !deleteDependencies.can_delete
+                        ? `Cannot delete ${deleteTarget.name}`
+                        : `Delete ${deleteTarget.name}?`}
                   </h2>
                 </div>
                 <button
@@ -2364,26 +2477,134 @@ function closeCreator() {
 
               <div className="delete-type-content">
                 <p id="delete-part-type-description">
-                  This permanently removes the
-                  <strong> {deleteTarget.name} </strong>
-                  template and all of its template fields. Deletion is
-                  blocked when any inventory part still uses this type.
+                  {deleteDependenciesLoading ? (
+                    <>
+                      Checking whether active or recoverable parts still depend
+                      on <strong>{deleteTarget.name}</strong>.
+                    </>
+                  ) : deleteDependencies && !deleteDependencies.can_delete ? (
+                    <>
+                      <strong>
+                        {deleteDependencies.active_part_count
+                          + deleteDependencies.deleted_part_count}{" "}
+                        {deleteDependencies.active_part_count
+                          + deleteDependencies.deleted_part_count === 1
+                          ? "part still uses"
+                          : "parts still use"}{" "}
+                        {deleteTarget.name}.
+                      </strong>{" "}
+                      Resolve the blocking parts before this custom type can be
+                      removed.
+                    </>
+                  ) : (
+                    <>
+                      This permanently removes the
+                      <strong> {deleteTarget.name} </strong>
+                      template and all of its template fields.
+                    </>
+                  )}
                 </p>
 
-                <label>
-                  <span>
-                    Type <strong>{deleteTarget.name}</strong> to confirm
-                  </span>
-                  <input
-                    value={deleteConfirmation}
-                    onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                      setDeleteConfirmation(event.target.value)
-                    }
-                    autoComplete="off"
-                    spellCheck={false}
-                    autoFocus
-                  />
-                </label>
+                {deleteDependenciesLoading ? (
+                  <div className="delete-type-dependency-state" role="status">
+                    Checking inventory dependencies...
+                  </div>
+                ) : null}
+
+                {deleteDependencies ? (
+                  <div
+                    className="delete-type-dependencies"
+                    data-part-type-delete-dependencies="PARTPILOT:PART_TYPE_DELETE_DEPENDENCIES_UI:V607"
+                  >
+                    <div className="delete-type-dependency-count">
+                      <span>Active inventory</span>
+                      <strong>{deleteDependencies.active_part_count}</strong>
+                    </div>
+                    <div className="delete-type-dependency-count">
+                      <span>Deleted items</span>
+                      <strong>{deleteDependencies.deleted_part_count}</strong>
+                    </div>
+
+                    {!deleteDependencies.can_delete ? (
+                      <div className="delete-type-blocked-summary" role="alert">
+                        <strong>This Part Type is still in use.</strong>
+                        <span>
+                          {deleteDependencies.active_part_count > 0
+                            ? "Reassign or delete the active parts first. "
+                            : ""}
+                          {deleteDependencies.deleted_part_count > 0
+                            ? "Recoverable parts must be restored or permanently deleted first."
+                            : ""}
+                        </span>
+                      </div>
+                    ) : (
+                      <p>This Part Type has no inventory dependencies.</p>
+                    )}
+
+                    {!deleteDependencies.can_delete ? (
+                      <div className="delete-type-blocker-groups">
+                        {deleteDependencies.active_part_count > 0 ? (
+                          <section className="delete-type-blocker-group">
+                            <span>Active parts preventing deletion</span>
+                            <ul>
+                              {deleteDependencies.active_part_names.map((name) => (
+                                <li key={`active-${name}`}>{name}</li>
+                              ))}
+                              {deleteDependencies.active_part_count
+                                > deleteDependencies.active_part_names.length ? (
+                                  <li className="delete-type-blocker-more">
+                                    +{deleteDependencies.active_part_count
+                                      - deleteDependencies.active_part_names.length} more
+                                  </li>
+                                ) : null}
+                            </ul>
+                          </section>
+                        ) : null}
+
+                        {deleteDependencies.deleted_part_count > 0 ? (
+                          <section className="delete-type-blocker-group">
+                            <span>Deleted items preventing deletion</span>
+                            <ul>
+                              {deleteDependencies.deleted_part_names.map((name) => (
+                                <li key={`deleted-${name}`}>{name}</li>
+                              ))}
+                              {deleteDependencies.deleted_part_count
+                                > deleteDependencies.deleted_part_names.length ? (
+                                  <li className="delete-type-blocker-more">
+                                    +{deleteDependencies.deleted_part_count
+                                      - deleteDependencies.deleted_part_names.length} more
+                                  </li>
+                                ) : null}
+                            </ul>
+                          </section>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {deleteDependenciesError ? (
+                  <div className="delete-type-error" role="alert">
+                    {deleteDependenciesError}
+                  </div>
+                ) : null}
+
+                {deleteDependencies?.can_delete ? (
+                  <label>
+                    <span>
+                      Type <strong>{deleteTarget.name}</strong> to confirm
+                    </span>
+                    <input
+                      value={deleteConfirmation}
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setDeleteConfirmation(event.target.value)
+                      }
+                      autoComplete="off"
+                      spellCheck={false}
+                      autoFocus
+                    />
+                  </label>
+                ) : null}
 
                 {deleteError ? (
                   <div className="delete-type-error" role="alert">
@@ -2400,18 +2621,32 @@ function closeCreator() {
                 >
                   Cancel
                 </button>
-                <button
-                  className="delete-type-confirm"
-                  type="submit"
-                  disabled={
-                    isDeleting
-                    || deleteConfirmation !== deleteTarget.name
-                  }
-                >
-                  {isDeleting
-                    ? "Deleting…"
-                    : "Delete custom type"}
-                </button>
+                {deleteDependencies
+                  && !deleteDependencies.can_delete
+                  && deleteDependencies.deleted_part_count > 0 ? (
+                    <button
+                      className="delete-type-open-recycle is-primary"
+                      type="button"
+                      onClick={openDeletedPartsForType}
+                      disabled={isDeleting}
+                    >
+                      Open Deleted items
+                    </button>
+                  ) : null}
+                {deleteDependencies?.can_delete ? (
+                  <button
+                    className="delete-type-confirm"
+                    type="submit"
+                    disabled={
+                      isDeleting
+                      || deleteConfirmation !== deleteTarget.name
+                    }
+                  >
+                    {isDeleting
+                      ? "Deleting…"
+                      : "Delete custom type"}
+                  </button>
+                ) : null}
               </footer>
             </form>
           </section>
@@ -2645,7 +2880,10 @@ function closeCreator() {
             <button
               className="inventory-deleted-button"
               type="button"
-              onClick={() => setDeletedPartsOpen(true)}
+              onClick={() => {
+                setDeletedPartTypeFilter(null);
+                setDeletedPartsOpen(true);
+              }}
               disabled={!token}
             >
               Deleted items

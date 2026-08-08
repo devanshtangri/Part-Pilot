@@ -983,6 +983,202 @@
   }
 }
 
+
+
+/* PARTPILOT:PART_TYPE_DELETE_DEPENDENCIES_STYLES:V607 */
+.part-manager-page .delete-type-dependency-state {
+  padding: 10px 11px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.part-manager-page .delete-type-dependencies {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-border);
+}
+
+.part-manager-page .delete-type-dependencies > .delete-type-dependency-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 11px;
+  background: var(--panel-soft);
+}
+
+.part-manager-page .delete-type-dependencies span {
+  color: var(--muted);
+  font-size: 0.69rem;
+  font-weight: 700;
+}
+
+.part-manager-page .delete-type-dependencies strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.part-manager-page .delete-type-dependencies > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 11px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.part-manager-page .delete-type-open-recycle {
+  grid-column: 1 / -1;
+  min-height: 36px;
+  border: 0;
+  border-top: 1px solid var(--panel-border);
+  border-radius: 0;
+  background: var(--panel-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.part-manager-page .delete-type-open-recycle:hover:not(:disabled) {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.part-manager-page .delete-type-open-recycle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+@media (max-width: 520px) {
+  .part-manager-page .delete-type-dependencies {
+    grid-template-columns: 1fr;
+  }
+
+  .part-manager-page .delete-type-dependencies > p,
+  .part-manager-page .delete-type-open-recycle {
+    grid-column: 1;
+  }
+}
+
+
+/* PARTPILOT:PART_TYPE_DELETE_BLOCKED_STYLES:V608 */
+.part-manager-page .delete-type-dialog.is-blocked {
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+.part-manager-page .delete-type-dialog.is-blocked header h2 {
+  color: #fecaca;
+}
+
+.part-manager-page .delete-type-dependency-count {
+  min-width: 0;
+}
+
+.part-manager-page .delete-type-blocked-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  padding: 11px;
+  border-top: 1px solid rgba(248, 113, 113, 0.28);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.28);
+  background: rgba(127, 29, 29, 0.16);
+}
+
+.part-manager-page .delete-type-blocked-summary strong {
+  color: #fecaca;
+  font-size: 0.8rem;
+}
+
+.part-manager-page .delete-type-blocked-summary span {
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* PARTPILOT:PART_TYPE_BLOCKER_FULL_WIDTH:V609 */
+.part-manager-page .delete-type-blocker-groups {
+  --part-type-blocker-full-width-v609: 1;
+  grid-column: 1 / -1;
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 1px;
+  background: var(--panel-border);
+}
+
+.part-manager-page .delete-type-blocker-group {
+  display: grid;
+  gap: 7px;
+  padding: 10px 11px;
+  background: var(--panel);
+}
+
+.part-manager-page .delete-type-blocker-group > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.part-manager-page .delete-type-blocker-group ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part-manager-page .delete-type-blocker-group li {
+  padding: 5px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.part-manager-page .delete-type-blocker-group .delete-type-blocker-more {
+  color: var(--muted);
+}
+
+.part-manager-page .delete-type-dialog footer .delete-type-open-recycle.is-primary {
+  min-width: 160px;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #071614;
+}
+
+.part-manager-page .delete-type-dialog footer .delete-type-open-recycle.is-primary:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #071614;
+  filter: brightness(1.06);
+}
+
+@media (max-width: 620px) {
+  .part-manager-page .delete-type-dialog.is-blocked footer {
+    grid-template-columns: 1fr;
+  }
+
+  .part-manager-page .delete-type-dialog footer .delete-type-open-recycle.is-primary {
+    min-width: 0;
+  }
+}
+
 /* END PATCH 089 */
 
 /* PATCH 090: THEMED DELETE DIALOG ACTIONS */

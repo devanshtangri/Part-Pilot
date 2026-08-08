@@ -3564,3 +3564,54 @@ Notifications & Messaging are deferred until after the first release. Future
 scope includes optional user email, SMTP configuration with encrypted secrets,
 additional pluggable notification channels, per-user event subscriptions,
 delivery history/retry state, and event-level notification selection.
+
+<!-- PARTPILOT:RECYCLE_BIN_CONTRACT:V607 -->
+## Recycle-bin and custom Part Type dependency contract — Patch 607
+
+Part deletion remains recoverable by default. A part in Deleted items is still a
+restorable inventory record, so every resource required for a meaningful restore
+must remain protected until the part is restored or permanently purged.
+
+- Custom Part Types cannot be deleted while either active inventory or Deleted
+  items reference them.
+- The Part Type delete dialog reports active and recoverable dependency counts
+  separately. A blocked dialog leads with `Cannot delete <type>`, hides destructive
+  confirmation controls, lists up to five blocking part names per dependency class,
+  and summarizes any remainder as `+N more`.
+- When Deleted items are a blocker, the dominant action opens Deleted items
+  directly with an exact Part Type filter already applied.
+- Deleted items supports single/multi-select permanent purge plus Select visible.
+- Permanent purge is explicit, requires `DELETE`, is atomic for the whole batch,
+  releases the part number, removes aliases/tags/custom values, retains audit
+  history, and detaches historical movements and terminal Project/Reservation
+  rows through existing `SET NULL` foreign keys.
+- Permanent purge is blocked by reserved quantity, Active Reservations, and Draft
+  or Reserved Projects.
+- The invariant is: if Part Pilot offers Restore, the part's Part Type and field
+  definitions must still exist so restoration remains meaningful.
+
+Patches 608 and 609 refined the dependency-first dialog and its full-width blocker
+presentation. Browser validation then permanently purged ESP01, successfully
+deleted the now-unblocked Development Board custom Part Type, and confirmed that
+5V Relay remains recoverable in Deleted items.
+
+Patch 610 exposed a historical-audit ID-reuse assumption in the old full smoke;
+Patch 611 had a bytes/string recovery-harness failure; Patch 612 omitted a
+`tempfile` import; and Patch 613 completed the required diagnostic-only snapshot.
+Patch 614 applies only the diagnosed two-function smoke boundary fix and
+checkpoints/pushes the complete browser-approved V607-V609 application batch.
+
+<!-- PARTPILOT:CHAT21_EXTENSION_CHECKPOINT:V614 -->
+## Chat 21 extension checkpoint
+
+The user explicitly granted a one-chat exception extending Chat 21 through
+**Patch 629**. Patch 629 is the new boundary/handoff patch. No Chat 21-to-22
+handoff is created at this checkpoint. Patch 615 is the next implementation slot,
+and Chat 22 begins at Patch 630 only after Patch 629 succeeds.
+
+Remaining Settings/MCP UX requirements are durable: Settings needs clear visual
+section grouping/dividers; `Enable MCP server` must be the first MCP master
+control; disabling it must visibly mute/disable every subordinate MCP control;
+and read/write/tool authorization belongs in a clear permissions/security group.
+Final section names should be chosen during implementation rather than copied
+mechanically from this note.

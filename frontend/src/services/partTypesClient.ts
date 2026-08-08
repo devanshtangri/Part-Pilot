@@ -2,6 +2,7 @@ import type {
   CreatePartTypePayload,
   PartType,
   PartTypeCollection,
+  PartTypeDeleteDependencies,
   UpdatePartTypePayload,
   DeletePartTypeResponse,
 } from "../types/partTypes";
@@ -82,6 +83,17 @@ export function updatePartType(
     method: "PUT",
     body: JSON.stringify(payload)
   });
+}
+
+// PARTPILOT:PART_TYPE_DELETE_DEPENDENCIES_CLIENT:V607
+export function getPartTypeDeleteDependencies(
+  token: string,
+  partTypeId: number
+): Promise<PartTypeDeleteDependencies> {
+  return requestJson<PartTypeDeleteDependencies>(
+    `/part-types/${partTypeId}/delete-dependencies`,
+    token
+  );
 }
 
 // PATCH 089: custom part type delete client

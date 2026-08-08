@@ -243,6 +243,29 @@ class DeletedPartCollectionResponse(BaseModel):
     offset: int
     parts: list[DeletedPartResponse]
 
+
+# PARTPILOT:PERMANENT_PART_PURGE_SCHEMA:V607
+class DeletedPartPurgeRequest(BaseModel):
+    part_ids: list[int] = Field(min_length=1, max_length=250)
+    confirmation: Literal["DELETE"]
+
+    @field_validator("part_ids")
+    @classmethod
+    def validate_part_ids(cls, value: list[int]) -> list[int]:
+        if any(part_id <= 0 for part_id in value):
+            raise ValueError("Part IDs must be positive integers")
+        if len(set(value)) != len(value):
+            raise ValueError("Part IDs must be unique")
+        return value
+
+
+class DeletedPartPurgeResponse(BaseModel):
+    purged_count: int
+    purged_ids: list[int]
+    detached_movement_count: int
+    detached_project_item_count: int
+    detached_reservation_item_count: int
+
 # PATCH 134: stock quantity adjustment and movement history schemas
 class PartQuantityAdjustmentRequest(BaseModel):
     operation: Literal["add", "remove", "consume", "correction"]

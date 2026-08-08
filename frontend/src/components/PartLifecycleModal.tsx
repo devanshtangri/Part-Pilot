@@ -7,6 +7,7 @@ import {
 import {
   deletePart,
   getDeletedParts,
+  purgeDeletedParts,
   restorePart
 } from "../services/partsClient";
 import type {
@@ -25,6 +26,8 @@ interface PartLifecycleModalProps {
   onDeleted: (partId: number) => void;
   onCloseDeletedParts: () => void;
   onRestored: (part: Part) => void;
+  partTypeFilter: { id: number; name: string } | null;
+  onClearPartTypeFilter: () => void;
 }
 
 
@@ -48,7 +51,9 @@ export function PartLifecycleModal({
   onCloseDelete,
   onDeleted,
   onCloseDeletedParts,
-  onRestored
+  onRestored,
+  partTypeFilter,
+  onClearPartTypeFilter
 }: PartLifecycleModalProps) {
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -59,18 +64,31 @@ export function PartLifecycleModal({
   const [deletedQuery, setDeletedQuery] = useState("");
   const [restoringId, setRestoringId] = useState<number | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [selectedDeletedIds, setSelectedDeletedIds] = useState<Set<number>>(
+    () => new Set()
+  );
+  const [purgeIds, setPurgeIds] = useState<number[] | null>(null);
+  const [purgeConfirmation, setPurgeConfirmation] = useState("");
+  const [purging, setPurging] = useState(false);
+  const [purgeError, setPurgeError] = useState<string | null>(null);
+  const [purgeNotice, setPurgeNotice] = useState<string | null>(null);
 
   const visibleDeletedParts = useMemo(() => {
     if (!deletedCollection) {
       return [];
     }
 
+    const typeFiltered = partTypeFilter
+      ? deletedCollection.parts.filter(
+          (part) => part.part_type_id === partTypeFilter.id
+        )
+      : deletedCollection.parts;
     const normalized = deletedQuery.trim().toLowerCase();
     if (!normalized) {
-      return deletedCollection.parts;
+      return typeFiltered;
     }
 
-    return deletedCollection.parts.filter((part) =>
+    return typeFiltered.filter((part) =>
       [
         part.name,
         part.part_number,
@@ -79,7 +97,14 @@ export function PartLifecycleModal({
         part.package
       ].some((value) => value?.toLowerCase().includes(normalized))
     );
-  }, [deletedCollection, deletedQuery]);
+  }, [deletedCollection, deletedQuery, partTypeFilter]);
+
+  const allVisibleSelected =
+    visibleDeletedParts.length > 0
+    && visibleDeletedParts.every((part) => selectedDeletedIds.has(part.id));
+  const purgeParts = purgeIds && deletedCollection
+    ? deletedCollection.parts.filter((part) => purgeIds.includes(part.id))
+    : [];
 
   useEffect(() => {
     if (!deleteTarget && !deletedPartsOpen) {
@@ -93,9 +118,17 @@ export function PartLifecycleModal({
         return;
       }
 
-      if (deleteTarget && !deleteSaving) {
+      if (purgeIds && !purging) {
+        setPurgeIds(null);
+        setPurgeConfirmation("");
+        setPurgeError(null);
+      } else if (deleteTarget && !deleteSaving) {
         onCloseDelete();
-      } else if (deletedPartsOpen && restoringId === null) {
+      } else if (
+        deletedPartsOpen
+        && restoringId === null
+        && !purging
+      ) {
         onCloseDeletedParts();
       }
     }
@@ -111,6 +144,8 @@ export function PartLifecycleModal({
     deletedPartsOpen,
     deleteSaving,
     restoringId,
+    purgeIds,
+    purging,
     onCloseDelete,
     onCloseDeletedParts
   ]);
@@ -130,6 +165,12 @@ export function PartLifecycleModal({
       setDeletedQuery("");
       setRestoringId(null);
       setRestoreError(null);
+      setSelectedDeletedIds(new Set());
+      setPurgeIds(null);
+      setPurgeConfirmation("");
+      setPurging(false);
+      setPurgeError(null);
+      setPurgeNotice(null);
       return;
     }
 
@@ -137,6 +178,7 @@ export function PartLifecycleModal({
     setDeletedLoading(true);
     setDeletedError(null);
     setRestoreError(null);
+    setPurgeError(null);
 
     getDeletedParts(token, { limit: 250, offset: 0 })
       .then((result) => {
@@ -205,6 +247,11 @@ export function PartLifecycleModal({
             }
           : current
       );
+      setSelectedDeletedIds((current) => {
+        const next = new Set(current);
+        next.delete(restored.id);
+        return next;
+      });
       onRestored(restored);
     } catch (caught) {
       setRestoreError(
@@ -215,6 +262,202 @@ export function PartLifecycleModal({
     } finally {
       setRestoringId(null);
     }
+  }
+
+
+
+  function toggleDeletedSelection(partId: number) {
+    setSelectedDeletedIds((current) => {
+      const next = new Set(current);
+      if (next.has(partId)) {
+        next.delete(partId);
+      } else {
+        next.add(partId);
+      }
+      return next;
+    });
+    setPurgeNotice(null);
+  }
+
+  function toggleVisibleSelection() {
+    setSelectedDeletedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        visibleDeletedParts.forEach((part) => next.delete(part.id));
+      } else {
+        visibleDeletedParts.forEach((part) => next.add(part.id));
+      }
+      return next;
+    });
+    setPurgeNotice(null);
+  }
+
+  function openPurgeConfirmation() {
+    const ids = Array.from(selectedDeletedIds).sort((a, b) => a - b);
+    if (ids.length === 0) {
+      return;
+    }
+    setPurgeIds(ids);
+    setPurgeConfirmation("");
+    setPurgeError(null);
+  }
+
+  function closePurgeConfirmation() {
+    if (purging) {
+      return;
+    }
+    setPurgeIds(null);
+    setPurgeConfirmation("");
+    setPurgeError(null);
+  }
+
+  async function handlePermanentDelete() {
+    if (
+      !purgeIds
+      || purgeIds.length === 0
+      || purgeConfirmation !== "DELETE"
+      || purging
+    ) {
+      return;
+    }
+
+    setPurging(true);
+    setPurgeError(null);
+    try {
+      const result = await purgeDeletedParts(token, purgeIds);
+      const purged = new Set(result.purged_ids);
+      setDeletedCollection((current) =>
+        current
+          ? {
+              ...current,
+              total: Math.max(0, current.total - result.purged_count),
+              parts: current.parts.filter((part) => !purged.has(part.id))
+            }
+          : current
+      );
+      setSelectedDeletedIds((current) => {
+        const next = new Set(current);
+        result.purged_ids.forEach((partId) => next.delete(partId));
+        return next;
+      });
+      setPurgeNotice(
+        `Permanently deleted ${result.purged_count} ${
+          result.purged_count === 1 ? "part" : "parts"
+        }.`
+      );
+      setPurgeIds(null);
+      setPurgeConfirmation("");
+    } catch (caught) {
+      setPurgeError(
+        caught instanceof Error
+          ? caught.message
+          : "Unable to permanently delete the selected parts"
+      );
+    } finally {
+      setPurging(false);
+    }
+  }
+
+  if (purgeIds) {
+    return (
+      <div
+        className="part-lifecycle-backdrop"
+        data-part-lifecycle-purge="PARTPILOT:PERMANENT_PART_PURGE_UI:V607"
+        role="presentation"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !purging) {
+            closePurgeConfirmation();
+          }
+        }}
+      >
+        <section
+          className="part-lifecycle-dialog is-delete is-purge"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="part-purge-title"
+          aria-describedby="part-purge-description"
+        >
+          <header>
+            <div>
+              <p className="eyebrow">Permanent action</p>
+              <h2 id="part-purge-title">Delete permanently?</h2>
+            </div>
+            <button
+              type="button"
+              className="part-lifecycle-close"
+              onClick={closePurgeConfirmation}
+              disabled={purging}
+              aria-label="Close permanent deletion confirmation"
+              title="Close"
+              autoFocus
+            >
+              ×
+            </button>
+          </header>
+          <div className="part-lifecycle-content">
+            <p id="part-purge-description">
+              This permanently removes {purgeIds.length}{" "}
+              {purgeIds.length === 1 ? "part" : "parts"} from Deleted
+              items. This cannot be undone.
+            </p>
+            <div className="part-lifecycle-purge-warning">
+              <strong>Data that will be removed</strong>
+              <span>
+                The part record, aliases, tags and custom field values are
+                deleted. Historical movements and terminal Project/Reservation
+                rows are retained but detached. Active work blocks this action.
+              </span>
+            </div>
+            <div className="part-lifecycle-purge-list">
+              {purgeParts.slice(0, 6).map((part) => (
+                <span key={part.id}>{partName(part)}</span>
+              ))}
+              {purgeParts.length > 6 ? (
+                <span>+{purgeParts.length - 6} more</span>
+              ) : null}
+            </div>
+            <label className="part-lifecycle-confirmation">
+              <span>Type <code>DELETE</code> to continue</span>
+              <input
+                type="text"
+                value={purgeConfirmation}
+                onChange={(event) => {
+                  setPurgeConfirmation(event.target.value);
+                  setPurgeError(null);
+                }}
+                placeholder="DELETE"
+                autoComplete="off"
+                disabled={purging}
+                aria-invalid={Boolean(purgeError)}
+              />
+            </label>
+            {purgeError ? (
+              <div className="part-lifecycle-error" role="alert">
+                {purgeError}
+              </div>
+            ) : null}
+          </div>
+          <footer>
+            <button
+              type="button"
+              className="part-lifecycle-secondary"
+              onClick={closePurgeConfirmation}
+              disabled={purging}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="part-lifecycle-danger"
+              onClick={() => void handlePermanentDelete()}
+              disabled={purging || purgeConfirmation !== "DELETE"}
+            >
+              {purging ? "Deleting permanently..." : "Delete permanently"}
+            </button>
+          </footer>
+        </section>
+      </div>
+    );
   }
 
   if (deleteTarget) {
@@ -321,6 +564,7 @@ export function PartLifecycleModal({
     <div
       className="part-lifecycle-backdrop"
       data-part-lifecycle-version="part-lifecycle-v153"
+      data-part-lifecycle-purge="PARTPILOT:PERMANENT_PART_PURGE_UI:V607"
       role="presentation"
       onMouseDown={(event) => {
         if (
@@ -370,6 +614,44 @@ export function PartLifecycleModal({
             />
           </label>
 
+          {partTypeFilter ? (
+            <div className="part-lifecycle-filter-chip">
+              <span>Type: {partTypeFilter.name}</span>
+              <button
+                type="button"
+                onClick={onClearPartTypeFilter}
+                disabled={purging || restoringId !== null}
+                aria-label={`Clear ${partTypeFilter.name} filter`}
+                title="Clear Part Type filter"
+              >
+                ×
+              </button>
+            </div>
+          ) : null}
+
+          {!deletedLoading && deletedCollection?.parts.length ? (
+            <div className="part-lifecycle-selection-bar">
+              <label className="part-lifecycle-select-visible">
+                <input
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleVisibleSelection}
+                  disabled={visibleDeletedParts.length === 0 || purging}
+                />
+                <span>Select visible</span>
+              </label>
+              <span>{selectedDeletedIds.size} selected</span>
+              <button
+                type="button"
+                className="part-lifecycle-danger is-compact"
+                onClick={openPurgeConfirmation}
+                disabled={selectedDeletedIds.size === 0 || purging}
+              >
+                Delete permanently
+              </button>
+            </div>
+          ) : null}
+
           {deletedLoading ? (
             <div className="part-lifecycle-state">
               Loading deleted parts...
@@ -398,8 +680,16 @@ export function PartLifecycleModal({
             && deletedCollection.parts.length > 0
             && visibleDeletedParts.length === 0 ? (
               <div className="part-lifecycle-state">
-                <strong>No deleted parts match</strong>
-                <span>Try a different search.</span>
+                <strong>
+                  {partTypeFilter
+                    ? `No deleted parts use ${partTypeFilter.name}`
+                    : "No deleted parts match"}
+                </strong>
+                <span>
+                  {partTypeFilter
+                    ? "This Part Type no longer has recoverable dependencies."
+                    : "Try a different search."}
+                </span>
               </div>
             ) : null}
 
@@ -409,10 +699,27 @@ export function PartLifecycleModal({
             </div>
           ) : null}
 
+          {purgeNotice ? (
+            <div className="part-lifecycle-notice" role="status">
+              {purgeNotice}
+            </div>
+          ) : null}
+
           {visibleDeletedParts.length > 0 ? (
             <div className="part-lifecycle-list">
               {visibleDeletedParts.map((part) => (
                 <article key={part.id}>
+                  <label className="part-lifecycle-row-select">
+                    <input
+                      type="checkbox"
+                      checked={selectedDeletedIds.has(part.id)}
+                      onChange={() => toggleDeletedSelection(part.id)}
+                      disabled={restoringId !== null || purging}
+                    />
+                    <span className="sr-only">
+                      Select {partName(part)} for permanent deletion
+                    </span>
+                  </label>
                   <div className="part-lifecycle-part-copy">
                     <strong>{partName(part)}</strong>
                     <span>

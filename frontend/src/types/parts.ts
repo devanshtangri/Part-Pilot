@@ -113,6 +113,15 @@ export interface DeletedPartCollection {
   parts: DeletedPart[];
 }
 
+// PARTPILOT:PERMANENT_PART_PURGE_TYPES:V607
+export interface DeletedPartPurgeResponse {
+  purged_count: number;
+  purged_ids: number[];
+  detached_movement_count: number;
+  detached_project_item_count: number;
+  detached_reservation_item_count: number;
+}
+
 // PATCH 137: stock quantity adjustment and movement history types
 export type QuantityAdjustmentOperation =
   | "add"

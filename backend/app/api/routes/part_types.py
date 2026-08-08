@@ -27,6 +27,7 @@ from app.services.part_types import (
     update_custom_part_type,
 )
 from app.schemas.part_types import (
+    PartTypeDeleteDependenciesResponse,
     PartTypeDeleteResponse as DeleteManagementPartTypeDeleteResponse,
 )
 from app.services.part_types import (
@@ -34,6 +35,7 @@ from app.services.part_types import (
     PartTypeDeleteForbiddenError,
     PartTypeDeleteNotFoundError,
     delete_custom_part_type,
+    get_part_type_delete_dependencies,
 )
 
 
@@ -135,6 +137,27 @@ def update_part_type(
     except PartTypeUpdateValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+
+# PARTPILOT:PART_TYPE_DELETE_DEPENDENCIES_ROUTE:V607
+@router.get(
+    "/{part_type_id}/delete-dependencies",
+    response_model=PartTypeDeleteDependenciesResponse,
+)
+def read_part_type_delete_dependencies(
+    part_type_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PartTypeDeleteDependenciesResponse:
+    del current_user
+    try:
+        return get_part_type_delete_dependencies(db, part_type_id)
+    except PartTypeDeleteNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
 

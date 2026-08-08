@@ -77,15 +77,14 @@ Completed MCP/OAuth
   automatically.
 - MCP writes remain disabled.
 
-Current-user profile foundation
-- Alembic 0012 adds users.avatar_id, default `initials`.
-- Built-ins: initials, chip, circuit, terminal, storage, rocket.
-- Protected GET/PUT /api/auth/profile.
-- Username normalization/uniqueness, display-name and avatar validation.
-- /api/auth/me includes avatar_id.
-- Profile mutation produces secret-free `auth.profile_updated` audit.
-- Existing owner remains devanshtangri / Devansh Tangri / initials.
-- Four existing sessions remain active and password hash was preserved.
+Current-user account/security complete
+- Alembic 0013; built-ins initials/chip/circuit/terminal/storage/rocket plus
+  normalized database-backed custom avatar image with backup/restore coverage.
+- Profile username/display/avatar update, password change, safe session list,
+  targeted/revoke-all-other, current-session preservation and secret-free audit.
+- New login/setup sessions capture bounded User-Agent and trusted-resolver IP.
+  Four older sessions remain Unknown; never infer/backfill them.
+- Owner: devanshtangri / Devansh Tangri / built-in avatar storage.
 
 Authoritative Chat 20 boundary capture
 - Pre-boundary HEAD/origin: fb5e0275f643a4420914c35093a0afb3f898c6a3
@@ -116,11 +115,28 @@ Patch 572-576 recovery lesson
 - 576: successful profile/avatar backend implementation and push.
 - 577: successful password/session readiness diagnostic.
 
-Chat 21 immediate order
-1. Read docs/Chat_20_to_Chat_21_Handoff.md.
-2. Read docs/diagonostic_password_session_admin_readiness_patch_577.md.
-3. Patch 581: password/session backend foundation.
-4. Add frontend auth contracts/AuthContext refresh.
-5. Build Account/Security browser-test UI.
-6. Browser refinement then checkpoint.
-7. Scoped REST API keys only after account/security completion.
+Chat 21 extended order
+- User granted a one-chat extension through Patch 629; Patch 629 is the boundary.
+- No Chat 21-to-22 handoff before Patch 629. Chat 22 starts at Patch 630.
+- Patch 614 checkpoints browser-approved V607-V609 and fixes only the legacy
+  Part Type smoke audit-ID-reuse assumption. Patch 613 diagnostic is authoritative.
+- Patch 615 starts scoped REST API keys: named one-time-secret keys, digest-only
+  storage, explicit scopes, expiry, rotate/revoke and last-used metadata.
+- Then Settings API-key UI, named/direct MCP clients and global/per-client tool
+  permissions.
+- Settings/MCP UX: clear dividers/groups; Enable MCP server first as master;
+  subordinate controls visibly grey/disabled while off; read/write/tool policy
+  grouped under a clear permissions/security section.
+- Then preference reset, multi-user roles, safeguarded MCP writes and final
+  accessibility/security/docs/public-alpha hardening. Notifications stay post-v1.
+
+Recycle-bin contract approved through Patch 609 / checkpointed Patch 614
+- Normal Part delete stays recoverable; Deleted items remains fully restorable.
+- Custom Part Types stay protected while active OR recoverable parts reference them.
+- Blocked type-delete says Cannot delete, hides confirmation, names up to 5
+  blockers/class (+N more), and opens Deleted items with an exact filter.
+- Permanent purge requires DELETE, is atomic, retains audit, frees reusable
+  metadata and detaches terminal historical links; active/reserved work blocks it.
+- Browser test purged ESP01, then deleted Development Board; 5V Relay remains.
+- Full-smoke Part Type update/delete audit assertions/cleanup use a captured
+  audit-ID floor so reused entity IDs cannot collide with historical audit rows.

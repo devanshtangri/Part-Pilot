@@ -6428,6 +6428,7 @@ def check_custom_part_type_update_api() -> None:
     custom_name = "Smoke Editable Board"
     updated_name = "Smoke Editable Controller Board"
     custom_type_id: int | None = None
+    audit_floor = 0
 
     def cleanup() -> None:
         with db_session() as db:
@@ -6436,9 +6437,13 @@ def check_custom_part_type_update_api() -> None:
                     text(
                         "delete from audit_log "
                         "where entity_type = 'part_type' "
-                        "and entity_id = :entity_id"
+                        "and entity_id = :entity_id "
+                        "and id > :audit_floor"
                     ),
-                    {"entity_id": custom_type_id},
+                    {
+                        "entity_id": custom_type_id,
+                        "audit_floor": audit_floor,
+                    },
                 )
                 db.execute(
                     text(
@@ -6468,6 +6473,10 @@ def check_custom_part_type_update_api() -> None:
             db.commit()
 
     cleanup()
+    with db_session() as db:
+        audit_floor = db.execute(
+            text("select coalesce(max(id), 0) from audit_log")
+        ).scalar()
     client = TestClient(fastapi_app)
 
     try:
@@ -6671,9 +6680,13 @@ def check_custom_part_type_update_api() -> None:
                 text(
                     "select count(*) from audit_log "
                     "where event_type = 'part_type.updated' "
-                    "and entity_id = :entity_id"
+                    "and entity_id = :entity_id "
+                    "and id > :audit_floor"
                 ),
-                {"entity_id": custom_type_id},
+                {
+                    "entity_id": custom_type_id,
+                    "audit_floor": audit_floor,
+                },
             ).scalar()
 
         if audit_count != 1:
@@ -6696,6 +6709,7 @@ def check_custom_part_type_delete_api() -> None:
     username = "smoke_part_type_delete_user"
     password = "part-type-delete-smoke-password"
     custom_type_id: int | None = None
+    audit_floor = 0
     blocking_part_id: int | None = None
 
     def cleanup() -> None:
@@ -6718,9 +6732,13 @@ def check_custom_part_type_delete_api() -> None:
                     text(
                         "delete from audit_log "
                         "where entity_type = 'part_type' "
-                        "and entity_id = :entity_id"
+                        "and entity_id = :entity_id "
+                        "and id > :audit_floor"
                     ),
-                    {"entity_id": custom_type_id},
+                    {
+                        "entity_id": custom_type_id,
+                        "audit_floor": audit_floor,
+                    },
                 )
                 db.execute(
                     text(
@@ -6751,6 +6769,10 @@ def check_custom_part_type_delete_api() -> None:
             db.commit()
 
     cleanup()
+    with db_session() as db:
+        audit_floor = db.execute(
+            text("select coalesce(max(id), 0) from audit_log")
+        ).scalar()
     client = TestClient(fastapi_app)
 
     try:
@@ -6894,9 +6916,13 @@ def check_custom_part_type_delete_api() -> None:
                 text(
                     "select count(*) from audit_log "
                     "where event_type = 'part_type.deleted' "
-                    "and entity_id = :entity_id"
+                    "and entity_id = :entity_id "
+                    "and id > :audit_floor"
                 ),
-                {"entity_id": custom_type_id},
+                {
+                    "entity_id": custom_type_id,
+                    "audit_floor": audit_floor,
+                },
             ).scalar()
 
         if remaining_type != 0:

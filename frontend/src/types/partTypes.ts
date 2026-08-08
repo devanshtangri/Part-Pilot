@@ -72,3 +72,14 @@ export interface DeletePartTypeResponse {
   name: string;
   deleted: boolean;
 }
+
+// PARTPILOT:PART_TYPE_DELETE_DEPENDENCIES_TYPES:V607
+export interface PartTypeDeleteDependencies {
+  id: number;
+  name: string;
+  active_part_count: number;
+  deleted_part_count: number;
+  active_part_names: string[];
+  deleted_part_names: string[];
+  can_delete: boolean;
+}

@@ -2,6 +2,7 @@ import type {
   CreatePartPayload,
   DeletedPart,
   DeletedPartCollection,
+  DeletedPartPurgeResponse,
   Part,
   PartCollection,
   PartStockStatus,
@@ -293,6 +294,24 @@ export function deletePart(
   return requestJson<DeletedPart>(`/parts/${partId}`, token, {
     method: "DELETE"
   });
+}
+
+// PARTPILOT:PERMANENT_PART_PURGE_CLIENT:V607
+export function purgeDeletedParts(
+  token: string,
+  partIds: number[]
+): Promise<DeletedPartPurgeResponse> {
+  return requestJson<DeletedPartPurgeResponse>(
+    "/parts/deleted/purge",
+    token,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        part_ids: partIds,
+        confirmation: "DELETE"
+      })
+    }
+  );
 }
 
 export function restorePart(

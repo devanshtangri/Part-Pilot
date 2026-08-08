@@ -12,6 +12,9 @@ from app.db.constants import (
     MOVEMENT_TYPE_ADJUST,
     MOVEMENT_TYPE_CONSUME,
     MOVEMENT_TYPE_RESTOCK,
+    PROJECT_STATUS_DRAFT,
+    PROJECT_STATUS_RESERVED,
+    RESERVATION_STATUS_ACTIVE,
     SOURCE_MANUAL,
 )
 from app.models import (
@@ -23,6 +26,10 @@ from app.models import (
     PartTag,
     PartType,
     PartTypeField,
+    Project,
+    ProjectItem,
+    Reservation,
+    ReservationItem,
     StockMovement,
     Tag,
     Location,
@@ -39,6 +46,8 @@ from app.schemas.parts import (
     PartUpdateRequest,
     StockMovementResponse,
     DeletedPartCollectionResponse,
+    DeletedPartPurgeRequest,
+    DeletedPartPurgeResponse,
     DeletedPartResponse,
     LowStockSummaryResponse,
 )
@@ -1609,6 +1618,167 @@ def soft_delete_part(
         raise
 
     return _serialize_deleted_part(db, part)
+
+
+
+
+# PARTPILOT:PERMANENT_PART_PURGE_SERVICE:V607
+def purge_deleted_parts(
+    db: Session,
+    payload: DeletedPartPurgeRequest,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> DeletedPartPurgeResponse:
+    requested_ids = list(payload.part_ids)
+    parts = list(
+        db.execute(
+            select(Part)
+            .where(Part.id.in_(requested_ids))
+            .order_by(Part.id.asc())
+            .with_for_update()
+        ).scalars()
+    )
+    found_ids = {part.id for part in parts}
+    missing_ids = [part_id for part_id in requested_ids if part_id not in found_ids]
+    if missing_ids:
+        raise PartNotFoundError(
+            "One or more deleted parts no longer exist: "
+            + ", ".join(str(part_id) for part_id in missing_ids[:8])
+        )
+
+    active_parts = [part for part in parts if not part.is_deleted]
+    if active_parts:
+        names = [
+            part.name or part.part_number or f"Part {part.id}"
+            for part in active_parts[:5]
+        ]
+        raise PartConflictError(
+            "Permanent deletion is only available for parts in Deleted items: "
+            + ", ".join(names)
+        )
+
+    reserved_parts = [part for part in parts if part.reserved_quantity > 0]
+    if reserved_parts:
+        names = [
+            part.name or part.part_number or f"Part {part.id}"
+            for part in reserved_parts[:5]
+        ]
+        raise PartConflictError(
+            "Permanent deletion is blocked while reserved quantity remains: "
+            + ", ".join(names)
+        )
+
+    active_reservation_refs = list(
+        db.execute(
+            select(ReservationItem.part_id, Reservation.label)
+            .join(Reservation, Reservation.id == ReservationItem.reservation_id)
+            .where(
+                ReservationItem.part_id.in_(requested_ids),
+                Reservation.status == RESERVATION_STATUS_ACTIVE,
+            )
+            .order_by(ReservationItem.part_id.asc(), Reservation.id.asc())
+        ).all()
+    )
+    if active_reservation_refs:
+        labels = [str(row[1]) for row in active_reservation_refs[:5]]
+        raise PartConflictError(
+            "Permanent deletion is blocked by active Reservations: "
+            + ", ".join(labels)
+        )
+
+    active_project_refs = list(
+        db.execute(
+            select(ProjectItem.part_id, Project.name)
+            .join(Project, Project.id == ProjectItem.project_id)
+            .where(
+                ProjectItem.part_id.in_(requested_ids),
+                Project.status.in_((PROJECT_STATUS_DRAFT, PROJECT_STATUS_RESERVED)),
+            )
+            .order_by(ProjectItem.part_id.asc(), Project.id.asc())
+        ).all()
+    )
+    if active_project_refs:
+        names = [str(row[1]) for row in active_project_refs[:5]]
+        raise PartConflictError(
+            "Permanent deletion is blocked by Draft or Reserved Projects: "
+            + ", ".join(names)
+        )
+
+    def grouped_counts(model) -> dict[int, int]:
+        return {
+            int(part_id): int(count)
+            for part_id, count in db.execute(
+                select(model.part_id, func.count(model.id))
+                .where(model.part_id.in_(requested_ids))
+                .group_by(model.part_id)
+            ).all()
+            if part_id is not None
+        }
+
+    movement_counts = grouped_counts(StockMovement)
+    project_item_counts = grouped_counts(ProjectItem)
+    reservation_item_counts = grouped_counts(ReservationItem)
+    alias_counts = grouped_counts(PartAlias)
+    tag_counts = grouped_counts(PartTag)
+    field_value_counts = grouped_counts(PartFieldValue)
+
+    snapshots: dict[int, dict[str, object]] = {}
+    for part in parts:
+        snapshots[part.id] = _part_lifecycle_snapshot(db, part)
+
+    try:
+        for part in parts:
+            display_name = part.name or part.part_number or f"Part {part.id}"
+            snapshot = snapshots[part.id]
+            db.add(
+                AuditLog(
+                    event_type="part.purged",
+                    entity_type="part",
+                    entity_id=part.id,
+                    actor_type=(
+                        "user" if actor_user_id is not None else "system"
+                    ),
+                    actor_user_id=actor_user_id,
+                    summary=f"Permanently deleted inventory part {display_name}",
+                    before_json=snapshot,
+                    after_json={"id": part.id, "purged": True},
+                    metadata_json={
+                        "operation": "permanent_purge",
+                        "part_type_id": part.part_type_id,
+                        "part_type_name": snapshot.get("part_type_name"),
+                        "part_number_released": part.part_number is not None,
+                        "alias_count_removed": alias_counts.get(part.id, 0),
+                        "tag_count_removed": tag_counts.get(part.id, 0),
+                        "field_value_count_removed": field_value_counts.get(part.id, 0),
+                        "movement_count_detached": movement_counts.get(part.id, 0),
+                        "project_item_count_detached": project_item_counts.get(part.id, 0),
+                        "reservation_item_count_detached": reservation_item_counts.get(part.id, 0),
+                    },
+                )
+            )
+            db.delete(part)
+
+        db.flush()
+        if commit:
+            db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise PartConflictError(
+            "Permanent deletion conflicted with current inventory references."
+        ) from exc
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+
+    return DeletedPartPurgeResponse(
+        purged_count=len(parts),
+        purged_ids=[part.id for part in parts],
+        detached_movement_count=sum(movement_counts.values()),
+        detached_project_item_count=sum(project_item_counts.values()),
+        detached_reservation_item_count=sum(reservation_item_counts.values()),
+    )
 
 
 def restore_part(
