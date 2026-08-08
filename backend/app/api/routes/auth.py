@@ -6,12 +6,19 @@ from fastapi import (
     File,
     Header,
     HTTPException,
+    Request,
     UploadFile,
     status,
 )
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
+from app.core.client_ip import (
+    ClientAddressError,
+    TrustedProxyConfigurationError,
+    TrustedProxyResolver,
+)
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.schemas.auth import (
     AuthTokenResponse,
@@ -78,6 +85,29 @@ from app.services.auth import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+# PARTPILOT:SESSION_REQUEST_METADATA:V605
+MAX_SESSION_USER_AGENT_CHARS = 1024
+
+
+def _session_request_metadata(request: Request) -> tuple[str | None, str | None]:
+    raw_user_agent = request.headers.get("user-agent")
+    user_agent = (raw_user_agent or "").strip()[:MAX_SESSION_USER_AGENT_CHARS]
+    if not user_agent:
+        user_agent = None
+
+    try:
+        settings = get_settings()
+        client_ip = str(
+            TrustedProxyResolver.from_raw(
+                settings.trusted_proxy_cidrs
+            ).resolve_client_ip(request.scope)
+        )
+    except (ClientAddressError, TrustedProxyConfigurationError):
+        client_ip = None
+
+    return user_agent, client_ip
+
+
 def _extract_bearer_token(authorization: str | None) -> str:
     if not authorization:
         raise HTTPException(
@@ -135,8 +165,10 @@ def setup_status(db: Session = Depends(get_db)) -> SetupStatusResponse:
 )
 def setup(
     payload: SetupRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> AuthTokenResponse:
+    user_agent, ip_address = _session_request_metadata(request)
     try:
         user = create_first_user(
             db,
@@ -151,7 +183,13 @@ def setup(
             timezone=payload.timezone,
             commit=False,
         )
-        session_token = create_session(db, user=user, commit=False)
+        session_token = create_session(
+            db,
+            user=user,
+            user_agent=user_agent,
+            ip_address=ip_address,
+            commit=False,
+        )
         db.commit()
         db.refresh(user)
     except ValueError as exc:
@@ -240,8 +278,10 @@ def debug_reset_database(
 @router.post("/login", response_model=AuthTokenResponse)
 def login(
     payload: LoginRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> AuthTokenResponse:
+    user_agent, ip_address = _session_request_metadata(request)
     user = authenticate_user(
         db,
         username=payload.username,
@@ -255,7 +295,13 @@ def login(
             detail="Invalid username or password",
         )
 
-    session_token = create_session(db, user=user, commit=True)
+    session_token = create_session(
+        db,
+        user=user,
+        user_agent=user_agent,
+        ip_address=ip_address,
+        commit=True,
+    )
 
     return AuthTokenResponse(
         token=session_token.token,
