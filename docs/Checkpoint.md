@@ -3615,3 +3615,16 @@ control; disabling it must visibly mute/disable every subordinate MCP control;
 and read/write/tool authorization belongs in a clear permissions/security group.
 Final section names should be chosen during implementation rather than copied
 mechanically from this note.
+
+<!-- PARTPILOT:REST_API_KEY_FOUNDATION:V615 -->
+## Scoped REST API-key foundation — Patch 615
+
+Patch 615 adds the backend key lifecycle without yet granting API-key access to
+application routes. Keys are named, high-entropy `pp_api_key_` credentials shown
+only on create/rotate, stored digest-only, explicitly scoped, optionally expiring,
+revocable, and last-used tracked. Management remains authenticated user-session
+only. The initial scope catalogue covers inventory, catalogues, Projects,
+Reservations and History; Auth, Settings, Backup and Restore administration are
+intentionally excluded. Alembic advances to `0014_api_keys`, and backup/restore
+exact-schema policy includes the new table. Patch 616 wires scope enforcement
+into selected REST routes after this lifecycle contract is stable.

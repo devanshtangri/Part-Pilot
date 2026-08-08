@@ -2917,9 +2917,10 @@ The user granted a one-chat exception extending this chat through Patch 629.
 
 ### Next implementation order
 
-1. Scoped REST API keys: named keys, one-time secret display, digest-only
+1. [x] Scoped REST API-key backend lifecycle: named one-time secrets, digest-only
    storage, explicit scopes, expiry, rotation/revocation and last-used metadata.
-2. Safe Settings administration for API keys after the backend contract is stable.
+2. [ ] Wire API-key authentication and route-level scope enforcement, then add
+   safe Settings administration UI for the stable backend contract.
 3. Named/direct MCP client administration and master/no-auth policy without
    weakening existing Bearer/custom-header/trusted-network authentication.
 4. Global individual-tool and per-client MCP permissions.

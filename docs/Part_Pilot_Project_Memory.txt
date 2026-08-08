@@ -120,10 +120,10 @@ Chat 21 extended order
 - No Chat 21-to-22 handoff before Patch 629. Chat 22 starts at Patch 630.
 - Patch 614 checkpoints browser-approved V607-V609 and fixes only the legacy
   Part Type smoke audit-ID-reuse assumption. Patch 613 diagnostic is authoritative.
-- Patch 615 starts scoped REST API keys: named one-time-secret keys, digest-only
-  storage, explicit scopes, expiry, rotate/revoke and last-used metadata.
-- Then Settings API-key UI, named/direct MCP clients and global/per-client tool
-  permissions.
+- Patch 615: scoped REST API-key backend lifecycle; Alembic 0014, digest-only
+  one-time secrets, explicit scopes/expiry/rotate/revoke/last-used, session-only
+  administration, backup/restore schema coverage. Patch 616 wires route scopes.
+- Then Settings API-key UI, named/direct MCP clients and tool permissions.
 - Settings/MCP UX: clear dividers/groups; Enable MCP server first as master;
   subordinate controls visibly grey/disabled while off; read/write/tool policy
   grouped under a clear permissions/security section.

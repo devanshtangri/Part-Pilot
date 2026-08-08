@@ -252,7 +252,7 @@ def check_backup_artifact_core() -> None:
 
         expected_filename = (
             "part-pilot-backup-20260802T000000Z-"
-            "0013-user-avatar-image.ppbackup"
+            "0014-api-keys.ppbackup"
         )
         if artifact.filename != expected_filename:
             fail(
@@ -725,6 +725,7 @@ def check_backup_download_api() -> None:
         )
         protected_tables = (
             "app_settings",
+            "api_keys",
             "part_types",
             "part_type_fields",
             "manufacturers",

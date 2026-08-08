@@ -90,6 +90,56 @@ class UserSession(Base, TimestampMixin):
     ip_address: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
+# PARTPILOT:REST_API_KEY_MODEL:V615
+class ApiKey(Base, TimestampMixin):
+    __tablename__ = "api_keys"
+    __table_args__ = (
+        CheckConstraint(
+            "length(trim(name)) >= 1 AND length(name) <= 120",
+            name="ck_api_keys_name_length",
+        ),
+        CheckConstraint(
+            "length(key_digest) = 64",
+            name="ck_api_keys_digest_length",
+        ),
+        CheckConstraint(
+            "length(key_prefix) >= 12 AND length(key_prefix) <= 32",
+            name="ck_api_keys_prefix_length",
+        ),
+        UniqueConstraint("key_digest", name="uq_api_keys_key_digest"),
+        Index("ix_api_keys_user_id", "user_id"),
+        Index("ix_api_keys_revoked_at", "revoked_at"),
+        Index("ix_api_keys_expires_at", "expires_at"),
+        Index("ix_api_keys_last_used_at", "last_used_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="CASCADE",
+            name="fk_api_keys_user_id",
+        ),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    key_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    key_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
+    scopes_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    rotated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
 class PartType(Base, TimestampMixin):
     __tablename__ = "part_types"
 

@@ -1,4 +1,5 @@
 from app.models.core import (
+    ApiKey,
     AppSetting,
     AuditLog,
     Backup,
@@ -27,6 +28,7 @@ from app.models.core import (
 )
 
 __all__ = [
+    "ApiKey",
     "AppSetting",
     "AuditLog",
     "Backup",

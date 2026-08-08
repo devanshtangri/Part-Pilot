@@ -44,9 +44,9 @@ ARCHIVE_ENTRY_NAMES = (
     MANIFEST_ENTRY_NAME,
     DATABASE_ENTRY_NAME,
 )
-EXPECTED_ALEMBIC_REVISION = "0013_user_avatar_image"
+EXPECTED_ALEMBIC_REVISION = "0014_api_keys"
 EXPECTED_CRITICAL_SCHEMA_SHA256 = (
-    "322ee84f5827a24d242a6a7a54a95aac103b68871f02ec27505ef2dc523c86c1"
+    "555544ad46a8d24d2835e8beff05c6f59a937ecdb45bc9010925cf879b345617"
 )
 LEGACY_UNSUPPORTED_BACKUP_CONTRACTS = (
     (
@@ -58,6 +58,11 @@ LEGACY_UNSUPPORTED_BACKUP_CONTRACTS = (
         2,
         "0012_user_avatar_id",
         "b424bcf63d7de8ccb3d9742a1f2f25a58054d4a41fba274710296112d6b17abc",
+    ),
+    (
+        2,
+        "0013_user_avatar_image",
+        "322ee84f5827a24d242a6a7a54a95aac103b68871f02ec27505ef2dc523c86c1",
     ),
 )
 COMPATIBILITY_POLICY = "exact_revision"
@@ -75,6 +80,7 @@ ALLOWED_COMPRESSION_TYPES = {
 REQUIRED_TABLES = (
     "alembic_version",
     "aliases",
+    "api_keys",
     "app_settings",
     "audit_log",
     "backups",
@@ -122,6 +128,7 @@ INCLUDED_SCOPE = (
     "audit_log",
     "app_settings",
     "sessions",
+    "api_keys",
     "mcp_direct_auth",
     "mcp_oauth",
 )

@@ -49,6 +49,8 @@ from app.api.routes.packages import router as packages_router
 from app.api.routes.locations import router as locations_router
 # PATCH 182: protected application search settings routes
 from app.api.routes.app_settings import router as app_settings_router
+# PARTPILOT:REST_API_KEY_ROUTER_REGISTRATION:V615
+from app.api.routes.api_keys import router as api_keys_router
 # PATCH 303: protected reservation read/create routes
 from app.api.routes.reservations import router as reservations_router
 # PATCH 374: protected Project read/create routes
@@ -134,6 +136,8 @@ app.include_router(packages_router, prefix="/api")
 app.include_router(locations_router, prefix="/api")
 # PATCH 182: protected application search settings API
 app.include_router(app_settings_router, prefix="/api")
+# PARTPILOT:REST_API_KEY_ROUTER_REGISTRATION:V615
+app.include_router(api_keys_router, prefix="/api")
 # PATCH 303: protected reservation read/create API
 app.include_router(reservations_router, prefix="/api")
 # PATCH 374: protected Project read/create API
