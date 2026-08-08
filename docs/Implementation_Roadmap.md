@@ -3007,3 +3007,31 @@ Implementation order:
 6. Then handle API docs/schema exposure hardening, persisted ISO currency selector, server-backed Stored Parts metrics, preference/default restoration, roles, safeguarded MCP writes and final alpha regression.
 
 MCP write authorization remains disabled until permission policy and safeguarded write-tool contracts are complete. Notifications & Messaging remain post-v1.
+
+<!-- PARTPILOT:CHAT22_RESPONSIVE_ROADMAP:V642 -->
+## Chat 22 responsive regression complete — Patch 642
+
+- [x] Diagnose the intermediate-width Projects title/action collapse.
+- [x] Preserve wide desktop and existing `<=900px` Project-detail/mobile behavior.
+- [x] Keep Draft/Reserved lifecycle controls readable without character-level
+  Project-name wrapping or horizontal overflow.
+- [x] Keep Consumed/Cancelled terminal headers compact.
+- [x] Move the existing navigation drawer to `821-1080px` while retaining desktop
+  content spacing; keep the persistent sidebar above 1080px and the existing
+  compact/mobile shell at `<=820px`.
+- [x] Browser approve and checkpoint the responsive regression batch.
+
+### Next implementation order
+
+1. Patch 643 diagnostic-only: global individual-tool and per-client MCP
+   permissions.
+2. Implement global individual-tool policy while preserving the six existing
+   read-only tools and keeping MCP write authorization disabled.
+3. Add per-client OAuth/named-direct overrides with explicit
+   inherited/effective-state semantics.
+4. Browser-test and checkpoint the permissions UI.
+5. Continue broader Settings organization, API docs/schema hardening, ISO
+   currency selector, Stored Parts metrics, preference restoration, roles,
+   safeguarded MCP writes and final alpha regression.
+
+Chat 22 planned boundary remains Patch 658.

@@ -3714,3 +3714,34 @@ The earlier Patch 629 boundary plan was superseded after Patches 628, 629 and 63
 - Patch 634 should be diagnostic-only for the global individual-tool/per-client MCP permission slice before implementation.
 
 Chat 22 must start by reading `docs/Chat_21_to_Chat_22_Handoff.md`, then `docs/Checkpoint.md`, `docs/Implementation_Roadmap.md`, `docs/Part_Pilot_Project_Memory.txt`, `README.md`, and the newest relevant diagnostic. Do not create a starting-prompt file.
+
+<!-- PARTPILOT:CHAT22_RESPONSIVE_CHECKPOINT:V642 -->
+## Chat 22 responsive regression checkpoint — Patch 642
+
+Patches 634-641 resolved the user-reported intermediate-width Projects/detail
+collapse and the related application-shell width pressure before MCP-permission
+work resumed.
+
+- Patch 635 recovered the diagnostic after Patch 634's schema-assumption failure
+  and proved the Projects defect was CSS flex-size competition: the non-shrinking
+  lifecycle action group starved the title while `overflow-wrap:anywhere`
+  permitted character-level collapse.
+- Patch 637 is browser approved. Draft/Reserved lifecycle actions stack only in
+  the intermediate desktop range where they need space, Project titles wrap at
+  sensible word boundaries, terminal states stay compact, and the existing
+  `<=900px` fixed/mobile detail behavior remains intact.
+- Patch 640 is browser approved. The application shell now uses the existing
+  navigation drawer from `821-1080px`, retaining desktop content spacing while
+  removing the persistent 232px sidebar. Above 1080px the persistent sidebar
+  remains; at `<=820px` the existing compact/mobile shell remains unchanged.
+- Patches 636, 638 and 639 were consumed by safe pre-write/build-harness
+  recoveries. Patch 640 deployed the exact approved V637/V638 source at image
+  `sha256:45484acf35311d5efee4f9c38c19d6edbadca137cc0f7b0039110b2ebf50458b`.
+
+Patch 642 commits/pushes the two browser-approved CSS files plus durable docs.
+No application bytes, deployment, database, credentials, restore staging or
+inventory are changed by the checkpoint itself.
+
+Chat 22 remains bounded at Patch 658. The next patch is Patch 642 and resumes the
+deferred diagnostic-only global individual-tool/per-client MCP permissions
+slice before any permission implementation.

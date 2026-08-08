@@ -1443,3 +1443,41 @@
   font-size: 0.82rem;
   font-weight: 650;
 }
+
+/* PARTPILOT:PROJECT_INTERMEDIATE_DETAIL_HEADER:V637 */
+.projects-page {
+  --partpilot-project-intermediate-detail-header-v637: 1;
+}
+
+.project-detail-header h2 {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+@media (min-width: 901px) and (max-width: 1760px) {
+  [data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"]
+    .project-detail-header:has(
+      .project-detail-actions .projects-button:not(.projects-close-mobile)
+    ) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  [data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"]
+    .project-detail-header:has(
+      .project-detail-actions .projects-button:not(.projects-close-mobile)
+    )
+    .project-detail-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  [data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"]
+    .project-detail-header:has(
+      .project-detail-actions .projects-button:not(.projects-close-mobile)
+    )
+    .project-detail-actions
+    .projects-button:not(.projects-close-mobile) {
+    flex: 1 1 140px;
+  }
+}

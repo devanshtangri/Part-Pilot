@@ -1,4 +1,4 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V633 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V642 -->
 
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
@@ -16,8 +16,8 @@ Patch workflow
 
 Chat boundary
 - Chat 21 `Account Security and Session Administration` completes at Patch 633. Patch 632 checkpoint commit: 88ca83cd407d63772e027cac409357f5bc192ad0.
-- Chat 22 title: `Chat 22: MCP Permissions and Settings Organization`; range 634-658; first patch 634; boundary 658.
-- Patch 634 should be diagnostic-only for individual-tool/per-client MCP permissions. No starting-prompt files; ready prompt only in chat after successful boundary.
+- Chat 22 title: `Chat 22: MCP Permissions and Settings Organization`; range 634-658; boundary 658.
+- Patches 634-640 handled the responsive Projects/shell regression first; Patch 641 checkpoints it. Patch 642 resumes diagnostic-only individual-tool/per-client MCP permissions. No starting-prompt files; ready prompt only after successful boundary.
 
 Data safety
 - Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs; never broad OAuth cleanup. SQLite integrity/FKs must pass.
@@ -27,6 +27,7 @@ Data safety
 Completed application
 - Typed inventory/catalogues; universal search/filter/sort/pagination; quantity workflows; soft delete/restore; History; atomic Reservation/Project lifecycles.
 - Responsive dark/light/system Settings; strict portable backup/restore with staging/rollback/session invalidation.
+- Browser-approved responsive regression: Projects lifecycle headers remain readable through intermediate widths; navigation uses a drawer at 821-1080px while preserving desktop content spacing and existing <=820px compact behavior.
 - Recycle bin: recoverable delete default, typed-confirm atomic purge, active/reserved blockers, audit retention, custom Part Type dependency protection across active + deleted inventory.
 - Current-user account/security: username/display/avatar incl DB-backed normalized custom avatar, password change, safe sessions, targeted/revoke-all-other, current-session preservation, secret-free audit. Four older sessions remain Unknown; never infer/backfill.
 
@@ -47,6 +48,7 @@ Recovery lessons
 - 629: frozen packaged CSS hash differed from rehearsal; freeze exact script-produced bytes.
 - 631: numbered preflight caught that an assistant rehearsal had accidentally applied exact intended live CSS/image. Never mutate live repo/deployment during rehearsal; isolated /tmp only.
 - Canonical Docker exact-image checks also require ignored bytecode exclusion and Git-canonical file modes.
+- 638-640: separate frontend builds need not share image IDs; validate exact source, build success, runtime markers and the image produced by the current run rather than freezing an unrelated rehearsal image ID. Durable log checks must match bytes actually written to logs, not terminal-only exception text.
 
 Remaining V1
 1. Global individual-tool + per-client MCP permissions.
