@@ -155,6 +155,32 @@ def trusted_proxy_environment(value: str = "") -> Iterator[None]:
         get_settings.cache_clear()
 
 
+def restore_direct_baseline(before: dict[str, object]) -> None:
+    connection = sqlite3.connect(sqlite_path())
+    try:
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("DELETE FROM mcp_direct_auth")
+        for row in before["rows"]["mcp_direct_auth"]:
+            columns = list(row)
+            connection.execute(
+                f'INSERT INTO mcp_direct_auth ({",".join(columns)}) VALUES ({",".join("?" for _ in columns)})',
+                tuple(row[column] for column in columns),
+            )
+        keys = ("mcp.direct_clients_enabled", "mcp.direct_no_auth_enabled")
+        connection.executemany("DELETE FROM app_settings WHERE key=?", [(key,) for key in keys])
+        for row in before["rows"]["app_settings"]:
+            if row["key"] not in keys:
+                continue
+            columns = list(row)
+            connection.execute(
+                f'INSERT INTO app_settings ({",".join(columns)}) VALUES ({",".join("?" for _ in columns)})',
+                tuple(row[column] for column in columns),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def request_headers(
     token: str | None = None,
     *,
@@ -273,8 +299,11 @@ def main() -> None:
     baseline_audit_id = 0
     actor_user_id: int | None = None
     try:
-        if db.query(McpDirectAuth).count() != 0:
-            fail("Trusted-network smoke requires an unconfigured copied database")
+        if db.query(McpDirectAuth).count() != 1:
+            fail("Trusted-network smoke requires the migrated disabled legacy row")
+        legacy = db.get(McpDirectAuth, 1)
+        if legacy is None or legacy.mode != "disabled" or legacy.enabled:
+            fail("Trusted-network migrated legacy row has unexpected state")
         user = db.execute(
             select(User).where(User.is_active.is_(True)).order_by(User.id)
         ).scalars().first()
@@ -482,7 +511,6 @@ def main() -> None:
             cleanup.query(AuditLog).filter(AuditLog.id > baseline_audit_id).delete(
                 synchronize_session=False
             )
-            cleanup.query(McpDirectAuth).delete(synchronize_session=False)
             for key, (value_json, value_text, updated_at) in original_settings.items():
                 setting = cleanup.execute(
                     select(AppSetting).where(AppSetting.key == key)
@@ -494,6 +522,7 @@ def main() -> None:
         finally:
             cleanup.close()
 
+        restore_direct_baseline(before)
         restore_sequences(before)
         after = database_snapshot()
         if after != before:

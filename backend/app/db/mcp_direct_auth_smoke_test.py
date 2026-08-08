@@ -28,7 +28,7 @@ from app.services.mcp_direct_auth import (
 
 
 # PARTPILOT:MCP_DIRECT_AUTH_SMOKE:V497
-EXPECTED_HEAD = "0010_mcp_trusted_networks"
+EXPECTED_HEAD = "0015_mcp_direct_clients"
 SECRET_A = "patch482-direct-auth-secret-A-0123456789-ABCDEFGHIJKLMN"
 SECRET_B = "patch482-direct-auth-secret-B-0123456789-ABCDEFGHIJKLMN"
 
@@ -63,7 +63,8 @@ def check_schema() -> None:
         expected = {
             "id", "mode", "key_ciphertext", "key_digest", "key_prefix",
             "custom_header_name", "trusted_networks_json", "rotated_at", "last_used_at",
-            "created_at", "updated_at",
+            "created_at", "updated_at", "name", "enabled", "created_by_user_id",
+            "last_resolved_client_ip", "revoked_at",
         }
         columns = {str(row[1]) for row in db.execute('PRAGMA table_info("mcp_direct_auth")')}
         if columns != expected:
@@ -75,7 +76,7 @@ def check_schema() -> None:
             fail("mcp_direct_auth table is missing")
         sql = str(row[0])
         for marker in (
-            "ck_mcp_direct_auth_singleton",
+            "ck_mcp_direct_auth_name_length",
             "ck_mcp_direct_auth_mode",
             "ck_mcp_direct_auth_key_bundle",
             "ck_mcp_direct_auth_mode_fields",
@@ -84,7 +85,13 @@ def check_schema() -> None:
             if marker not in sql:
                 fail(f"mcp_direct_auth is missing {marker}")
         indexes = {str(row[1]) for row in db.execute('PRAGMA index_list("mcp_direct_auth")')}
-        for marker in ("ix_mcp_direct_auth_mode", "ix_mcp_direct_auth_last_used_at"):
+        for marker in (
+            "ix_mcp_direct_auth_mode",
+            "ix_mcp_direct_auth_last_used_at",
+            "ix_mcp_direct_auth_enabled",
+            "ix_mcp_direct_auth_revoked_at",
+            "ix_mcp_direct_auth_created_by_user_id",
+        ):
             if marker not in indexes:
                 fail(f"mcp_direct_auth is missing {marker}")
         if "mcp_direct_auth" not in Base.metadata.tables:
@@ -108,8 +115,11 @@ def check_service() -> None:
         ).scalars().first()
         if actor is None:
             fail("MCP direct-auth smoke requires one active user")
-        if baseline_records != 0:
-            fail("MCP direct-auth smoke requires an unconfigured copied database")
+        if baseline_records != 1:
+            fail("MCP direct-auth smoke requires the migrated disabled legacy row")
+        legacy = db.get(McpDirectAuth, 1)
+        if legacy is None or legacy.mode != "disabled" or legacy.enabled or legacy.revoked_at is not None:
+            fail("Migrated legacy direct-auth row has unexpected state")
 
         try:
             rotate_bearer_key(

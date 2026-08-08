@@ -71,6 +71,9 @@ class McpSettingsResponse(BaseModel):
     enabled: bool
     read_tools_enabled: bool
     write_tools_enabled: bool
+    direct_clients_enabled: bool
+    direct_no_auth_enabled: bool
+    direct_no_auth_last_client_ip: str | None = None
 
 
 class McpSettingsUpdateRequest(BaseModel):
@@ -79,6 +82,9 @@ class McpSettingsUpdateRequest(BaseModel):
     enabled: bool
     read_tools_enabled: bool
     write_tools_enabled: bool
+    direct_clients_enabled: bool
+    direct_no_auth_enabled: bool
+    direct_no_auth_confirmation: str | None = Field(default=None, max_length=80)
 
 
 # PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_SCHEMA:V540
@@ -197,4 +203,57 @@ class McpDirectAuthTrustedNetworkRequest(BaseModel):
 
 
 class McpDirectAuthKeyResponse(McpDirectAuthStatusResponse):
+    key: str
+
+
+# PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_SCHEMA:V627
+McpDirectClientMode = Literal["bearer_key", "custom_header", "trusted_network"]
+
+
+class McpDirectClientSummaryResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: int = Field(ge=1)
+    name: str = Field(min_length=1, max_length=120)
+    enabled: bool
+    mode: McpDirectClientMode
+    masked_key: str | None
+    custom_header_name: str | None
+    trusted_networks: list[str]
+    rotated_at: datetime | None
+    last_used_at: datetime | None
+    last_resolved_client_ip: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class McpDirectClientsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    clients: list[McpDirectClientSummaryResponse]
+    total: int = Field(ge=0)
+
+
+class McpDirectClientCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    mode: McpDirectClientMode
+    header_name: str | None = Field(default=None, max_length=120)
+    networks: list[str] = Field(default_factory=list, max_length=64)
+
+
+class McpDirectClientUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    enabled: bool | None = None
+
+
+class McpDirectClientRotateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    header_name: str | None = Field(default=None, max_length=120)
+
+
+class McpDirectClientCreateResponse(McpDirectClientSummaryResponse):
+    key: str | None = None
+
+
+class McpDirectClientKeyResponse(McpDirectClientSummaryResponse):
     key: str

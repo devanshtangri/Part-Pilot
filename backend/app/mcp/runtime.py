@@ -17,18 +17,21 @@ from app.core.client_ip import (
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.db.settings import get_bool_setting, set_app_setting
 from app.mcp.part_tools import register_part_tools
 from app.mcp.workspace_tools import register_workspace_tools
 from app.services.mcp_direct_auth import (
-    DIRECT_AUTH_CUSTOM_HEADER,
-    DIRECT_AUTH_SINGLETON_ID,
-    DIRECT_AUTH_TRUSTED_NETWORK,
     DIRECT_KEY_PREFIX,
     McpDirectAuthConfigurationError,
-    get_direct_auth,
-    validate_bearer_key,
-    validate_custom_header_key,
-    validate_trusted_network_client,
+    configured_custom_header_names,
+    validate_named_bearer_client,
+    validate_named_custom_header_client,
+    validate_named_trusted_network_client,
+)
+from app.services.app_settings import (
+    MCP_DIRECT_CLIENTS_ENABLED_KEY,
+    MCP_DIRECT_NO_AUTH_ENABLED_KEY,
+    MCP_DIRECT_NO_AUTH_LAST_CLIENT_IP_KEY,
 )
 from app.services.mcp_oauth import (
     MCP_SCOPE_READ,
@@ -135,36 +138,37 @@ def _bearer_credential(scope: dict[str, Any]) -> tuple[bool, str | None]:
     return True, value or None
 
 
-def _configured_custom_header_name() -> str | None:
+def _configured_custom_header_names() -> list[str]:
     db = SessionLocal()
     try:
-        record = get_direct_auth(db)
-        if (
-            record is not None
-            and record.mode == DIRECT_AUTH_CUSTOM_HEADER
-            and record.custom_header_name
-        ):
-            return record.custom_header_name
-        return None
+        if not get_bool_setting(db, MCP_DIRECT_CLIENTS_ENABLED_KEY, False):
+            return []
+        return configured_custom_header_names(db)
     finally:
         db.close()
 
 
-def _custom_header_credential(
+def _custom_header_credentials(
     scope: dict[str, Any],
-    header_name: str | None,
-) -> tuple[bool, str | None]:
-    if header_name is None:
-        return False, None
-    values = _header_values(scope, header_name)
-    if len(values) > 1:
+    header_names: list[str],
+) -> list[tuple[str, str]]:
+    credentials: list[tuple[str, str]] = []
+    for header_name in header_names:
+        values = _header_values(scope, header_name)
+        if len(values) > 1:
+            raise McpOAuthValidationError(
+                "Duplicate MCP custom credential headers are not allowed."
+            )
+        if not values:
+            continue
+        value = values[0].strip()
+        if value:
+            credentials.append((header_name, value))
+    if len(credentials) > 1:
         raise McpOAuthValidationError(
-            "Duplicate MCP custom credential headers are not allowed."
+            "MCP requests must use exactly one direct custom credential header."
         )
-    if not values:
-        return False, None
-    value = values[0].strip()
-    return True, value or None
+    return credentials
 
 
 async def _send_json(
@@ -192,6 +196,36 @@ async def _send_json(
         }
     )
     await send({"type": "http.response.body", "body": body})
+
+
+def _resolved_client_ip(scope: dict[str, Any]) -> str:
+    settings = get_settings()
+    try:
+        return str(
+            TrustedProxyResolver.from_raw(
+                settings.trusted_proxy_cidrs
+            ).resolve_client_ip(scope)
+        )
+    except ClientAddressError as exc:
+        raise McpOAuthValidationError(str(exc)) from exc
+    except TrustedProxyConfigurationError as exc:
+        raise McpDirectAuthConfigurationError(
+            "MCP trusted-proxy configuration is invalid."
+        ) from exc
+
+
+def _direct_policy(db) -> tuple[bool, bool]:
+    return (
+        get_bool_setting(db, MCP_DIRECT_CLIENTS_ENABLED_KEY, False),
+        get_bool_setting(db, MCP_DIRECT_NO_AUTH_ENABLED_KEY, False),
+    )
+
+
+def _optional_resolved_client_ip(scope: dict[str, Any]) -> str | None:
+    try:
+        return _resolved_client_ip(scope)
+    except McpOAuthValidationError:
+        return None
 
 
 def _oauth_principal(token: str, resource_uri: str) -> dict[str, Any]:
@@ -224,19 +258,25 @@ def _oauth_principal(token: str, resource_uri: str) -> dict[str, Any]:
         db.close()
 
 
-def _direct_bearer_principal(token: str, resource_uri: str) -> dict[str, Any]:
+def _direct_bearer_principal(
+    token: str,
+    resource_uri: str,
+    scope: dict[str, Any],
+) -> dict[str, Any]:
     db = SessionLocal()
     try:
-        try:
-            accepted = validate_bearer_key(
-                db,
-                token,
-                touch=True,
-                commit=False,
-            )
-        except McpDirectAuthConfigurationError as exc:
-            raise McpOAuthInvalidTokenError("Invalid MCP direct Bearer key.") from exc
-        if not accepted:
+        master_enabled, _ = _direct_policy(db)
+        if not master_enabled:
+            raise McpOAuthInvalidTokenError("MCP direct clients are disabled.")
+        client_ip = _optional_resolved_client_ip(scope)
+        record = validate_named_bearer_client(
+            db,
+            token,
+            client_ip=client_ip,
+            touch=True,
+            commit=False,
+        )
+        if record is None:
             raise McpOAuthInvalidTokenError("Invalid MCP direct Bearer key.")
         scopes = available_scopes(db, require_enabled=True)
         if MCP_SCOPE_READ not in scopes:
@@ -250,7 +290,9 @@ def _direct_bearer_principal(token: str, resource_uri: str) -> dict[str, Any]:
             "actor_user_id": None,
             "scopes": [MCP_SCOPE_READ],
             "resource_uri": resource_uri,
-            "direct_auth_id": DIRECT_AUTH_SINGLETON_ID,
+            "direct_auth_id": record.id,
+            "direct_client_name": record.name,
+            "client_ip": client_ip,
         }
     except Exception:
         db.rollback()
@@ -260,26 +302,27 @@ def _direct_bearer_principal(token: str, resource_uri: str) -> dict[str, Any]:
 
 
 def _direct_custom_header_principal(
+    header_name: str,
     supplied_key: str,
     resource_uri: str,
+    scope: dict[str, Any],
 ) -> dict[str, Any]:
     db = SessionLocal()
     try:
-        try:
-            accepted = validate_custom_header_key(
-                db,
-                supplied_key,
-                touch=True,
-                commit=False,
-            )
-        except McpDirectAuthConfigurationError as exc:
-            raise McpOAuthInvalidTokenError(
-                "Invalid MCP custom-header key."
-            ) from exc
-        if not accepted:
-            raise McpOAuthInvalidTokenError(
-                "Invalid MCP custom-header key."
-            )
+        master_enabled, _ = _direct_policy(db)
+        if not master_enabled:
+            raise McpOAuthInvalidTokenError("MCP direct clients are disabled.")
+        client_ip = _optional_resolved_client_ip(scope)
+        record = validate_named_custom_header_client(
+            db,
+            header_name,
+            supplied_key,
+            client_ip=client_ip,
+            touch=True,
+            commit=False,
+        )
+        if record is None:
+            raise McpOAuthInvalidTokenError("Invalid MCP custom-header key.")
         scopes = available_scopes(db, require_enabled=True)
         if MCP_SCOPE_READ not in scopes:
             raise McpOAuthInsufficientScopeError(
@@ -292,7 +335,9 @@ def _direct_custom_header_principal(
             "actor_user_id": None,
             "scopes": [MCP_SCOPE_READ],
             "resource_uri": resource_uri,
-            "direct_auth_id": DIRECT_AUTH_SINGLETON_ID,
+            "direct_auth_id": record.id,
+            "direct_client_name": record.name,
+            "client_ip": client_ip,
         }
     except Exception:
         db.rollback()
@@ -304,31 +349,22 @@ def _direct_custom_header_principal(
 def _direct_trusted_network_principal(
     scope: dict[str, Any],
     resource_uri: str,
-) -> dict[str, Any]:
-    settings = get_settings()
-    try:
-        client_ip = TrustedProxyResolver.from_raw(
-            settings.trusted_proxy_cidrs
-        ).resolve_client_ip(scope)
-    except ClientAddressError as exc:
-        raise McpOAuthValidationError(str(exc)) from exc
-    except TrustedProxyConfigurationError as exc:
-        raise McpDirectAuthConfigurationError(
-            "MCP trusted-proxy configuration is invalid."
-        ) from exc
-
+) -> dict[str, Any] | None:
+    client_ip = _resolved_client_ip(scope)
     db = SessionLocal()
     try:
-        accepted = validate_trusted_network_client(
+        master_enabled, _ = _direct_policy(db)
+        if not master_enabled:
+            return None
+        record = validate_named_trusted_network_client(
             db,
             client_ip,
             touch=True,
             commit=False,
         )
-        if not accepted:
-            raise McpOAuthInvalidTokenError(
-                "The MCP request source is not trusted."
-            )
+        if record is None:
+            db.rollback()
+            return None
         scopes = available_scopes(db, require_enabled=True)
         if MCP_SCOPE_READ not in scopes:
             raise McpOAuthInsufficientScopeError(
@@ -341,8 +377,9 @@ def _direct_trusted_network_principal(
             "actor_user_id": None,
             "scopes": [MCP_SCOPE_READ],
             "resource_uri": resource_uri,
-            "direct_auth_id": DIRECT_AUTH_SINGLETON_ID,
-            "client_ip": str(client_ip),
+            "direct_auth_id": record.id,
+            "direct_client_name": record.name,
+            "client_ip": client_ip,
         }
     except Exception:
         db.rollback()
@@ -351,13 +388,56 @@ def _direct_trusted_network_principal(
         db.close()
 
 
-def _validate_bearer(token: str, resource_uri: str) -> dict[str, Any]:
+def _direct_no_auth_principal(
+    scope: dict[str, Any],
+    resource_uri: str,
+) -> dict[str, Any] | None:
+    client_ip = _resolved_client_ip(scope)
+    db = SessionLocal()
+    try:
+        master_enabled, no_auth_enabled = _direct_policy(db)
+        if not master_enabled or not no_auth_enabled:
+            return None
+        scopes = available_scopes(db, require_enabled=True)
+        if MCP_SCOPE_READ not in scopes:
+            raise McpOAuthInsufficientScopeError(
+                "MCP read tools are disabled in Part Pilot settings."
+            )
+        set_app_setting(
+            db,
+            MCP_DIRECT_NO_AUTH_LAST_CLIENT_IP_KEY,
+            client_ip,
+            commit=False,
+        )
+        db.commit()
+        return {
+            "auth_method": "direct_no_auth",
+            "actor_type": "mcp",
+            "actor_user_id": None,
+            "scopes": [MCP_SCOPE_READ],
+            "resource_uri": resource_uri,
+            "direct_auth_id": None,
+            "direct_client_name": "No authentication",
+            "client_ip": client_ip,
+        }
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def _validate_bearer(
+    token: str,
+    resource_uri: str,
+    scope: dict[str, Any],
+) -> dict[str, Any]:
     if token.startswith(DIRECT_KEY_PREFIX):
-        return _direct_bearer_principal(token, resource_uri)
+        return _direct_bearer_principal(token, resource_uri, scope)
     return _oauth_principal(token, resource_uri)
 
 
-# PARTPILOT:MCP_TRUSTED_NETWORK_RUNTIME:V509
+# PARTPILOT:MCP_NAMED_DIRECT_RUNTIME:V627
 class PartPilotMcpGateway:
     async def __call__(self, scope, receive, send) -> None:
         if scope.get("type") != "http":
@@ -400,12 +480,18 @@ class PartPilotMcpGateway:
         )
         try:
             bearer_present, token = _bearer_credential(scope)
-            custom_header_name = await asyncio.to_thread(
-                _configured_custom_header_name
+            custom_header_names = await asyncio.to_thread(
+                _configured_custom_header_names
             )
-            custom_present, custom_key = _custom_header_credential(
+            custom_credentials = _custom_header_credentials(
                 scope,
-                custom_header_name,
+                custom_header_names,
+            )
+            custom_present = bool(custom_credentials)
+            custom_header_name, custom_key = (
+                custom_credentials[0]
+                if custom_credentials
+                else (None, None)
             )
         except McpOAuthValidationError as exc:
             await _send_json(
@@ -444,42 +530,60 @@ class PartPilotMcpGateway:
             )
             credential = token
         else:
-            auth_method = "direct_trusted_network"
+            auth_method = "direct_implicit"
             credential = None
 
-        if auth_method != "direct_trusted_network" and credential is None:
-            await _send_json(
-                send,
-                status=401,
-                content={
-                    "error": "invalid_token",
-                    "error_description": (
-                        "A valid OAuth bearer token, configured MCP direct key, "
-                        "or trusted request source is required."
-                    ),
-                },
-                headers=[(b"www-authenticate", challenge.encode("latin-1"))],
-            )
-            return
-
         try:
-            if auth_method == "direct_trusted_network":
+            if auth_method == "direct_implicit":
                 principal = await asyncio.to_thread(
                     _direct_trusted_network_principal,
                     scope,
                     resource_uri,
                 )
+                if principal is None:
+                    principal = await asyncio.to_thread(
+                        _direct_no_auth_principal,
+                        scope,
+                        resource_uri,
+                    )
+                if principal is None:
+                    await _send_json(
+                        send,
+                        status=401,
+                        content={
+                            "error": "invalid_token",
+                            "error_description": (
+                                "A valid OAuth token, named direct credential, trusted "
+                                "request source, or explicitly enabled no-auth policy is required."
+                            ),
+                        },
+                        headers=[
+                            (b"www-authenticate", challenge.encode("latin-1"))
+                        ],
+                    )
+                    return
+                auth_method = principal["auth_method"]
             elif auth_method == "direct_custom_header":
                 principal = await asyncio.to_thread(
                     _direct_custom_header_principal,
+                    custom_header_name,
                     credential,
                     resource_uri,
+                    scope,
+                )
+            elif auth_method == "direct_bearer":
+                principal = await asyncio.to_thread(
+                    _direct_bearer_principal,
+                    credential,
+                    resource_uri,
+                    scope,
                 )
             else:
                 principal = await asyncio.to_thread(
                     _validate_bearer,
                     credential,
                     resource_uri,
+                    scope,
                 )
         except McpDirectAuthConfigurationError:
             await _send_json(
@@ -488,7 +592,7 @@ class PartPilotMcpGateway:
                 content={
                     "error": "temporarily_unavailable",
                     "error_description": (
-                        "MCP trusted-network authentication is misconfigured."
+                        "MCP direct-client authentication is misconfigured."
                     ),
                 },
                 headers=[(b"retry-after", b"60")],
@@ -517,6 +621,7 @@ class PartPilotMcpGateway:
                             "direct_bearer",
                             "direct_custom_header",
                             "direct_trusted_network",
+                            "direct_no_auth",
                         }
                         else "The OAuth token lacks MCP read access."
                     ),

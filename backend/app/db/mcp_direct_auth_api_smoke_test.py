@@ -81,6 +81,37 @@ def snapshot() -> dict[str, object]:
         connection.close()
 
 
+def restore_direct_policy_rows(before: dict[str, object]) -> None:
+    connection = sqlite3.connect(sqlite_path())
+    try:
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("DELETE FROM mcp_direct_auth")
+        for row in before["rows"]["mcp_direct_auth"]:
+            columns = list(row)
+            placeholders = ",".join("?" for _ in columns)
+            connection.execute(
+                f'INSERT INTO mcp_direct_auth ({",".join(columns)}) VALUES ({placeholders})',
+                tuple(row[column] for column in columns),
+            )
+        keys = ("mcp.direct_clients_enabled", "mcp.direct_no_auth_enabled")
+        connection.executemany("DELETE FROM app_settings WHERE key=?", [(key,) for key in keys])
+        baseline_settings = [
+            row
+            for row in before["rows"]["app_settings"]
+            if row["key"] in keys
+        ]
+        for row in baseline_settings:
+            columns = list(row)
+            placeholders = ",".join("?" for _ in columns)
+            connection.execute(
+                f'INSERT INTO app_settings ({",".join(columns)}) VALUES ({placeholders})',
+                tuple(row[column] for column in columns),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def restore_sequences(before: dict[str, object]) -> None:
     connection = sqlite3.connect(sqlite_path())
     try:
@@ -420,7 +451,6 @@ def main() -> None:
             cleanup.query(AuditLog).filter(
                 AuditLog.id > baseline_audit_id
             ).delete(synchronize_session=False)
-            cleanup.query(McpDirectAuth).delete(synchronize_session=False)
             if session_id is not None:
                 row = cleanup.get(UserSession, session_id)
                 if row is not None:
@@ -428,6 +458,7 @@ def main() -> None:
             cleanup.commit()
         finally:
             cleanup.close()
+        restore_direct_policy_rows(before)
         restore_sequences(before)
         if snapshot() != before:
             fail("Database cleanup mismatch")

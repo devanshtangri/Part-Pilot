@@ -9,6 +9,13 @@ import type {
   McpOAuthClientRegistrationResponse,
   McpOAuthClientsResponse,
   McpOAuthManageableClientsResponse,
+  McpNamedDirectClient,
+  McpNamedDirectClientCreatePayload,
+  McpNamedDirectClientCreateResponse,
+  McpNamedDirectClientKeyResponse,
+  McpNamedDirectClientRotatePayload,
+  McpNamedDirectClientsResponse,
+  McpNamedDirectClientUpdatePayload,
   McpSettings,
   McpSettingsUpdatePayload,
   ReservationSettings,
@@ -192,6 +199,86 @@ export function revokeMcpOAuthClient(
 ): Promise<McpOAuthClientsResponse> {
   return requestJson<McpOAuthClientsResponse>(
     `/settings/mcp/oauth-clients/${clientDatabaseId}`,
+    token,
+    { method: "DELETE" }
+  );
+}
+
+
+// PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_CLIENT:V627
+export function getMcpNamedDirectClients(
+  token: string
+): Promise<McpNamedDirectClientsResponse> {
+  return requestJson<McpNamedDirectClientsResponse>(
+    "/settings/mcp/direct-clients",
+    token
+  );
+}
+
+export function createMcpNamedDirectClient(
+  token: string,
+  payload: McpNamedDirectClientCreatePayload
+): Promise<McpNamedDirectClientCreateResponse> {
+  return requestJson<McpNamedDirectClientCreateResponse>(
+    "/settings/mcp/direct-clients",
+    token,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+}
+
+export function updateMcpNamedDirectClient(
+  token: string,
+  clientId: number,
+  payload: McpNamedDirectClientUpdatePayload
+): Promise<McpNamedDirectClient> {
+  return requestJson<McpNamedDirectClient>(
+    `/settings/mcp/direct-clients/${clientId}`,
+    token,
+    { method: "PATCH", body: JSON.stringify(payload) }
+  );
+}
+
+export function rotateMcpNamedDirectClient(
+  token: string,
+  clientId: number,
+  payload: McpNamedDirectClientRotatePayload = {}
+): Promise<McpNamedDirectClientKeyResponse> {
+  return requestJson<McpNamedDirectClientKeyResponse>(
+    `/settings/mcp/direct-clients/${clientId}/rotate`,
+    token,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
+}
+
+export function revealMcpNamedDirectClient(
+  token: string,
+  clientId: number
+): Promise<McpNamedDirectClientKeyResponse> {
+  return requestJson<McpNamedDirectClientKeyResponse>(
+    `/settings/mcp/direct-clients/${clientId}/reveal`,
+    token,
+    { method: "POST" }
+  );
+}
+
+export function updateMcpNamedDirectClientNetworks(
+  token: string,
+  clientId: number,
+  networks: string[]
+): Promise<McpNamedDirectClient> {
+  return requestJson<McpNamedDirectClient>(
+    `/settings/mcp/direct-clients/${clientId}/trusted-networks`,
+    token,
+    { method: "PUT", body: JSON.stringify({ networks }) }
+  );
+}
+
+export function revokeMcpNamedDirectClient(
+  token: string,
+  clientId: number
+): Promise<McpNamedDirectClientsResponse> {
+  return requestJson<McpNamedDirectClientsResponse>(
+    `/settings/mcp/direct-clients/${clientId}`,
     token,
     { method: "DELETE" }
   );

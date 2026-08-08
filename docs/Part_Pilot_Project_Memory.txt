@@ -1,138 +1,57 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V580 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V632 -->
 
 Project
-- Repository: https://github.com/devanshtangri/Part-Pilot.git
-- Root: /projects/Part Pilot; branch main
-- Compose service: partpilot; host port 7890
-- React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend
-- Alembic head: 0014_api_keys
+- Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
+- Docker compose service partpilot, host port 7890. React/Vite/TypeScript + FastAPI/SQLAlchemy/Alembic.
+- Alembic head: 0015_mcp_direct_clients.
 
 Patch workflow
-- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is
-  one downloadable sequential Python file; never manual source edits.
-- User places/runs scripts under fixes/. Never execute numbered patches for the
-  user.
-- Failed scripts consume numbers. Success final line exactly `Everything PASS`.
-- Validate exact repo/branch/origin/HEAD, Git/index, source hashes,
-  prerequisites and all transforms before backup/write.
-- Backups: /projects/Part Pilot/fixes/backups/
-- Logs: /projects/Part Pilot/fixes/logs/
-- Diagnostic Markdown prefix: `diagonostic_`.
-- Application changes build/deploy, verify Alembic, protected APIs/SPA,
-  copied-data smoke, live-data preservation and rollback.
-- Browser-test source stays uncommitted until explicit browser approval.
-- After two consecutive pre-write failures, repeated anchor mismatch or source
-  uncertainty, stop implementation and issue diagnostic-only next patch.
-- Do not rely on terminal-only failure text being present in internal logs.
-- Compile the final downloadable Python patch before delivery.
-- Keep this memory at or below 8,000 characters.
+- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one complete sequential Python file under fixes/. Failed attempts consume numbers; never reuse. User runs scripts; assistant must not execute numbered patches.
+- Success final line exactly `Everything PASS`. Validate exact repo/branch/origin/HEAD, index/source hashes, prerequisites and transforms before writes. Backups fixes/backups/; logs fixes/logs/; diagnostics docs/diagonostic_*.md.
+- Browser-test source stays uncommitted until explicit approval. After approval, checkpoint/commit/push promptly. Browser steps are separate from scripts.
+- After two consecutive pre-write failures/repeated anchors/source uncertainty, diagnostic-only next. Compile final downloadable patch before delivery.
+- App changes: git diff --check, relevant Python compile, canonical Docker build, Alembic, copied-db complete smoke, protected APIs/SPA/runtime markers, live-data preservation and rollback.
+- Exact Docker builds require committed .dockerignore plus Git-canonical backend/frontend modes; ignored pyc/filesystem-mode drift previously changed image identity. Never rehearse against live source; use isolated /tmp copies.
+- Keep this memory <=8000 bytes.
 
 Chat boundary
-- Chat 20: `Chat 20: Manual OAuth Registration Foundation`.
-- Nominal range 549-578; Patch 578 and recovery 579 failed pre-write; Patch 580 is the narrow boundary recovery.
-- Chat 21: `Chat 21: Account Security and Session Administration`.
-- Chat 21 extended range 581-629; boundary 629; Chat 22 starts at 630.
-- No starting-prompt files. Ready prompts exist only in chat after boundary
-  `Everything PASS`.
+- Current: Chat 21 `Account Security and Session Administration`. Browser/recovery work consumed 628,629,631; Patch 632 is the named-direct-client checkpoint. Patch 633 is mandatory boundary/handoff. Chat 22 starts at 634 only after 633 succeeds.
+- No starting-prompt files; ready prompt only in chat after successful boundary.
 
-Inventory/data safety
-- Preserve users, sessions, inventory, Projects, Reservations, movements,
-  audits, settings, OAuth/direct credentials, backups and restore evidence.
-- Six Patch 401 realistic parts remain intentionally preserved.
-- Cleanup only exact manifest/allowlist IDs with before/after proof.
-- Never clean OAuth rows by broad name, origin or timestamp.
-- SQLite integrity/foreign-key checks must pass.
+Data safety
+- Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs. SQLite integrity/FKs must pass.
+- 5V Relay remains recoverable in Deleted items. ESP01 was permanently purged and Development Board Part Type deleted during approved recycle-bin testing.
+- Instance-secret SHA: 19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b. Never reveal/rotate credentials automatically.
 
 Completed application
-- Authenticated typed inventory; reusable catalogues; universal
-  search/filter/sort/pagination; quantity workflows; soft delete/restore;
-  detailed History.
-- Atomic Reservation and Project reserve/release/consume/edit lifecycles.
-- Responsive dark/light/system appearance and Settings for Appearance,
-  Inventory, Reservations, MCP and Data.
-- Portable backup/restore with strict validation, staging, rollback, atomic
-  replacement and post-restore session invalidation.
+- Authenticated typed inventory; catalogues; universal search/filter/sort/pagination; quantity workflows; soft delete/restore; History.
+- Atomic Reservation/Project reserve/release/consume/edit lifecycles.
+- Responsive dark/light/system UI and Settings; strict portable backup/restore with staging/rollback/session invalidation.
+- Recycle bin: recoverable delete by default, atomic typed-confirm permanent purge, active/reserved blockers, historical audit retention, custom Part Type dependency protection across active + deleted inventory.
+- Current-user profile/account security: username/display/avatar incl normalized DB-backed custom avatar, password change, safe sessions, targeted/revoke-all-other, current-session preservation, secret-free audit. Four older sessions remain Unknown and must not be inferred/backfilled.
 
-Completed MCP/OAuth
-- OAuth discovery, DCR, PKCE consent, access/refresh lifecycle, revocation,
-  protected-resource metadata and stateless `/mcp`.
-- Six read-only Part/Project/Reservation MCP tools.
-- Global MCP enabled/read/write controls; live state true/true/false.
-- Bearer, custom-header and trusted-network direct auth; encrypted credential
-  storage, reveal/rotation/disable and strict proxy/client-IP handling.
-- Standalone OAuth pages and real Claude/ChatGPT read-only flows verified.
-- Protected OAuth client administration and browser-approved manual
-  registration UI.
-- Manual registration: nullable creator ownership, public/confidential type,
-  none/secret_post/secret_basic auth, generated ID, one-time secret,
-  digest-only storage, manageable status and exact revocation.
-- Revoked clients are hidden from normal active Settings but backend
-  audit/manageable semantics retain them.
-- Manual Claude registration connected successfully using
-  `https://claude.ai/api/mcp/auth_callback` and `client_secret_post`.
-- Gemini/Google testing reached Part Pilot consent/code issuance but Google did
-  not complete token exchange; do not weaken Part Pilot OAuth based on that
-  external behavior.
-- Hermes direct Bearer remains configured; never reveal/rotate/disable it
-  automatically.
-- MCP writes remain disabled.
+REST API access
+- Alembic 0014 introduced scoped `pp_api_key_` credentials: named high-entropy one-time secrets, digest-only storage, explicit scopes/expiry, rotate/revoke/last-used.
+- Patch 617 enforces 43 exact eligible route method/path scope registrations for Inventory/Catalogue/Project/Reservation/History. Browser sessions fall back normally; Auth/Settings/Backup/Restore remain session-only. Invalid/revoked/expired=401; missing scope=403.
+- API Access Settings UI is browser-approved/checkpointed: create/edit/rotate/revoke, hidden revoked records, one-time secret, scope presets, API docs actions and modal security flows. `/docs`, `/redoc`, `/openapi.json` still need deliberate public-alpha access policy.
 
-Current-user account/security complete
-- Alembic 0013; built-ins initials/chip/circuit/terminal/storage/rocket plus
-  normalized database-backed custom avatar image with backup/restore coverage.
-- Profile username/display/avatar update, password change, safe session list,
-  targeted/revoke-all-other, current-session preservation and secret-free audit.
-- New login/setup sessions capture bounded User-Agent and trusted-resolver IP.
-  Four older sessions remain Unknown; never infer/backfill them.
-- Owner: devanshtangri / Devansh Tangri / built-in avatar storage.
+MCP/OAuth
+- OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata and stateless `/mcp`; six read-only Part/Project/Reservation tools. Real Claude/ChatGPT read flows verified.
+- Manual OAuth registration/admin supports creator ownership, public/confidential, none/secret_post/secret_basic, generated ID, one-time secret digest-only storage, manageable status and exact revocation. Revoked clients hidden from normal Settings.
+- Alembic 0015 replaces singleton direct-auth administration with named Bearer/custom-header/trusted-network clients. Each client has independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row is retained for audit compatibility.
+- `Enable MCP server` is master. `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed with `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
+- Browser-approved MCP UI has named-client security dialogs, aligned section widths and one readable muted disabled state. Direct clients/no-auth should remain OFF unless deliberately configured. MCP write authorization remains OFF.
 
-Security preservation baseline
-- Instance-secret SHA: 19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b.
-- Hermes direct Bearer and manual Claude OAuth client 21 remain configured; never
-  reveal/rotate/disable credentials automatically. Validate OAuth semantics rather
-  than stale token timestamps/counts.
+Recent recovery lessons
+- 628: CSS comment runtime marker stripped by minification; use DOM/value/custom-property markers.
+- 629: frozen packaged CSS hash differed from rehearsal; freeze exact script-produced bytes.
+- 631: preflight correctly detected live source already at intended final V631 bytes because a rehearsal accidentally touched live source. Never mutate live repo/deployment during rehearsal; isolated /tmp only.
 
-Patch 572-576 recovery lesson
-- 572: pre-write failure from baseline auth schema double-newline EOF.
-- 573: pre-write failure from blanket count==1 on intentionally repeated
-  BUILTIN_AVATAR_IDS.
-- 574: diagnostic script syntax failure before execution.
-- 575: successful diagnostic locked exact six candidate hashes/counts.
-- 576: successful profile/avatar backend implementation and push.
-- 577: successful password/session readiness diagnostic.
-
-Chat 21 extended order
-- User granted a one-chat extension through Patch 629; Patch 629 is the boundary.
-- No Chat 21-to-22 handoff before Patch 629. Chat 22 starts at Patch 630.
-- Patch 614 checkpoints browser-approved V607-V609 and fixes only the legacy
-  Part Type smoke audit-ID-reuse assumption. Patch 613 diagnostic is authoritative.
-- Patch 615: scoped REST API-key lifecycle; Alembic 0014, digest-only one-time
-  secrets, scopes/expiry/rotate/revoke/last-used and backup/restore coverage.
-- Patch 616 failed before writes: frozen tracked diff omitted its new untracked
-  route-scope smoke. Patch 617 applies the same tested design with smoke bytes frozen
-  separately: scoped Inventory/Catalogue/Project/Reservation/History REST API keys;
-  session fallback; Auth/Settings/Backup/Restore session-only; 43-route introspection.
-- 619 recovered API Access; 620 approved it. 621/622/624 failed safely; 623/625
-  diagnosed Docker bytecode/mode drift; 626 checkpoints canonical build context.
-- Currency already persists from setup and belongs in General Settings; add its
-  missing selector. Stored Parts pending metrics: total components=sum active
-  total_quantity; inventory value=sum priced quantity*unit_price with coverage;
-  plus available/reserved/low/out/distinct counts. No FX conversion on currency change.
-- Settings task: restrained dividers/groups throughout Settings where useful. MCP:
-  Enable server first; mute/disable subcontrols while off; group read/write/tools
-  under permissions/security.
-- Build invariant: exact-image checks require .dockerignore + Git-canonical modes;
-  normalize modes without changing bytes before live-root builds.
-- Then preference reset, roles, safeguarded MCP writes and alpha hardening.
-  Notifications stay post-v1.
-
-Recycle-bin contract approved through Patch 609 / checkpointed Patch 614
-- Normal Part delete stays recoverable; Deleted items remains fully restorable.
-- Custom Part Types stay protected while active OR recoverable parts reference them.
-- Blocked type-delete says Cannot delete, hides confirmation, names up to 5
-  blockers/class (+N more), and opens Deleted items with an exact filter.
-- Permanent purge requires DELETE, is atomic, retains audit, frees reusable
-  metadata and detaches terminal historical links; active/reserved work blocks it.
-- Browser test purged ESP01, then deleted Development Board; 5V Relay remains.
-- Full-smoke Part Type update/delete audit assertions/cleanup use a captured
-  audit-ID floor so reused entity IDs cannot collide with historical audit rows.
+Remaining V1
+1. Global individual-tool + per-client MCP permissions.
+2. Broader Settings organization with restrained dividers/groups throughout relevant Settings areas.
+3. Protect API docs/schema exposure before public alpha.
+4. ISO currency selector using persisted app-wide currency; formatting only, no FX.
+5. Server-backed Stored Parts metrics across complete active inventory: Total components=sum total_quantity; Inventory value=sum priced total_quantity*unit_price with explicit price coverage; Available, Reserved, Low stock, Out of stock, distinct Part count.
+6. Preference/default restoration; multi-user Owner/Admin/Operator/Viewer roles; safeguarded MCP writes; final accessibility/security/responsive/API-MCP regression.
+- Notifications & Messaging remain post-v1.

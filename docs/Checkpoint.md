@@ -3687,3 +3687,15 @@ The later broader Settings task must add restrained section dividers/grouping
 throughout Settings wherever hierarchy benefits, not only MCP. MCP still requires
 `Enable MCP server` first, subordinate controls muted/disabled while off, and
 read/write/tool authorization grouped under permissions/security.
+
+
+<!-- PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_CHECKPOINT:V632 -->
+## Named direct MCP clients checkpoint — Patch 632
+
+Patch 627 adds Alembic `0015_mcp_direct_clients` and replaces singleton direct-auth administration with named Bearer, custom-header and trusted-network clients. Each client has independent identity, enable/disable, rotation/revocation and safe usage metadata. OAuth remains separate. `Allow direct MCP clients` is the direct-access master; instance-wide `No authentication` remains off by default, requires typed `ALLOW NO AUTH` confirmation to enable, and is read-only. Explicit OAuth/direct credentials take precedence, then trusted-network identity, then no-auth fallback. MCP write authorization remains disabled.
+
+Browser refinement fixed the named-client typography/card mapping, aligned the MCP server URL/OAuth/direct-client/capability blocks with MCP Access, and removed compounded disabled opacity. Patch 628 failed only because a CSS comment marker was stripped by production minification. Patch 629 failed before writes from a frozen CSS fingerprint mismatch. Patch 631 then detected that its exact intended CSS/image had already been applied by an accidental live rehearsal; no additional source write was performed by the numbered script. Patch 632 formally adopts those exact browser-approved bytes, reruns deterministic build/smoke/preservation checks, and commits/pushes the complete 24-file application batch plus durable docs.
+
+The broader Settings task still owns restrained section dividers/grouping throughout Settings wherever hierarchy benefits. Global individual-tool/per-client MCP permissions remain next after the boundary; safeguarded MCP write tools stay disabled until that policy exists.
+
+Chat 21 boundary is now Patch 633 because Patches 628, 629 and 631 were consumed during visual/recovery work. Patch 633 must create the Chat 21-to-22 handoff; Chat 22 starts at Patch 634 only after that boundary succeeds.

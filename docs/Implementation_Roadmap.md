@@ -2956,3 +2956,31 @@ write tools are complete. Notifications & Messaging remain post-v1.
   inventory, not the current page: Total components, Inventory value with
   valuation coverage, Available, Reserved, Low stock, Out of stock and distinct
   Part count. Reserved quantity remains part of physical inventory value.
+
+
+<!-- PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_ROADMAP:V632 -->
+## Chat 21 final checkpoint — named direct MCP clients complete
+
+- [x] Alembic `0015_mcp_direct_clients` and deterministic backup/restore schema contract.
+- [x] Named Bearer, custom-header and trusted-network direct clients with independent lifecycle and usage identity.
+- [x] `Allow direct MCP clients` master policy and typed-confirmed, read-only instance-wide no-auth fallback.
+- [x] OAuth remains independent; explicit credentials retain precedence; MCP writes remain disabled.
+- [x] Browser-approved Settings administration, security dialogs, typography, aligned MCP section widths and readable single-level disabled state.
+- [x] Patch 632 checkpoints and pushes the exact approved Patch 627-631 batch.
+
+### Boundary
+
+- Patch 633 is the mandatory Chat 21 boundary/handoff.
+- Chat 22 starts at Patch 634 only after Patch 633 succeeds.
+- Do not begin another implementation feature in Chat 21.
+
+### Next implementation order after the boundary
+
+1. Global individual-tool and per-client MCP permissions.
+2. Broader Settings organization with restrained section dividers/grouping across relevant Settings areas.
+3. API documentation exposure/access hardening for public alpha.
+4. ISO currency selector using the persisted app-wide currency; formatting only, no FX conversion.
+5. Server-backed Stored Parts metrics: Total components, Inventory value with price coverage, Available, Reserved, Low stock, Out of stock and distinct Part count.
+6. Preference/default restoration, multi-user roles, safeguarded MCP write tools, then final accessibility/security/responsive/API-MCP regression.
+
+Notifications & Messaging remain post-v1.

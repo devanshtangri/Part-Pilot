@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models import AuditLog
 from app.schemas.parts import PartResponse
-from app.services.mcp_direct_auth import DIRECT_AUTH_SINGLETON_ID
 from app.services.mcp_oauth import MCP_SCOPE_READ, available_scopes
 from app.services.parts import PartNotFoundError, get_part, list_parts
 
@@ -80,6 +79,7 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
         "direct_bearer",
         "direct_custom_header",
         "direct_trusted_network",
+        "direct_no_auth",
     }:
         raise RuntimeError("Authenticated MCP principal is invalid.")
     if principal.get("actor_type") != "mcp":
@@ -115,22 +115,27 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
     else:
         if principal.get("actor_user_id") is not None:
             raise RuntimeError("Authenticated MCP direct principal is invalid.")
-        if principal.get("direct_auth_id") != DIRECT_AUTH_SINGLETON_ID:
-            raise RuntimeError("Authenticated MCP direct principal is invalid.")
         if "oauth" in principal:
             raise RuntimeError("Authenticated MCP direct principal is invalid.")
-        if auth_method == "direct_trusted_network":
-            client_ip = principal.get("client_ip")
+        client_ip = principal.get("client_ip")
+        if client_ip is not None:
             if not isinstance(client_ip, str):
-                raise RuntimeError("Authenticated MCP trusted-network principal is invalid.")
+                raise RuntimeError("Authenticated MCP direct principal is invalid.")
             try:
                 ip_address(client_ip)
             except ValueError as exc:
-                raise RuntimeError(
-                    "Authenticated MCP trusted-network principal is invalid."
-                ) from exc
-        elif "client_ip" in principal:
+                raise RuntimeError("Authenticated MCP direct principal is invalid.") from exc
+        if auth_method in {"direct_trusted_network", "direct_no_auth"} and client_ip is None:
+            raise RuntimeError("Authenticated MCP source-based principal is invalid.")
+        direct_client_name = principal.get("direct_client_name")
+        if not isinstance(direct_client_name, str) or not direct_client_name.strip():
             raise RuntimeError("Authenticated MCP direct principal is invalid.")
+        direct_auth_id = principal.get("direct_auth_id")
+        if auth_method == "direct_no_auth":
+            if direct_auth_id is not None:
+                raise RuntimeError("Authenticated MCP no-auth principal is invalid.")
+        elif type(direct_auth_id) is not int or direct_auth_id < 1:
+            raise RuntimeError("Authenticated MCP named-client principal is invalid.")
     return principal
 
 
@@ -195,10 +200,14 @@ def _append_tool_audit(
         "direct_bearer",
         "direct_custom_header",
         "direct_trusted_network",
+        "direct_no_auth",
     }:
-        metadata["direct_auth_id"] = principal["direct_auth_id"]
-        if auth_method == "direct_trusted_network":
+        metadata["direct_client_id"] = principal["direct_auth_id"]
+        metadata["direct_client_name"] = principal["direct_client_name"]
+        if principal.get("client_ip") is not None:
             metadata["client_ip"] = principal["client_ip"]
+        # Preserve the legacy metadata key for existing History/tooling consumers.
+        metadata["direct_auth_id"] = principal["direct_auth_id"]
     else:
         raise RuntimeError("Authenticated MCP principal is invalid.")
     if result is not None:

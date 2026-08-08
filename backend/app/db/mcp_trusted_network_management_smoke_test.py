@@ -89,6 +89,32 @@ def restore_sequences(before: dict[str, object]) -> None:
         connection.close()
 
 
+def restore_direct_baseline(before: dict[str, object]) -> None:
+    connection = sqlite3.connect(sqlite_path())
+    try:
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("DELETE FROM mcp_direct_auth")
+        for row in before["rows"]["mcp_direct_auth"]:
+            columns = list(row)
+            connection.execute(
+                f'INSERT INTO mcp_direct_auth ({",".join(columns)}) VALUES ({",".join("?" for _ in columns)})',
+                tuple(row[column] for column in columns),
+            )
+        keys = ("mcp.direct_clients_enabled", "mcp.direct_no_auth_enabled")
+        connection.executemany("DELETE FROM app_settings WHERE key=?", [(key,) for key in keys])
+        for row in before["rows"]["app_settings"]:
+            if row["key"] not in keys:
+                continue
+            columns = list(row)
+            connection.execute(
+                f'INSERT INTO app_settings ({",".join(columns)}) VALUES ({",".join("?" for _ in columns)})',
+                tuple(row[column] for column in columns),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def assert_no_store(response) -> None:
     if response.headers.get("cache-control") != "no-store" or response.headers.get("pragma") != "no-cache":
         fail("Trusted-network response is cacheable")
@@ -101,8 +127,11 @@ def main() -> None:
     session_id = None
     baseline_audit_id = 0
     try:
-        if db.query(McpDirectAuth).count() != 0:
-            fail("Trusted-network smoke requires an unconfigured copied database")
+        if db.query(McpDirectAuth).count() != 1:
+            fail("Trusted-network smoke requires the migrated disabled legacy row")
+        legacy = db.get(McpDirectAuth, 1)
+        if legacy is None or legacy.mode != "disabled" or legacy.enabled:
+            fail("Trusted-network migrated legacy row has unexpected state")
         user = db.execute(select(User).where(User.is_active.is_(True)).order_by(User.id)).scalars().first()
         if user is None:
             fail("One active user is required")
@@ -191,7 +220,6 @@ def main() -> None:
         cleanup = SessionLocal()
         try:
             cleanup.query(AuditLog).filter(AuditLog.id > baseline_audit_id).delete(synchronize_session=False)
-            cleanup.query(McpDirectAuth).delete(synchronize_session=False)
             if session_id is not None:
                 row = cleanup.get(UserSession, session_id)
                 if row is not None:
@@ -199,6 +227,7 @@ def main() -> None:
             cleanup.commit()
         finally:
             cleanup.close()
+        restore_direct_baseline(before)
         restore_sequences(before)
         if snapshot() != before:
             fail("Trusted-network smoke cleanup mismatch")

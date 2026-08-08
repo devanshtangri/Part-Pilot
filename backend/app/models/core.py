@@ -543,7 +543,10 @@ class ReservationItem(Base, TimestampMixin):
 class McpDirectAuth(Base, TimestampMixin):
     __tablename__ = "mcp_direct_auth"
     __table_args__ = (
-        CheckConstraint("id = 1", name="ck_mcp_direct_auth_singleton"),
+        CheckConstraint(
+            "length(trim(name)) >= 1 AND length(name) <= 120",
+            name="ck_mcp_direct_auth_name_length",
+        ),
         CheckConstraint(
             "mode IN ('disabled','bearer_key','custom_header','trusted_network')",
             name="ck_mcp_direct_auth_mode",
@@ -554,7 +557,10 @@ class McpDirectAuth(Base, TimestampMixin):
             name="ck_mcp_direct_auth_key_bundle",
         ),
         CheckConstraint(
-            "(mode = 'bearer_key' AND key_ciphertext IS NOT NULL AND "
+            "(revoked_at IS NOT NULL AND enabled = 0 AND key_ciphertext IS NULL AND "
+            "key_digest IS NULL AND key_prefix IS NULL AND custom_header_name IS NULL AND "
+            "trusted_networks_json IS NULL) OR "
+            "(revoked_at IS NULL AND ((mode = 'bearer_key' AND key_ciphertext IS NOT NULL AND "
             "custom_header_name IS NULL AND trusted_networks_json IS NULL) OR "
             "(mode = 'custom_header' AND key_ciphertext IS NOT NULL AND "
             "custom_header_name IS NOT NULL AND trusted_networks_json IS NULL) OR "
@@ -562,7 +568,7 @@ class McpDirectAuth(Base, TimestampMixin):
             "custom_header_name IS NULL AND trusted_networks_json IS NOT NULL AND "
             "length(trusted_networks_json) > 2) OR "
             "(mode = 'disabled' AND key_ciphertext IS NULL AND "
-            "custom_header_name IS NULL AND trusted_networks_json IS NULL)",
+            "custom_header_name IS NULL AND trusted_networks_json IS NULL)))",
             name="ck_mcp_direct_auth_mode_fields",
         ),
         UniqueConstraint("key_digest", name="uq_mcp_direct_auth_key_digest"),
@@ -571,6 +577,13 @@ class McpDirectAuth(Base, TimestampMixin):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), nullable=False, default="Legacy direct client")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_mcp_direct_auth_created_by_user_id"),
+        nullable=True,
+        index=True,
+    )
     mode: Mapped[str] = mapped_column(String(40), nullable=False, default="disabled")
     key_ciphertext: Mapped[str | None] = mapped_column(Text, nullable=True)
     key_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -579,6 +592,8 @@ class McpDirectAuth(Base, TimestampMixin):
     trusted_networks_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_resolved_client_ip: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
 
 
 # PARTPILOT:MCP_OAUTH_MODELS:V465

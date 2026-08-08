@@ -18,10 +18,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.db.settings import set_app_setting
 from app.models import AuditLog, McpDirectAuth, User
 
 
-# PARTPILOT:MCP_DIRECT_AUTH_SERVICE:V509
+# PARTPILOT:MCP_DIRECT_AUTH_SERVICE:V627
 DIRECT_AUTH_SINGLETON_ID = 1
 DIRECT_AUTH_DISABLED = "disabled"
 DIRECT_AUTH_BEARER_KEY = "bearer_key"
@@ -34,6 +35,8 @@ LAST_USED_TOUCH_INTERVAL = timedelta(minutes=5)
 INSTANCE_SECRET_MIN_LENGTH = 32
 CUSTOM_HEADER_NAME_MAX_LENGTH = 120
 TRUSTED_NETWORK_MAX_ITEMS = 64
+DIRECT_CLIENT_NAME_MAX_LENGTH = 120
+DIRECT_CLIENTS_ENABLED_SETTING_KEY = "mcp.direct_clients_enabled"
 _CUSTOM_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 _RESERVED_CUSTOM_HEADER_NAMES = frozenset(
     {
@@ -60,6 +63,10 @@ class McpDirectAuthError(RuntimeError):
 
 
 class McpDirectAuthConfigurationError(McpDirectAuthError):
+    pass
+
+
+class McpDirectAuthNameError(McpDirectAuthConfigurationError):
     pass
 
 
@@ -432,6 +439,8 @@ def _audit(
 
 def _record_snapshot(record: McpDirectAuth) -> dict[str, object]:
     return {
+        "name": record.name,
+        "enabled": record.enabled,
         "mode": record.mode,
         "key_prefix": record.key_prefix,
         "custom_header_name": record.custom_header_name,
@@ -442,6 +451,13 @@ def _record_snapshot(record: McpDirectAuth) -> dict[str, object]:
         ),
         "rotated_at": (
             None if record.rotated_at is None else record.rotated_at.isoformat()
+        ),
+        "last_used_at": (
+            None if record.last_used_at is None else record.last_used_at.isoformat()
+        ),
+        "last_resolved_client_ip": record.last_resolved_client_ip,
+        "revoked_at": (
+            None if record.revoked_at is None else record.revoked_at.isoformat()
         ),
     }
 
@@ -459,6 +475,12 @@ def _rotate_direct_key(
     commit: bool,
 ) -> IssuedMcpDirectKey:
     _active_actor(db, actor_user_id)
+    set_app_setting(
+        db,
+        DIRECT_CLIENTS_ENABLED_SETTING_KEY,
+        True,
+        commit=False,
+    )
     secret = _instance_secret(instance_secret, create=True)
     plaintext = _generate_direct_key(credential_prefix)
     ciphertext = _encrypt_direct_key(
@@ -476,8 +498,17 @@ def _rotate_direct_key(
     record = get_direct_auth(db)
     before = None if record is None else _record_snapshot(record)
     if record is None:
-        record = McpDirectAuth(id=DIRECT_AUTH_SINGLETON_ID, mode=mode)
+        record = McpDirectAuth(
+            id=DIRECT_AUTH_SINGLETON_ID,
+            name="Legacy direct client",
+            enabled=True,
+            created_by_user_id=actor_user_id,
+            mode=mode,
+        )
         db.add(record)
+    record.name = record.name or "Legacy direct client"
+    record.enabled = True
+    record.revoked_at = None
     record.mode = mode
     record.key_ciphertext = ciphertext
     record.key_digest = digest
@@ -553,15 +584,27 @@ def configure_trusted_networks(
     commit: bool = True,
 ) -> McpDirectAuth:
     _active_actor(db, actor_user_id)
+    set_app_setting(
+        db,
+        DIRECT_CLIENTS_ENABLED_SETTING_KEY,
+        True,
+        commit=False,
+    )
     canonical = normalize_trusted_networks(networks)
     record = get_direct_auth(db)
     before = None if record is None else _record_snapshot(record)
     if record is None:
         record = McpDirectAuth(
             id=DIRECT_AUTH_SINGLETON_ID,
+            name="Legacy direct client",
+            enabled=True,
+            created_by_user_id=actor_user_id,
             mode=DIRECT_AUTH_TRUSTED_NETWORK,
         )
         db.add(record)
+    record.name = record.name or "Legacy direct client"
+    record.enabled = True
+    record.revoked_at = None
     record.mode = DIRECT_AUTH_TRUSTED_NETWORK
     record.key_ciphertext = None
     record.key_digest = None
@@ -757,6 +800,8 @@ def _validate_direct_key(
     record = get_direct_auth(db)
     if (
         record is None
+        or not record.enabled
+        or record.revoked_at is not None
         or record.mode != expected_mode
         or not record.key_digest
         or not record.key_prefix
@@ -790,7 +835,12 @@ def validate_trusted_network_client(
     commit: bool = True,
 ) -> bool:
     record = get_direct_auth(db)
-    if record is None or record.mode != DIRECT_AUTH_TRUSTED_NETWORK:
+    if (
+        record is None
+        or not record.enabled
+        or record.revoked_at is not None
+        or record.mode != DIRECT_AUTH_TRUSTED_NETWORK
+    ):
         return False
     try:
         address = (
@@ -857,8 +907,602 @@ def validate_custom_header_key(
         commit=commit,
     )
 
+
+# PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_SERVICE:V627
+
+def normalize_direct_client_name(value: str) -> str:
+    if not isinstance(value, str):
+        raise McpDirectAuthNameError("Direct client name must be text.")
+    canonical = " ".join(value.strip().split())
+    if not canonical:
+        raise McpDirectAuthNameError("Direct client name is required.")
+    if len(canonical) > DIRECT_CLIENT_NAME_MAX_LENGTH:
+        raise McpDirectAuthNameError(
+            f"Direct client name must be {DIRECT_CLIENT_NAME_MAX_LENGTH} characters or fewer."
+        )
+    return canonical
+
+
+def list_direct_clients(
+    db: Session,
+    *,
+    include_revoked: bool = False,
+) -> list[McpDirectAuth]:
+    statement = select(McpDirectAuth)
+    if not include_revoked:
+        statement = statement.where(McpDirectAuth.revoked_at.is_(None))
+    return list(
+        db.execute(
+            statement.order_by(McpDirectAuth.created_at.asc(), McpDirectAuth.id.asc())
+        ).scalars()
+    )
+
+
+def get_named_direct_client(
+    db: Session,
+    client_id: int,
+    *,
+    include_revoked: bool = False,
+) -> McpDirectAuth:
+    record = db.get(McpDirectAuth, client_id)
+    if record is None or (record.revoked_at is not None and not include_revoked):
+        raise McpDirectAuthNotConfiguredError("MCP direct client was not found.")
+    return record
+
+
+def _clear_direct_key(record: McpDirectAuth) -> None:
+    record.key_ciphertext = None
+    record.key_digest = None
+    record.key_prefix = None
+    record.rotated_at = None
+
+
+def _set_direct_client_key(
+    record: McpDirectAuth,
+    *,
+    plaintext: str,
+    credential_prefix: str,
+    custom_header_name: str | None,
+    instance_secret: str,
+) -> None:
+    record.key_ciphertext = _encrypt_direct_key(
+        plaintext,
+        expected_prefix=credential_prefix,
+        instance_secret=instance_secret,
+    )
+    record.key_digest = _digest_direct_key(
+        plaintext,
+        expected_prefix=credential_prefix,
+        instance_secret=instance_secret,
+    )
+    record.key_prefix = plaintext[:20]
+    record.custom_header_name = custom_header_name
+    record.trusted_networks_json = None
+    record.rotated_at = _naive_utc_now()
+    record.last_used_at = None
+    record.last_resolved_client_ip = None
+
+
+def _active_trusted_network_clients(
+    db: Session,
+    *,
+    excluding_client_id: int | None = None,
+) -> list[McpDirectAuth]:
+    statement = select(McpDirectAuth).where(
+        McpDirectAuth.revoked_at.is_(None),
+        McpDirectAuth.enabled.is_(True),
+        McpDirectAuth.mode == DIRECT_AUTH_TRUSTED_NETWORK,
+    )
+    if excluding_client_id is not None:
+        statement = statement.where(McpDirectAuth.id != excluding_client_id)
+    return list(db.execute(statement).scalars())
+
+
+def _ensure_trusted_network_identity_is_unambiguous(
+    db: Session,
+    networks: Sequence[str],
+    *,
+    excluding_client_id: int | None = None,
+) -> list[str]:
+    canonical = normalize_trusted_networks(networks)
+    proposed = [ipaddress.ip_network(value, strict=True) for value in canonical]
+    for other in _active_trusted_network_clients(
+        db,
+        excluding_client_id=excluding_client_id,
+    ):
+        for existing_value in trusted_networks_for_record(other):
+            existing = ipaddress.ip_network(existing_value, strict=True)
+            for candidate in proposed:
+                if candidate.version == existing.version and candidate.overlaps(existing):
+                    raise McpDirectAuthNetworkError(
+                        f"Trusted network {candidate} overlaps named client "
+                        f"{other.name!r} ({existing}). Direct-client identity must be unambiguous."
+                    )
+    return canonical
+
+
+def create_named_direct_client(
+    db: Session,
+    *,
+    actor_user_id: int,
+    name: str,
+    mode: str,
+    header_name: str | None = None,
+    networks: Sequence[str] | None = None,
+    instance_secret: str | None = None,
+    commit: bool = True,
+) -> IssuedMcpDirectKey | McpDirectAuth:
+    _active_actor(db, actor_user_id)
+    canonical_name = normalize_direct_client_name(name)
+    if mode not in {
+        DIRECT_AUTH_BEARER_KEY,
+        DIRECT_AUTH_CUSTOM_HEADER,
+        DIRECT_AUTH_TRUSTED_NETWORK,
+    }:
+        raise McpDirectAuthConfigurationError("Unsupported MCP direct client mode.")
+
+    record = McpDirectAuth(
+        name=canonical_name,
+        enabled=True,
+        created_by_user_id=actor_user_id,
+        mode=mode,
+        revoked_at=None,
+    )
+    db.add(record)
+    plaintext: str | None = None
+    if mode == DIRECT_AUTH_BEARER_KEY:
+        secret = _instance_secret(instance_secret, create=True)
+        plaintext = _generate_direct_key(DIRECT_KEY_PREFIX)
+        _set_direct_client_key(
+            record,
+            plaintext=plaintext,
+            credential_prefix=DIRECT_KEY_PREFIX,
+            custom_header_name=None,
+            instance_secret=secret,
+        )
+    elif mode == DIRECT_AUTH_CUSTOM_HEADER:
+        secret = _instance_secret(instance_secret, create=True)
+        canonical_header = validate_custom_header_name(
+            header_name or DEFAULT_CUSTOM_HEADER_NAME
+        )
+        plaintext = _generate_direct_key(CUSTOM_HEADER_KEY_PREFIX)
+        _set_direct_client_key(
+            record,
+            plaintext=plaintext,
+            credential_prefix=CUSTOM_HEADER_KEY_PREFIX,
+            custom_header_name=canonical_header,
+            instance_secret=secret,
+        )
+    else:
+        canonical_networks = _ensure_trusted_network_identity_is_unambiguous(
+            db,
+            networks or (),
+        )
+        record.key_ciphertext = None
+        record.key_digest = None
+        record.key_prefix = None
+        record.custom_header_name = None
+        record.trusted_networks_json = json.dumps(
+            canonical_networks,
+            separators=(",", ":"),
+        )
+        record.rotated_at = None
+        record.last_used_at = None
+        record.last_resolved_client_ip = None
+
+    db.flush()
+    _audit(
+        db,
+        event_type="settings.mcp_direct_client_created",
+        actor_user_id=actor_user_id,
+        summary=f"Created MCP direct client {record.name}.",
+        before=None,
+        after=_record_snapshot(record),
+    )
+    if commit:
+        db.commit()
+        db.refresh(record)
+    else:
+        db.flush()
+    if plaintext is None:
+        return record
+    return IssuedMcpDirectKey(record=record, plaintext_key=plaintext)
+
+
+def update_named_direct_client(
+    db: Session,
+    *,
+    client_id: int,
+    actor_user_id: int,
+    name: str | None = None,
+    enabled: bool | None = None,
+    commit: bool = True,
+) -> McpDirectAuth:
+    _active_actor(db, actor_user_id)
+    record = get_named_direct_client(db, client_id)
+    before = _record_snapshot(record)
+    if name is not None:
+        record.name = normalize_direct_client_name(name)
+    if enabled is not None:
+        if enabled and record.mode == DIRECT_AUTH_TRUSTED_NETWORK:
+            _ensure_trusted_network_identity_is_unambiguous(
+                db,
+                trusted_networks_for_record(record),
+                excluding_client_id=record.id,
+            )
+        record.enabled = enabled
+    if before == _record_snapshot(record):
+        return record
+    _audit(
+        db,
+        event_type="settings.mcp_direct_client_updated",
+        actor_user_id=actor_user_id,
+        summary=f"Updated MCP direct client {record.name}.",
+        before=before,
+        after=_record_snapshot(record),
+    )
+    if commit:
+        db.commit()
+        db.refresh(record)
+    else:
+        db.flush()
+    return record
+
+
+def rotate_named_direct_client_key(
+    db: Session,
+    *,
+    client_id: int,
+    actor_user_id: int,
+    header_name: str | None = None,
+    instance_secret: str | None = None,
+    commit: bool = True,
+) -> IssuedMcpDirectKey:
+    _active_actor(db, actor_user_id)
+    record = get_named_direct_client(db, client_id)
+    if record.mode not in {DIRECT_AUTH_BEARER_KEY, DIRECT_AUTH_CUSTOM_HEADER}:
+        raise McpDirectAuthConfigurationError(
+            "Only Bearer and custom-header direct clients have rotatable keys."
+        )
+    before = _record_snapshot(record)
+    secret = _instance_secret(instance_secret, create=True)
+    if record.mode == DIRECT_AUTH_BEARER_KEY:
+        credential_prefix = DIRECT_KEY_PREFIX
+        canonical_header = None
+    else:
+        credential_prefix = CUSTOM_HEADER_KEY_PREFIX
+        canonical_header = validate_custom_header_name(
+            header_name or record.custom_header_name or DEFAULT_CUSTOM_HEADER_NAME
+        )
+    plaintext = _generate_direct_key(credential_prefix)
+    _set_direct_client_key(
+        record,
+        plaintext=plaintext,
+        credential_prefix=credential_prefix,
+        custom_header_name=canonical_header,
+        instance_secret=secret,
+    )
+    record.enabled = True
+    db.flush()
+    _audit(
+        db,
+        event_type="settings.mcp_direct_client_key_rotated",
+        actor_user_id=actor_user_id,
+        summary=f"Rotated MCP direct client key for {record.name}.",
+        before=before,
+        after=_record_snapshot(record),
+    )
+    if commit:
+        db.commit()
+        db.refresh(record)
+    else:
+        db.flush()
+    return IssuedMcpDirectKey(record=record, plaintext_key=plaintext)
+
+
+def reveal_named_direct_client_key(
+    db: Session,
+    *,
+    client_id: int,
+    actor_user_id: int,
+    instance_secret: str | None = None,
+    commit: bool = True,
+) -> str:
+    _active_actor(db, actor_user_id)
+    record = get_named_direct_client(db, client_id)
+    credential_prefix = _mode_prefix(record.mode)
+    if (
+        credential_prefix is None
+        or not record.key_ciphertext
+        or not record.key_digest
+        or not record.key_prefix
+    ):
+        raise McpDirectAuthNotConfiguredError(
+            "This MCP direct client does not have a revealable credential."
+        )
+    plaintext = _decrypt_direct_key(
+        record.key_ciphertext,
+        expected_prefix=credential_prefix,
+        instance_secret=instance_secret,
+    )
+    expected = _digest_direct_key(
+        plaintext,
+        expected_prefix=credential_prefix,
+        instance_secret=instance_secret,
+    )
+    if not hmac.compare_digest(expected, record.key_digest):
+        raise McpDirectAuthDecryptionError(
+            "The MCP direct client key failed integrity validation."
+        )
+    _audit(
+        db,
+        event_type="settings.mcp_direct_client_key_revealed",
+        actor_user_id=actor_user_id,
+        summary=f"Revealed MCP direct client key for {record.name}.",
+        before=None,
+        after={"client_id": record.id, "mode": record.mode},
+    )
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    return plaintext
+
+
+def configure_named_trusted_networks(
+    db: Session,
+    *,
+    client_id: int,
+    actor_user_id: int,
+    networks: Sequence[str],
+    commit: bool = True,
+) -> McpDirectAuth:
+    _active_actor(db, actor_user_id)
+    record = get_named_direct_client(db, client_id)
+    if record.mode != DIRECT_AUTH_TRUSTED_NETWORK:
+        raise McpDirectAuthConfigurationError(
+            "Only trusted-network direct clients can configure CIDRs."
+        )
+    canonical = _ensure_trusted_network_identity_is_unambiguous(
+        db,
+        networks,
+        excluding_client_id=record.id if record.enabled else None,
+    )
+    before = _record_snapshot(record)
+    record.trusted_networks_json = json.dumps(canonical, separators=(",", ":"))
+    record.last_used_at = None
+    record.last_resolved_client_ip = None
+    db.flush()
+    _audit(
+        db,
+        event_type="settings.mcp_direct_client_networks_updated",
+        actor_user_id=actor_user_id,
+        summary=f"Updated trusted networks for MCP direct client {record.name}.",
+        before=before,
+        after=_record_snapshot(record),
+    )
+    if commit:
+        db.commit()
+        db.refresh(record)
+    else:
+        db.flush()
+    return record
+
+
+def revoke_named_direct_client(
+    db: Session,
+    *,
+    client_id: int,
+    actor_user_id: int,
+    commit: bool = True,
+) -> McpDirectAuth:
+    _active_actor(db, actor_user_id)
+    record = get_named_direct_client(db, client_id)
+    before = _record_snapshot(record)
+    record.enabled = False
+    record.revoked_at = _naive_utc_now()
+    _clear_direct_key(record)
+    record.custom_header_name = None
+    record.trusted_networks_json = None
+    record.last_used_at = None
+    record.last_resolved_client_ip = None
+    db.flush()
+    _audit(
+        db,
+        event_type="settings.mcp_direct_client_revoked",
+        actor_user_id=actor_user_id,
+        summary=f"Revoked MCP direct client {record.name}.",
+        before=before,
+        after=_record_snapshot(record),
+    )
+    if commit:
+        db.commit()
+        db.refresh(record)
+    else:
+        db.flush()
+    return record
+
+
+def configured_custom_header_names(db: Session) -> list[str]:
+    values = db.execute(
+        select(McpDirectAuth.custom_header_name).where(
+            McpDirectAuth.revoked_at.is_(None),
+            McpDirectAuth.enabled.is_(True),
+            McpDirectAuth.mode == DIRECT_AUTH_CUSTOM_HEADER,
+            McpDirectAuth.custom_header_name.is_not(None),
+        )
+    ).scalars()
+    return sorted({value for value in values if value})
+
+
+def _touch_named_direct_client(
+    db: Session,
+    record: McpDirectAuth,
+    *,
+    client_ip: str | None,
+    touch: bool,
+    commit: bool,
+) -> None:
+    now = _naive_utc_now()
+    should_touch_time = touch and (
+        record.last_used_at is None
+        or record.last_used_at <= now - LAST_USED_TOUCH_INTERVAL
+    )
+    should_touch_ip = bool(client_ip and client_ip != record.last_resolved_client_ip)
+    if not should_touch_time and not should_touch_ip:
+        return
+    if should_touch_time:
+        record.last_used_at = now
+    if should_touch_ip:
+        record.last_resolved_client_ip = client_ip
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+
+
+def validate_named_bearer_client(
+    db: Session,
+    supplied_key: str,
+    *,
+    client_ip: str | None = None,
+    instance_secret: str | None = None,
+    touch: bool = True,
+    commit: bool = True,
+) -> McpDirectAuth | None:
+    if not supplied_key.startswith(DIRECT_KEY_PREFIX):
+        return None
+    prefix = supplied_key[:20]
+    candidates = list(
+        db.execute(
+            select(McpDirectAuth).where(
+                McpDirectAuth.revoked_at.is_(None),
+                McpDirectAuth.enabled.is_(True),
+                McpDirectAuth.mode == DIRECT_AUTH_BEARER_KEY,
+                McpDirectAuth.key_prefix == prefix,
+            )
+        ).scalars()
+    )
+    try:
+        supplied_digest = _digest_direct_key(
+            supplied_key,
+            expected_prefix=DIRECT_KEY_PREFIX,
+            instance_secret=instance_secret,
+        )
+    except McpDirectAuthConfigurationError:
+        return None
+    for record in candidates:
+        if record.key_digest and hmac.compare_digest(supplied_digest, record.key_digest):
+            _touch_named_direct_client(
+                db,
+                record,
+                client_ip=client_ip,
+                touch=touch,
+                commit=commit,
+            )
+            return record
+    return None
+
+
+def validate_named_custom_header_client(
+    db: Session,
+    header_name: str,
+    supplied_key: str,
+    *,
+    client_ip: str | None = None,
+    instance_secret: str | None = None,
+    touch: bool = True,
+    commit: bool = True,
+) -> McpDirectAuth | None:
+    canonical_header = validate_custom_header_name(header_name)
+    if not supplied_key.startswith(CUSTOM_HEADER_KEY_PREFIX):
+        return None
+    prefix = supplied_key[:20]
+    candidates = list(
+        db.execute(
+            select(McpDirectAuth).where(
+                McpDirectAuth.revoked_at.is_(None),
+                McpDirectAuth.enabled.is_(True),
+                McpDirectAuth.mode == DIRECT_AUTH_CUSTOM_HEADER,
+                McpDirectAuth.custom_header_name == canonical_header,
+                McpDirectAuth.key_prefix == prefix,
+            )
+        ).scalars()
+    )
+    try:
+        supplied_digest = _digest_direct_key(
+            supplied_key,
+            expected_prefix=CUSTOM_HEADER_KEY_PREFIX,
+            instance_secret=instance_secret,
+        )
+    except McpDirectAuthConfigurationError:
+        return None
+    for record in candidates:
+        if record.key_digest and hmac.compare_digest(supplied_digest, record.key_digest):
+            _touch_named_direct_client(
+                db,
+                record,
+                client_ip=client_ip,
+                touch=touch,
+                commit=commit,
+            )
+            return record
+    return None
+
+
+def validate_named_trusted_network_client(
+    db: Session,
+    client_ip: str | ipaddress.IPv4Address | ipaddress.IPv6Address,
+    *,
+    touch: bool = True,
+    commit: bool = True,
+) -> McpDirectAuth | None:
+    try:
+        address = (
+            client_ip
+            if isinstance(client_ip, (ipaddress.IPv4Address, ipaddress.IPv6Address))
+            else ipaddress.ip_address(client_ip)
+        )
+    except ValueError as exc:
+        raise McpDirectAuthNetworkError(
+            "The resolved MCP client address is invalid."
+        ) from exc
+    matches: list[McpDirectAuth] = []
+    for record in _active_trusted_network_clients(db):
+        networks = [
+            ipaddress.ip_network(value, strict=True)
+            for value in trusted_networks_for_record(record)
+        ]
+        if any(
+            address.version == network.version and address in network
+            for network in networks
+        ):
+            matches.append(record)
+    if len(matches) > 1:
+        raise McpDirectAuthConfigurationError(
+            "The resolved MCP client address matches more than one named trusted-network client."
+        )
+    if not matches:
+        return None
+    record = matches[0]
+    _touch_named_direct_client(
+        db,
+        record,
+        client_ip=str(address),
+        touch=touch,
+        commit=commit,
+    )
+    return record
+
+
 def disable_direct_auth(db: Session, *, actor_user_id: int, commit: bool = True) -> bool:
     _active_actor(db, actor_user_id)
+    set_app_setting(
+        db,
+        DIRECT_CLIENTS_ENABLED_SETTING_KEY,
+        False,
+        commit=False,
+    )
     record = get_direct_auth(db)
     if record is None:
         return False
@@ -872,6 +1516,7 @@ def disable_direct_auth(db: Session, *, actor_user_id: int, commit: bool = True)
     ):
         return False
     before = _record_snapshot(record)
+    record.enabled = False
     record.mode = DIRECT_AUTH_DISABLED
     record.key_ciphertext = None
     record.key_digest = None

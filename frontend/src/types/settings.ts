@@ -36,14 +36,24 @@ export interface AppearanceSettingsUpdatePayload {
 }
 
 
-// PARTPILOT:MCP_SETTINGS_TYPES:V491
+// PARTPILOT:MCP_SETTINGS_TYPES:V627
 export interface McpSettings {
   enabled: boolean;
   read_tools_enabled: boolean;
   write_tools_enabled: boolean;
+  direct_clients_enabled: boolean;
+  direct_no_auth_enabled: boolean;
+  direct_no_auth_last_client_ip: string | null;
 }
 
-export type McpSettingsUpdatePayload = McpSettings;
+export interface McpSettingsUpdatePayload {
+  enabled: boolean;
+  read_tools_enabled: boolean;
+  write_tools_enabled: boolean;
+  direct_clients_enabled: boolean;
+  direct_no_auth_enabled: boolean;
+  direct_no_auth_confirmation?: string | null;
+}
 
 
 // PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_TYPES:V540
@@ -166,4 +176,55 @@ export interface McpDirectAuthCustomHeaderPayload {
 
 export interface McpDirectAuthTrustedNetworkPayload {
   networks: string[];
+}
+
+
+// PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_TYPES:V627
+export type McpNamedDirectClientMode =
+  | "bearer_key"
+  | "custom_header"
+  | "trusted_network";
+
+export interface McpNamedDirectClient {
+  id: number;
+  name: string;
+  enabled: boolean;
+  mode: McpNamedDirectClientMode;
+  masked_key: string | null;
+  custom_header_name: string | null;
+  trusted_networks: string[];
+  rotated_at: string | null;
+  last_used_at: string | null;
+  last_resolved_client_ip: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpNamedDirectClientsResponse {
+  clients: McpNamedDirectClient[];
+  total: number;
+}
+
+export interface McpNamedDirectClientCreatePayload {
+  name: string;
+  mode: McpNamedDirectClientMode;
+  header_name?: string | null;
+  networks?: string[];
+}
+
+export interface McpNamedDirectClientCreateResponse extends McpNamedDirectClient {
+  key: string | null;
+}
+
+export interface McpNamedDirectClientUpdatePayload {
+  name?: string;
+  enabled?: boolean;
+}
+
+export interface McpNamedDirectClientRotatePayload {
+  header_name?: string | null;
+}
+
+export interface McpNamedDirectClientKeyResponse extends McpNamedDirectClient {
+  key: string;
 }

@@ -12,7 +12,7 @@ import app.models  # noqa: F401 - register ORM models
 
 
 # PARTPILOT:MCP_OAUTH_SCHEMA_SMOKE:V465
-EXPECTED_HEAD = "0010_mcp_trusted_networks"
+EXPECTED_HEAD = "0015_mcp_direct_clients"
 TABLES = (
     "mcp_oauth_clients",
     "mcp_oauth_authorization_codes",
@@ -85,7 +85,7 @@ def check_schema() -> None:
                 "id", "client_id", "client_secret_hash", "client_name",
                 "client_uri", "redirect_uris_json", "grant_types_json",
                 "response_types_json", "token_endpoint_auth_method",
-                "metadata_json", "created_at", "updated_at", "revoked_at",
+                "metadata_json", "registered_by_user_id", "created_at", "updated_at", "revoked_at",
             },
             "mcp_oauth_authorization_codes": {
                 "id", "code_hash", "client_id", "user_id", "redirect_uri",
@@ -138,6 +138,7 @@ def check_schema() -> None:
             "mcp_oauth_clients": {
                 "ix_mcp_oauth_clients_client_id",
                 "ix_mcp_oauth_clients_revoked_at",
+                "ix_mcp_oauth_clients_registered_by_user_id",
             },
             "mcp_oauth_authorization_codes": {
                 "ix_mcp_oauth_codes_client_id",
@@ -165,6 +166,9 @@ def check_schema() -> None:
                 fail(f"{table} indexes are incomplete: {sorted(actual)}")
 
         expected_fks = {
+            "mcp_oauth_clients": {
+                ("users", "registered_by_user_id", "id", "SET NULL"),
+            },
             "mcp_oauth_authorization_codes": {
                 ("mcp_oauth_clients", "client_id", "id", "CASCADE"),
                 ("users", "user_id", "id", "CASCADE"),

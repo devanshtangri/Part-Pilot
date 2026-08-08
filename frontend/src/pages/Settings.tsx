@@ -11,6 +11,7 @@ import {
 } from "../appearance/AppearanceContext";
 import { useAuth } from "../auth/AuthContext";
 import { ApiKeySettingsSection } from "../components/ApiKeySettingsSection";
+import { McpDirectClientsSection } from "../components/McpDirectClientsSection";
 import { UserAvatar } from "../components/UserAvatar";
 import {
   AUTH_TOKEN_STORAGE_KEY,
@@ -32,18 +33,12 @@ import {
   waitForPartPilotReady
 } from "../services/backupsClient";
 import {
-  configureMcpDirectTrustedNetworks,
-  disableMcpDirectAuth,
-  getMcpDirectAuth,
   getMcpOAuthManageableClients,
   getMcpSettings,
   registerMcpOAuthClient,
   getReservationSettings,
   getSearchSettings,
-  revealMcpDirectKey,
   revokeMcpOAuthClient,
-  rotateMcpDirectBearerKey,
-  rotateMcpDirectCustomHeaderKey,
   updateMcpSettings,
   updateReservationSettings,
   updateSearchSettings
@@ -59,8 +54,6 @@ import type {
 } from "../types/backups";
 import type {
   AppearanceTheme,
-  McpDirectAuthStatus,
-  McpDirectSelectionMode,
   McpOAuthClientRegistrationResponse,
   McpOAuthClientType,
   McpOAuthManageableClientSummary,
@@ -74,24 +67,6 @@ import "./Settings.css";
 
 const RESET_CONFIRMATION = "RESET PART PILOT";
 const RESTORE_CONFIRMATION = "RESTORE";
-const MCP_CUSTOM_HEADER_DEFAULT = "x-partpilot-mcp-key";
-const MCP_CUSTOM_HEADER_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
-const MCP_RESERVED_CUSTOM_HEADERS = new Set([
-  "authorization",
-  "connection",
-  "content-length",
-  "cookie",
-  "forwarded",
-  "host",
-  "origin",
-  "proxy-authorization",
-  "set-cookie",
-  "te",
-  "trailer",
-  "transfer-encoding",
-  "upgrade",
-  "x-real-ip"
-]);
 const MAX_RESTORE_FILE_BYTES = 256 * 1024 * 1024;
 const SETTINGS_SECTION_IDS = [
   "account",
@@ -103,140 +78,6 @@ const SETTINGS_SECTION_IDS = [
   "data"
 ] as const;
 type SettingsSection = (typeof SETTINGS_SECTION_IDS)[number];
-
-type McpDirectConfirmation =
-  | "create"
-  | "rotate"
-  | "apply_networks"
-  | "switch"
-  | "disable";
-
-interface ParsedTrustedNetworks {
-  networks: string[];
-  error: string | null;
-}
-
-function validateMcpCustomHeaderName(value: string): string | null {
-  const canonical = value.trim().toLowerCase();
-  if (!canonical) {
-    return "Enter an HTTP header name.";
-  }
-  if (canonical.length > 120) {
-    return "Use 120 characters or fewer.";
-  }
-  if (!MCP_CUSTOM_HEADER_PATTERN.test(canonical)) {
-    return "Use a valid HTTP header name without spaces or punctuation separators.";
-  }
-  if (
-    MCP_RESERVED_CUSTOM_HEADERS.has(canonical) ||
-    canonical.startsWith("x-forwarded-")
-  ) {
-    return "That header is reserved for HTTP or proxy authentication.";
-  }
-  return null;
-}
-
-function isValidIpv4Address(value: string): boolean {
-  const octets = value.split(".");
-  return (
-    octets.length === 4 &&
-    octets.every((octet) => {
-      if (!/^\d{1,3}$/.test(octet)) {
-        return false;
-      }
-      if (octet.length > 1 && octet.startsWith("0")) {
-        return false;
-      }
-      const number = Number(octet);
-      return number >= 0 && number <= 255;
-    })
-  );
-}
-
-function isValidIpv6Address(value: string): boolean {
-  if (!value.includes(":") || value.includes("%")) {
-    return false;
-  }
-  try {
-    const parsed = new URL(`http://[${value}]/`);
-    return parsed.hostname.startsWith("[") && parsed.hostname.endsWith("]");
-  } catch {
-    return false;
-  }
-}
-
-function parseMcpTrustedNetworks(value: string): ParsedTrustedNetworks {
-  const networks = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  if (networks.length === 0) {
-    return {
-      networks,
-      error: "Enter at least one IPv4 or IPv6 CIDR."
-    };
-  }
-  if (networks.length > 64) {
-    return {
-      networks,
-      error: "Use no more than 64 trusted networks."
-    };
-  }
-
-  const seen = new Set<string>();
-  for (const [index, network] of networks.entries()) {
-    if (/\s/.test(network)) {
-      return {
-        networks,
-        error: `Line ${index + 1}: CIDRs cannot contain spaces.`
-      };
-    }
-    const pieces = network.split("/");
-    if (pieces.length !== 2 || !pieces[0] || !/^\d+$/.test(pieces[1])) {
-      return {
-        networks,
-        error: `Line ${index + 1}: use address/prefix notation.`
-      };
-    }
-    const [address, prefixText] = pieces;
-    const prefix = Number(prefixText);
-    const ipv6 = address.includes(":");
-    const validAddress = ipv6
-      ? isValidIpv6Address(address)
-      : isValidIpv4Address(address);
-    const maximumPrefix = ipv6 ? 128 : 32;
-    if (!validAddress) {
-      return {
-        networks,
-        error: `Line ${index + 1}: invalid ${ipv6 ? "IPv6" : "IPv4"} address.`
-      };
-    }
-    if (!Number.isInteger(prefix) || prefix < 1 || prefix > maximumPrefix) {
-      return {
-        networks,
-        error: `Line ${index + 1}: prefix must be 1-${maximumPrefix}.`
-      };
-    }
-    const duplicateKey = network.toLowerCase();
-    if (seen.has(duplicateKey)) {
-      return {
-        networks,
-        error: `Line ${index + 1}: duplicate CIDR.`
-      };
-    }
-    seen.add(duplicateKey);
-  }
-
-  return { networks, error: null };
-}
-
-function mcpDirectModeLabel(mode: McpDirectSelectionMode): string {
-  if (mode === "trusted_network") {
-    return "Trusted network";
-  }
-  return mode === "custom_header" ? "Custom header" : "Bearer key";
-}
 
 function settingsSectionFromHash(): SettingsSection {
   const candidate = window.location.hash.replace(
@@ -512,36 +353,8 @@ export function Settings() {
   const [mcpOAuthCredential, setMcpOAuthCredential] = useState<McpOAuthClientRegistrationResponse | null>(null);
   const [mcpOAuthSecretVisible, setMcpOAuthSecretVisible] = useState(false);
   const [mcpOAuthCredentialCopied, setMcpOAuthCredentialCopied] = useState<"client_id" | "client_secret" | null>(null);
-  const [mcpDirectAuth, setMcpDirectAuth] =
-    useState<McpDirectAuthStatus | null>(null);
-  const [mcpDirectAuthLoading, setMcpDirectAuthLoading] =
-    useState(true);
-  const [mcpDirectAuthBusy, setMcpDirectAuthBusy] = useState<
-    "configure" | "reveal" | "disable" | null
-  >(null);
-  const [mcpDirectAuthError, setMcpDirectAuthError] =
-    useState<string | null>(null);
-  const [mcpDirectAuthMessage, setMcpDirectAuthMessage] =
-    useState<string | null>(null);
-  const [mcpDirectKey, setMcpDirectKey] =
-    useState<string | null>(null);
-  const [mcpDirectKeyVisible, setMcpDirectKeyVisible] =
-    useState(false);
-  const [mcpDirectKeyCopied, setMcpDirectKeyCopied] =
-    useState(false);
-  const [mcpDirectConfirm, setMcpDirectConfirm] =
-    useState<McpDirectConfirmation | null>(null);
-  const [mcpDirectCredentialDialogOpen, setMcpDirectCredentialDialogOpen] =
-    useState(false);
-  const [mcpDirectSelectedMode, setMcpDirectSelectedMode] =
-    useState<McpDirectSelectionMode>("bearer_key");
-  const [mcpDirectHeaderDraft, setMcpDirectHeaderDraft] = useState(
-    MCP_CUSTOM_HEADER_DEFAULT
-  );
-  const [mcpDirectTrustedNetworksDraft, setMcpDirectTrustedNetworksDraft] =
-    useState("");
-  const [mcpDirectReloadVersion, setMcpDirectReloadVersion] =
-    useState(0);
+  const [mcpNoAuthDialogOpen, setMcpNoAuthDialogOpen] = useState(false);
+  const [mcpNoAuthConfirmation, setMcpNoAuthConfirmation] = useState("");
 
   const [confirmation, setConfirmation] = useState("");
   const [isResetting, setIsResetting] = useState(false);
@@ -597,11 +410,13 @@ export function Settings() {
     mcpSettings &&
       mcpDraft &&
       (mcpSettings.enabled !== mcpDraft.enabled ||
-        mcpSettings.read_tools_enabled !==
-          mcpDraft.read_tools_enabled ||
-        mcpSettings.write_tools_enabled !==
-          mcpDraft.write_tools_enabled)
+        mcpSettings.read_tools_enabled !== mcpDraft.read_tools_enabled ||
+        mcpSettings.write_tools_enabled !== mcpDraft.write_tools_enabled ||
+        mcpSettings.direct_clients_enabled !== mcpDraft.direct_clients_enabled ||
+        mcpSettings.direct_no_auth_enabled !== mcpDraft.direct_no_auth_enabled)
   );
+  const mcpNoAuthConfirmationReady =
+    mcpNoAuthConfirmation === "ALLOW NO AUTH";
   const mcpServerUrl = `${window.location.origin}/mcp`;
   const mcpUsesPublicHttps = window.location.protocol === "https:";
   const mcpOAuthRedirectUris = mcpOAuthRedirectUrisDraft.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
@@ -612,41 +427,6 @@ export function Settings() {
   const mcpOAuthVisibleClients = mcpOAuthClients?.filter(
     (client) => client.status !== "revoked"
   ) ?? null;
-  const mcpDirectConfiguredMode: McpDirectSelectionMode | null =
-    mcpDirectAuth?.configured && mcpDirectAuth.mode !== "disabled"
-      ? mcpDirectAuth.mode
-      : null;
-  const mcpDirectModeMatches =
-    mcpDirectConfiguredMode === mcpDirectSelectedMode;
-  const mcpDirectHeaderError =
-    mcpDirectSelectedMode === "custom_header"
-      ? validateMcpCustomHeaderName(mcpDirectHeaderDraft)
-      : null;
-  const parsedMcpTrustedNetworks = parseMcpTrustedNetworks(
-    mcpDirectTrustedNetworksDraft
-  );
-  const mcpDirectTrustedNetworksError =
-    mcpDirectSelectedMode === "trusted_network"
-      ? parsedMcpTrustedNetworks.error
-      : null;
-  const mcpDirectConfigurationError =
-    mcpDirectHeaderError ?? mcpDirectTrustedNetworksError;
-  const mcpDirectHeaderChanged = Boolean(
-    mcpDirectConfiguredMode === "custom_header" &&
-      mcpDirectSelectedMode === "custom_header" &&
-      mcpDirectHeaderDraft.trim().toLowerCase() !==
-        mcpDirectAuth?.custom_header_name
-  );
-  const mcpDirectTrustedNetworksChanged = Boolean(
-    mcpDirectConfiguredMode === "trusted_network" &&
-      mcpDirectSelectedMode === "trusted_network" &&
-      parsedMcpTrustedNetworks.networks.join("\n") !==
-        (mcpDirectAuth?.trusted_networks ?? []).join("\n")
-  );
-  const mcpDirectSelectionChanged =
-    mcpDirectHeaderChanged || mcpDirectTrustedNetworksChanged;
-  const mcpDirectActiveNetworks = mcpDirectAuth?.trusted_networks ?? [];
-  const mcpDirectActiveNetworkPreview = mcpDirectActiveNetworks.slice(0, 3);
   const activeAccountSessions = accountSessions.filter(
     (session) => session.is_active
   );
@@ -877,59 +657,6 @@ export function Settings() {
   }, [mcpOAuthReloadVersion, token]);
 
   // PARTPILOT:MCP_TRUSTED_NETWORK_UI:V510
-  useEffect(() => {
-    if (!token) {
-      setMcpDirectAuth(null);
-      setMcpDirectAuthLoading(false);
-      setMcpDirectAuthError(
-        "Your session is unavailable. Sign in again."
-      );
-      return;
-    }
-
-    let cancelled = false;
-    setMcpDirectAuthLoading(true);
-    setMcpDirectAuthError(null);
-
-    getMcpDirectAuth(token)
-      .then((result) => {
-        if (!cancelled) {
-          setMcpDirectAuth(result);
-          if (result.mode === "custom_header") {
-            setMcpDirectSelectedMode("custom_header");
-            setMcpDirectHeaderDraft(
-              result.custom_header_name ?? MCP_CUSTOM_HEADER_DEFAULT
-            );
-          } else if (result.mode === "bearer_key") {
-            setMcpDirectSelectedMode("bearer_key");
-          } else if (result.mode === "trusted_network") {
-            setMcpDirectSelectedMode("trusted_network");
-            setMcpDirectTrustedNetworksDraft(
-              result.trusted_networks.join("\n")
-            );
-          }
-        }
-      })
-      .catch((caught) => {
-        if (!cancelled) {
-          setMcpDirectAuth(null);
-          setMcpDirectAuthError(
-            caught instanceof Error
-              ? caught.message
-              : "Unable to load direct authentication"
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setMcpDirectAuthLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mcpDirectReloadVersion, token]);
 
   // PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454
   useEffect(() => {
@@ -1116,13 +843,56 @@ export function Settings() {
   }
 
   function updateMcpDraft(
-    field: keyof McpSettings,
+    field:
+      | "enabled"
+      | "read_tools_enabled"
+      | "write_tools_enabled"
+      | "direct_clients_enabled"
+      | "direct_no_auth_enabled",
     value: boolean
   ): void {
     if (!mcpDraft || mcpSettingsSaving) {
       return;
     }
-    setMcpDraft({ ...mcpDraft, [field]: value });
+    const next = { ...mcpDraft, [field]: value };
+    if (field === "enabled" && !value) {
+      next.direct_no_auth_enabled = false;
+    }
+    if (field === "direct_clients_enabled" && !value) {
+      next.direct_no_auth_enabled = false;
+      setMcpNoAuthConfirmation("");
+      setMcpNoAuthDialogOpen(false);
+    }
+    setMcpDraft(next);
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+  }
+
+  function requestMcpNoAuth(nextValue: boolean): void {
+    if (!mcpDraft || mcpSettingsSaving) {
+      return;
+    }
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+    if (!nextValue) {
+      setMcpDraft({ ...mcpDraft, direct_no_auth_enabled: false });
+      setMcpNoAuthConfirmation("");
+      setMcpNoAuthDialogOpen(false);
+      return;
+    }
+    if (!mcpDraft.enabled || !mcpDraft.direct_clients_enabled) {
+      return;
+    }
+    setMcpNoAuthConfirmation("");
+    setMcpNoAuthDialogOpen(true);
+  }
+
+  function confirmMcpNoAuth(): void {
+    if (!mcpDraft || !mcpNoAuthConfirmationReady || mcpSettingsSaving) {
+      return;
+    }
+    setMcpDraft({ ...mcpDraft, direct_no_auth_enabled: true });
+    setMcpNoAuthDialogOpen(false);
     setMcpSettingsError(null);
     setMcpSettingsSaved(false);
   }
@@ -1132,6 +902,8 @@ export function Settings() {
       return;
     }
     setMcpDraft(mcpSettings);
+    setMcpNoAuthConfirmation("");
+    setMcpNoAuthDialogOpen(false);
     setMcpSettingsError(null);
     setMcpSettingsSaved(false);
   }
@@ -1141,13 +913,29 @@ export function Settings() {
       return;
     }
 
+    const enablingNoAuth = Boolean(
+      mcpSettings &&
+        !mcpSettings.direct_no_auth_enabled &&
+        mcpDraft.direct_no_auth_enabled
+    );
     setMcpSettingsSaving(true);
     setMcpSettingsError(null);
     setMcpSettingsSaved(false);
     try {
-      const saved = await updateMcpSettings(token, mcpDraft);
+      const saved = await updateMcpSettings(token, {
+        enabled: mcpDraft.enabled,
+        read_tools_enabled: mcpDraft.read_tools_enabled,
+        write_tools_enabled: mcpDraft.write_tools_enabled,
+        direct_clients_enabled: mcpDraft.direct_clients_enabled,
+        direct_no_auth_enabled: mcpDraft.direct_no_auth_enabled,
+        direct_no_auth_confirmation: enablingNoAuth
+          ? mcpNoAuthConfirmation
+          : null
+      });
       setMcpSettings(saved);
       setMcpDraft(saved);
+      setMcpNoAuthConfirmation("");
+      setMcpNoAuthDialogOpen(false);
       setMcpSettingsSaved(true);
     } catch (caught) {
       setMcpSettingsError(
@@ -1307,199 +1095,6 @@ export function Settings() {
       setMcpOAuthRevokeError(caught instanceof Error ? caught.message : "Unable to revoke the OAuth client");
     } finally {
       setMcpOAuthRevokingId(null);
-    }
-  }
-
-  function clearMcpDirectFeedback(): void {
-    setMcpDirectAuthError(null);
-    setMcpDirectAuthMessage(null);
-    setMcpDirectKeyCopied(false);
-  }
-
-  function chooseMcpDirectMode(mode: McpDirectSelectionMode): void {
-    if (mcpDirectAuthBusy) {
-      return;
-    }
-    clearMcpDirectFeedback();
-    setMcpDirectConfirm(null);
-    setMcpDirectCredentialDialogOpen(false);
-    setMcpDirectKey(null);
-    setMcpDirectKeyVisible(false);
-    setMcpDirectSelectedMode(mode);
-    if (mode === "custom_header") {
-      setMcpDirectHeaderDraft(
-        mcpDirectAuth?.mode === "custom_header" &&
-          mcpDirectAuth.custom_header_name
-          ? mcpDirectAuth.custom_header_name
-          : MCP_CUSTOM_HEADER_DEFAULT
-      );
-    }
-    if (mode === "trusted_network" && mcpDirectAuth?.mode === "trusted_network") {
-      setMcpDirectTrustedNetworksDraft(
-        mcpDirectAuth.trusted_networks.join("\n")
-      );
-    }
-  }
-
-  async function configureMcpDirectSelection(): Promise<void> {
-    if (!token || mcpDirectAuthBusy || mcpDirectConfigurationError) {
-      return;
-    }
-    const previousMode = mcpDirectConfiguredMode;
-    const wasConfigured = Boolean(previousMode);
-    setMcpDirectAuthBusy("configure");
-    clearMcpDirectFeedback();
-    try {
-      if (mcpDirectSelectedMode === "trusted_network") {
-        const result = await configureMcpDirectTrustedNetworks(token, {
-          networks: parsedMcpTrustedNetworks.networks
-        });
-        setMcpDirectAuth(result);
-        setMcpDirectSelectedMode("trusted_network");
-        setMcpDirectTrustedNetworksDraft(
-          result.trusted_networks.join("\n")
-        );
-        setMcpDirectKey(null);
-        setMcpDirectKeyVisible(false);
-        setMcpDirectCredentialDialogOpen(false);
-        setMcpDirectConfirm(null);
-        setMcpDirectAuthMessage(
-          !wasConfigured
-            ? "Trusted-network authentication enabled. Requests are accepted only from the configured CIDRs."
-            : previousMode !== "trusted_network"
-              ? "Switched to trusted-network authentication. The previous direct key stopped working."
-              : "Trusted networks updated. Removed networks are rejected immediately."
-        );
-        return;
-      }
-
-      const result =
-        mcpDirectSelectedMode === "custom_header"
-          ? await rotateMcpDirectCustomHeaderKey(token, {
-              header_name: mcpDirectHeaderDraft.trim().toLowerCase()
-            })
-          : await rotateMcpDirectBearerKey(token);
-      setMcpDirectAuth(result);
-      setMcpDirectSelectedMode(
-        result.mode === "custom_header" ? "custom_header" : "bearer_key"
-      );
-      setMcpDirectHeaderDraft(
-        result.custom_header_name ?? MCP_CUSTOM_HEADER_DEFAULT
-      );
-      setMcpDirectKey(result.key);
-      setMcpDirectKeyVisible(true);
-      setMcpDirectConfirm(null);
-      setMcpDirectCredentialDialogOpen(true);
-      const label = mcpDirectModeLabel(mcpDirectSelectedMode);
-      setMcpDirectAuthMessage(
-        !wasConfigured
-          ? `${label} created. Copy the key into your MCP client.`
-          : previousMode !== mcpDirectSelectedMode
-            ? `Switched to ${label.toLowerCase()}. The previous direct mode stopped working.`
-            : `${label} rotated. Existing direct clients must use the new key.`
-      );
-    } catch (caught) {
-      setMcpDirectAuthError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to configure direct authentication"
-      );
-    } finally {
-      setMcpDirectAuthBusy(null);
-    }
-  }
-
-  async function revealMcpDirectCredential(): Promise<void> {
-    if (
-      !token ||
-      mcpDirectAuthBusy ||
-      !mcpDirectAuth?.configured ||
-      mcpDirectConfiguredMode === "trusted_network"
-    ) {
-      return;
-    }
-    setMcpDirectAuthBusy("reveal");
-    clearMcpDirectFeedback();
-    try {
-      const result = await revealMcpDirectKey(token);
-      setMcpDirectAuth(result);
-      setMcpDirectKey(result.key);
-      setMcpDirectKeyVisible(true);
-      setMcpDirectCredentialDialogOpen(true);
-      setMcpDirectAuthMessage(
-        `${mcpDirectModeLabel(
-          result.mode === "custom_header" ? "custom_header" : "bearer_key"
-        )} revealed. Keep it private and use HTTPS.`
-      );
-    } catch (caught) {
-      setMcpDirectAuthError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to reveal the direct key"
-      );
-    } finally {
-      setMcpDirectAuthBusy(null);
-    }
-  }
-
-  async function disableMcpDirectKey(): Promise<void> {
-    if (!token || mcpDirectAuthBusy || !mcpDirectAuth?.configured) {
-      return;
-    }
-    setMcpDirectAuthBusy("disable");
-    clearMcpDirectFeedback();
-    try {
-      const result = await disableMcpDirectAuth(token);
-      setMcpDirectAuth(result);
-      setMcpDirectKey(null);
-      setMcpDirectKeyVisible(false);
-      setMcpDirectCredentialDialogOpen(false);
-      setMcpDirectConfirm(null);
-      setMcpDirectAuthMessage(
-        mcpDirectConfiguredMode === "trusted_network"
-          ? "Trusted-network authentication disabled."
-          : "Direct-key authentication disabled."
-      );
-    } catch (caught) {
-      setMcpDirectAuthError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to disable direct authentication"
-      );
-    } finally {
-      setMcpDirectAuthBusy(null);
-    }
-  }
-
-  async function copyMcpDirectKey(): Promise<void> {
-    if (!mcpDirectKey) {
-      return;
-    }
-    clearMcpDirectFeedback();
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(mcpDirectKey);
-      } else {
-        const field = document.createElement("textarea");
-        field.value = mcpDirectKey;
-        field.style.position = "fixed";
-        field.style.opacity = "0";
-        document.body.appendChild(field);
-        field.select();
-        const copied = document.execCommand("copy");
-        field.remove();
-        if (!copied) {
-          throw new Error("Clipboard copy was rejected.");
-        }
-      }
-      setMcpDirectKeyCopied(true);
-      setMcpDirectAuthMessage("Direct key copied.");
-    } catch (caught) {
-      setMcpDirectAuthError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to copy the direct key"
-      );
     }
   }
 
@@ -2906,8 +2501,8 @@ export function Settings() {
               <span className="card-label">Integrations</span>
               <h2 id="settings-mcp-title">Model Context Protocol</h2>
               <p>
-                Connect compatible clients through OAuth, a static bearer
-                key, or a dedicated custom HTTP header.
+                Control the MCP server, OAuth clients, and named direct clients
+                from one security boundary.
               </p>
             </div>
             {mcpDraft ? (
@@ -2931,6 +2526,51 @@ export function Settings() {
 
           {!mcpSettingsLoading && mcpDraft ? (
             <>
+              <div
+                className="settings-mcp-access-control"
+                data-partpilot-mcp-direct-policy="PARTPILOT:MCP_DIRECT_POLICY_UI:V627"
+              >
+                <div className="settings-mcp-access-heading">
+                  <div>
+                    <strong>MCP access</strong>
+                    <span>The server switch is the master control. All subordinate access settings are inactive while it is off.</span>
+                  </div>
+                </div>
+                <div className="settings-mcp-toggle-list">
+                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                    <span className="settings-toggle-copy"><strong>Enable MCP server</strong><span>Allow MCP clients to connect to the exact /mcp endpoint.</span></span>
+                    <input type="checkbox" role="switch" checked={mcpDraft.enabled} disabled={mcpSettingsSaving} onChange={(event) => updateMcpDraft("enabled", event.target.checked)} />
+                    <span className="settings-switch" aria-hidden="true" />
+                  </label>
+                  <label className={!mcpDraft.enabled || mcpSettingsSaving ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                    <span className="settings-toggle-copy"><strong>Read tools</strong><span>Permit inventory, Project, and Reservation read tools.</span></span>
+                    <input type="checkbox" role="switch" checked={mcpDraft.read_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("read_tools_enabled", event.target.checked)} />
+                    <span className="settings-switch" aria-hidden="true" />
+                  </label>
+                  <label className={!mcpDraft.enabled || mcpSettingsSaving ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                    <span className="settings-toggle-copy"><strong>Write authorization</strong><span>Allow clients to request mcp:write. No write tools are exposed in this build.</span></span>
+                    <input type="checkbox" role="switch" checked={mcpDraft.write_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("write_tools_enabled", event.target.checked)} />
+                    <span className="settings-switch" aria-hidden="true" />
+                  </label>
+                  <label className={!mcpDraft.enabled || mcpSettingsSaving ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                    <span className="settings-toggle-copy"><strong>Allow direct MCP clients</strong><span>Enable named Bearer, custom-header, and trusted-network clients alongside OAuth.</span></span>
+                    <input type="checkbox" role="switch" checked={mcpDraft.direct_clients_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("direct_clients_enabled", event.target.checked)} />
+                    <span className="settings-switch" aria-hidden="true" />
+                  </label>
+                  <label className={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled || mcpSettingsSaving ? "settings-toggle-row settings-mcp-no-auth-row is-disabled" : "settings-toggle-row settings-mcp-no-auth-row"}>
+                    <span className="settings-toggle-copy"><strong>No authentication</strong><span>Dangerous read-only fallback. Any reachable client may use MCP read tools without credentials.</span></span>
+                    <input type="checkbox" role="switch" checked={mcpDraft.direct_no_auth_enabled} disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled || mcpSettingsSaving} onChange={(event) => requestMcpNoAuth(event.target.checked)} />
+                    <span className="settings-switch" aria-hidden="true" />
+                  </label>
+                </div>
+                {mcpDraft.direct_no_auth_enabled ? (
+                  <div className="settings-mcp-no-auth-warning" role="status">
+                    <strong>No authentication is enabled.</strong>
+                    <span>Access remains read-only and is still gated by the MCP server and Read tools switches. Last resolved source: {mcpDraft.direct_no_auth_last_client_ip ?? "Not used yet"}.</span>
+                  </div>
+                ) : null}
+              </div>
+
               <div className="settings-mcp-endpoint">
                 <div className="settings-mcp-endpoint-copy">
                   <strong>MCP server URL</strong>
@@ -2970,6 +2610,7 @@ export function Settings() {
                 ) : null}
               </div>
 
+              <div className={!mcpDraft.enabled ? "settings-mcp-subordinate is-disabled" : "settings-mcp-subordinate"} aria-disabled={!mcpDraft.enabled}>
               <div
                 className="settings-mcp-oauth-clients"
                 data-partpilot-mcp-oauth-clients="PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569"
@@ -3015,159 +2656,17 @@ export function Settings() {
                 {mcpOAuthClientsMessage && !mcpOAuthClientsError ? <p className="settings-preference-state is-success" role="status">{mcpOAuthClientsMessage}</p> : null}
               </div>
 
-              <div
-                className="settings-mcp-direct-auth"
-                data-partpilot-mcp-trusted-network="PARTPILOT:MCP_TRUSTED_NETWORK_UI:V510"
-              >
-                <div className="settings-mcp-direct-heading">
-                  <div>
-                    <strong>Direct client authentication</strong>
-                    <span>
-                      Choose one installation-wide direct method for clients that
-                      cannot complete OAuth. OAuth remains available in every mode.
-                    </span>
-                  </div>
-                  {mcpDirectAuth ? (
-                    <span className={mcpDirectAuth.configured ? "settings-mcp-direct-state is-configured" : "settings-mcp-direct-state"}>
-                      {mcpDirectConfiguredMode ? `${mcpDirectModeLabel(mcpDirectConfiguredMode)} configured` : "Not configured"}
-                    </span>
-                  ) : null}
-                </div>
-                {mcpDirectAuthLoading ? <p className="settings-mcp-direct-note" role="status">Loading direct authentication...</p> : null}
-                {!mcpDirectAuthLoading && mcpDirectAuth ? (
-                  <>
-                    <div className="settings-mcp-direct-mode" role="group" aria-label="Direct authentication mode">
-                      {(["bearer_key", "custom_header", "trusted_network"] as McpDirectSelectionMode[]).map((mode) => (
-                        <button key={mode} className={mcpDirectSelectedMode === mode ? "is-selected" : ""} type="button" aria-pressed={mcpDirectSelectedMode === mode} disabled={Boolean(mcpDirectAuthBusy)} onClick={() => chooseMcpDirectMode(mode)}>
-                          <strong>{mcpDirectModeLabel(mode)}</strong>
-                          <span>{mode === "bearer_key" ? "Authorization: Bearer <key>" : mode === "custom_header" ? "Send the key in one dedicated HTTP header." : "Allow resolved client IPs in approved CIDRs."}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <p className="settings-mcp-direct-switch-note">Only one direct mode can be active. Switching modes disables the previous direct method immediately; OAuth is unaffected.</p>
-                    {mcpDirectSelectedMode === "custom_header" ? (
-                      <div className="settings-mcp-direct-config">
-                        <label htmlFor="settings-mcp-direct-header-name">HTTP header name</label>
-                        <input id="settings-mcp-direct-header-name" type="text" value={mcpDirectHeaderDraft} maxLength={120} spellCheck={false} autoComplete="off" disabled={Boolean(mcpDirectAuthBusy)} aria-invalid={Boolean(mcpDirectHeaderError)} aria-describedby="settings-mcp-direct-header-note" onChange={(event) => { setMcpDirectHeaderDraft(event.target.value); clearMcpDirectFeedback(); setMcpDirectConfirm(null); }} />
-                        <p id="settings-mcp-direct-header-note" className={mcpDirectHeaderError ? "is-error" : ""}>{mcpDirectHeaderError ?? "Your reverse proxy must pass this header unchanged and must not log its value."}</p>
-                      </div>
-                    ) : null}
-                    {mcpDirectSelectedMode === "trusted_network" ? (
-                      <div className="settings-mcp-direct-config">
-                        <label htmlFor="settings-mcp-trusted-networks">Trusted IPv4 and IPv6 CIDRs</label>
-                        <textarea id="settings-mcp-trusted-networks" value={mcpDirectTrustedNetworksDraft} rows={5} spellCheck={false} autoComplete="off" placeholder={"192.168.1.0/24\n2001:db8:1234::/64"} disabled={Boolean(mcpDirectAuthBusy)} aria-invalid={Boolean(mcpDirectTrustedNetworksError)} aria-describedby="settings-mcp-trusted-networks-note" onChange={(event) => { setMcpDirectTrustedNetworksDraft(event.target.value); clearMcpDirectFeedback(); setMcpDirectConfirm(null); }} />
-                        <p id="settings-mcp-trusted-networks-note" className={mcpDirectTrustedNetworksError ? "is-error" : ""}>{mcpDirectTrustedNetworksError ?? "One CIDR per line, maximum 64. Trust-all, multicast, unspecified, duplicate, and overlapping networks are rejected by the server."}</p>
-                        <p className="settings-mcp-trusted-warning">Access uses the resolved client IP after the configured proxy chain. Do not add a network unless every device on it may use Part Pilot without an MCP key.</p>
-                      </div>
-                    ) : null}
-                    <dl className="settings-mcp-direct-summary">
-                      <div><dt>Active mode</dt><dd>{mcpDirectConfiguredMode ? mcpDirectModeLabel(mcpDirectConfiguredMode) : "Disabled"}{mcpDirectConfiguredMode === "custom_header" && mcpDirectAuth.custom_header_name ? <small>{mcpDirectAuth.custom_header_name}</small> : null}</dd></div>
-                      <div><dt>{mcpDirectConfiguredMode === "trusted_network" ? "Networks" : "Key"}</dt><dd>{mcpDirectConfiguredMode === "trusted_network" ? `${mcpDirectActiveNetworks.length} configured` : mcpDirectAuth.masked_key ?? "Not created"}</dd></div>
-                      <div><dt>{mcpDirectConfiguredMode === "trusted_network" ? "Changed" : "Rotated"}</dt><dd>{mcpDirectAuth.rotated_at ? formatUtc(mcpDirectAuth.rotated_at) : "Never"}</dd></div>
-                      <div><dt>Last used</dt><dd>{mcpDirectAuth.last_used_at ? formatUtc(mcpDirectAuth.last_used_at) : "Never"}</dd></div>
-                    </dl>
-                    {mcpDirectConfiguredMode === "trusted_network" && mcpDirectActiveNetworks.length > 0 ? (
-                      <div className="settings-mcp-trusted-active"><strong>Active trusted CIDRs</strong><div>{mcpDirectActiveNetworkPreview.map((network) => <code key={network}>{network}</code>)}{mcpDirectActiveNetworks.length > 3 ? <span>+{mcpDirectActiveNetworks.length - 3} more</span> : null}</div></div>
-                    ) : null}
-                    <div className="settings-mcp-direct-actions">
-                      {!mcpDirectAuth.configured ? <button className="settings-action settings-action-primary" type="button" disabled={Boolean(mcpDirectAuthBusy) || Boolean(mcpDirectConfigurationError)} onClick={() => { clearMcpDirectFeedback(); setMcpDirectConfirm("create"); }}>{mcpDirectSelectedMode === "trusted_network" ? "Enable trusted network" : `Create ${mcpDirectModeLabel(mcpDirectSelectedMode)}`}</button> : mcpDirectModeMatches ? <>{mcpDirectConfiguredMode !== "trusted_network" ? <button className="settings-action settings-action-secondary" type="button" disabled={Boolean(mcpDirectAuthBusy)} onClick={() => void revealMcpDirectCredential()}>{mcpDirectAuthBusy === "reveal" ? "Revealing..." : "Reveal key"}</button> : null}{mcpDirectConfiguredMode === "trusted_network" ? mcpDirectTrustedNetworksChanged ? <button className="settings-action settings-action-primary" type="button" disabled={Boolean(mcpDirectAuthBusy) || Boolean(mcpDirectConfigurationError)} onClick={() => { clearMcpDirectFeedback(); setMcpDirectConfirm("apply_networks"); }}>Apply network changes</button> : null : <button className="settings-action settings-action-secondary" type="button" disabled={Boolean(mcpDirectAuthBusy) || Boolean(mcpDirectConfigurationError)} onClick={() => { clearMcpDirectFeedback(); setMcpDirectConfirm("rotate"); }}>{mcpDirectSelectionChanged ? "Apply header & rotate" : "Rotate key"}</button>}<button className="settings-action settings-action-danger" type="button" disabled={Boolean(mcpDirectAuthBusy)} onClick={() => { clearMcpDirectFeedback(); setMcpDirectConfirm("disable"); }}>Disable direct mode</button></> : <><button className="settings-action settings-action-primary" type="button" disabled={Boolean(mcpDirectAuthBusy) || Boolean(mcpDirectConfigurationError)} onClick={() => { clearMcpDirectFeedback(); setMcpDirectConfirm("switch"); }}>Switch to {mcpDirectModeLabel(mcpDirectSelectedMode).toLowerCase()}</button><button className="settings-action settings-action-danger" type="button" disabled={Boolean(mcpDirectAuthBusy)} onClick={() => { clearMcpDirectFeedback(); setMcpDirectConfirm("disable"); }}>Disable current mode</button></>}
-                    </div>
-                  </>
-                ) : null}
-                {mcpDirectAuthError ? <div className="settings-preference-state is-error" role="alert"><span>{mcpDirectAuthError}</span>{!mcpDirectAuth ? <button type="button" onClick={() => setMcpDirectReloadVersion((value) => value + 1)}>Retry</button> : null}</div> : null}
-                {mcpDirectAuthMessage && !mcpDirectAuthError ? <p className="settings-preference-state is-success" role="status">{mcpDirectAuthMessage}</p> : null}
-              </div>
+              <McpDirectClientsSection
+                token={token ?? ""}
+                disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled}
+              />
 
-              <div className="settings-mcp-toggle-list">
-                <label
-                  className={
-                    mcpSettingsSaving
-                      ? "settings-toggle-row is-disabled"
-                      : "settings-toggle-row"
-                  }
-                >
-                  <span className="settings-toggle-copy">
-                    <strong>Enable MCP server</strong>
-                    <span>
-                      Allow authenticated MCP clients to connect to the
-                      exact /mcp endpoint.
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    checked={mcpDraft.enabled}
-                    disabled={mcpSettingsSaving}
-                    onChange={(event) =>
-                      updateMcpDraft("enabled", event.target.checked)
-                    }
-                  />
-                  <span className="settings-switch" aria-hidden="true" />
-                </label>
-
-                <label
-                  className={
-                    mcpSettingsSaving
-                      ? "settings-toggle-row is-disabled"
-                      : "settings-toggle-row"
-                  }
-                >
-                  <span className="settings-toggle-copy">
-                    <strong>Read tools</strong>
-                    <span>
-                      Permit inventory search and details for Parts,
-                      Projects, and Reservations.
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    checked={mcpDraft.read_tools_enabled}
-                    disabled={mcpSettingsSaving}
-                    onChange={(event) =>
-                      updateMcpDraft(
-                        "read_tools_enabled",
-                        event.target.checked
-                      )
-                    }
-                  />
-                  <span className="settings-switch" aria-hidden="true" />
-                </label>
-
-                <label
-                  className={
-                    mcpSettingsSaving
-                      ? "settings-toggle-row is-disabled"
-                      : "settings-toggle-row"
-                  }
-                >
-                  <span className="settings-toggle-copy">
-                    <strong>Write authorization</strong>
-                    <span>
-                      Allow clients to request mcp:write permission. No
-                      write tools are exposed in this build.
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    checked={mcpDraft.write_tools_enabled}
-                    disabled={mcpSettingsSaving}
-                    onChange={(event) =>
-                      updateMcpDraft(
-                        "write_tools_enabled",
-                        event.target.checked
-                      )
-                    }
-                  />
-                  <span className="settings-switch" aria-hidden="true" />
-                </label>
               </div>
 
               <dl className="settings-mcp-summary">
                 <div>
                   <dt>Authentication</dt>
-                  <dd>OAuth 2.1 or bearer key</dd>
+                  <dd>OAuth 2.1 + named direct clients</dd>
                 </div>
                 <div>
                   <dt>Transport</dt>
@@ -3467,26 +2966,15 @@ export function Settings() {
         </section>
       </div>
 
-      {mcpDirectConfirm ? (
-        <div className="settings-security-dialog-backdrop" data-partpilot-mcp-direct-security-dialog="PARTPILOT:MCP_DIRECT_SECURITY_DIALOG:V620">
-          <section className={mcpDirectConfirm === "disable" ? "settings-security-dialog is-danger" : "settings-security-dialog"} role="dialog" aria-modal="true" aria-labelledby="settings-mcp-direct-action-dialog-title" aria-describedby="settings-mcp-direct-action-dialog-description">
-            <header><span className="card-label">MCP direct authentication</span><h2 id="settings-mcp-direct-action-dialog-title">{mcpDirectConfirm === "disable" ? "Disable direct authentication?" : mcpDirectConfirm === "switch" ? `Switch to ${mcpDirectModeLabel(mcpDirectSelectedMode).toLowerCase()}?` : mcpDirectConfirm === "apply_networks" ? "Apply trusted-network changes?" : mcpDirectConfirm === "create" ? mcpDirectSelectedMode === "trusted_network" ? "Enable trusted-network authentication?" : `Create ${mcpDirectModeLabel(mcpDirectSelectedMode).toLowerCase()}?` : mcpDirectHeaderChanged ? "Apply the header and rotate the key?" : `Rotate the ${mcpDirectModeLabel(mcpDirectSelectedMode).toLowerCase()}?`}</h2></header>
+      {mcpNoAuthDialogOpen ? (
+        <div className="settings-security-dialog-backdrop" data-partpilot-mcp-no-auth-dialog="PARTPILOT:MCP_NO_AUTH_CONFIRMATION_DIALOG:V627">
+          <section className="settings-security-dialog is-danger" role="dialog" aria-modal="true" aria-labelledby="settings-mcp-no-auth-title" aria-describedby="settings-mcp-no-auth-description">
+            <header><span className="card-label">MCP security</span><h2 id="settings-mcp-no-auth-title">Enable MCP without authentication?</h2></header>
             <div className="settings-security-dialog-content">
-              <p id="settings-mcp-direct-action-dialog-description">{mcpDirectConfirm === "disable" ? "Clients using the active direct method will be rejected immediately. OAuth clients are unaffected." : mcpDirectSelectedMode === "trusted_network" ? "Removed networks lose access immediately; added networks gain keyless MCP access. OAuth clients are unaffected." : mcpDirectConfirm === "create" ? "A new credential will be generated and displayed in this dialog. Copy it into the MCP client before closing the result." : "The active direct credential will stop working immediately. The replacement credential will be displayed in this dialog. OAuth clients are unaffected."}</p>
-              <dl className="settings-security-dialog-summary"><div><dt>Selected mode</dt><dd>{mcpDirectModeLabel(mcpDirectSelectedMode)}</dd></div><div><dt>Current mode</dt><dd>{mcpDirectConfiguredMode ? mcpDirectModeLabel(mcpDirectConfiguredMode) : "Disabled"}</dd></div></dl>
-              {mcpDirectAuthError ? <p className="form-error" role="alert">{mcpDirectAuthError}</p> : null}
+              <p id="settings-mcp-no-auth-description">Any device that can reach the MCP endpoint will be able to use enabled read tools without OAuth, a key, or a trusted-network identity. Write tools remain unavailable in this build.</p>
+              <label className="settings-security-credential-field" htmlFor="settings-mcp-no-auth-confirmation"><span>Type ALLOW NO AUTH to continue</span><input id="settings-mcp-no-auth-confirmation" type="text" value={mcpNoAuthConfirmation} autoComplete="off" spellCheck={false} onChange={(event) => setMcpNoAuthConfirmation(event.target.value)} /></label>
             </div>
-            <footer><button className="settings-action settings-action-secondary" type="button" disabled={Boolean(mcpDirectAuthBusy)} onClick={() => setMcpDirectConfirm(null)}>Cancel</button><button className={mcpDirectConfirm === "disable" ? "settings-action settings-action-danger" : "settings-action settings-action-primary"} type="button" disabled={Boolean(mcpDirectAuthBusy) || (mcpDirectConfirm !== "disable" && Boolean(mcpDirectConfigurationError))} onClick={() => void (mcpDirectConfirm === "disable" ? disableMcpDirectKey() : configureMcpDirectSelection())}>{mcpDirectAuthBusy ? "Working..." : mcpDirectConfirm === "disable" ? "Disable mode" : mcpDirectConfirm === "switch" ? "Switch mode" : mcpDirectConfirm === "apply_networks" ? "Apply networks" : mcpDirectConfirm === "create" ? mcpDirectSelectedMode === "trusted_network" ? "Enable trusted network" : "Create credential" : mcpDirectHeaderChanged ? "Apply & rotate" : "Rotate key"}</button></footer>
-          </section>
-        </div>
-      ) : null}
-
-      {mcpDirectCredentialDialogOpen && mcpDirectKey && mcpDirectConfiguredMode && mcpDirectConfiguredMode !== "trusted_network" ? (
-        <div className="settings-security-dialog-backdrop" data-partpilot-mcp-direct-credential-dialog="PARTPILOT:MCP_DIRECT_CREDENTIAL_DIALOG:V620">
-          <section className="settings-security-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-mcp-direct-credential-dialog-title">
-            <header><span className="card-label">MCP direct credential</span><h2 id="settings-mcp-direct-credential-dialog-title">{mcpDirectModeLabel(mcpDirectConfiguredMode)} ready</h2><p>Copy the credential into the MCP client before closing this dialog.</p></header>
-            <div className="settings-security-dialog-content"><label className="settings-security-credential-field" htmlFor="settings-mcp-direct-dialog-key"><span>{mcpDirectConfiguredMode === "custom_header" ? "Custom-header key" : "Bearer key"}</span><input id="settings-mcp-direct-dialog-key" type={mcpDirectKeyVisible ? "text" : "password"} value={mcpDirectKey} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /></label><p>Treat this value like a password. Never paste it into logs, screenshots, issue reports, or chat messages.</p>{mcpDirectAuthError ? <p className="form-error" role="alert">{mcpDirectAuthError}</p> : null}</div>
-            <footer><button className="settings-action settings-action-secondary" type="button" onClick={() => setMcpDirectKeyVisible((value) => !value)}>{mcpDirectKeyVisible ? "Hide" : "Show"}</button><button className="settings-action settings-action-primary" type="button" onClick={() => void copyMcpDirectKey()}>{mcpDirectKeyCopied ? "Copied" : "Copy key"}</button><button className="settings-action settings-action-secondary" type="button" onClick={() => { setMcpDirectCredentialDialogOpen(false); setMcpDirectKey(null); setMcpDirectKeyVisible(false); setMcpDirectKeyCopied(false); }}>Done</button></footer>
+            <footer><button className="settings-action settings-action-secondary" type="button" onClick={() => { setMcpNoAuthDialogOpen(false); setMcpNoAuthConfirmation(""); }}>Cancel</button><button className="settings-action settings-action-danger" type="button" disabled={!mcpNoAuthConfirmationReady} onClick={confirmMcpNoAuth}>Enable no authentication</button></footer>
           </section>
         </div>
       ) : null}

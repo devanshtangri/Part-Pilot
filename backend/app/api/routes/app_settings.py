@@ -12,6 +12,13 @@ from app.schemas.app_settings import (
     McpDirectAuthKeyResponse,
     McpDirectAuthStatusResponse,
     McpDirectAuthTrustedNetworkRequest,
+    McpDirectClientCreateRequest,
+    McpDirectClientCreateResponse,
+    McpDirectClientKeyResponse,
+    McpDirectClientRotateRequest,
+    McpDirectClientSummaryResponse,
+    McpDirectClientsResponse,
+    McpDirectClientUpdateRequest,
     McpOAuthClientRegistrationRequest,
     McpOAuthClientRegistrationResponse,
     McpOAuthClientsResponse,
@@ -31,15 +38,24 @@ from app.services.mcp_direct_auth import (
     McpDirectAuthConfigurationError,
     McpDirectAuthHeaderNameError,
     McpDirectAuthNetworkError,
+    McpDirectAuthNameError,
     McpDirectAuthDecryptionError,
     McpDirectAuthNotConfiguredError,
     configure_trusted_networks,
+    configure_named_trusted_networks,
+    create_named_direct_client,
     disable_direct_auth,
     get_direct_auth,
+    get_named_direct_client,
+    list_direct_clients,
     reveal_direct_key,
+    reveal_named_direct_client_key,
+    revoke_named_direct_client,
     rotate_bearer_key,
     rotate_custom_header_key,
+    rotate_named_direct_client_key,
     trusted_networks_for_record,
+    update_named_direct_client,
 )
 
 from app.services.mcp_oauth import (
@@ -53,6 +69,7 @@ from app.services.mcp_oauth import (
 
 from app.services.app_settings import (
     AppearanceThemeUnavailableError,
+    McpSettingsValidationError,
     get_appearance_settings,
     get_mcp_settings,
     get_reservation_settings,
@@ -166,12 +183,18 @@ def patch_mcp_settings(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> McpSettingsResponse:
-    return update_mcp_settings(
-        db,
-        payload,
-        actor_user_id=current_user.id,
-        commit=True,
-    )
+    try:
+        return update_mcp_settings(
+            db,
+            payload,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except McpSettingsValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
 
 # PARTPILOT:MCP_DIRECT_AUTH_API_ROUTE:V503
@@ -255,6 +278,270 @@ def delete_mcp_oauth_client(
                 "Pragma": "no-cache",
             },
         ) from exc
+
+
+# PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_API:V627
+
+def _named_direct_client_summary(record) -> McpDirectClientSummaryResponse:
+    key_configured = bool(
+        record.mode in {DIRECT_AUTH_BEARER_KEY, DIRECT_AUTH_CUSTOM_HEADER}
+        and record.key_ciphertext
+        and record.key_digest
+        and record.key_prefix
+    )
+    return McpDirectClientSummaryResponse(
+        id=record.id,
+        name=record.name,
+        enabled=bool(record.enabled),
+        mode=record.mode,
+        masked_key=(f"{record.key_prefix}••••••••" if key_configured else None),
+        custom_header_name=(
+            record.custom_header_name
+            if record.mode == DIRECT_AUTH_CUSTOM_HEADER
+            else None
+        ),
+        trusted_networks=(
+            trusted_networks_for_record(record)
+            if record.mode == DIRECT_AUTH_TRUSTED_NETWORK
+            else []
+        ),
+        rotated_at=record.rotated_at,
+        last_used_at=record.last_used_at,
+        last_resolved_client_ip=record.last_resolved_client_ip,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+    )
+
+
+def _named_direct_clients_response(db: Session) -> McpDirectClientsResponse:
+    clients = [
+        _named_direct_client_summary(record)
+        for record in list_direct_clients(db, include_revoked=False)
+        if record.mode != DIRECT_AUTH_DISABLED
+    ]
+    return McpDirectClientsResponse(clients=clients, total=len(clients))
+
+
+def _named_direct_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, McpDirectAuthNotConfiguredError):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    if isinstance(
+        exc,
+        (McpDirectAuthNameError, McpDirectAuthHeaderNameError, McpDirectAuthNetworkError),
+    ):
+        return HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=str(exc),
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
+@router.get("/mcp/direct-clients", response_model=McpDirectClientsResponse)
+def read_mcp_direct_clients(
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectClientsResponse:
+    del current_user
+    _no_store(response)
+    return _named_direct_clients_response(db)
+
+
+@router.post(
+    "/mcp/direct-clients",
+    response_model=McpDirectClientCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_mcp_direct_client(
+    payload: McpDirectClientCreateRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectClientCreateResponse:
+    _no_store(response)
+    try:
+        created = create_named_direct_client(
+            db,
+            actor_user_id=current_user.id,
+            name=payload.name,
+            mode=payload.mode,
+            header_name=payload.header_name,
+            networks=payload.networks,
+            commit=True,
+        )
+    except (
+        McpDirectAuthConfigurationError,
+        McpDirectAuthHeaderNameError,
+        McpDirectAuthNetworkError,
+    ) as exc:
+        raise _named_direct_error(exc) from exc
+    if hasattr(created, "plaintext_key"):
+        record = created.record
+        key = created.plaintext_key
+    else:
+        record = created
+        key = None
+    return McpDirectClientCreateResponse(
+        **_named_direct_client_summary(record).model_dump(),
+        key=key,
+    )
+
+
+@router.patch(
+    "/mcp/direct-clients/{client_id}",
+    response_model=McpDirectClientSummaryResponse,
+)
+def patch_mcp_direct_client(
+    client_id: int,
+    payload: McpDirectClientUpdateRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectClientSummaryResponse:
+    _no_store(response)
+    try:
+        record = update_named_direct_client(
+            db,
+            client_id=client_id,
+            actor_user_id=current_user.id,
+            name=payload.name,
+            enabled=payload.enabled,
+            commit=True,
+        )
+    except (
+        McpDirectAuthConfigurationError,
+        McpDirectAuthNetworkError,
+        McpDirectAuthNotConfiguredError,
+    ) as exc:
+        raise _named_direct_error(exc) from exc
+    return _named_direct_client_summary(record)
+
+
+@router.post(
+    "/mcp/direct-clients/{client_id}/rotate",
+    response_model=McpDirectClientKeyResponse,
+)
+def rotate_mcp_named_direct_client(
+    client_id: int,
+    payload: McpDirectClientRotateRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectClientKeyResponse:
+    _no_store(response)
+    try:
+        issued = rotate_named_direct_client_key(
+            db,
+            client_id=client_id,
+            actor_user_id=current_user.id,
+            header_name=payload.header_name,
+            commit=True,
+        )
+    except (
+        McpDirectAuthConfigurationError,
+        McpDirectAuthHeaderNameError,
+        McpDirectAuthNotConfiguredError,
+    ) as exc:
+        raise _named_direct_error(exc) from exc
+    return McpDirectClientKeyResponse(
+        **_named_direct_client_summary(issued.record).model_dump(),
+        key=issued.plaintext_key,
+    )
+
+
+@router.post(
+    "/mcp/direct-clients/{client_id}/reveal",
+    response_model=McpDirectClientKeyResponse,
+)
+def reveal_mcp_named_direct_client(
+    client_id: int,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectClientKeyResponse:
+    _no_store(response)
+    try:
+        key = reveal_named_direct_client_key(
+            db,
+            client_id=client_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+        record = get_named_direct_client(db, client_id)
+    except (
+        McpDirectAuthConfigurationError,
+        McpDirectAuthDecryptionError,
+        McpDirectAuthNotConfiguredError,
+    ) as exc:
+        raise _named_direct_error(exc) from exc
+    return McpDirectClientKeyResponse(
+        **_named_direct_client_summary(record).model_dump(),
+        key=key,
+    )
+
+
+@router.put(
+    "/mcp/direct-clients/{client_id}/trusted-networks",
+    response_model=McpDirectClientSummaryResponse,
+)
+def put_mcp_named_direct_client_networks(
+    client_id: int,
+    payload: McpDirectAuthTrustedNetworkRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectClientSummaryResponse:
+    _no_store(response)
+    try:
+        record = configure_named_trusted_networks(
+            db,
+            client_id=client_id,
+            actor_user_id=current_user.id,
+            networks=payload.networks,
+            commit=True,
+        )
+    except (
+        McpDirectAuthConfigurationError,
+        McpDirectAuthNetworkError,
+        McpDirectAuthNotConfiguredError,
+    ) as exc:
+        raise _named_direct_error(exc) from exc
+    return _named_direct_client_summary(record)
+
+
+@router.delete(
+    "/mcp/direct-clients/{client_id}",
+    response_model=McpDirectClientsResponse,
+)
+def delete_mcp_named_direct_client(
+    client_id: int,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpDirectClientsResponse:
+    _no_store(response)
+    try:
+        revoke_named_direct_client(
+            db,
+            client_id=client_id,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except (
+        McpDirectAuthConfigurationError,
+        McpDirectAuthNotConfiguredError,
+    ) as exc:
+        raise _named_direct_error(exc) from exc
+    return _named_direct_clients_response(db)
 
 
 def _direct_auth_status(db: Session) -> McpDirectAuthStatusResponse:

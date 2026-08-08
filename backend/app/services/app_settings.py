@@ -38,6 +38,14 @@ RESERVATION_EXPIRY_MODE_KEY = "reservations.expiry.mode"
 RESERVATION_EXPIRY_DEFAULT_DAYS_KEY = (
     "reservations.expiry.default_days"
 )
+MCP_DIRECT_CLIENTS_ENABLED_KEY = "mcp.direct_clients_enabled"
+MCP_DIRECT_NO_AUTH_ENABLED_KEY = "mcp.direct_no_auth_enabled"
+MCP_DIRECT_NO_AUTH_LAST_CLIENT_IP_KEY = "mcp.direct_no_auth_last_client_ip"
+MCP_DIRECT_NO_AUTH_CONFIRMATION = "ALLOW NO AUTH"
+
+
+class McpSettingsValidationError(RuntimeError):
+    pass
 
 
 def get_search_settings(db: Session) -> SearchSettingsResponse:
@@ -328,16 +336,20 @@ def update_appearance_settings(
     return after
 
 
-# PARTPILOT:MCP_SETTINGS_SERVICE:V473
+# PARTPILOT:MCP_SETTINGS_SERVICE:V627
 def get_mcp_settings(db: Session) -> McpSettingsResponse:
+    last_ip = get_str_setting(db, MCP_DIRECT_NO_AUTH_LAST_CLIENT_IP_KEY, "").strip()
     return McpSettingsResponse(
         enabled=get_bool_setting(db, MCP_ENABLED_KEY, False),
-        read_tools_enabled=get_bool_setting(
-            db, MCP_READ_ENABLED_KEY, True
+        read_tools_enabled=get_bool_setting(db, MCP_READ_ENABLED_KEY, True),
+        write_tools_enabled=get_bool_setting(db, MCP_WRITE_ENABLED_KEY, False),
+        direct_clients_enabled=get_bool_setting(
+            db, MCP_DIRECT_CLIENTS_ENABLED_KEY, False
         ),
-        write_tools_enabled=get_bool_setting(
-            db, MCP_WRITE_ENABLED_KEY, False
+        direct_no_auth_enabled=get_bool_setting(
+            db, MCP_DIRECT_NO_AUTH_ENABLED_KEY, False
         ),
+        direct_no_auth_last_client_ip=last_ip or None,
     )
 
 
@@ -349,29 +361,45 @@ def update_mcp_settings(
     commit: bool = True,
 ) -> McpSettingsResponse:
     before = get_mcp_settings(db)
+    if payload.direct_no_auth_enabled and not payload.direct_clients_enabled:
+        raise McpSettingsValidationError(
+            "No-auth direct access requires Allow direct MCP clients."
+        )
+    if (
+        payload.direct_no_auth_enabled
+        and not before.direct_no_auth_enabled
+        and payload.direct_no_auth_confirmation != MCP_DIRECT_NO_AUTH_CONFIRMATION
+    ):
+        raise McpSettingsValidationError(
+            f"Type {MCP_DIRECT_NO_AUTH_CONFIRMATION!r} to enable unauthenticated MCP access."
+        )
+
     after = McpSettingsResponse(
         enabled=payload.enabled,
         read_tools_enabled=payload.read_tools_enabled,
         write_tools_enabled=payload.write_tools_enabled,
+        direct_clients_enabled=payload.direct_clients_enabled,
+        direct_no_auth_enabled=payload.direct_no_auth_enabled,
+        direct_no_auth_last_client_ip=before.direct_no_auth_last_client_ip,
     )
-    if before == after:
-        return before
-
+    comparable_fields = (
+        "enabled",
+        "read_tools_enabled",
+        "write_tools_enabled",
+        "direct_clients_enabled",
+        "direct_no_auth_enabled",
+    )
     changed_fields = [
         field_name
-        for field_name in (
-            "enabled",
-            "read_tools_enabled",
-            "write_tools_enabled",
-        )
+        for field_name in comparable_fields
         if getattr(before, field_name) != getattr(after, field_name)
     ]
+    if not changed_fields:
+        return before
 
     try:
         settings = [
-            set_app_setting(
-                db, MCP_ENABLED_KEY, after.enabled, commit=False
-            ),
+            set_app_setting(db, MCP_ENABLED_KEY, after.enabled, commit=False),
             set_app_setting(
                 db,
                 MCP_READ_ENABLED_KEY,
@@ -384,15 +412,25 @@ def update_mcp_settings(
                 after.write_tools_enabled,
                 commit=False,
             ),
+            set_app_setting(
+                db,
+                MCP_DIRECT_CLIENTS_ENABLED_KEY,
+                after.direct_clients_enabled,
+                commit=False,
+            ),
+            set_app_setting(
+                db,
+                MCP_DIRECT_NO_AUTH_ENABLED_KEY,
+                after.direct_no_auth_enabled,
+                commit=False,
+            ),
         ]
         db.add(
             AuditLog(
                 event_type="settings.mcp_updated",
                 entity_type="app_setting",
                 entity_id=settings[0].id,
-                actor_type=(
-                    "user" if actor_user_id is not None else "system"
-                ),
+                actor_type=("user" if actor_user_id is not None else "system"),
                 actor_user_id=actor_user_id,
                 summary="Updated MCP access settings",
                 before_json=before.model_dump(),
@@ -402,8 +440,11 @@ def update_mcp_settings(
                         MCP_ENABLED_KEY,
                         MCP_READ_ENABLED_KEY,
                         MCP_WRITE_ENABLED_KEY,
+                        MCP_DIRECT_CLIENTS_ENABLED_KEY,
+                        MCP_DIRECT_NO_AUTH_ENABLED_KEY,
                     ],
                     "changed_fields": changed_fields,
+                    "no_auth_confirmation": "redacted",
                 },
             )
         )
@@ -416,5 +457,4 @@ def update_mcp_settings(
         if commit:
             db.rollback()
         raise
-
     return after

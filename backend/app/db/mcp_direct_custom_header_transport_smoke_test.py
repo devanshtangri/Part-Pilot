@@ -129,6 +129,32 @@ def restore_sequences(before: dict[str, object]) -> None:
         connection.close()
 
 
+def restore_direct_baseline(before: dict[str, object]) -> None:
+    connection = sqlite3.connect(sqlite_path())
+    try:
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("DELETE FROM mcp_direct_auth")
+        for row in before["rows"]["mcp_direct_auth"]:
+            columns = list(row)
+            connection.execute(
+                f'INSERT INTO mcp_direct_auth ({",".join(columns)}) VALUES ({",".join("?" for _ in columns)})',
+                tuple(row[column] for column in columns),
+            )
+        keys = ("mcp.direct_clients_enabled", "mcp.direct_no_auth_enabled")
+        connection.executemany("DELETE FROM app_settings WHERE key=?", [(key,) for key in keys])
+        for row in before["rows"]["app_settings"]:
+            if row["key"] not in keys:
+                continue
+            columns = list(row)
+            connection.execute(
+                f'INSERT INTO app_settings ({",".join(columns)}) VALUES ({",".join("?" for _ in columns)})',
+                tuple(row[column] for column in columns),
+            )
+        connection.commit()
+    finally:
+        connection.close()
+
+
 def base_headers() -> dict[str, str]:
     return {
         "Host": "partpilot.example",
@@ -238,8 +264,11 @@ def main() -> None:
     original_settings: dict[str, tuple[object, object, object]] = {}
     secrets_seen: list[str] = []
     try:
-        if db.query(McpDirectAuth).count() != 0:
-            fail("Custom-header smoke requires an unconfigured copied database")
+        if db.query(McpDirectAuth).count() != 1:
+            fail("Custom-header smoke requires the migrated disabled legacy row")
+        legacy = db.get(McpDirectAuth, 1)
+        if legacy is None or legacy.mode != "disabled" or legacy.enabled:
+            fail("Custom-header migrated legacy row has unexpected state")
         user = db.execute(
             select(User).where(User.is_active.is_(True)).order_by(User.id)
         ).scalars().first()
@@ -605,7 +634,6 @@ def main() -> None:
             cleanup.query(AuditLog).filter(
                 AuditLog.id > baseline_audit_id
             ).delete(synchronize_session=False)
-            cleanup.query(McpDirectAuth).delete(synchronize_session=False)
             for setting_key, values in original_settings.items():
                 setting = cleanup.execute(
                     select(AppSetting).where(AppSetting.key == setting_key)
@@ -614,6 +642,7 @@ def main() -> None:
             cleanup.commit()
         finally:
             cleanup.close()
+        restore_direct_baseline(before)
         restore_sequences(before)
         if secret_before is None:
             secret_path.unlink(missing_ok=True)
