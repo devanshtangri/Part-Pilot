@@ -3097,3 +3097,36 @@ without changing the resource-event contract.
 
 Chat 22 remains bounded at Patch 658. Patch 657 should return to the pending MCP
 permission browser-feedback fix; Patch 658 remains the mandatory boundary.
+
+
+<!-- PARTPILOT:CHAT22_TO_CHAT23_BOUNDARY_RECOVERY:V660 -->
+## Chat 22 complete — Chat 23 next
+
+**Required title:** `Chat 23: MCP Permission Finalization and Settings Modernization`
+**Patch range:** `661-685`
+**First patch:** `661`
+**Planned boundary:** `685`
+
+Implementation order:
+
+1. Patch 661 recovers the pending MCP permission browser refinement. Make
+   authenticated MCP `tools/list` principal-aware so globally/per-client denied
+   tools are omitted while call-time authorization remains defense in depth.
+   Rehearse and freeze the exact packaged bytes before writing.
+2. Browser-test and checkpoint the complete MCP permission foundation/API/UI
+   immediately after approval.
+3. Finish restrained Settings hierarchy and reversible preference autosave.
+   Toggles/selects save immediately, text/number preferences debounce, ordinary
+   Save/Reset-changes controls disappear, and one guarded Reset-to-defaults
+   action remains.
+4. Implement authenticated SSE invalidation plus targeted refetch for
+   near-immediate cross-client updates. Polling is fallback only; routine
+   Refresh controls disappear after each path is proven.
+5. Continue public-alpha API docs/schema hardening, persisted ISO currency
+   formatting, server-backed Stored Parts metrics, preference restoration,
+   Owner/Admin/Operator/Viewer roles, safeguarded MCP writes and final alpha
+   accessibility/security/responsive/API-MCP regression.
+
+The six registered MCP tools are currently read-only. Do not add placeholder
+write-tool controls. Future safeguarded write tools join the canonical catalogue
+only when their runtime contracts exist.

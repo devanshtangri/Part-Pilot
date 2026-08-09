@@ -3775,3 +3775,42 @@ pending Patch 654 browser-test application source. Patch 655 was consumed by a
 pre-write durable-log assertion and made no source/deployment/data changes.
 Patch 657 resumes the MCP browser-feedback fix; Patch 658 remains the Chat 22
 boundary.
+
+
+<!-- PARTPILOT:CHAT22_BOUNDARY_RECOVERY:V660 -->
+## Chat 22 boundary recovery — Patch 660
+
+Chat 22 closes through narrow documentation-only boundary recovery after the
+successful Patch 659 diagnostic.
+
+The application working tree remains the authoritative 22-file MCP permission
+browser-test batch. Patch 660 does not stage, commit, reset, rewrite or deploy
+those files.
+
+Current state carried into Chat 23:
+
+- Alembic `0016_mcp_tool_permissions` is live.
+- Global exact-tool permissions and OAuth/named-direct inherit-or-deny APIs are
+  implemented in pending source.
+- Patch 654 deployed the permission Settings UI.
+- Browser testing deliberately left `search_parts=false`; the other five read
+  tools are globally enabled and all OAuth/direct client deny lists are empty.
+- Call-time authorization already blocks ineffective tools.
+- Remaining browser feedback is principal-aware `tools/list` filtering, visibly
+  disabled client overrides under a global block, honest Write-tools catalogue
+  state, and consistent Add-direct-client field styling.
+- Patch 657 attempted that refinement but failed before writes because its
+  packaged workspace-smoke formatting did not match the passed rehearsal SHA.
+- Patch 658 attempted the boundary but failed before writes because three new
+  Roadmap identity lines contained prohibited trailing spaces.
+- Patch 659 diagnosed both failures and committed/pushed only its report.
+
+Authoritative next-chat identity:
+
+- Title: `Chat 23: MCP Permission Finalization and Settings Modernization`
+- Patch range: `661-685`
+- First patch: `661`
+- Planned boundary: `685`
+
+Patch 661 resumes the already-rehearsed MCP permission refinement. It must
+rehearse and hash the exact packaged bytes before the first live write.

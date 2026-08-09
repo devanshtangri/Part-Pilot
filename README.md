@@ -511,3 +511,21 @@ and `rocket`. Uploaded avatars are normalized server-side and stored in SQLite
 so backup/restore preserves them. Sessions created before client-metadata capture
 remain honestly reported as Unknown rather than being backfilled or guessed.
 <!-- PARTPILOT:MCP_AUTHENTICATION_README:V580:END -->
+
+
+<!-- PARTPILOT:CHAT22_MCP_PERMISSION_BOUNDARY:V660 -->
+### MCP permission browser-test batch
+
+Chat 22 established the live `0016_mcp_tool_permissions` schema and pending
+administration/UI source for global individual-tool permissions plus OAuth and
+named-direct client deny overrides.
+
+The browser-test configuration currently has `search_parts` globally disabled.
+The other five read tools remain enabled and client deny lists are empty.
+Call-time authorization already enforces the effective policy.
+
+The remaining refinement in Chat 23 is to filter ineffective tools from the
+authenticated MCP `tools/list` catalogue, grey client overrides under global
+blocks, show the current absence of real write tools honestly, and align the
+Add-direct-client form styling. The complete permission batch remains
+uncommitted application source until browser approval.
