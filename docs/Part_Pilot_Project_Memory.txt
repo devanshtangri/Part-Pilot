@@ -1,4 +1,4 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V666 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V669 -->
 
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
@@ -16,7 +16,7 @@ Patch workflow
 
 Chat boundary
 - Chat 22 closes through Patch 660 boundary recovery with 22 MCP-permission application files still pending browser approval.
-- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 662 checkpointed MCP permissions; Patch 665 browser-approved Direct MCP access hierarchy/cursor semantics; Patch 666 checkpoints it. Autosave follows.
+- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 666 checkpointed Direct MCP hierarchy; Patch 668 browser-approved reversible preference autosave; Patch 669 checkpoints it. Preference-only Reset to defaults is next.
 
 Data safety
 - Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs; never broad OAuth cleanup. SQLite integrity/FKs must pass.
@@ -40,7 +40,7 @@ MCP/OAuth
 - Manual OAuth admin: creator ownership, public/confidential, none/secret_post/secret_basic, generated ID, one-time secret digest-only storage, status/revocation; revoked hidden from normal Settings.
 - Alembic 0015: named Bearer/custom-header/trusted-network direct clients with independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row retained for audit compatibility.
 - `Enable MCP server` master; `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
-- Browser-approved Alembic 0016 MCP permissions: global exact-tool booleans, OAuth/direct deny-only overrides, principal-aware authenticated `tools/list`, no-auth global-only semantics and call-time defense in depth. Six current tools are read-only; Write tools show 0 available. Live `search_parts=false`; client denies empty.
+- Browser-approved Alembic 0016 MCP permissions: global exact-tool booleans, OAuth/direct deny-only overrides, principal-aware authenticated `tools/list`, no-auth global-only semantics and call-time defense in depth. Six current tools are read-only; Write tools show 0 available. Treat live per-tool booleans as mutable configuration, not frozen test fixtures.
 - Browser-approved Settings Direct MCP hierarchy: Allow direct clients + No authentication sit with Named direct clients; global Server/Read/Write stay separate. Dependency-disabled uses `not-allowed`; `wait` only while saving.
 
 Recovery lessons
@@ -48,20 +48,20 @@ Recovery lessons
 - 629: frozen packaged CSS hash differed from rehearsal; freeze exact script-produced bytes.
 - 631: numbered preflight caught that an assistant rehearsal had accidentally applied exact intended live CSS/image. Never mutate live repo/deployment during rehearsal; isolated /tmp only.
 - Canonical Docker exact-image checks also require ignored bytecode exclusion and Git-canonical file modes.
-- 638-640: separate frontend builds need not share image IDs; validate exact source/build/runtime markers, not unrelated image IDs. Durable log checks must match bytes actually written to logs, not terminal-only exception text. Patch 664 reinforced this after searching Patch 663's log for terminal-only summary text; Patch 665 corrected it.
+- Durable log checks must match bytes actually written to logs, not terminal-only output. Patch 667 repeated this against Patch 666; Patch 668 recovered and also stopped freezing mutable live MCP/database state across user activity.
 
 Remaining V1
-1. Settings hierarchy + reversible preference autosave.
+1. Guarded preference-only Reset to defaults + remaining Settings hierarchy cleanup.
 2. SSE invalidation/targeted refetch replaces routine Refresh; polling fallback only.
-3. API docs/schema hardening; ISO currency formatting; server-backed Stored Parts metrics.
+3. API docs/schema hardening; ISO currency formatting; Stored Parts/dashboard metrics. Dashboard Stock alert card later opens an all-alert-parts dialog instead of an inline low-stock table.
 4. Preference/default restoration; roles; safeguarded MCP writes; final alpha regression.
 - Notifications & Messaging remain post-v1.
 
 
 Autosave/live-sync V1 task (Patch 656)
 - Reversible Settings preferences: no ordinary Save/Reset-changes buttons.
-  Toggles/selects persist on change; text/number preferences use short debounce.
-  Keep one guarded Reset to defaults. Never autosave create/edit, credentials,
+  Toggles/selects persist on change; reservation days debounce 550 ms.
+  Patch 668 browser-approved this behavior. Keep one guarded Reset to defaults. Never autosave create/edit, credentials,
   password, lifecycle, backup/restore, delete/revoke/rotate actions.
 - Replace routine manual Refresh with authenticated server-driven invalidation +
   targeted refetch. Prefer SSE for current one-way change notifications,

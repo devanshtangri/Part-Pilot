@@ -73,6 +73,8 @@ import "./Settings.css";
 const RESET_CONFIRMATION = "RESET PART PILOT";
 const RESTORE_CONFIRMATION = "RESTORE";
 const MAX_RESTORE_FILE_BYTES = 256 * 1024 * 1024;
+const RESERVATION_AUTOSAVE_DELAY_MS = 550;
+const RESERVATION_AUTOSAVE_STARTER_DAYS = 30;
 const SETTINGS_SECTION_IDS = [
   "account",
   "appearance",
@@ -319,6 +321,9 @@ export function Settings() {
     useState(false);
   const [reservationReloadVersion, setReservationReloadVersion] =
     useState(0);
+  const reservationAutosaveTimerRef = useRef<number | null>(null);
+  const reservationSaveRequestRef = useRef(0);
+  const reservationEditVersionRef = useRef(0);
 
   const [mcpSettings, setMcpSettings] =
     useState<McpSettings | null>(null);
@@ -408,15 +413,6 @@ export function Settings() {
     !restoreCommitting &&
     !restoreRestarting;
 
-  const reservationSettingsChanged = Boolean(
-    reservationSettings &&
-      reservationDraft &&
-      (reservationSettings.expiry_mode !==
-        reservationDraft.expiry_mode ||
-        reservationSettings.default_days !==
-          reservationDraft.default_days)
-  );
-
   const reservationDaysError =
     reservationDraft?.expiry_mode === "default" &&
     (!Number.isInteger(reservationDraft.default_days) ||
@@ -467,6 +463,14 @@ export function Settings() {
   useEffect(() => {
     setActiveSettingsSection(settingsSectionFromHash());
   }, [location.hash]);
+
+  useEffect(() => {
+    return () => {
+      if (reservationAutosaveTimerRef.current !== null) {
+        window.clearTimeout(reservationAutosaveTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -845,62 +849,114 @@ export function Settings() {
     };
   }, [mcpOAuthCredential]);
 
-  function chooseReservationExpiryMode(
-    expiryMode: ReservationExpiryMode
-  ): void {
-    if (!reservationDraft || reservationSettingsSaving) {
-      return;
+  function clearReservationAutosaveTimer(): void {
+    if (reservationAutosaveTimerRef.current !== null) {
+      window.clearTimeout(reservationAutosaveTimerRef.current);
+      reservationAutosaveTimerRef.current = null;
     }
-    setReservationDraft({
-      expiry_mode: expiryMode,
-      default_days:
-        expiryMode === "none"
-          ? null
-          : reservationDraft.default_days
-    });
-    setReservationSettingsError(null);
-    setReservationSettingsSaved(false);
   }
 
-  function resetReservationDraft(): void {
-    if (!reservationSettings || reservationSettingsSaving) {
-      return;
-    }
-    setReservationDraft(reservationSettings);
-    setReservationSettingsError(null);
-    setReservationSettingsSaved(false);
-  }
-
-  async function saveReservationDefaults(): Promise<void> {
-    if (
-      !token ||
-      !reservationDraft ||
-      reservationSettingsSaving ||
-      reservationDaysError
-    ) {
+  async function persistReservationDefaults(
+    next: ReservationSettings,
+    editVersion: number
+  ): Promise<void> {
+    if (!token || !reservationSettings || reservationSettingsSaving) {
       return;
     }
 
+    const previousConfirmed = reservationSettings;
+    const requestId = reservationSaveRequestRef.current + 1;
+    reservationSaveRequestRef.current = requestId;
     setReservationSettingsSaving(true);
     setReservationSettingsError(null);
     setReservationSettingsSaved(false);
+
     try {
-      const saved = await updateReservationSettings(
-        token,
-        reservationDraft
-      );
+      const saved = await updateReservationSettings(token, next);
+      if (reservationSaveRequestRef.current !== requestId) {
+        return;
+      }
       setReservationSettings(saved);
-      setReservationDraft(saved);
+      if (reservationEditVersionRef.current === editVersion) {
+        setReservationDraft(saved);
+      }
       setReservationSettingsSaved(true);
     } catch (caught) {
+      if (reservationSaveRequestRef.current !== requestId) {
+        return;
+      }
+      reservationEditVersionRef.current += 1;
+      clearReservationAutosaveTimer();
+      setReservationDraft(previousConfirmed);
       setReservationSettingsError(
         caught instanceof Error
           ? caught.message
           : "Unable to save reservation defaults"
       );
     } finally {
-      setReservationSettingsSaving(false);
+      if (reservationSaveRequestRef.current === requestId) {
+        setReservationSettingsSaving(false);
+      }
     }
+  }
+
+  function chooseReservationExpiryMode(
+    expiryMode: ReservationExpiryMode
+  ): void {
+    if (!reservationDraft || !reservationSettings || reservationSettingsSaving) {
+      return;
+    }
+    if (reservationDraft.expiry_mode === expiryMode) {
+      return;
+    }
+
+    clearReservationAutosaveTimer();
+    const next: ReservationSettings = {
+      expiry_mode: expiryMode,
+      default_days:
+        expiryMode === "none"
+          ? null
+          : reservationDraft.default_days ??
+            reservationSettings.default_days ??
+            RESERVATION_AUTOSAVE_STARTER_DAYS
+    };
+    const editVersion = reservationEditVersionRef.current + 1;
+    reservationEditVersionRef.current = editVersion;
+    setReservationDraft(next);
+    setReservationSettingsError(null);
+    setReservationSettingsSaved(false);
+    void persistReservationDefaults(next, editVersion);
+  }
+
+  function updateReservationDefaultDays(rawValue: string): void {
+    if (!reservationDraft || reservationSettingsSaving) {
+      return;
+    }
+
+    clearReservationAutosaveTimer();
+    const parsedValue = rawValue === "" ? null : Number(rawValue);
+    const next: ReservationSettings = {
+      expiry_mode: "default",
+      default_days: parsedValue
+    };
+    const editVersion = reservationEditVersionRef.current + 1;
+    reservationEditVersionRef.current = editVersion;
+    setReservationDraft(next);
+    setReservationSettingsError(null);
+    setReservationSettingsSaved(false);
+
+    if (
+      !Number.isInteger(parsedValue) ||
+      Number(parsedValue) < 1 ||
+      Number(parsedValue) > 3650
+    ) {
+      return;
+    }
+
+    reservationAutosaveTimerRef.current = window.setTimeout(() => {
+      reservationAutosaveTimerRef.current = null;
+      void persistReservationDefaults(next, editVersion);
+    }, RESERVATION_AUTOSAVE_DELAY_MS);
   }
 
   function updateMcpDraft(
@@ -2344,7 +2400,7 @@ export function Settings() {
             className="settings-preference-state is-success"
             role="status"
           >
-            Appearance saved and applied across Part Pilot.
+            Appearance saved automatically and applied across Part Pilot.
           </p>
         ) : null}
       </section>
@@ -2433,7 +2489,7 @@ export function Settings() {
               className="settings-search-compact-feedback is-success"
               role="status"
             >
-              Preference saved.
+              Preference saved automatically.
             </p>
           ) : null}
         </section>
@@ -2444,6 +2500,7 @@ export function Settings() {
           aria-labelledby="settings-reservation-title"
           hidden={activeSettingsSection !== "reservations"}
           data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362"
+          data-partpilot-preference-autosave="PARTPILOT:REVERSIBLE_PREFERENCE_AUTOSAVE:V667"
         >
           <div className="settings-section-heading">
             <div>
@@ -2453,7 +2510,8 @@ export function Settings() {
               </h2>
               <p>
                 Set the suggested expiry for new manual reservations.
-                Existing reservations are never rewritten.
+                Existing reservations are never rewritten. Changes save
+                automatically.
               </p>
             </div>
           </div>
@@ -2525,19 +2583,11 @@ export function Settings() {
                       value={
                         reservationDraft.default_days ?? ""
                       }
-                      onChange={(event) => {
-                        const value =
-                          event.currentTarget.value;
-                        setReservationDraft({
-                          expiry_mode: "default",
-                          default_days:
-                            value === ""
-                              ? null
-                              : Number(value)
-                        });
-                        setReservationSettingsError(null);
-                        setReservationSettingsSaved(false);
-                      }}
+                      onChange={(event) =>
+                        updateReservationDefaultDays(
+                          event.currentTarget.value
+                        )
+                      }
                       aria-invalid={Boolean(
                         reservationDaysError
                       )}
@@ -2565,36 +2615,16 @@ export function Settings() {
                 </p>
               ) : null}
 
-              <div className="settings-action-row">
-                <button
-                  className="settings-action settings-action-secondary"
-                  type="button"
-                  onClick={resetReservationDraft}
-                  disabled={
-                    !reservationSettingsChanged ||
-                    reservationSettingsSaving
-                  }
-                >
-                  Reset changes
-                </button>
-                <button
-                  className="settings-action settings-action-primary"
-                  type="button"
-                  onClick={() =>
-                    void saveReservationDefaults()
-                  }
-                  disabled={
-                    !reservationSettingsChanged ||
-                    reservationSettingsSaving ||
-                    Boolean(reservationDaysError)
-                  }
-                >
-                  {reservationSettingsSaving
-                    ? "Saving defaults..."
-                    : "Save reservation defaults"}
-                </button>
-              </div>
             </div>
+          ) : null}
+
+          {reservationSettingsSaving ? (
+            <p
+              className="settings-preference-state"
+              role="status"
+            >
+              Saving reservation defaults...
+            </p>
           ) : null}
 
           {reservationSettingsError &&
@@ -2625,7 +2655,7 @@ export function Settings() {
               className="settings-preference-state is-success"
               role="status"
             >
-              Reservation defaults saved.
+              Reservation defaults saved automatically.
             </p>
           ) : null}
         </section>

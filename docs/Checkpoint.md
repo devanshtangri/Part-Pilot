@@ -3864,3 +3864,16 @@ autosave is the next Settings task, followed by authenticated SSE invalidation.
 - Live MCP policy, SQLite, instance secret, Alembic 0016 and deployment data remain preserved.
 - Patch 666 commits/pushes the approved three-file batch plus durable documentation only.
 - Next: reversible preference autosave and restrained Settings hierarchy cleanup; authenticated SSE invalidation follows.
+
+
+<!-- PARTPILOT:REVERSIBLE_PREFERENCE_AUTOSAVE_CHECKPOINT:V669 -->
+## Chat 23 reversible preference autosave checkpoint — Patch 669
+
+- Patch 668 is browser approved. Appearance and the Stored Parts out-of-stock grouping already autosave discrete changes with rollback; Reservation defaults now follow the same no-ordinary-Save model.
+- Reservation expiry mode persists immediately. Switching from no expiry to default expiry uses 30 days only when no prior duration exists. The numeric duration persists after a 550 ms debounce.
+- Invalid reservation-day values stay local and are never PATCHed. Mutation/edit-version guards prevent late responses from overwriting newer typing; failed saves restore the last confirmed server value and expose an error state.
+- Consequential/security workflows remain explicit: account/password changes, MCP access/tool permissions, OAuth/direct clients, API credentials, backup/restore, revoke/rotate/delete and business lifecycle mutations are not converted to preference autosave.
+- Patch 667 was consumed by a pre-write assertion that incorrectly required terminal-only `Everything PASS` text in Patch 666's durable log. Patch 668 recovered with durable commit/push evidence and configuration-safe run-start MCP/database snapshots.
+- Deferred dashboard-metrics UX: keep the Stock alert metric card, remove the inline Low stock inventory table, and make the card open a dialog listing all parts currently generating stock alerts. Implement this later with the broader dashboard metrics expansion.
+- Patch 669 commits/pushes the exact browser-approved `Settings.tsx` plus Checkpoint, Roadmap and compact project-memory updates only. Live database contents, credentials, MCP policy and deployment are preserved.
+- Next Settings slice: one guarded Reset preferences to defaults action that resets only reversible preferences and preserves users, sessions, credentials, inventory, Projects/Reservations, backups and audit/history data.

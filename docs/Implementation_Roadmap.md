@@ -2956,6 +2956,7 @@ write tools are complete. Notifications & Messaging remain post-v1.
   inventory, not the current page: Total components, Inventory value with
   valuation coverage, Available, Reserved, Low stock, Out of stock and distinct
   Part count. Reserved quantity remains part of physical inventory value.
+- [ ] During the later dashboard-metrics expansion, keep Stock alert as a metric card but remove the dashboard's inline Low stock inventory table. Clicking Stock alert should open a responsive dialog listing every part currently producing a stock alert; the dialog is the detail/drill-down surface.
 
 
 <!-- PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_ROADMAP:V632 -->
@@ -3045,22 +3046,13 @@ feedback/checkpoint. Do not squeeze implementation into the Chat 22 boundary.
 
 ### Reversible Settings autosave
 
-- [ ] Remove ordinary `Save`, `Save changes` and `Reset changes` controls from
-  reversible preference/settings surfaces.
-- [ ] Persist toggles, selects and other discrete reversible preferences
-  immediately when the value changes.
-- [ ] Persist text/number preference inputs without an explicit Save button,
-  using a short debounce so typing does not create one request per keystroke.
-- [ ] Show compact saving/saved/error state and restore the last confirmed value
-  if an autosave request fails.
-- [ ] Keep one explicit `Reset to defaults` / factory-default action for
-  preference restoration, with confirmation/preview where appropriate.
-- [ ] Preference reset must never reset users, passwords/sessions, OAuth/direct
-  clients, API keys, credentials, inventory, Projects/Reservations, backups or
-  audit/history data.
-- [ ] Do not apply autosave semantics to create/edit forms or consequential
-  actions such as Part edits, Project/Reservation mutations, password changes,
-  credential/client creation, key rotation/revocation, backup/restore or delete.
+- [x] Current reversible preferences no longer require ordinary Save/Reset-changes controls: Appearance and Stored Parts grouping already persist on selection; Patch 668 adds Reservation-default autosave and removes its Save/Reset row.
+- [x] Discrete reversible preferences persist immediately. Reservation expiry mode now follows the same model.
+- [x] Reservation default-days uses a 550 ms debounce so typing does not create one request per keystroke.
+- [x] Current preference autosaves expose saving/saved/error state and restore the last confirmed value on request failure; Reservation defaults also guard late responses from overwriting newer edits.
+- [ ] Keep one explicit `Reset to defaults` / factory-default action for preference restoration, with confirmation/preview where appropriate.
+- [ ] Preference reset must never reset users, passwords/sessions, OAuth/direct clients, API keys, credentials, inventory, Projects/Reservations, backups or audit/history data.
+- [x] Autosave remains excluded from consequential/create/edit workflows such as Part edits, Project/Reservation mutations, password changes, MCP/security policy, credential/client creation, key rotation/revocation, backup/restore and delete.
 
 ### Live data synchronization
 
@@ -3178,3 +3170,17 @@ Chat 23 planned boundary remains Patch 685.
 - [x] Browser approve and checkpoint/push the exact three-file batch.
 
 Next: reversible preference autosave, then authenticated SSE invalidation/targeted refetch.
+
+
+<!-- PARTPILOT:REVERSIBLE_PREFERENCE_AUTOSAVE_COMPLETE:V669 -->
+## Chat 23 reversible preference autosave — Patch 669
+
+- [x] Appearance selection autosaves with rollback.
+- [x] Stored Parts out-of-stock grouping autosaves with rollback.
+- [x] Reservation expiry mode autosaves immediately.
+- [x] Reservation default-days autosaves after 550 ms debounce.
+- [x] Invalid days are not sent; failures restore confirmed server state; stale responses cannot overwrite newer edits.
+- [x] Ordinary Reservation Save/Reset-changes controls removed.
+- [x] Security, credentials, lifecycle and destructive actions remain explicit.
+- [ ] Add one guarded preference-only Reset to defaults action.
+- [ ] Later dashboard metrics: Stock alert card opens an all-alert-parts dialog; remove the inline Low stock inventory table.
