@@ -2683,38 +2683,22 @@ export function Settings() {
                   </div>
                 </div>
                 <div className="settings-mcp-toggle-list">
-                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : "settings-toggle-row"}>
                     <span className="settings-toggle-copy"><strong>Enable MCP server</strong><span>Allow MCP clients to connect to the exact /mcp endpoint.</span></span>
                     <input type="checkbox" role="switch" checked={mcpDraft.enabled} disabled={mcpSettingsSaving} onChange={(event) => updateMcpDraft("enabled", event.target.checked)} />
                     <span className="settings-switch" aria-hidden="true" />
                   </label>
-                  <label className={!mcpDraft.enabled || mcpSettingsSaving ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
                     <span className="settings-toggle-copy"><strong>Read tools</strong><span>Permit inventory, Project, and Reservation read tools.</span></span>
                     <input type="checkbox" role="switch" checked={mcpDraft.read_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("read_tools_enabled", event.target.checked)} />
                     <span className="settings-switch" aria-hidden="true" />
                   </label>
-                  <label className={!mcpDraft.enabled || mcpSettingsSaving ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
                     <span className="settings-toggle-copy"><strong>Write authorization</strong><span>Allow clients to request mcp:write. No write tools are exposed in this build.</span></span>
                     <input type="checkbox" role="switch" checked={mcpDraft.write_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("write_tools_enabled", event.target.checked)} />
                     <span className="settings-switch" aria-hidden="true" />
                   </label>
-                  <label className={!mcpDraft.enabled || mcpSettingsSaving ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
-                    <span className="settings-toggle-copy"><strong>Allow direct MCP clients</strong><span>Enable named Bearer, custom-header, and trusted-network clients alongside OAuth.</span></span>
-                    <input type="checkbox" role="switch" checked={mcpDraft.direct_clients_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("direct_clients_enabled", event.target.checked)} />
-                    <span className="settings-switch" aria-hidden="true" />
-                  </label>
-                  <label className={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled || mcpSettingsSaving ? "settings-toggle-row settings-mcp-no-auth-row is-disabled" : "settings-toggle-row settings-mcp-no-auth-row"}>
-                    <span className="settings-toggle-copy"><strong>No authentication</strong><span>Dangerous read-only fallback. Any reachable client may use MCP read tools without credentials.</span></span>
-                    <input type="checkbox" role="switch" checked={mcpDraft.direct_no_auth_enabled} disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled || mcpSettingsSaving} onChange={(event) => requestMcpNoAuth(event.target.checked)} />
-                    <span className="settings-switch" aria-hidden="true" />
-                  </label>
                 </div>
-                {mcpDraft.direct_no_auth_enabled ? (
-                  <div className="settings-mcp-no-auth-warning" role="status">
-                    <strong>No authentication is enabled.</strong>
-                    <span>Access remains read-only and is still gated by the MCP server and Read tools switches. Last resolved source: {mcpDraft.direct_no_auth_last_client_ip ?? "Not used yet"}.</span>
-                  </div>
-                ) : null}
               </div>
 
               <div
@@ -2745,7 +2729,7 @@ export function Settings() {
                     {mcpToolPermissionsDraft.tools.map((tool) => {
                       const disabled = !mcpDraft.enabled || !mcpDraft.read_tools_enabled || mcpToolPermissionsSaving;
                       return (
-                        <label className={disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
+                        <label className={mcpToolPermissionsSaving ? "settings-toggle-row settings-mcp-tool-row is-disabled is-saving" : disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
                           <span className="settings-toggle-copy">
                             <strong>{tool.label}</strong>
                             <span><code>{tool.name}</code> · Read tool</span>
@@ -2890,11 +2874,40 @@ export function Settings() {
                 />
               ) : null}
 
-              <McpDirectClientsSection
-                token={token ?? ""}
-                disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled}
-                permissionReloadVersion={mcpPermissionRefreshVersion}
-              />
+              <div
+                className="settings-mcp-direct-access"
+                data-partpilot-mcp-direct-access-hierarchy="PARTPILOT:MCP_DIRECT_ACCESS_HIERARCHY:V663"
+              >
+                <div className="settings-mcp-direct-access-heading">
+                  <div>
+                    <strong>Direct MCP access</strong>
+                    <span>Control non-OAuth access here, then manage each named direct client below.</span>
+                  </div>
+                </div>
+                <div className="settings-mcp-toggle-list">
+                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                    <span className="settings-toggle-copy"><strong>Allow direct MCP clients</strong><span>Enable named Bearer, custom-header, and trusted-network clients alongside OAuth.</span></span>
+                    <input type="checkbox" role="switch" checked={mcpDraft.direct_clients_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("direct_clients_enabled", event.target.checked)} />
+                    <span className="settings-switch" aria-hidden="true" />
+                  </label>
+                  <label className={mcpSettingsSaving ? "settings-toggle-row settings-mcp-no-auth-row is-disabled is-saving" : !mcpDraft.enabled || !mcpDraft.direct_clients_enabled ? "settings-toggle-row settings-mcp-no-auth-row is-disabled" : "settings-toggle-row settings-mcp-no-auth-row"}>
+                    <span className="settings-toggle-copy"><strong>No authentication</strong><span>Dangerous read-only fallback. Any reachable client may use MCP read tools without credentials.</span></span>
+                    <input type="checkbox" role="switch" checked={mcpDraft.direct_no_auth_enabled} disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled || mcpSettingsSaving} onChange={(event) => requestMcpNoAuth(event.target.checked)} />
+                    <span className="settings-switch" aria-hidden="true" />
+                  </label>
+                </div>
+                {mcpDraft.direct_no_auth_enabled ? (
+                  <div className="settings-mcp-no-auth-warning" role="status">
+                    <strong>No authentication is enabled.</strong>
+                    <span>Access remains read-only and is still gated by the MCP server and Read tools switches. Last resolved source: {mcpDraft.direct_no_auth_last_client_ip ?? "Not used yet"}.</span>
+                  </div>
+                ) : null}
+                <McpDirectClientsSection
+                  token={token ?? ""}
+                  disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled}
+                  permissionReloadVersion={mcpPermissionRefreshVersion}
+                />
+              </div>
 
               </div>
 

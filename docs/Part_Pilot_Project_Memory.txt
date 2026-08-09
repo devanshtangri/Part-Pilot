@@ -1,4 +1,4 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V662 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V666 -->
 
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
@@ -16,7 +16,7 @@ Patch workflow
 
 Chat boundary
 - Chat 22 closes through Patch 660 boundary recovery with 22 MCP-permission application files still pending browser approval.
-- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 661 permission refinement is browser approved; Patch 662 checkpoints it; Patch 663 starts Settings modernization.
+- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 662 checkpointed MCP permissions; Patch 665 browser-approved Direct MCP access hierarchy/cursor semantics; Patch 666 checkpoints it. Autosave follows.
 
 Data safety
 - Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs; never broad OAuth cleanup. SQLite integrity/FKs must pass.
@@ -41,13 +41,14 @@ MCP/OAuth
 - Alembic 0015: named Bearer/custom-header/trusted-network direct clients with independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row retained for audit compatibility.
 - `Enable MCP server` master; `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
 - Browser-approved Alembic 0016 MCP permissions: global exact-tool booleans, OAuth/direct deny-only overrides, principal-aware authenticated `tools/list`, no-auth global-only semantics and call-time defense in depth. Six current tools are read-only; Write tools show 0 available. Live `search_parts=false`; client denies empty.
+- Browser-approved Settings Direct MCP hierarchy: Allow direct clients + No authentication sit with Named direct clients; global Server/Read/Write stay separate. Dependency-disabled uses `not-allowed`; `wait` only while saving.
 
 Recovery lessons
 - 628: CSS comment marker stripped by minification; use DOM/value/custom-property markers.
 - 629: frozen packaged CSS hash differed from rehearsal; freeze exact script-produced bytes.
 - 631: numbered preflight caught that an assistant rehearsal had accidentally applied exact intended live CSS/image. Never mutate live repo/deployment during rehearsal; isolated /tmp only.
 - Canonical Docker exact-image checks also require ignored bytecode exclusion and Git-canonical file modes.
-- 638-640: separate frontend builds need not share image IDs; validate exact source, build success, runtime markers and the image produced by the current run rather than freezing an unrelated rehearsal image ID. Durable log checks must match bytes actually written to logs, not terminal-only exception text.
+- 638-640: separate frontend builds need not share image IDs; validate exact source/build/runtime markers, not unrelated image IDs. Durable log checks must match bytes actually written to logs, not terminal-only exception text. Patch 664 reinforced this after searching Patch 663's log for terminal-only summary text; Patch 665 corrected it.
 
 Remaining V1
 1. Settings hierarchy + reversible preference autosave.

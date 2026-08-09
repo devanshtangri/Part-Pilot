@@ -3847,6 +3847,20 @@ Patch 662 commits/pushes exactly the 23 approved application files plus durable
 Checkpoint, Roadmap and compact project-memory updates. It does not alter the
 deployment, database, credentials, restore staging or live MCP configuration.
 
-Patch 663 begins Settings modernization: restrained hierarchy plus reversible
-preference autosave. Authenticated SSE invalidation/targeted refetch follows once
-the Settings save semantics are stable.
+Patch 665 is browser approved and completes the first Settings hierarchy refinement:
+`Allow direct MCP clients` and `No authentication` now live with Named direct clients
+under Direct MCP access, while global Server/Read/Write controls remain separate.
+Dependency-disabled switches use `not-allowed`; `wait` is reserved for real saves.
+Patch 666 checkpoints/pushes that exact three-file batch. Reversible preference
+autosave is the next Settings task, followed by authenticated SSE invalidation.
+
+
+<!-- PARTPILOT:MCP_DIRECT_ACCESS_CHECKPOINT:V666 -->
+## Chat 23 Direct MCP access checkpoint — Patch 666
+
+- Patch 665 browser-approved the Direct MCP access hierarchy and disabled/saving cursor semantics.
+- Approved source is exactly `Settings.tsx`, `Settings.css` and the repaired configuration-safe `mcp_settings_smoke_test.py`.
+- Patch 663 exposed the stale five-field MCP settings smoke contract; Patch 664 then failed pre-write because it searched the durable log for terminal-only failure-summary text. Patch 665 corrected the evidence check and passed the complete copied-database suite.
+- Live MCP policy, SQLite, instance secret, Alembic 0016 and deployment data remain preserved.
+- Patch 666 commits/pushes the approved three-file batch plus durable documentation only.
+- Next: reversible preference autosave and restrained Settings hierarchy cleanup; authenticated SSE invalidation follows.

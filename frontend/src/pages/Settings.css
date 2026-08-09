@@ -265,8 +265,12 @@
 }
 
 .settings-toggle-row.is-disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.72;
+}
+
+.settings-toggle-row.is-disabled.is-saving {
+  cursor: wait;
 }
 
 .settings-toggle-copy {
@@ -4114,3 +4118,37 @@
 .settings-mcp-direct-editor-grid select:disabled,
 .settings-mcp-direct-editor-grid textarea:disabled { cursor:not-allowed; opacity:.62; }
 .settings-mcp-direct-editor-grid small { color:var(--text-muted); font-size:.67rem; line-height:1.45; }
+
+/* PARTPILOT:MCP_DIRECT_ACCESS_HIERARCHY:V663 */
+:root { --partpilot-mcp-direct-access-hierarchy-v663: 1; }
+.settings-mcp-direct-access {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--panel-soft);
+}
+.settings-mcp-direct-access-heading > div {
+  display: grid;
+  gap: 4px;
+}
+.settings-mcp-direct-access-heading strong {
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 760;
+  line-height: 1.25;
+}
+.settings-mcp-direct-access-heading span {
+  max-width: 72ch;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+.settings-mcp-direct-access > .settings-mcp-named-direct {
+  margin-top: 2px;
+  background: var(--panel);
+}
+@media (max-width: 760px) {
+  .settings-mcp-direct-access { padding: 13px; }
+}

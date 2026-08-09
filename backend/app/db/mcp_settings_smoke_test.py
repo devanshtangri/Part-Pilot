@@ -21,6 +21,15 @@ SETTING_KEYS = (
     "mcp.enabled",
     "mcp.read_tools_enabled",
     "mcp.write_tools_enabled",
+    "mcp.direct_clients_enabled",
+    "mcp.direct_no_auth_enabled",
+)
+MCP_FIELDS = (
+    "enabled",
+    "read_tools_enabled",
+    "write_tools_enabled",
+    "direct_clients_enabled",
+    "direct_no_auth_enabled",
 )
 
 
@@ -115,6 +124,8 @@ def check_only() -> None:
                 "enabled": True,
                 "read_tools_enabled": True,
                 "write_tools_enabled": False,
+                "direct_clients_enabled": False,
+                "direct_no_auth_enabled": False,
             },
         )
         if unauthenticated_patch.status_code != 401:
@@ -197,6 +208,8 @@ def full_flow() -> None:
                     "enabled": True,
                     "read_tools_enabled": True,
                     "write_tools_enabled": False,
+                    "direct_clients_enabled": False,
+                    "direct_no_auth_enabled": False,
                     "unexpected": True,
                 },
             )
@@ -207,13 +220,23 @@ def full_flow() -> None:
                 "enabled": True,
                 "read_tools_enabled": True,
                 "write_tools_enabled": False,
+                "direct_clients_enabled": False,
+                "direct_no_auth_enabled": False,
             }
+            enabled_response = {
+                **enabled_payload,
+                "direct_no_auth_last_client_ip": initial.direct_no_auth_last_client_ip,
+            }
+            initial_change = any(
+                getattr(initial, field_name) != enabled_payload[field_name]
+                for field_name in MCP_FIELDS
+            )
             enabled = client.patch(
                 "/api/settings/mcp",
                 headers=headers,
                 json=enabled_payload,
             )
-            if enabled.status_code != 200 or enabled.json() != enabled_payload:
+            if enabled.status_code != 200 or enabled.json() != enabled_response:
                 fail(
                     f"Enabling MCP failed: {enabled.status_code} "
                     f"{enabled.text[:500]}"
@@ -239,6 +262,12 @@ def full_flow() -> None:
                 "enabled": True,
                 "read_tools_enabled": True,
                 "write_tools_enabled": True,
+                "direct_clients_enabled": False,
+                "direct_no_auth_enabled": False,
+            }
+            write_response = {
+                **write_payload,
+                "direct_no_auth_last_client_ip": initial.direct_no_auth_last_client_ip,
             }
             write_enabled = client.patch(
                 "/api/settings/mcp",
@@ -247,7 +276,7 @@ def full_flow() -> None:
             )
             if (
                 write_enabled.status_code != 200
-                or write_enabled.json() != write_payload
+                or write_enabled.json() != write_response
             ):
                 fail("Enabling MCP write authorization failed")
 
@@ -263,13 +292,19 @@ def full_flow() -> None:
                 "enabled": False,
                 "read_tools_enabled": True,
                 "write_tools_enabled": False,
+                "direct_clients_enabled": False,
+                "direct_no_auth_enabled": False,
+            }
+            disabled_response = {
+                **disabled_payload,
+                "direct_no_auth_last_client_ip": initial.direct_no_auth_last_client_ip,
             }
             disabled = client.patch(
                 "/api/settings/mcp",
                 headers=headers,
                 json=disabled_payload,
             )
-            if disabled.status_code != 200 or disabled.json() != disabled_payload:
+            if disabled.status_code != 200 or disabled.json() != disabled_response:
                 fail("Restoring disabled MCP settings through the API failed")
 
         audit_db = SessionLocal()
@@ -286,10 +321,11 @@ def full_flow() -> None:
                 for row in new_audits
                 if row.id not in existing_audit_ids
             ]
-            if len(new_audits) != 3:
+            expected_audit_count = 2 + int(initial_change)
+            if len(new_audits) != expected_audit_count:
                 fail(
                     "MCP settings should create one audit per real change; "
-                    f"got {len(new_audits)}"
+                    f"expected {expected_audit_count}, got {len(new_audits)}"
                 )
             audit_ids = [row.id for row in new_audits]
             for row in new_audits:
@@ -341,7 +377,7 @@ def full_flow() -> None:
         db.close()
 
     print(
-        "[PASS] MCP settings API persists enabled/read/write controls, enforces "
+        "[PASS] MCP settings API persists enabled/read/write/direct controls, enforces "
         "authentication, updates OAuth scopes immediately, audits real changes, "
         "and cleans up exactly"
     )
