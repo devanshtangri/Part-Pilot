@@ -58,3 +58,15 @@ Remaining V1
 5. Server-backed Stored Parts metrics across complete active inventory: Total components=sum total_quantity; Inventory value=sum priced total_quantity*unit_price with explicit price coverage; Available, Reserved, Low stock, Out of stock, distinct Part count.
 6. Preference/default restoration; multi-user Owner/Admin/Operator/Viewer roles; safeguarded MCP writes; final accessibility/security/responsive/API-MCP regression.
 - Notifications & Messaging remain post-v1.
+
+
+Autosave/live-sync V1 task (Patch 656)
+- Reversible Settings preferences: no ordinary Save/Reset-changes buttons.
+  Toggles/selects persist on change; text/number preferences use short debounce.
+  Keep one guarded Reset to defaults. Never autosave create/edit, credentials,
+  password, lifecycle, backup/restore, delete/revoke/rotate actions.
+- Replace routine manual Refresh with authenticated server-driven invalidation +
+  targeted refetch. Prefer SSE for current one-way change notifications,
+  reconnect/resync on interruption; polling fallback only; Retry remains on error.
+- Future real MCP write tools must appear from the canonical tool catalogue once
+  implemented; do not show fictitious write controls before runtime exists.

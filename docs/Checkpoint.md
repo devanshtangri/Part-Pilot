@@ -3745,3 +3745,33 @@ inventory are changed by the checkpoint itself.
 Chat 22 remains bounded at Patch 658. The next patch is Patch 642 and resumes the
 deferred diagnostic-only global individual-tool/per-client MCP permissions
 slice before any permission implementation.
+
+
+<!-- PARTPILOT:AUTOSAVE_LIVE_SYNC_TASK:V656 -->
+## Autosave and live-synchronization task added — Patch 656
+
+User-requested cross-cutting V1 behavior is now durable before further Settings
+work:
+
+- Reversible preferences will no longer require ordinary Save buttons. Discrete
+  controls persist immediately; text/number preferences use a short debounce.
+  `Reset changes` disappears.
+- One explicit `Reset to defaults` action remains for preference restoration.
+  It must preserve application/security/business data and is separate from
+  destructive access/data reset.
+- Create/edit forms and consequential security/data actions remain explicit;
+  autosave is not a blanket replacement for submit/confirmation workflows.
+- Routine manual Refresh controls should be replaced by live server-driven
+  invalidation plus targeted refetch. Preferred V1 transport is authenticated
+  SSE with reconnect/resync; polling is fallback only. Manual Retry remains for
+  genuine errors.
+- The current six MCP permission rows represent the six tools that actually
+  exist. Future safeguarded write tools must surface automatically from the
+  canonical catalogue once implemented rather than being represented by
+  placeholder controls.
+
+Patch 656 is documentation-only and must not consume, stage or modify the
+pending Patch 654 browser-test application source. Patch 655 was consumed by a
+pre-write durable-log assertion and made no source/deployment/data changes.
+Patch 657 resumes the MCP browser-feedback fix; Patch 658 remains the Chat 22
+boundary.

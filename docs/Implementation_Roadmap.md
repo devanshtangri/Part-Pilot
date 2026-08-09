@@ -3035,3 +3035,65 @@ MCP write authorization remains disabled until permission policy and safeguarded
    safeguarded MCP writes and final alpha regression.
 
 Chat 22 planned boundary remains Patch 658.
+
+
+<!-- PARTPILOT:AUTOSAVE_LIVE_SYNC_ROADMAP:V656 -->
+## V1 interaction modernization — autosave and live synchronization
+
+Add this as a cross-cutting V1 task after the current MCP-permissions browser
+feedback/checkpoint. Do not squeeze implementation into the Chat 22 boundary.
+
+### Reversible Settings autosave
+
+- [ ] Remove ordinary `Save`, `Save changes` and `Reset changes` controls from
+  reversible preference/settings surfaces.
+- [ ] Persist toggles, selects and other discrete reversible preferences
+  immediately when the value changes.
+- [ ] Persist text/number preference inputs without an explicit Save button,
+  using a short debounce so typing does not create one request per keystroke.
+- [ ] Show compact saving/saved/error state and restore the last confirmed value
+  if an autosave request fails.
+- [ ] Keep one explicit `Reset to defaults` / factory-default action for
+  preference restoration, with confirmation/preview where appropriate.
+- [ ] Preference reset must never reset users, passwords/sessions, OAuth/direct
+  clients, API keys, credentials, inventory, Projects/Reservations, backups or
+  audit/history data.
+- [ ] Do not apply autosave semantics to create/edit forms or consequential
+  actions such as Part edits, Project/Reservation mutations, password changes,
+  credential/client creation, key rotation/revocation, backup/restore or delete.
+
+### Live data synchronization
+
+- [ ] Replace normal manual `Refresh` controls with near-immediate server-driven
+  synchronization wherever data can change outside the current component.
+- [ ] Preferred architecture: one authenticated server-sent event/invalidation
+  stream from FastAPI. Events identify the changed resource/topic and cause the
+  React client to refetch only affected data; do not push authoritative full
+  records through the event stream.
+- [ ] On stream reconnect, refetch active resources so missed events cannot
+  leave stale UI. Use reconnect/backoff and connection-state handling.
+- [ ] Polling is fallback/resilience only, not the primary refresh mechanism.
+- [ ] Keep manual `Retry` only for error recovery; remove routine Refresh once
+  the corresponding live-sync path is proven.
+- [ ] Survey Dashboard, Stored Parts, Projects, Reservations, History, Settings
+  status panels and API/MCP administration for current manual refresh/reload
+  seams and migrate them deliberately.
+- [ ] Preserve stale-request guards, pagination/filter/search state and
+  inventory-safe mutation semantics while applying live invalidation/refetch.
+
+SSE is preferred over a full WebSocket command bus because the current need is
+primarily server-to-browser invalidation. If later requirements need persistent
+bidirectional commands/subscriptions, the transport decision may be revisited
+without changing the resource-event contract.
+
+### MCP catalogue follow-up
+
+- [ ] Do not permanently hardcode the permission UI to six read tools. The six
+  entries are the only live tools today. When safeguarded write tools are
+  actually implemented and registered in the canonical tool catalogue, expose
+  them through the same global/per-client permission model with read/write/risk
+  metadata. Write tools must not appear as fictitious controls before their
+  runtime contracts exist.
+
+Chat 22 remains bounded at Patch 658. Patch 657 should return to the pending MCP
+permission browser-feedback fix; Patch 658 remains the mandatory boundary.
