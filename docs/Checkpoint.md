@@ -3814,3 +3814,39 @@ Authoritative next-chat identity:
 
 Patch 661 resumes the already-rehearsed MCP permission refinement. It must
 rehearse and hash the exact packaged bytes before the first live write.
+
+
+<!-- PARTPILOT:MCP_PERMISSIONS_CHECKPOINT:V662 -->
+## Chat 23 MCP permission checkpoint — Patch 662
+
+Patch 661 is browser approved and completes the individual-tool/per-client MCP
+permission slice that began in Chat 22.
+
+- Alembic `0016_mcp_tool_permissions` persists the canonical global exact-tool
+  policy plus OAuth/named-direct denied-tool overrides.
+- Global policy remains the hard ceiling; named clients inherit-or-deny only.
+  No-auth keeps global-policy-only semantics and does not invent a client identity.
+- Authenticated MCP `tools/list` is now principal-aware. Globally denied tools and
+  OAuth/named-direct client-denied tools are omitted from the returned catalogue,
+  while existing `tools/call` authorization remains the second enforcement layer.
+- The six registered tools are explicitly presented as read tools. The Settings UI
+  honestly reports `Write tools — 0 available`; no placeholder write permissions
+  are invented before real safeguarded runtime contracts exist.
+- Client overrides below a global block are visibly disabled and non-editable.
+  Add-direct-client identity/authentication fields now use consistent themed
+  sizing, background, borders, focus treatment and alignment.
+- Permission smoke tests snapshot real configuration and normalize only disposable
+  copied databases. The live browser-test policy is intentionally preserved as
+  `search_parts=false` with the other five read tools enabled and empty client
+  denied-tool lists.
+- Patch 661 deployed image
+  `sha256:13b5a639e97a8d53460277290741ef5d408b775f73dfe97781aa09500c731b82`,
+  healthy with restart count 0, Alembic 0016 and byte-identical live SQLite/secret.
+
+Patch 662 commits/pushes exactly the 23 approved application files plus durable
+Checkpoint, Roadmap and compact project-memory updates. It does not alter the
+deployment, database, credentials, restore staging or live MCP configuration.
+
+Patch 663 begins Settings modernization: restrained hierarchy plus reversible
+preference autosave. Authenticated SSE invalidation/targeted refetch follows once
+the Settings save semantics are stable.

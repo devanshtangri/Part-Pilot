@@ -65,6 +65,7 @@ DEFAULT_APP_SETTINGS: dict[str, dict[str, object]] = {
     "mcp.enabled": {"value_json": False, "value_text": None},
     "mcp.read_tools_enabled": {"value_json": True, "value_text": None},
     "mcp.write_tools_enabled": {"value_json": False, "value_text": None},
+    "mcp.tool_permissions": {"value_json": {"search_parts": True, "get_part_details": True, "list_projects": True, "get_project_details": True, "list_reservations": True, "get_reservation_details": True}, "value_text": None},
 }
 
 

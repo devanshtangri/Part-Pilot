@@ -13,7 +13,7 @@ from sqlalchemy import select
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.db.settings import set_app_setting
-from app.models import AppSetting, AuditLog, User
+from app.models import AppSetting, AuditLog, McpOAuthClient, User
 from app.services.mcp_oauth import (
     MCP_ENABLED_KEY,
     MCP_READ_ENABLED_KEY,
@@ -25,6 +25,7 @@ from app.services.mcp_oauth import (
     pkce_s256_challenge,
     register_client,
 )
+from app.services.mcp_permissions import DEFAULT_MCP_TOOL_PERMISSIONS, MCP_TOOL_PERMISSIONS_KEY
 from app.services.projects import get_project, list_projects
 from app.services.reservations import get_reservation, list_reservations
 
@@ -140,6 +141,31 @@ def call_tool_payload(
     }
 
 
+def listed_tool_names(
+    client: TestClient,
+    token: str,
+    *,
+    request_id: int,
+) -> tuple[str, ...]:
+    response = client.post(
+        "/mcp",
+        headers=request_headers(token),
+        json={"jsonrpc": "2.0", "id": request_id, "method": "tools/list", "params": {}},
+        follow_redirects=False,
+    )
+    if response.status_code != 200:
+        fail(f"tools/list returned HTTP {response.status_code}: {response.text[:500]}")
+    result = response.json().get("result", {})
+    tools = result.get("tools") if isinstance(result, dict) else None
+    if not isinstance(tools, list):
+        fail(f"tools/list returned no tools array: {response.text[:500]}")
+    return tuple(sorted(
+        tool.get("name")
+        for tool in tools
+        if isinstance(tool, dict) and isinstance(tool.get("name"), str)
+    ))
+
+
 def structured_tool_call(
     client: TestClient,
     token: str,
@@ -188,7 +214,7 @@ def full_flow() -> None:
         if user is None:
             fail("MCP workspace smoke requires one existing user")
 
-        for key in (MCP_ENABLED_KEY, MCP_READ_ENABLED_KEY, MCP_WRITE_ENABLED_KEY):
+        for key in (MCP_ENABLED_KEY, MCP_READ_ENABLED_KEY, MCP_WRITE_ENABLED_KEY, MCP_TOOL_PERMISSIONS_KEY):
             setting = db.execute(
                 select(AppSetting).where(AppSetting.key == key)
             ).scalar_one_or_none()
@@ -203,6 +229,7 @@ def full_flow() -> None:
         set_app_setting(db, MCP_ENABLED_KEY, True, commit=False)
         set_app_setting(db, MCP_READ_ENABLED_KEY, True, commit=False)
         set_app_setting(db, MCP_WRITE_ENABLED_KEY, False, commit=False)
+        set_app_setting(db, MCP_TOOL_PERMISSIONS_KEY, dict(DEFAULT_MCP_TOOL_PERMISSIONS), commit=False)
 
         registered = register_client(
             db,
@@ -257,11 +284,76 @@ def full_flow() -> None:
 
         from app.main import app
 
+        permission_client = db.execute(
+            select(McpOAuthClient).where(McpOAuthClient.client_id == client_identifier)
+        ).scalar_one()
+        permission_client.denied_tools_json = ["list_projects"]
+        db.commit()
+
         with TestClient(app, base_url="https://partpilot.example") as client:
+            client_denied_names = listed_tool_names(client, issued.access_token, request_id=8)
+            expected_client_denied = tuple(name for name in EXPECTED_TOOL_NAMES if name != "list_projects")
+            if client_denied_names != expected_client_denied:
+                fail(f"Client-denied tools/list set is incorrect: {client_denied_names}")
+
+            denied_response = client.post(
+                "/mcp",
+                headers=request_headers(issued.access_token),
+                json=call_tool_payload(9, "list_projects", {"limit": 3}),
+                follow_redirects=False,
+            )
+            if denied_response.status_code != 200:
+                fail(f"Denied list_projects returned HTTP {denied_response.status_code}")
+            denied_result = denied_response.json().get("result", {})
+            if denied_result.get("isError") is not True:
+                fail(f"Denied list_projects unexpectedly succeeded: {denied_result}")
+
+            permission_db = SessionLocal()
+            try:
+                row = permission_db.execute(
+                    select(McpOAuthClient).where(McpOAuthClient.client_id == client_identifier)
+                ).scalar_one()
+                row.denied_tools_json = []
+                permission_db.commit()
+            finally:
+                permission_db.close()
+
+            restored_names = listed_tool_names(client, issued.access_token, request_id=10)
+            if restored_names != EXPECTED_TOOL_NAMES:
+                fail(f"Cleared client deny did not restore tools/list: {restored_names}")
+
+            permission_db = SessionLocal()
+            try:
+                global_policy = dict(DEFAULT_MCP_TOOL_PERMISSIONS)
+                global_policy["search_parts"] = False
+                set_app_setting(permission_db, MCP_TOOL_PERMISSIONS_KEY, global_policy, commit=True)
+            finally:
+                permission_db.close()
+
+            global_denied_names = listed_tool_names(client, issued.access_token, request_id=11)
+            expected_global_denied = tuple(name for name in EXPECTED_TOOL_NAMES if name != "search_parts")
+            if global_denied_names != expected_global_denied:
+                fail(f"Global-denied tools/list set is incorrect: {global_denied_names}")
+
+            permission_db = SessionLocal()
+            try:
+                set_app_setting(
+                    permission_db,
+                    MCP_TOOL_PERMISSIONS_KEY,
+                    dict(DEFAULT_MCP_TOOL_PERMISSIONS),
+                    commit=True,
+                )
+            finally:
+                permission_db.close()
+
+            final_names = listed_tool_names(client, issued.access_token, request_id=12)
+            if final_names != EXPECTED_TOOL_NAMES:
+                fail(f"Restored global policy did not restore tools/list: {final_names}")
+
             project_list = structured_tool_call(
                 client,
                 issued.access_token,
-                request_id=10,
+                request_id=13,
                 name="list_projects",
                 arguments={"limit": 3},
             )
@@ -284,7 +376,7 @@ def full_flow() -> None:
             project_detail = structured_tool_call(
                 client,
                 issued.access_token,
-                request_id=11,
+                request_id=14,
                 name="get_project_details",
                 arguments={"project_id": project_id},
             )
@@ -297,7 +389,7 @@ def full_flow() -> None:
             reservation_list = structured_tool_call(
                 client,
                 issued.access_token,
-                request_id=12,
+                request_id=15,
                 name="list_reservations",
                 arguments={"limit": 3},
             )
@@ -321,7 +413,7 @@ def full_flow() -> None:
             reservation_detail = structured_tool_call(
                 client,
                 issued.access_token,
-                request_id=13,
+                request_id=16,
                 name="get_reservation_details",
                 arguments={"reservation_id": reservation_id},
             )
@@ -351,19 +443,24 @@ def full_flow() -> None:
                 "list_reservations",
                 "get_reservation_details",
             }
-            if len(tool_audits) != 4:
+            if len(tool_audits) != 5:
                 fail(
-                    f"Expected four MCP workspace tool audits, "
+                    f"Expected five MCP workspace tool audits, "
                     f"got {len(tool_audits)}"
                 )
             if {
                 row.metadata_json.get("tool") for row in tool_audits
             } != expected_names:
                 fail("MCP workspace audit tool names are incorrect")
+            failed_rows = [row for row in tool_audits if row.metadata_json.get("success") is False]
+            if len(failed_rows) != 1 or failed_rows[0].metadata_json.get("tool") != "list_projects":
+                fail("Denied MCP workspace call was not audited exactly once as failed")
+            if failed_rows[0].metadata_json.get("error_type") != "McpToolPermissionDeniedError":
+                fail("Denied MCP workspace audit has the wrong error type")
             for row in tool_audits:
                 if row.actor_type != "mcp" or row.actor_user_id != user.id:
                     fail("MCP workspace audit actor attribution is incorrect")
-                if row.metadata_json.get("success") is not True:
+                if row is not failed_rows[0] and row.metadata_json.get("success") is not True:
                     fail("Successful MCP workspace call was audited as failed")
                 serialized = json.dumps(row.metadata_json, sort_keys=True)
                 for secret in (
@@ -397,8 +494,6 @@ def full_flow() -> None:
                     if isinstance(row.metadata_json, dict)
                     and row.metadata_json.get("client_id") == client_identifier
                 ]
-                from app.models import McpOAuthClient
-
                 client_row = cleanup.execute(
                     select(McpOAuthClient).where(
                         McpOAuthClient.client_id == client_identifier

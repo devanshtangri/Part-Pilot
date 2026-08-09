@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { McpClientPermissionsDialog } from "./McpClientPermissionsDialog";
 import {
   createMcpNamedDirectClient,
   getMcpNamedDirectClients,
@@ -7,7 +8,8 @@ import {
   revokeMcpNamedDirectClient,
   rotateMcpNamedDirectClient,
   updateMcpNamedDirectClient,
-  updateMcpNamedDirectClientNetworks
+  updateMcpNamedDirectClientNetworks,
+  updateMcpNamedDirectClientPermissions
 } from "../services/settingsClient";
 import type {
   McpNamedDirectClient,
@@ -43,6 +45,7 @@ interface CredentialState {
 interface Props {
   token: string;
   disabled: boolean;
+  permissionReloadVersion?: number;
 }
 
 function formatUtc(value: string | null): string {
@@ -80,7 +83,11 @@ async function copyText(value: string): Promise<void> {
   if (!copied) throw new Error("Clipboard copy was rejected.");
 }
 
-export function McpDirectClientsSection({ token, disabled }: Props) {
+export function McpDirectClientsSection({
+  token,
+  disabled,
+  permissionReloadVersion = 0
+}: Props) {
   const [clients, setClients] = useState<McpNamedDirectClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +99,9 @@ export function McpDirectClientsSection({ token, disabled }: Props) {
   const [credential, setCredential] = useState<CredentialState | null>(null);
   const [keyVisible, setKeyVisible] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [permissionTarget, setPermissionTarget] = useState<McpNamedDirectClient | null>(null);
+  const [permissionSaving, setPermissionSaving] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,7 +126,14 @@ export function McpDirectClientsSection({ token, disabled }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [reload, token]);
+  }, [permissionReloadVersion, reload, token]);
+
+  useEffect(() => {
+    if (disabled) {
+      setPermissionTarget(null);
+      setPermissionError(null);
+    }
+  }, [disabled]);
 
   const editorNetworks = useMemo(
     () => (editor ? networkLines(editor.networks) : []),
@@ -304,6 +321,47 @@ export function McpDirectClientsSection({ token, disabled }: Props) {
     }
   }
 
+
+  function openPermissions(client: McpNamedDirectClient): void {
+    if (disabled || busy || permissionSaving) return;
+    setPermissionError(null);
+    setMessage(null);
+    setPermissionTarget(client);
+  }
+
+  async function savePermissions(deniedTools: string[]): Promise<void> {
+    if (!permissionTarget || disabled || permissionSaving) return;
+    const target = permissionTarget;
+    setPermissionSaving(true);
+    setPermissionError(null);
+    try {
+      const result = await updateMcpNamedDirectClientPermissions(
+        token,
+        target.id,
+        { denied_tools: deniedTools }
+      );
+      setClients((current) =>
+        current.map((item) =>
+          item.id === target.id
+            ? {
+                ...item,
+                denied_tools: result.denied_tools,
+                tool_permissions: result.tools
+              }
+            : item
+        )
+      );
+      setPermissionTarget(null);
+      setMessage(`${target.name} permissions saved.`);
+    } catch (caught) {
+      setPermissionError(
+        caught instanceof Error ? caught.message : "Unable to save client permissions"
+      );
+    } finally {
+      setPermissionSaving(false);
+    }
+  }
+
   return (
     <section
       className={`settings-mcp-named-direct${disabled ? " is-disabled" : ""}`}
@@ -372,6 +430,7 @@ export function McpDirectClientsSection({ token, disabled }: Props) {
                   {client.mode !== "trusted_network" ? <button className="settings-action settings-action-secondary" type="button" disabled={disabled || busy || !client.enabled} onClick={() => void reveal(client)}>Reveal</button> : null}
                   {client.mode !== "trusted_network" ? <button className="settings-action settings-action-secondary" type="button" disabled={disabled || busy} onClick={() => setConfirm({ kind: "rotate", client })}>Rotate</button> : null}
                   <button className="settings-action settings-action-secondary" type="button" disabled={disabled || busy} onClick={() => setConfirm({ kind: client.enabled ? "disable" : "enable", client })}>{client.enabled ? "Disable" : "Enable"}</button>
+                  <button className="settings-action settings-action-secondary" type="button" disabled={disabled || busy || permissionSaving} onClick={() => openPermissions(client)}>Permissions</button>
                 </div>
                 <button className="settings-action settings-action-danger" type="button" disabled={disabled || busy} onClick={() => setConfirm({ kind: "revoke", client })}>Revoke</button>
               </footer>
@@ -383,13 +442,30 @@ export function McpDirectClientsSection({ token, disabled }: Props) {
       {error ? <div className="settings-preference-state is-error" role="alert"><span>{error}</span><button type="button" onClick={() => setReload((value) => value + 1)}>Retry</button></div> : null}
       {message && !error ? <p className="settings-preference-state is-success" role="status">{message}</p> : null}
 
+      {permissionTarget ? (
+        <McpClientPermissionsDialog
+          key={`direct-${permissionTarget.id}`}
+          clientName={permissionTarget.name}
+          deniedTools={permissionTarget.denied_tools}
+          tools={permissionTarget.tool_permissions}
+          saving={permissionSaving}
+          error={permissionError}
+          onClose={() => {
+            if (permissionSaving) return;
+            setPermissionTarget(null);
+            setPermissionError(null);
+          }}
+          onSave={(deniedTools) => void savePermissions(deniedTools)}
+        />
+      ) : null}
+
       {editor ? (
         <div className="settings-security-dialog-backdrop">
           <section className="settings-security-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-mcp-direct-editor-title">
             <header>
               <span className="card-label">MCP direct client</span>
               <h2 id="settings-mcp-direct-editor-title">{editor.mode === "create" ? "Add direct client" : `Edit ${editor.client?.name ?? "client"}`}</h2>
-              <p>{editor.mode === "create" ? "Each named client gets its own identity. Credential modes show their secret after creation." : "Update the client identity or trusted networks without affecting other clients."}</p>
+              <p>{editor.mode === "create" ? "Name the client and choose how it authenticates. Secret credentials are shown once after creation." : "Update the client identity or trusted networks without affecting other clients."}</p>
             </header>
             <div className="settings-security-dialog-content settings-mcp-direct-editor-grid">
               <label><span>Client name</span><input type="text" maxLength={120} value={editor.name} disabled={busy} onChange={(event) => setEditor({ ...editor, name: event.target.value })} /></label>

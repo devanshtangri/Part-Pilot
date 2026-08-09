@@ -590,6 +590,7 @@ class McpDirectAuth(Base, TimestampMixin):
     key_prefix: Mapped[str | None] = mapped_column(String(32), nullable=True)
     custom_header_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     trusted_networks_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    denied_tools_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_resolved_client_ip: Mapped[str | None] = mapped_column(String(80), nullable=True)
@@ -654,6 +655,7 @@ class McpOAuthClient(Base, TimestampMixin):
         nullable=False,
     )
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    denied_tools_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     revoked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

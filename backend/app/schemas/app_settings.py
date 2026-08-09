@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
 
 
 class SearchSettingsResponse(BaseModel):
@@ -87,6 +87,49 @@ class McpSettingsUpdateRequest(BaseModel):
     direct_no_auth_confirmation: str | None = Field(default=None, max_length=80)
 
 
+# PARTPILOT:MCP_TOOL_PERMISSION_ADMIN_SCHEMA:V650
+McpToolCapability = Literal["read"]
+
+
+class McpToolPermissionItemResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    label: str = Field(min_length=1, max_length=160)
+    capability: McpToolCapability
+    enabled: bool
+
+
+class McpToolPermissionsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tools: list[McpToolPermissionItemResponse]
+
+
+class McpToolPermissionsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    permissions: dict[str, StrictBool]
+
+
+class McpClientToolPermissionItemResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: str = Field(min_length=1, max_length=120)
+    label: str = Field(min_length=1, max_length=160)
+    capability: McpToolCapability
+    global_enabled: bool
+    denied: bool
+    effective_enabled: bool
+
+
+class McpClientToolPermissionsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    denied_tools: list[str]
+    tools: list[McpClientToolPermissionItemResponse]
+
+
+class McpClientToolPermissionsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    denied_tools: list[str] = Field(default_factory=list, max_length=6)
+
+
 # PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_SCHEMA:V540
 McpOAuthClientConnectionStatus = Literal["connected"]
 McpOAuthClientType = Literal["public", "confidential"]
@@ -116,6 +159,8 @@ class McpOAuthClientSummaryResponse(BaseModel):
     total_token_count: int = Field(ge=1)
     authorization_code_count: int = Field(ge=0)
     active_consent_count: int = Field(ge=1)
+    denied_tools: list[str]
+    tool_permissions: list[McpClientToolPermissionItemResponse]
 
 
 class McpOAuthClientsResponse(BaseModel):
@@ -147,6 +192,8 @@ class McpOAuthManageableClientSummaryResponse(BaseModel):
     authorization_code_count: int = Field(ge=0)
     active_consent_count: int = Field(ge=0)
     registered_by_current_user: bool
+    denied_tools: list[str]
+    tool_permissions: list[McpClientToolPermissionItemResponse]
 
 class McpOAuthManageableClientsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -224,6 +271,8 @@ class McpDirectClientSummaryResponse(BaseModel):
     last_resolved_client_ip: str | None
     created_at: datetime
     updated_at: datetime
+    denied_tools: list[str]
+    tool_permissions: list[McpClientToolPermissionItemResponse]
 
 
 class McpDirectClientsResponse(BaseModel):

@@ -5,6 +5,8 @@ import type {
   McpDirectAuthKeyResponse,
   McpDirectAuthStatus,
   McpDirectAuthTrustedNetworkPayload,
+  McpClientToolPermissionsResponse,
+  McpClientToolPermissionsUpdatePayload,
   McpOAuthClientRegistrationPayload,
   McpOAuthClientRegistrationResponse,
   McpOAuthClientsResponse,
@@ -18,6 +20,8 @@ import type {
   McpNamedDirectClientUpdatePayload,
   McpSettings,
   McpSettingsUpdatePayload,
+  McpToolPermissionsResponse,
+  McpToolPermissionsUpdatePayload,
   ReservationSettings,
   ReservationSettingsUpdatePayload,
   SearchSettings,
@@ -157,6 +161,28 @@ export function updateMcpSettings(
 }
 
 
+// PARTPILOT:MCP_TOOL_PERMISSIONS_CLIENT:V654
+export function getMcpToolPermissions(
+  token: string
+): Promise<McpToolPermissionsResponse> {
+  return requestJson<McpToolPermissionsResponse>(
+    "/settings/mcp/tool-permissions",
+    token
+  );
+}
+
+export function updateMcpToolPermissions(
+  token: string,
+  payload: McpToolPermissionsUpdatePayload
+): Promise<McpToolPermissionsResponse> {
+  return requestJson<McpToolPermissionsResponse>(
+    "/settings/mcp/tool-permissions",
+    token,
+    { method: "PATCH", body: JSON.stringify(payload) }
+  );
+}
+
+
 // PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_CLIENT:V540
 export function getMcpOAuthClients(
   token: string
@@ -201,6 +227,19 @@ export function revokeMcpOAuthClient(
     `/settings/mcp/oauth-clients/${clientDatabaseId}`,
     token,
     { method: "DELETE" }
+  );
+}
+
+
+export function updateMcpOAuthClientPermissions(
+  token: string,
+  clientDatabaseId: number,
+  payload: McpClientToolPermissionsUpdatePayload
+): Promise<McpClientToolPermissionsResponse> {
+  return requestJson<McpClientToolPermissionsResponse>(
+    `/settings/mcp/oauth-clients/${clientDatabaseId}/permissions`,
+    token,
+    { method: "PATCH", body: JSON.stringify(payload) }
   );
 }
 
@@ -270,6 +309,19 @@ export function updateMcpNamedDirectClientNetworks(
     `/settings/mcp/direct-clients/${clientId}/trusted-networks`,
     token,
     { method: "PUT", body: JSON.stringify({ networks }) }
+  );
+}
+
+
+export function updateMcpNamedDirectClientPermissions(
+  token: string,
+  clientId: number,
+  payload: McpClientToolPermissionsUpdatePayload
+): Promise<McpClientToolPermissionsResponse> {
+  return requestJson<McpClientToolPermissionsResponse>(
+    `/settings/mcp/direct-clients/${clientId}/permissions`,
+    token,
+    { method: "PATCH", body: JSON.stringify(payload) }
   );
 }
 

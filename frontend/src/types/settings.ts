@@ -56,6 +56,43 @@ export interface McpSettingsUpdatePayload {
 }
 
 
+// PARTPILOT:MCP_TOOL_PERMISSIONS_TYPES:V654
+export type McpToolCapability = "read";
+
+export interface McpToolPermission {
+  name: string;
+  label: string;
+  capability: McpToolCapability;
+  enabled: boolean;
+}
+
+export interface McpToolPermissionsResponse {
+  tools: McpToolPermission[];
+}
+
+export interface McpToolPermissionsUpdatePayload {
+  permissions: Record<string, boolean>;
+}
+
+export interface McpClientToolPermission {
+  name: string;
+  label: string;
+  capability: McpToolCapability;
+  global_enabled: boolean;
+  denied: boolean;
+  effective_enabled: boolean;
+}
+
+export interface McpClientToolPermissionsResponse {
+  denied_tools: string[];
+  tools: McpClientToolPermission[];
+}
+
+export interface McpClientToolPermissionsUpdatePayload {
+  denied_tools: string[];
+}
+
+
 // PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_TYPES:V540
 export type McpOAuthClientConnectionStatus = "connected";
 export type McpOAuthClientType = "public" | "confidential";
@@ -81,6 +118,8 @@ export interface McpOAuthClientSummary {
   total_token_count: number;
   authorization_code_count: number;
   active_consent_count: number;
+  denied_tools: string[];
+  tool_permissions: McpClientToolPermission[];
 }
 
 export interface McpOAuthClientsResponse {
@@ -113,6 +152,8 @@ export interface McpOAuthManageableClientSummary {
   authorization_code_count: number;
   active_consent_count: number;
   registered_by_current_user: boolean;
+  denied_tools: string[];
+  tool_permissions: McpClientToolPermission[];
 }
 
 export interface McpOAuthManageableClientsResponse {
@@ -198,6 +239,8 @@ export interface McpNamedDirectClient {
   last_resolved_client_ip: string | null;
   created_at: string;
   updated_at: string;
+  denied_tools: string[];
+  tool_permissions: McpClientToolPermission[];
 }
 
 export interface McpNamedDirectClientsResponse {

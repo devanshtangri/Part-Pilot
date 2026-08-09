@@ -3130,3 +3130,36 @@ Implementation order:
 The six registered MCP tools are currently read-only. Do not add placeholder
 write-tool controls. Future safeguarded write tools join the canonical catalogue
 only when their runtime contracts exist.
+
+
+<!-- PARTPILOT:MCP_PERMISSIONS_COMPLETE:V662 -->
+## Chat 23 MCP permissions complete — Patch 662
+
+- [x] Global exact-tool MCP permission policy with global hard-ceiling semantics.
+- [x] OAuth and named-direct inherit-or-deny client overrides.
+- [x] No-auth remains global-policy-only.
+- [x] Call-time authorization before business lookup with secret-free failure audit.
+- [x] Principal-aware authenticated `tools/list` omits ineffective tools.
+- [x] Globally blocked per-client controls are visibly disabled and non-editable.
+- [x] Six current tools are labelled as read tools; Write tools honestly show
+  `0 available` with no placeholder runtime contracts.
+- [x] Add-direct-client form controls use consistent Settings theming/alignment.
+- [x] Configuration-safe permission smokes preserve legitimate production policy.
+- [x] Browser approve and checkpoint/push the complete 23-file MCP permission batch.
+
+### Next implementation order
+
+1. Patch 663: restrained Settings hierarchy and reversible preference autosave.
+   Toggles/selects persist immediately; text/number preferences debounce; ordinary
+   Save/Reset-changes controls disappear; one guarded Reset-to-defaults remains.
+2. Add authenticated SSE invalidation plus targeted refetch with reconnect/resync.
+   Polling is fallback only; remove routine Refresh after each live-sync path is
+   proven.
+3. Harden API docs/OpenAPI exposure for public alpha.
+4. Add persisted app-wide ISO currency formatting and server-backed Stored Parts
+   whole-inventory metrics with explicit price coverage.
+5. Preference/default restoration, Owner/Admin/Operator/Viewer roles, safeguarded
+   MCP write tools and final alpha accessibility/security/responsive/API-MCP
+   regression.
+
+Chat 23 planned boundary remains Patch 685.

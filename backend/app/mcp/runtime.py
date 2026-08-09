@@ -43,6 +43,7 @@ from app.services.mcp_oauth import (
     validate_access_token,
     validate_resource_uri,
 )
+from app.services.mcp_permissions import visible_mcp_tool_names
 
 
 # PARTPILOT:MCP_STREAMABLE_HTTP_RUNTIME:V509
@@ -437,6 +438,89 @@ def _validate_bearer(
     return _oauth_principal(token, resource_uri)
 
 
+# PARTPILOT:MCP_VISIBLE_TOOL_LIST_RUNTIME:V657
+async def _filter_tool_list_response_body(
+    body: bytes,
+    principal: dict[str, Any],
+) -> bytes:
+    try:
+        payload = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return body
+    if not isinstance(payload, dict) or payload.get("jsonrpc") != "2.0":
+        return body
+    result = payload.get("result")
+    if not isinstance(result, dict) or not isinstance(result.get("tools"), list):
+        return body
+
+    db = SessionLocal()
+    try:
+        visible = set(visible_mcp_tool_names(db, principal))
+    finally:
+        db.close()
+
+    tools = result["tools"]
+    filtered = [
+        tool
+        for tool in tools
+        if isinstance(tool, dict) and tool.get("name") in visible
+    ]
+    if len(filtered) == len(tools):
+        return body
+    result["tools"] = filtered
+    return json.dumps(payload, separators=(",", ":")).encode("utf-8")
+
+
+class _ToolListFilteringSend:
+    def __init__(self, send, principal: dict[str, Any]) -> None:
+        self._send = send
+        self._principal = principal
+        self._start: dict[str, Any] | None = None
+        self._body = bytearray()
+
+    async def __call__(self, message: dict[str, Any]) -> None:
+        message_type = message.get("type")
+        if message_type == "http.response.start":
+            self._start = dict(message)
+            return
+        if message_type != "http.response.body" or self._start is None:
+            if self._start is not None:
+                await self._send(self._start)
+                self._start = None
+            await self._send(message)
+            return
+
+        self._body.extend(message.get("body", b""))
+        if message.get("more_body", False):
+            return
+
+        body = bytes(self._body)
+        headers = list(self._start.get("headers", []))
+        content_type = next(
+            (
+                value.decode("latin-1").casefold()
+                for name, value in headers
+                if name.decode("latin-1").casefold() == "content-type"
+            ),
+            "",
+        )
+        if "application/json" in content_type:
+            body = await _filter_tool_list_response_body(body, self._principal)
+            headers = [
+                (name, value)
+                for name, value in headers
+                if name.decode("latin-1").casefold() != "content-length"
+            ]
+            headers.append((b"content-length", str(len(body)).encode("ascii")))
+
+        start = dict(self._start)
+        start["headers"] = headers
+        self._start = None
+        self._body.clear()
+        await self._send(start)
+        await self._send({"type": "http.response.body", "body": body, "more_body": False})
+
+
 # PARTPILOT:MCP_NAMED_DIRECT_RUNTIME:V627
 class PartPilotMcpGateway:
     async def __call__(self, scope, receive, send) -> None:
@@ -667,7 +751,12 @@ class PartPilotMcpGateway:
         state = dict(forwarded_scope.get("state") or {})
         state["partpilot_mcp_principal"] = principal
         forwarded_scope["state"] = state
-        await _SDK_APP(forwarded_scope, receive, send)
+        response_send = (
+            _ToolListFilteringSend(send, principal)
+            if forwarded_scope.get("method") == "POST"
+            else send
+        )
+        await _SDK_APP(forwarded_scope, receive, response_send)
 
 
 mcp_http_endpoint = PartPilotMcpGateway()

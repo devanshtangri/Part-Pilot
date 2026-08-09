@@ -12,10 +12,10 @@ from app.db.session import SessionLocal
 from app.mcp.part_tools import (
     _append_tool_audit,
     _bounded_request_id,
-    _ensure_read_tools_enabled,
     _principal_from_context,
 )
 from app.schemas.projects import ProjectResponse
+from app.services.mcp_permissions import authorize_mcp_tool
 from app.schemas.reservations import ReservationResponse
 from app.services.projects import (
     ProjectNotFoundError,
@@ -202,7 +202,7 @@ def register_workspace_tools(server: FastMCP) -> None:
         db = SessionLocal()
         audit_completed = False
         try:
-            _ensure_read_tools_enabled(db)
+            authorize_mcp_tool(db, principal, "list_projects")
             _validate_page(limit, offset)
             if status is not None and status not in PROJECT_STATUSES:
                 raise ValueError("Unsupported Project status.")
@@ -277,7 +277,7 @@ def register_workspace_tools(server: FastMCP) -> None:
         db = SessionLocal()
         audit_completed = False
         try:
-            _ensure_read_tools_enabled(db)
+            authorize_mcp_tool(db, principal, "get_project_details")
             if project_id <= 0:
                 raise ValueError("project_id must be greater than zero.")
             try:
@@ -342,7 +342,7 @@ def register_workspace_tools(server: FastMCP) -> None:
         db = SessionLocal()
         audit_completed = False
         try:
-            _ensure_read_tools_enabled(db)
+            authorize_mcp_tool(db, principal, "list_reservations")
             _validate_page(limit, offset)
             if status is not None and status not in RESERVATION_STATUSES:
                 raise ValueError("Unsupported Reservation status.")
@@ -423,7 +423,7 @@ def register_workspace_tools(server: FastMCP) -> None:
         db = SessionLocal()
         audit_completed = False
         try:
-            _ensure_read_tools_enabled(db)
+            authorize_mcp_tool(db, principal, "get_reservation_details")
             if reservation_id <= 0:
                 raise ValueError("reservation_id must be greater than zero.")
             try:

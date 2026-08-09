@@ -29,6 +29,7 @@ from app.schemas.app_settings import (
     McpOAuthManageableClientSummaryResponse,
     McpOAuthManageableClientsResponse,
 )
+from app.services.mcp_permissions import client_tool_permissions_response
 
 
 # PARTPILOT:MCP_OAUTH_SERVICE:V466
@@ -1238,6 +1239,10 @@ def list_connected_oauth_clients(
             for token in active_tokens
         }
         auth_method = str(client.token_endpoint_auth_method)
+        tool_permissions = client_tool_permissions_response(
+            db,
+            client.denied_tools_json,
+        )
 
         summaries.append(
             McpOAuthClientSummaryResponse(
@@ -1261,6 +1266,8 @@ def list_connected_oauth_clients(
                 total_token_count=len(tokens),
                 authorization_code_count=authorization_code_count,
                 active_consent_count=len(active_consents),
+                denied_tools=tool_permissions.denied_tools,
+                tool_permissions=tool_permissions.tools,
             )
         )
 
@@ -1297,6 +1304,7 @@ def list_manageable_oauth_clients(db: Session, *, user_id: int) -> McpOAuthManag
         last_used_values = [v for v in (_to_naive_utc(t.last_used_at) for t in tokens) if v is not None]
         token_families = {str(t.token_family_id) for t in active_tokens}
         auth_method = str(client.token_endpoint_auth_method)
+        tool_permissions = client_tool_permissions_response(db, client.denied_tools_json)
         summaries.append(McpOAuthManageableClientSummaryResponse(
             database_id=client.id, client_id=client.client_id, client_name=client.client_name,
             status=client_status, client_type=("public" if auth_method == "none" else "confidential"),
@@ -1304,7 +1312,8 @@ def list_manageable_oauth_clients(db: Session, *, user_id: int) -> McpOAuthManag
             scopes=scopes, created_at=client.created_at, connected_at=connected_at,
             last_used_at=(max(last_used_values) if last_used_values else None), active_token_count=len(active_tokens),
             token_family_count=len(token_families), total_token_count=len(tokens), authorization_code_count=authorization_code_count,
-            active_consent_count=len(active_consents), registered_by_current_user=owned))
+            active_consent_count=len(active_consents), registered_by_current_user=owned,
+            denied_tools=tool_permissions.denied_tools, tool_permissions=tool_permissions.tools))
     return McpOAuthManageableClientsResponse(clients=summaries, total=len(summaries))
 
 

@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models import AuditLog
 from app.schemas.parts import PartResponse
-from app.services.mcp_oauth import MCP_SCOPE_READ, available_scopes
+from app.services.mcp_oauth import MCP_SCOPE_READ
+from app.services.mcp_permissions import authorize_mcp_tool
 from app.services.parts import PartNotFoundError, get_part, list_parts
 
 
@@ -232,12 +233,6 @@ def _append_tool_audit(
     )
 
 
-def _ensure_read_tools_enabled(db: Session) -> None:
-    scopes = available_scopes(db, require_enabled=True)
-    if MCP_SCOPE_READ not in scopes:
-        raise RuntimeError("MCP read tools are disabled in Part Pilot settings.")
-
-
 def _validate_search_arguments(
     *,
     query: str | None,
@@ -326,7 +321,7 @@ def register_part_tools(server: FastMCP) -> None:
             "offset": offset,
         }
         try:
-            _ensure_read_tools_enabled(db)
+            authorize_mcp_tool(db, principal, "search_parts")
             normalised_query = _validate_search_arguments(
                 query=query,
                 stock_status=stock_status,
@@ -417,7 +412,7 @@ def register_part_tools(server: FastMCP) -> None:
         audit_completed = False
         arguments = {"part_id": part_id}
         try:
-            _ensure_read_tools_enabled(db)
+            authorize_mcp_tool(db, principal, "get_part_details")
             if part_id <= 0:
                 raise ValueError("part_id must be greater than zero.")
             try:

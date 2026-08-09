@@ -11,6 +11,7 @@ import {
 } from "../appearance/AppearanceContext";
 import { useAuth } from "../auth/AuthContext";
 import { ApiKeySettingsSection } from "../components/ApiKeySettingsSection";
+import { McpClientPermissionsDialog } from "../components/McpClientPermissionsDialog";
 import { McpDirectClientsSection } from "../components/McpDirectClientsSection";
 import { UserAvatar } from "../components/UserAvatar";
 import {
@@ -35,11 +36,14 @@ import {
 import {
   getMcpOAuthManageableClients,
   getMcpSettings,
+  getMcpToolPermissions,
   registerMcpOAuthClient,
   getReservationSettings,
   getSearchSettings,
   revokeMcpOAuthClient,
+  updateMcpOAuthClientPermissions,
   updateMcpSettings,
+  updateMcpToolPermissions,
   updateReservationSettings,
   updateSearchSettings
 } from "../services/settingsClient";
@@ -56,6 +60,7 @@ import type {
   AppearanceTheme,
   McpOAuthClientRegistrationResponse,
   McpOAuthClientType,
+  McpToolPermissionsResponse,
   McpOAuthManageableClientSummary,
   McpOAuthTokenEndpointAuthMethod,
   McpSettings,
@@ -331,6 +336,17 @@ export function Settings() {
   const [mcpUrlCopied, setMcpUrlCopied] = useState(false);
   const [mcpCopyError, setMcpCopyError] =
     useState<string | null>(null);
+  // PARTPILOT:MCP_TOOL_PERMISSIONS_UI:V654
+  const [mcpToolPermissions, setMcpToolPermissions] =
+    useState<McpToolPermissionsResponse | null>(null);
+  const [mcpToolPermissionsDraft, setMcpToolPermissionsDraft] =
+    useState<McpToolPermissionsResponse | null>(null);
+  const [mcpToolPermissionsLoading, setMcpToolPermissionsLoading] = useState(true);
+  const [mcpToolPermissionsSaving, setMcpToolPermissionsSaving] = useState(false);
+  const [mcpToolPermissionsError, setMcpToolPermissionsError] = useState<string | null>(null);
+  const [mcpToolPermissionsSaved, setMcpToolPermissionsSaved] = useState(false);
+  const [mcpToolPermissionsReloadVersion, setMcpToolPermissionsReloadVersion] = useState(0);
+  const [mcpPermissionRefreshVersion, setMcpPermissionRefreshVersion] = useState(0);
   // PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569
   const [mcpOAuthClients, setMcpOAuthClients] = useState<
     McpOAuthManageableClientSummary[] | null
@@ -353,6 +369,9 @@ export function Settings() {
   const [mcpOAuthCredential, setMcpOAuthCredential] = useState<McpOAuthClientRegistrationResponse | null>(null);
   const [mcpOAuthSecretVisible, setMcpOAuthSecretVisible] = useState(false);
   const [mcpOAuthCredentialCopied, setMcpOAuthCredentialCopied] = useState<"client_id" | "client_secret" | null>(null);
+  const [mcpOAuthPermissionTarget, setMcpOAuthPermissionTarget] = useState<McpOAuthManageableClientSummary | null>(null);
+  const [mcpOAuthPermissionSaving, setMcpOAuthPermissionSaving] = useState(false);
+  const [mcpOAuthPermissionError, setMcpOAuthPermissionError] = useState<string | null>(null);
   const [mcpNoAuthDialogOpen, setMcpNoAuthDialogOpen] = useState(false);
   const [mcpNoAuthConfirmation, setMcpNoAuthConfirmation] = useState("");
 
@@ -414,6 +433,13 @@ export function Settings() {
         mcpSettings.write_tools_enabled !== mcpDraft.write_tools_enabled ||
         mcpSettings.direct_clients_enabled !== mcpDraft.direct_clients_enabled ||
         mcpSettings.direct_no_auth_enabled !== mcpDraft.direct_no_auth_enabled)
+  );
+  const mcpToolPermissionsChanged = Boolean(
+    mcpToolPermissions &&
+      mcpToolPermissionsDraft &&
+      mcpToolPermissions.tools.some((tool) =>
+        mcpToolPermissionsDraft.tools.find((draft) => draft.name === tool.name)?.enabled !== tool.enabled
+      )
   );
   const mcpNoAuthConfirmationReady =
     mcpNoAuthConfirmation === "ALLOW NO AUTH";
@@ -631,6 +657,41 @@ export function Settings() {
       cancelled = true;
     };
   }, [mcpReloadVersion, token]);
+
+  // PARTPILOT:MCP_TOOL_PERMISSIONS_UI:V654
+  useEffect(() => {
+    if (!token) {
+      setMcpToolPermissions(null);
+      setMcpToolPermissionsDraft(null);
+      setMcpToolPermissionsLoading(false);
+      setMcpToolPermissionsError("Your session is unavailable. Sign in again.");
+      return;
+    }
+    let cancelled = false;
+    setMcpToolPermissionsLoading(true);
+    setMcpToolPermissionsError(null);
+    setMcpToolPermissionsSaved(false);
+    getMcpToolPermissions(token)
+      .then((result) => {
+        if (!cancelled) {
+          setMcpToolPermissions(result);
+          setMcpToolPermissionsDraft(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setMcpToolPermissions(null);
+          setMcpToolPermissionsDraft(null);
+          setMcpToolPermissionsError(
+            caught instanceof Error ? caught.message : "Unable to load MCP tool permissions"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setMcpToolPermissionsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [mcpToolPermissionsReloadVersion, token]);
 
   // PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569
   useEffect(() => {
@@ -948,6 +1009,51 @@ export function Settings() {
     }
   }
 
+  function updateMcpToolPermissionDraft(name: string, enabled: boolean): void {
+    if (!mcpToolPermissionsDraft || mcpToolPermissionsSaving) return;
+    setMcpToolPermissionsDraft({
+      tools: mcpToolPermissionsDraft.tools.map((tool) =>
+        tool.name === name ? { ...tool, enabled } : tool
+      )
+    });
+    setMcpToolPermissionsError(null);
+    setMcpToolPermissionsSaved(false);
+  }
+
+  function resetMcpToolPermissions(): void {
+    if (!mcpToolPermissions || mcpToolPermissionsSaving) return;
+    setMcpToolPermissionsDraft(mcpToolPermissions);
+    setMcpToolPermissionsError(null);
+    setMcpToolPermissionsSaved(false);
+  }
+
+  async function saveMcpToolPermissions(): Promise<void> {
+    if (!token || !mcpToolPermissions || !mcpToolPermissionsDraft || mcpToolPermissionsSaving) return;
+    const permissions: Record<string, boolean> = {};
+    for (const draft of mcpToolPermissionsDraft.tools) {
+      const current = mcpToolPermissions.tools.find((tool) => tool.name === draft.name);
+      if (current && current.enabled !== draft.enabled) permissions[draft.name] = draft.enabled;
+    }
+    if (Object.keys(permissions).length === 0) return;
+    setMcpToolPermissionsSaving(true);
+    setMcpToolPermissionsError(null);
+    setMcpToolPermissionsSaved(false);
+    try {
+      const saved = await updateMcpToolPermissions(token, { permissions });
+      setMcpToolPermissions(saved);
+      setMcpToolPermissionsDraft(saved);
+      setMcpToolPermissionsSaved(true);
+      setMcpPermissionRefreshVersion((value) => value + 1);
+      setMcpOAuthReloadVersion((value) => value + 1);
+    } catch (caught) {
+      setMcpToolPermissionsError(
+        caught instanceof Error ? caught.message : "Unable to save MCP tool permissions"
+      );
+    } finally {
+      setMcpToolPermissionsSaving(false);
+    }
+  }
+
   async function copyMcpServerUrl(): Promise<void> {
     setMcpCopyError(null);
     setMcpUrlCopied(false);
@@ -974,6 +1080,46 @@ export function Settings() {
           ? caught.message
           : "Unable to copy the MCP server URL"
       );
+    }
+  }
+
+  function openMcpOAuthPermissions(client: McpOAuthManageableClientSummary): void {
+    if (mcpOAuthRevokingId !== null || mcpOAuthPermissionSaving || client.status === "revoked") return;
+    setMcpOAuthPermissionError(null);
+    setMcpOAuthClientsMessage(null);
+    setMcpOAuthPermissionTarget(client);
+  }
+
+  async function saveMcpOAuthPermissions(deniedTools: string[]): Promise<void> {
+    if (!token || !mcpOAuthPermissionTarget || mcpOAuthPermissionSaving) return;
+    const target = mcpOAuthPermissionTarget;
+    setMcpOAuthPermissionSaving(true);
+    setMcpOAuthPermissionError(null);
+    try {
+      const result = await updateMcpOAuthClientPermissions(
+        token,
+        target.database_id,
+        { denied_tools: deniedTools }
+      );
+      setMcpOAuthClients((current) =>
+        current?.map((client) =>
+          client.database_id === target.database_id
+            ? {
+                ...client,
+                denied_tools: result.denied_tools,
+                tool_permissions: result.tools
+              }
+            : client
+        ) ?? null
+      );
+      setMcpOAuthPermissionTarget(null);
+      setMcpOAuthClientsMessage(`${target.client_name} permissions saved.`);
+    } catch (caught) {
+      setMcpOAuthPermissionError(
+        caught instanceof Error ? caught.message : "Unable to save OAuth client permissions"
+      );
+    } finally {
+      setMcpOAuthPermissionSaving(false);
     }
   }
 
@@ -2571,6 +2717,69 @@ export function Settings() {
                 ) : null}
               </div>
 
+              <div
+                className={
+                  !mcpDraft.enabled || !mcpDraft.read_tools_enabled
+                    ? "settings-mcp-tool-permissions is-disabled"
+                    : "settings-mcp-tool-permissions"
+                }
+                data-partpilot-mcp-tool-permissions="PARTPILOT:MCP_TOOL_PERMISSIONS_UI:V654"
+                aria-disabled={!mcpDraft.enabled || !mcpDraft.read_tools_enabled}
+              >
+                <div className="settings-mcp-permission-heading">
+                  <div>
+                    <strong>Read tool permissions</strong>
+                    <span>Global hard ceiling for every MCP client, including no-auth access. Denied tools are removed from the next MCP tools/list response and remain blocked if called.</span>
+                  </div>
+                  {mcpToolPermissionsDraft ? (
+                    <span className="settings-mcp-permission-count">
+                      {mcpToolPermissionsDraft.tools.filter((tool) => tool.enabled).length}/{mcpToolPermissionsDraft.tools.length} enabled
+                    </span>
+                  ) : null}
+                </div>
+                {mcpToolPermissionsLoading ? (
+                  <p className="settings-mcp-permission-state" role="status">Loading tool permissions...</p>
+                ) : null}
+                {!mcpToolPermissionsLoading && mcpToolPermissionsDraft ? (
+                  <div className="settings-mcp-tool-permission-list">
+                    {mcpToolPermissionsDraft.tools.map((tool) => {
+                      const disabled = !mcpDraft.enabled || !mcpDraft.read_tools_enabled || mcpToolPermissionsSaving;
+                      return (
+                        <label className={disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
+                          <span className="settings-toggle-copy">
+                            <strong>{tool.label}</strong>
+                            <span><code>{tool.name}</code> · Read tool</span>
+                          </span>
+                          <input type="checkbox" role="switch" checked={tool.enabled} disabled={disabled} onChange={(event) => updateMcpToolPermissionDraft(tool.name, event.target.checked)} />
+                          <span className="settings-switch" aria-hidden="true" />
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {!mcpDraft.enabled || !mcpDraft.read_tools_enabled ? (
+                  <p className="settings-mcp-permission-state">Enable the MCP server and Read tools, then save MCP access to edit global tool permissions.</p>
+                ) : null}
+                <div className="settings-mcp-write-tool-empty" data-partpilot-mcp-write-tool-catalogue="PARTPILOT:MCP_WRITE_TOOL_CATALOGUE_EMPTY:V657">
+                  <div>
+                    <strong>Write tools</strong>
+                    <span>0 available</span>
+                  </div>
+                  <p>No safeguarded write tools are registered yet. Write authorization only permits the <code>mcp:write</code> scope; it does not create tools. Future write tools will appear here from the canonical MCP catalogue when their runtime contracts are implemented.</p>
+                </div>
+                {mcpToolPermissionsError ? (
+                  <div className="settings-preference-state is-error" role="alert">
+                    <span>{mcpToolPermissionsError}</span>
+                    {!mcpToolPermissionsDraft ? <button type="button" onClick={() => setMcpToolPermissionsReloadVersion((value) => value + 1)}>Retry</button> : null}
+                  </div>
+                ) : null}
+                {mcpToolPermissionsSaved && !mcpToolPermissionsError ? <p className="settings-preference-state is-success" role="status">MCP tool permissions saved.</p> : null}
+                <div className="settings-mcp-permission-actions">
+                  <button className="settings-action settings-action-secondary" type="button" disabled={!mcpToolPermissionsChanged || mcpToolPermissionsSaving} onClick={resetMcpToolPermissions}>Reset changes</button>
+                  <button className="settings-action settings-action-primary" type="button" disabled={!mcpToolPermissionsChanged || mcpToolPermissionsSaving || !mcpDraft.enabled || !mcpDraft.read_tools_enabled} onClick={() => void saveMcpToolPermissions()}>{mcpToolPermissionsSaving ? "Saving permissions..." : "Save tool permissions"}</button>
+                </div>
+              </div>
+
               <div className="settings-mcp-endpoint">
                 <div className="settings-mcp-endpoint-copy">
                   <strong>MCP server URL</strong>
@@ -2646,7 +2855,15 @@ export function Settings() {
                       <article className={`settings-mcp-oauth-client is-${client.status}`} key={client.database_id}>
                         <header><div><strong>{client.client_name}</strong><span>{client.client_type === "confidential" ? "Confidential OAuth client" : "Public OAuth client"}</span></div><span className={`settings-mcp-oauth-status is-${client.status}`}>{client.status === "connected" ? "Connected" : client.status === "registered" ? "Registered" : "Revoked"}</span></header>
                         <dl><div><dt>Origin</dt><dd>{client.redirect_origins.length > 0 ? client.redirect_origins.join(", ") : "No web origin"}</dd></div><div><dt>Auth</dt><dd>{client.token_endpoint_auth_method === "none" ? "None" : client.token_endpoint_auth_method === "client_secret_basic" ? "Client secret Basic" : "Client secret POST"}</dd></div><div><dt>Created</dt><dd>{formatUtc(client.created_at)}</dd></div><div><dt>Connected</dt><dd>{client.connected_at ? formatUtc(client.connected_at) : "Not yet"}</dd></div></dl>
-                        <footer><span>{client.status === "connected" ? `${client.active_token_count} active session${client.active_token_count === 1 ? "" : "s"}` : client.status === "registered" ? "Awaiting first authorization" : "Registration disabled"}</span>{client.status !== "revoked" ? <button className="settings-action settings-action-danger" type="button" disabled={mcpOAuthRevokingId !== null} onClick={() => openMcpOAuthRevokeDialog(client)}>{client.status === "connected" ? "Revoke access" : "Revoke client"}</button> : null}</footer>
+                        <footer>
+                          <span>{client.status === "connected" ? `${client.active_token_count} active session${client.active_token_count === 1 ? "" : "s"}` : client.status === "registered" ? "Awaiting first authorization" : "Registration disabled"} · {client.tool_permissions.filter((tool) => tool.effective_enabled).length}/{client.tool_permissions.length} tools effective</span>
+                          {client.status !== "revoked" ? (
+                            <div className="settings-mcp-oauth-actions">
+                              <button className="settings-action settings-action-secondary" type="button" disabled={mcpOAuthRevokingId !== null || mcpOAuthPermissionSaving} onClick={() => openMcpOAuthPermissions(client)}>Permissions</button>
+                              <button className="settings-action settings-action-danger" type="button" disabled={mcpOAuthRevokingId !== null || mcpOAuthPermissionSaving} onClick={() => openMcpOAuthRevokeDialog(client)}>{client.status === "connected" ? "Revoke access" : "Revoke client"}</button>
+                            </div>
+                          ) : null}
+                        </footer>
                       </article>
                     ))}
                   </div>
@@ -2656,9 +2873,27 @@ export function Settings() {
                 {mcpOAuthClientsMessage && !mcpOAuthClientsError ? <p className="settings-preference-state is-success" role="status">{mcpOAuthClientsMessage}</p> : null}
               </div>
 
+              {mcpOAuthPermissionTarget ? (
+                <McpClientPermissionsDialog
+                  key={`oauth-${mcpOAuthPermissionTarget.database_id}`}
+                  clientName={mcpOAuthPermissionTarget.client_name}
+                  deniedTools={mcpOAuthPermissionTarget.denied_tools}
+                  tools={mcpOAuthPermissionTarget.tool_permissions}
+                  saving={mcpOAuthPermissionSaving}
+                  error={mcpOAuthPermissionError}
+                  onClose={() => {
+                    if (mcpOAuthPermissionSaving) return;
+                    setMcpOAuthPermissionTarget(null);
+                    setMcpOAuthPermissionError(null);
+                  }}
+                  onSave={(deniedTools) => void saveMcpOAuthPermissions(deniedTools)}
+                />
+              ) : null}
+
               <McpDirectClientsSection
                 token={token ?? ""}
                 disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled}
+                permissionReloadVersion={mcpPermissionRefreshVersion}
               />
 
               </div>

@@ -19,11 +19,15 @@ from app.schemas.app_settings import (
     McpDirectClientSummaryResponse,
     McpDirectClientsResponse,
     McpDirectClientUpdateRequest,
+    McpClientToolPermissionsResponse,
+    McpClientToolPermissionsUpdateRequest,
     McpOAuthClientRegistrationRequest,
     McpOAuthClientRegistrationResponse,
     McpOAuthClientsResponse,
     McpOAuthManageableClientsResponse,
     McpSettingsResponse,
+    McpToolPermissionsResponse,
+    McpToolPermissionsUpdateRequest,
     McpSettingsUpdateRequest,
     ReservationSettingsResponse,
     ReservationSettingsUpdateRequest,
@@ -65,6 +69,15 @@ from app.services.mcp_oauth import (
     list_manageable_oauth_clients,
     register_client,
     revoke_connected_oauth_client,
+)
+from app.services.mcp_permissions import (
+    McpToolPermissionConfigurationError,
+    McpToolPermissionTargetNotFoundError,
+    client_tool_permissions_response,
+    global_tool_permissions_response,
+    update_direct_client_tool_permissions,
+    update_global_tool_permissions,
+    update_oauth_client_tool_permissions,
 )
 
 from app.services.app_settings import (
@@ -203,6 +216,115 @@ def _no_store(response: Response) -> None:
     response.headers["Pragma"] = "no-cache"
 
 
+# PARTPILOT:MCP_TOOL_PERMISSION_ADMIN_API:V650
+def _mcp_permission_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, McpToolPermissionTargetNotFoundError):
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+            headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+        )
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=str(exc),
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
+@router.get(
+    "/mcp/tool-permissions",
+    response_model=McpToolPermissionsResponse,
+)
+def read_mcp_tool_permissions(
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpToolPermissionsResponse:
+    del current_user
+    _no_store(response)
+    try:
+        return global_tool_permissions_response(db)
+    except McpToolPermissionConfigurationError as exc:
+        raise _mcp_permission_error(exc) from exc
+
+
+@router.patch(
+    "/mcp/tool-permissions",
+    response_model=McpToolPermissionsResponse,
+)
+def patch_mcp_tool_permissions(
+    payload: McpToolPermissionsUpdateRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpToolPermissionsResponse:
+    _no_store(response)
+    try:
+        return update_global_tool_permissions(
+            db,
+            payload.permissions,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except McpToolPermissionConfigurationError as exc:
+        raise _mcp_permission_error(exc) from exc
+
+
+@router.patch(
+    "/mcp/oauth-clients/{client_database_id}/permissions",
+    response_model=McpClientToolPermissionsResponse,
+)
+def patch_mcp_oauth_client_permissions(
+    client_database_id: int,
+    payload: McpClientToolPermissionsUpdateRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpClientToolPermissionsResponse:
+    _no_store(response)
+    try:
+        return update_oauth_client_tool_permissions(
+            db,
+            user_id=current_user.id,
+            client_database_id=client_database_id,
+            denied_tools=payload.denied_tools,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except (
+        McpToolPermissionConfigurationError,
+        McpToolPermissionTargetNotFoundError,
+    ) as exc:
+        raise _mcp_permission_error(exc) from exc
+
+
+@router.patch(
+    "/mcp/direct-clients/{client_id}/permissions",
+    response_model=McpClientToolPermissionsResponse,
+)
+def patch_mcp_direct_client_permissions(
+    client_id: int,
+    payload: McpClientToolPermissionsUpdateRequest,
+    response: Response,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> McpClientToolPermissionsResponse:
+    _no_store(response)
+    try:
+        return update_direct_client_tool_permissions(
+            db,
+            client_id=client_id,
+            denied_tools=payload.denied_tools,
+            actor_user_id=current_user.id,
+            commit=True,
+        )
+    except (
+        McpToolPermissionConfigurationError,
+        McpToolPermissionTargetNotFoundError,
+    ) as exc:
+        raise _mcp_permission_error(exc) from exc
+
+
 # PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_API:V555
 @router.post("/mcp/oauth-clients", response_model=McpOAuthClientRegistrationResponse, status_code=status.HTTP_201_CREATED)
 def create_mcp_oauth_client(payload: McpOAuthClientRegistrationRequest, response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpOAuthClientRegistrationResponse:
@@ -282,7 +404,11 @@ def delete_mcp_oauth_client(
 
 # PARTPILOT:MCP_NAMED_DIRECT_CLIENTS_API:V627
 
-def _named_direct_client_summary(record) -> McpDirectClientSummaryResponse:
+def _named_direct_client_summary(
+    db: Session,
+    record,
+) -> McpDirectClientSummaryResponse:
+    permissions = client_tool_permissions_response(db, record.denied_tools_json)
     key_configured = bool(
         record.mode in {DIRECT_AUTH_BEARER_KEY, DIRECT_AUTH_CUSTOM_HEADER}
         and record.key_ciphertext
@@ -310,12 +436,14 @@ def _named_direct_client_summary(record) -> McpDirectClientSummaryResponse:
         last_resolved_client_ip=record.last_resolved_client_ip,
         created_at=record.created_at,
         updated_at=record.updated_at,
+        denied_tools=permissions.denied_tools,
+        tool_permissions=permissions.tools,
     )
 
 
 def _named_direct_clients_response(db: Session) -> McpDirectClientsResponse:
     clients = [
-        _named_direct_client_summary(record)
+        _named_direct_client_summary(db, record)
         for record in list_direct_clients(db, include_revoked=False)
         if record.mode != DIRECT_AUTH_DISABLED
     ]
@@ -391,7 +519,7 @@ def create_mcp_direct_client(
         record = created
         key = None
     return McpDirectClientCreateResponse(
-        **_named_direct_client_summary(record).model_dump(),
+        **_named_direct_client_summary(db, record).model_dump(),
         key=key,
     )
 
@@ -423,7 +551,7 @@ def patch_mcp_direct_client(
         McpDirectAuthNotConfiguredError,
     ) as exc:
         raise _named_direct_error(exc) from exc
-    return _named_direct_client_summary(record)
+    return _named_direct_client_summary(db, record)
 
 
 @router.post(
@@ -453,7 +581,7 @@ def rotate_mcp_named_direct_client(
     ) as exc:
         raise _named_direct_error(exc) from exc
     return McpDirectClientKeyResponse(
-        **_named_direct_client_summary(issued.record).model_dump(),
+        **_named_direct_client_summary(db, issued.record).model_dump(),
         key=issued.plaintext_key,
     )
 
@@ -484,7 +612,7 @@ def reveal_mcp_named_direct_client(
     ) as exc:
         raise _named_direct_error(exc) from exc
     return McpDirectClientKeyResponse(
-        **_named_direct_client_summary(record).model_dump(),
+        **_named_direct_client_summary(db, record).model_dump(),
         key=key,
     )
 
@@ -515,7 +643,7 @@ def put_mcp_named_direct_client_networks(
         McpDirectAuthNotConfiguredError,
     ) as exc:
         raise _named_direct_error(exc) from exc
-    return _named_direct_client_summary(record)
+    return _named_direct_client_summary(db, record)
 
 
 @router.delete(

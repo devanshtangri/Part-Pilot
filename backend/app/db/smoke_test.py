@@ -45,6 +45,7 @@ EXPECTED_SETTINGS = {
     "backups.path",
     "mcp.enabled",
     "mcp.write_tools_enabled",
+    "mcp.tool_permissions",
 }
 
 
