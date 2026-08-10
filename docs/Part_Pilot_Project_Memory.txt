@@ -1,4 +1,4 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V674 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V680 -->
 
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
@@ -6,17 +6,17 @@ Project
 - Alembic head: 0016_mcp_tool_permissions.
 
 Patch workflow
-- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one complete sequential Python file under fixes/. Failed attempts consume numbers; never reuse. User runs scripts; assistant never executes numbered patches.
+- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one sequential Python file under fixes/. Failed attempts consume numbers. Assistant runs a numbered patch only when the user explicitly asks to run that specific patch; otherwise the user runs it. On an explicit run request, execute exactly that requested run command once and return the full raw terminal output only; no conclusions, diagnosis, fixes, retries, inspections or extra commands unless separately asked.
 - Success final line exactly `Everything PASS`. Validate exact repo/branch/origin/HEAD, index/source hashes, prerequisites/transforms before writes. Backups fixes/backups/; logs fixes/logs/; diagnostics docs/diagonostic_*.md.
 - Browser-test source stays uncommitted until explicit approval; checkpoint/commit/push promptly after approval. Browser instructions stay outside scripts.
 - After two consecutive pre-write failures/repeated anchors/source uncertainty, diagnostic-only next. Compile final downloadable patch before delivery.
 - App changes: git diff --check, relevant Python compile, canonical Docker build, Alembic, copied-db complete smoke, protected APIs/SPA/runtime markers, live-data preservation/rollback.
 - Exact Docker image checks require .dockerignore + Git-canonical backend/frontend modes. Rehearsals must use isolated /tmp copies and must never mutate live source/deployment.
-- Keep this memory <=8000 bytes. User prefers patch-generation turns <=10 minutes.
+- Repo durable memory is separate from ChatGPT Project Memory. ChatGPT Project Memory holds stable global rules and stays within its separate 8K product limit; this file may hold richer durable state. Keep this repo file <=20000 characters to control startup context. User prefers patch-generation turns <=10 minutes.
 
 Chat boundary
 - Chat 22 closes through Patch 660 boundary recovery with 22 MCP-permission application files still pending browser approval.
-- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 673 browser-approved Preferences consolidation + targeted resets; Patch 674 checkpoints it. ISO currency in Preferences is next.
+- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 674 checkpointed targeted preference resets. Patch 675 currency browser-test source remains pending. Patches 676-678 were consumed by pre-write/evidence failures; Patch 679 committed the diagnostic recovery plan.
 
 Data safety
 - Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs; never broad OAuth cleanup. SQLite integrity/FKs must pass.
@@ -26,9 +26,9 @@ Data safety
 Completed application
 - Typed inventory/catalogues; universal search/filter/sort/pagination; quantity workflows; soft delete/restore; History; atomic Reservation/Project lifecycles.
 - Responsive dark/light/system Settings; current reversible defaults are consolidated under Preferences: Theme, Inventory display and Reservation defaults. Each autosaves independently and has its own targeted Reset-to-default action; reset preserves unrelated preferences/security/business data. Strict portable backup/restore retains staging/rollback/session invalidation.
-- Browser-approved responsive regression: Projects lifecycle headers remain readable through intermediate widths; navigation uses a drawer at 821-1080px while preserving desktop content spacing and existing <=820px compact behavior.
+- Responsive regression: Projects lifecycle headers stay readable; navigation drawer covers 821-1080px while preserving <=820px compact behavior.
 - Recycle bin: recoverable delete default, typed-confirm atomic purge, active/reserved blockers, audit retention, custom Part Type dependency protection across active + deleted inventory.
-- Current-user account/security: username/display/avatar incl DB-backed normalized custom avatar, password change, safe sessions, targeted/revoke-all-other, current-session preservation, secret-free audit. Four older sessions remain Unknown; never infer/backfill.
+- Account/security: username/display/avatar incl custom DB image, password change, safe session revoke flows, current-session preservation, secret-free audit. Four older sessions remain Unknown; never infer/backfill.
 
 REST API access
 - Alembic 0014: scoped `pp_api_key_` one-time credentials, digest-only storage, scopes/expiry/rotate/revoke/last-used.
@@ -37,19 +37,18 @@ REST API access
 
 MCP/OAuth
 - OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata, stateless `/mcp`; six read-only Part/Project/Reservation tools. Real Claude/ChatGPT read flows verified.
-- Manual OAuth admin: creator ownership, public/confidential, none/secret_post/secret_basic, generated ID, one-time secret digest-only storage, status/revocation; revoked hidden from normal Settings.
+- Manual OAuth admin: ownership, public/confidential auth, generated IDs, digest-only one-time secrets, status/revocation; revoked hidden from normal Settings.
 - Alembic 0015: named Bearer/custom-header/trusted-network direct clients with independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row retained for audit compatibility.
 - `Enable MCP server` master; `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
 - Browser-approved Alembic 0016 MCP permissions: global exact-tool booleans, OAuth/direct deny-only overrides, principal-aware authenticated `tools/list`, no-auth global-only semantics and call-time defense in depth. Six current tools are read-only; Write tools show 0 available. Treat live per-tool booleans as mutable configuration, not frozen test fixtures.
 - Browser-approved Settings Direct MCP hierarchy: Allow direct clients + No authentication sit with Named direct clients; global Server/Read/Write stay separate. Dependency-disabled uses `not-allowed`; `wait` only while saving.
 
 Recovery lessons
-- 628/629: minification can strip comment markers and packaged bytes can differ from rehearsal; use runtime-safe markers and freeze exact script-produced bytes.
-- 631: rehearsal accidentally touched live source/image; all rehearsals must stay isolated under /tmp. Canonical Docker checks also require ignored bytecode exclusion and Git-canonical modes.
-- Durable log checks must match bytes actually written to logs, not terminal-only output. Patch 667 repeated this against Patch 666; Patch 668 recovered and also stopped freezing mutable live MCP/database state across user activity.
+- Rehearsals stay isolated under /tmp; use runtime-safe markers/frozen bytes and canonical Docker modes.
+- Durable-log validation must use bytes explicitly written to logs, never terminal-only success/error output. Patches 676 and 678 repeated this mistake; Patch 679 diagnosed it. Prove failures from immutable source plus reproducible read-only facts. Do not freeze mutable live MCP/DB values.
 
 Remaining V1
-1. Add persisted ISO currency selector to Preferences; locale-aware formatting only, no FX conversion.
+1. Finish ISO currency + themed Regional display/timezone browser approval; no FX conversion or stored-timestamp rewriting.
 2. SSE invalidation/targeted refetch replaces routine Refresh; polling fallback only.
 3. API docs/schema hardening; Stored Parts/dashboard metrics. Dashboard Stock alert card later opens an all-alert-parts dialog instead of an inline low-stock table.
 4. Expand per-card preference defaults as new Preferences land; roles; safeguarded MCP writes; final alpha regression.
