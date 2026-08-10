@@ -16,6 +16,8 @@ from app.schemas.app_settings import (
     McpSettingsUpdateRequest,
     ReservationSettingsResponse,
     ReservationSettingsUpdateRequest,
+    ReversiblePreferenceResetResponse,
+    ReversiblePreferenceResetTarget,
     SearchSettingsResponse,
     SearchSettingsUpdateRequest,
 )
@@ -42,6 +44,16 @@ MCP_DIRECT_CLIENTS_ENABLED_KEY = "mcp.direct_clients_enabled"
 MCP_DIRECT_NO_AUTH_ENABLED_KEY = "mcp.direct_no_auth_enabled"
 MCP_DIRECT_NO_AUTH_LAST_CLIENT_IP_KEY = "mcp.direct_no_auth_last_client_ip"
 MCP_DIRECT_NO_AUTH_CONFIRMATION = "ALLOW NO AUTH"
+DEFAULT_APPEARANCE_THEME = "dark"
+DEFAULT_SHOW_OUT_OF_STOCK_SECTION = True
+DEFAULT_RESERVATION_EXPIRY_MODE = "none"
+DEFAULT_RESERVATION_EXPIRY_DEFAULT_DAYS = None
+REVERSIBLE_PREFERENCE_SETTING_KEYS = (
+    APPEARANCE_THEME_KEY,
+    SEARCH_SHOW_OUT_OF_STOCK_SECTION_KEY,
+    RESERVATION_EXPIRY_MODE_KEY,
+    RESERVATION_EXPIRY_DEFAULT_DAYS_KEY,
+)
 
 
 class McpSettingsValidationError(RuntimeError):
@@ -333,6 +345,80 @@ def update_appearance_settings(
             db.rollback()
         raise
 
+    return after
+
+
+# PARTPILOT:TARGETED_PREFERENCE_RESET_SERVICE:V673
+PREFERENCE_TARGET_SETTING_KEYS: dict[ReversiblePreferenceResetTarget, tuple[str, ...]] = {
+    "appearance": (APPEARANCE_THEME_KEY,),
+    "inventory": (SEARCH_SHOW_OUT_OF_STOCK_SECTION_KEY,),
+    "reservations": (RESERVATION_EXPIRY_MODE_KEY, RESERVATION_EXPIRY_DEFAULT_DAYS_KEY),
+}
+
+
+def reset_reversible_preference(
+    db: Session,
+    *,
+    target: ReversiblePreferenceResetTarget,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> ReversiblePreferenceResetResponse:
+    keys = PREFERENCE_TARGET_SETTING_KEYS[target]
+    defaults = {
+        APPEARANCE_THEME_KEY: DEFAULT_APPEARANCE_THEME,
+        SEARCH_SHOW_OUT_OF_STOCK_SECTION_KEY: DEFAULT_SHOW_OUT_OF_STOCK_SECTION,
+        RESERVATION_EXPIRY_MODE_KEY: DEFAULT_RESERVATION_EXPIRY_MODE,
+        RESERVATION_EXPIRY_DEFAULT_DAYS_KEY: DEFAULT_RESERVATION_EXPIRY_DEFAULT_DAYS,
+    }
+    raw_values = {
+        APPEARANCE_THEME_KEY: get_app_setting(db, APPEARANCE_THEME_KEY, DEFAULT_APPEARANCE_THEME),
+        SEARCH_SHOW_OUT_OF_STOCK_SECTION_KEY: get_app_setting(db, SEARCH_SHOW_OUT_OF_STOCK_SECTION_KEY, DEFAULT_SHOW_OUT_OF_STOCK_SECTION),
+        RESERVATION_EXPIRY_MODE_KEY: get_app_setting(db, RESERVATION_EXPIRY_MODE_KEY, DEFAULT_RESERVATION_EXPIRY_MODE),
+        RESERVATION_EXPIRY_DEFAULT_DAYS_KEY: get_app_setting(db, RESERVATION_EXPIRY_DEFAULT_DAYS_KEY, DEFAULT_RESERVATION_EXPIRY_DEFAULT_DAYS),
+    }
+    changed_setting_keys = [key for key in keys if type(raw_values[key]) is not type(defaults[key]) or raw_values[key] != defaults[key]]
+
+    if target == "appearance":
+        current = get_appearance_settings(db)
+        before = current.model_dump()
+        after = ReversiblePreferenceResetResponse(target=target, appearance=AppearanceSettingsResponse(theme=DEFAULT_APPEARANCE_THEME, light_theme_available=current.light_theme_available))
+    elif target == "inventory":
+        before = get_search_settings(db).model_dump()
+        after = ReversiblePreferenceResetResponse(target=target, inventory=SearchSettingsResponse(show_out_of_stock_section=DEFAULT_SHOW_OUT_OF_STOCK_SECTION))
+    else:
+        before = get_reservation_settings(db).model_dump()
+        after = ReversiblePreferenceResetResponse(target=target, reservations=ReservationSettingsResponse(expiry_mode=DEFAULT_RESERVATION_EXPIRY_MODE, default_days=DEFAULT_RESERVATION_EXPIRY_DEFAULT_DAYS))
+
+    if not changed_setting_keys:
+        return after
+
+    try:
+        changed_settings = []
+        for key in changed_setting_keys:
+            text_value = defaults[key] if key in {APPEARANCE_THEME_KEY, RESERVATION_EXPIRY_MODE_KEY} else None
+            changed_settings.append(set_app_setting(db, key, defaults[key], text_value=text_value, commit=False))
+        db.add(AuditLog(
+            event_type="settings.preference_reset",
+            entity_type="app_setting",
+            entity_id=changed_settings[0].id,
+            actor_type="user" if actor_user_id is not None else "system",
+            actor_user_id=actor_user_id,
+            summary=f"Reset {target} preference to default",
+            before_json=before,
+            after_json=after.model_dump(exclude_none=True),
+            metadata_json={
+                "target": target,
+                "setting_keys": list(keys),
+                "changed_setting_keys": changed_setting_keys,
+                "preserves_other_preferences": True,
+                "preserves_security_and_business_data": True,
+            },
+        ))
+        db.flush()
+        if commit: db.commit()
+    except Exception:
+        if commit: db.rollback()
+        raise
     return after
 
 

@@ -36,6 +36,24 @@ export interface AppearanceSettingsUpdatePayload {
 }
 
 
+// PARTPILOT:TARGETED_PREFERENCE_RESET_TYPES:V673
+export type ReversiblePreferenceResetTarget =
+  | "appearance"
+  | "inventory"
+  | "reservations";
+
+export interface ReversiblePreferenceResetPayload {
+  target: ReversiblePreferenceResetTarget;
+}
+
+export interface ReversiblePreferenceResetResponse {
+  target: ReversiblePreferenceResetTarget;
+  appearance: AppearanceSettings | null;
+  inventory: SearchSettings | null;
+  reservations: ReservationSettings | null;
+}
+
+
 // PARTPILOT:MCP_SETTINGS_TYPES:V627
 export interface McpSettings {
   enabled: boolean;

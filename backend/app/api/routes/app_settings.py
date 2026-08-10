@@ -31,6 +31,8 @@ from app.schemas.app_settings import (
     McpSettingsUpdateRequest,
     ReservationSettingsResponse,
     ReservationSettingsUpdateRequest,
+    ReversiblePreferenceResetRequest,
+    ReversiblePreferenceResetResponse,
     SearchSettingsResponse,
     SearchSettingsUpdateRequest,
 )
@@ -87,6 +89,7 @@ from app.services.app_settings import (
     get_mcp_settings,
     get_reservation_settings,
     get_search_settings,
+    reset_reversible_preference,
     update_appearance_settings,
     update_mcp_settings,
     update_reservation_settings,
@@ -178,6 +181,16 @@ def patch_appearance_settings(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+
+
+# PARTPILOT:TARGETED_PREFERENCE_RESET_ROUTE:V673
+@router.post("/preferences/reset", response_model=ReversiblePreferenceResetResponse)
+def reset_preference_to_default(
+    payload: ReversiblePreferenceResetRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReversiblePreferenceResetResponse:
+    return reset_reversible_preference(db, target=payload.target, actor_user_id=current_user.id, commit=True)
 
 
 # PARTPILOT:MCP_SETTINGS_ROUTE:V473

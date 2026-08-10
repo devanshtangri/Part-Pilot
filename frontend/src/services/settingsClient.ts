@@ -24,6 +24,8 @@ import type {
   McpToolPermissionsUpdatePayload,
   ReservationSettings,
   ReservationSettingsUpdatePayload,
+  ReversiblePreferenceResetPayload,
+  ReversiblePreferenceResetResponse,
   SearchSettings,
   SearchSettingsUpdatePayload
 } from "../types/settings";
@@ -140,6 +142,19 @@ export function updateAppearanceSettings(
     method: "PATCH",
     body: JSON.stringify(payload)
   });
+}
+
+
+// PARTPILOT:TARGETED_PREFERENCE_RESET_CLIENT:V673
+export function resetReversiblePreference(
+  token: string,
+  payload: ReversiblePreferenceResetPayload
+): Promise<ReversiblePreferenceResetResponse> {
+  return requestJson<ReversiblePreferenceResetResponse>(
+    "/settings/preferences/reset",
+    token,
+    { method: "POST", body: JSON.stringify(payload) }
+  );
 }
 
 

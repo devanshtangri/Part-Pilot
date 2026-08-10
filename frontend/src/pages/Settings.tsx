@@ -40,6 +40,7 @@ import {
   registerMcpOAuthClient,
   getReservationSettings,
   getSearchSettings,
+  resetReversiblePreference,
   revokeMcpOAuthClient,
   updateMcpOAuthClientPermissions,
   updateMcpSettings,
@@ -65,6 +66,7 @@ import type {
   McpOAuthTokenEndpointAuthMethod,
   McpSettings,
   ReservationExpiryMode,
+  ReversiblePreferenceResetTarget,
   ReservationSettings,
   SearchSettings
 } from "../types/settings";
@@ -77,23 +79,26 @@ const RESERVATION_AUTOSAVE_DELAY_MS = 550;
 const RESERVATION_AUTOSAVE_STARTER_DAYS = 30;
 const SETTINGS_SECTION_IDS = [
   "account",
-  "appearance",
-  "inventory",
-  "reservations",
+  "preferences",
   "api",
   "mcp",
   "data"
 ] as const;
 type SettingsSection = (typeof SETTINGS_SECTION_IDS)[number];
+const LEGACY_PREFERENCE_SECTION_IDS = new Set([
+  "appearance",
+  "inventory",
+  "reservations"
+]);
 
 function settingsSectionFromHash(): SettingsSection {
-  const candidate = window.location.hash.replace(
-    "#settings-",
-    ""
-  ) as SettingsSection;
-  return SETTINGS_SECTION_IDS.includes(candidate)
-    ? candidate
-    : "appearance";
+  const candidate = window.location.hash.replace("#settings-", "");
+  if (LEGACY_PREFERENCE_SECTION_IDS.has(candidate)) {
+    return "preferences";
+  }
+  return SETTINGS_SECTION_IDS.includes(candidate as SettingsSection)
+    ? (candidate as SettingsSection)
+    : "preferences";
 }
 
 function formatFileSize(bytes: number): string {
@@ -380,6 +385,16 @@ export function Settings() {
   const [mcpNoAuthDialogOpen, setMcpNoAuthDialogOpen] = useState(false);
   const [mcpNoAuthConfirmation, setMcpNoAuthConfirmation] = useState("");
 
+  // PARTPILOT:TARGETED_PREFERENCE_RESET_UI:V673
+  const [preferenceResetTarget, setPreferenceResetTarget] =
+    useState<ReversiblePreferenceResetTarget | null>(null);
+  const [preferenceResetting, setPreferenceResetting] = useState(false);
+  const [preferenceResetError, setPreferenceResetError] = useState<string | null>(null);
+  const [preferenceResetMessage, setPreferenceResetMessage] = useState<{
+    target: ReversiblePreferenceResetTarget;
+    text: string;
+  } | null>(null);
+
   const [confirmation, setConfirmation] = useState("");
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -404,6 +419,13 @@ export function Settings() {
   const [restoreCommitting, setRestoreCommitting] = useState(false);
   const [restoreRestarting, setRestoreRestarting] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+
+  const preferenceMutationInProgress =
+    appearanceSaving || searchSettingsSaving || reservationSettingsSaving;
+  const canConfirmPreferenceReset =
+    preferenceResetTarget !== null &&
+    !preferenceResetting &&
+    !preferenceMutationInProgress;
 
   const canReset =
     confirmation === RESET_CONFIRMATION && !isResetting;
@@ -764,6 +786,23 @@ export function Settings() {
       cancelled = true;
     };
   }, [backupStatusReloadVersion, token]);
+
+  useEffect(() => {
+    if (!preferenceResetTarget) return;
+    const previousOverflow = document.body.style.overflow;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !preferenceResetting) {
+        setPreferenceResetTarget(null);
+        setPreferenceResetError(null);
+      }
+    }
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [preferenceResetTarget, preferenceResetting]);
 
   useEffect(() => {
     if (!resetDialogOpen) {
@@ -1639,6 +1678,66 @@ export function Settings() {
     }
   }
 
+  function openPreferenceResetDialog(
+    target: ReversiblePreferenceResetTarget
+  ): void {
+    if (preferenceMutationInProgress || preferenceResetting) return;
+    setPreferenceResetError(null);
+    setPreferenceResetTarget(target);
+  }
+
+  function closePreferenceResetDialog(): void {
+    if (preferenceResetting) return;
+    setPreferenceResetTarget(null);
+    setPreferenceResetError(null);
+  }
+
+  async function confirmPreferenceReset(): Promise<void> {
+    const target = preferenceResetTarget;
+    if (!token) {
+      setPreferenceResetError("Your session is unavailable. Sign in again.");
+      return;
+    }
+    if (!target || preferenceMutationInProgress || preferenceResetting) return;
+    if (target === "reservations") {
+      clearReservationAutosaveTimer();
+      reservationSaveRequestRef.current += 1;
+      reservationEditVersionRef.current += 1;
+    }
+    setPreferenceResetting(true);
+    setPreferenceResetError(null);
+    setPreferenceResetMessage(null);
+    try {
+      const reset = await resetReversiblePreference(token, { target });
+      if (reset.target !== target) throw new Error("Preference reset returned an unexpected target");
+      if (target === "appearance") {
+        if (!reset.appearance) throw new Error("Appearance reset response is incomplete");
+        reloadAppearance();
+        setPreferenceResetMessage({ target, text: "Theme reset to Dark." });
+      } else if (target === "inventory") {
+        if (!reset.inventory) throw new Error("Inventory reset response is incomplete");
+        setSearchSettings(reset.inventory);
+        setSearchSettingsLoading(false);
+        setSearchSettingsError(null);
+        setSearchSettingsSaved(false);
+        setPreferenceResetMessage({ target, text: "Inventory display reset to separate out-of-stock results." });
+      } else {
+        if (!reset.reservations) throw new Error("Reservation reset response is incomplete");
+        setReservationSettings(reset.reservations);
+        setReservationDraft(reset.reservations);
+        setReservationSettingsLoading(false);
+        setReservationSettingsError(null);
+        setReservationSettingsSaved(false);
+        setPreferenceResetMessage({ target, text: "Reservation defaults reset to no automatic expiry." });
+      }
+      setPreferenceResetTarget(null);
+    } catch (caught) {
+      setPreferenceResetError(caught instanceof Error ? caught.message : "Unable to reset this preference");
+    } finally {
+      setPreferenceResetting(false);
+    }
+  }
+
   function openDatabaseResetDialog(): void {
     setConfirmation("");
     setResetError(null);
@@ -1705,6 +1804,7 @@ export function Settings() {
       data-partpilot-account-avatar-refinement="PARTPILOT:SETTINGS_ACCOUNT_AVATAR_REFINEMENT:V594"
       data-partpilot-account-custom-avatar="PARTPILOT:SETTINGS_CUSTOM_AVATAR_UI:V602"
       data-partpilot-rest-api-keys="PARTPILOT:REST_API_KEY_SETTINGS_UI:V618"
+      data-partpilot-preferences-workspace="PARTPILOT:SETTINGS_PREFERENCES_WORKSPACE:V673"
       data-partpilot-active-settings-section={activeSettingsSection}
     >
       <header className="page-header settings-page-header">
@@ -1712,8 +1812,8 @@ export function Settings() {
           <p className="eyebrow">Application configuration</p>
           <h1>Settings</h1>
           <p>
-            Manage your account, security, appearance, inventory behavior,
-            reservation defaults, REST API access, MCP access, and local data controls.
+            Manage your account, workspace preferences, REST API access, MCP access,
+            and local data controls.
           </p>
         </div>
       </header>
@@ -1736,55 +1836,13 @@ export function Settings() {
           Account
         </button>
         <button
-          className={
-            activeSettingsSection === "appearance"
-              ? "is-active"
-              : ""
-          }
+          className={activeSettingsSection === "preferences" ? "is-active" : ""}
           type="button"
-          aria-current={
-            activeSettingsSection === "appearance"
-              ? "page"
-              : undefined
-          }
-          aria-controls="settings-appearance"
-          onClick={() => chooseSettingsSection("appearance")}
+          aria-current={activeSettingsSection === "preferences" ? "page" : undefined}
+          aria-controls="settings-preferences"
+          onClick={() => chooseSettingsSection("preferences")}
         >
-          Appearance
-        </button>
-        <button
-          className={
-            activeSettingsSection === "inventory"
-              ? "is-active"
-              : ""
-          }
-          type="button"
-          aria-current={
-            activeSettingsSection === "inventory"
-              ? "page"
-              : undefined
-          }
-          aria-controls="settings-inventory"
-          onClick={() => chooseSettingsSection("inventory")}
-        >
-          Inventory
-        </button>
-        <button
-          className={
-            activeSettingsSection === "reservations"
-              ? "is-active"
-              : ""
-          }
-          type="button"
-          aria-current={
-            activeSettingsSection === "reservations"
-              ? "page"
-              : undefined
-          }
-          aria-controls="settings-reservations"
-          onClick={() => chooseSettingsSection("reservations")}
-        >
-          Reservations
+          Preferences
         </button>
         <button
           className={
@@ -2301,365 +2359,118 @@ export function Settings() {
       </section>
 
       <section
-        id="settings-appearance"
-        className="card settings-section settings-appearance-section"
-        aria-labelledby="settings-appearance-title"
-        hidden={activeSettingsSection !== "appearance"}
+        id="settings-preferences"
+        className="card settings-section settings-preferences-section"
+        aria-labelledby="settings-preferences-title"
+        hidden={activeSettingsSection !== "preferences"}
+        data-partpilot-preferences-workspace="PARTPILOT:SETTINGS_PREFERENCES_WORKSPACE:V673"
       >
         <div className="settings-section-heading">
           <div>
-            <span className="card-label">Workspace</span>
-            <h2 id="settings-appearance-title">Appearance</h2>
+            <span className="card-label">Workspace preferences</span>
+            <h2 id="settings-preferences-title">Preferences</h2>
             <p>
-              Choose a stored preference for the complete Part Pilot
-              interface. System mode follows operating-system changes
-              without a reload.
+              Control interface and workflow defaults in one place. Changes
+              save automatically; each card can be reset independently.
             </p>
           </div>
         </div>
 
-        {appearanceLoading ? (
-          <p className="settings-preference-state" role="status">
-            Loading appearance preference...
-          </p>
-        ) : (
-          <div
-            className="settings-theme-options"
-            role="radiogroup"
-            aria-label="Application appearance"
-          >
-            {APPEARANCE_OPTIONS.map((option) => {
-              const disabled =
-                appearanceSaving ||
-                (option.value !== "dark" &&
-                  !lightThemeAvailable);
-              return (
-                <button
-                  key={option.value}
-                  className={
-                    theme === option.value
-                      ? "settings-theme-option is-selected"
-                      : "settings-theme-option"
-                  }
-                  type="button"
-                  role="radio"
-                  aria-checked={theme === option.value}
-                  disabled={disabled}
-                  onClick={() =>
-                    void selectTheme(option.value)
-                  }
-                >
-                  <span
-                    className={`settings-theme-preview is-${option.value}`}
-                    aria-hidden="true"
-                  >
-                    <span className="settings-preview-sidebar" />
-                    <span className="settings-preview-main">
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                  </span>
-                  <span className="settings-theme-copy">
-                    <strong>{option.title}</strong>
-                    <span>{option.description}</span>
-                  </span>
-                  <span
-                    className="settings-theme-check"
-                    aria-hidden="true"
-                  >
-                    {theme === option.value ? "Selected" : ""}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="settings-preferences-grid">
+          <section className="settings-preference-card" aria-labelledby="settings-theme-title">
+            <div className="settings-preference-card-heading">
+              <div>
+                <span className="card-label">Interface</span>
+                <h3 id="settings-theme-title">Theme</h3>
+                <p>Choose how Part Pilot is rendered across the complete workspace.</p>
+              </div>
+              <button className="settings-action settings-action-secondary" type="button" disabled={appearanceLoading || appearanceSaving || preferenceResetting} onClick={() => openPreferenceResetDialog("appearance")}>Reset to default</button>
+            </div>
+            {appearanceLoading ? <p className="settings-preference-state" role="status">Loading appearance preference...</p> : (
+              <div className="settings-theme-options" role="radiogroup" aria-label="Application appearance">
+                {APPEARANCE_OPTIONS.map((option) => {
+                  const disabled = appearanceSaving || (option.value !== "dark" && !lightThemeAvailable);
+                  return (
+                    <button key={option.value} className={theme === option.value ? "settings-theme-option is-selected" : "settings-theme-option"} type="button" role="radio" aria-checked={theme === option.value} disabled={disabled} onClick={() => void selectTheme(option.value)}>
+                      <span className={`settings-theme-preview is-${option.value}`} aria-hidden="true"><span className="settings-preview-sidebar" /><span className="settings-preview-main"><i /><i /><i /></span></span>
+                      <span className="settings-theme-copy"><strong>{option.title}</strong><span>{option.description}</span></span>
+                      <span className="settings-theme-check" aria-hidden="true">{theme === option.value ? "Selected" : ""}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {!lightThemeAvailable ? <p className="settings-preference-state">Light and System modes are unavailable for this installation. Dark remains active.</p> : null}
+            {appearanceError ? <div className="settings-preference-state is-error" role="alert"><span>{appearanceError}</span><button type="button" onClick={reloadAppearance}>Retry</button></div> : null}
+            {appearanceSaved && !appearanceError ? <p className="settings-preference-state is-success" role="status">Appearance saved automatically and applied across Part Pilot.</p> : null}
+            {preferenceResetMessage?.target === "appearance" ? <p className="settings-preference-state is-success" role="status">{preferenceResetMessage.text}</p> : null}
+            <p className="settings-preference-default-note">Default: Dark</p>
+          </section>
 
-        {!lightThemeAvailable ? (
-          <p className="settings-preference-state">
-            Light and System modes are unavailable for this
-            installation. Dark remains active.
-          </p>
-        ) : null}
+          <section className="settings-preference-card" aria-labelledby="settings-search-title" data-partpilot-compact-search="PARTPILOT:COMPACT_OUT_OF_STOCK_PREFERENCE:V418">
+            <div className="settings-preference-card-heading">
+              <div>
+                <span className="card-label">Inventory display</span>
+                <h3 id="settings-search-title">Separate out-of-stock results</h3>
+                <p id="settings-search-description">Show zero-stock matches below available parts when All is selected. The explicit Out filter always remains available.</p>
+              </div>
+              <button className="settings-action settings-action-secondary" type="button" disabled={searchSettingsLoading || searchSettingsSaving || preferenceResetting} onClick={() => openPreferenceResetDialog("inventory")}>Reset to default</button>
+            </div>
+            <div className="settings-preference-inline-control">
+              {searchSettingsLoading ? <span className="settings-search-compact-status" role="status">Loading...</span> : null}
+              {!searchSettingsLoading && searchSettings ? (
+                <label className={searchSettingsSaving ? "settings-compact-switch-control is-disabled" : "settings-compact-switch-control"}>
+                  <span className="settings-compact-switch-state">{searchSettingsSaving ? "Saving..." : searchSettings.show_out_of_stock_section ? "On" : "Off"}</span>
+                  <input type="checkbox" role="switch" checked={searchSettings.show_out_of_stock_section} onChange={(event) => void handleOutOfStockPreference(event.target.checked)} disabled={searchSettingsSaving} aria-label="Show a separate out-of-stock section" aria-describedby="settings-search-description" />
+                  <span className="settings-switch" aria-hidden="true" />
+                </label>
+              ) : null}
+            </div>
+            {searchSettingsError ? <p className="settings-search-compact-feedback is-error" role="alert">{searchSettingsError}</p> : null}
+            {searchSettingsSaved && !searchSettingsError ? <p className="settings-search-compact-feedback is-success" role="status">Preference saved automatically.</p> : null}
+            {preferenceResetMessage?.target === "inventory" ? <p className="settings-preference-state is-success" role="status">{preferenceResetMessage.text}</p> : null}
+            <p className="settings-preference-default-note">Default: On</p>
+          </section>
 
-        {appearanceError ? (
-          <div
-            className="settings-preference-state is-error"
-            role="alert"
-          >
-            <span>{appearanceError}</span>
-            <button type="button" onClick={reloadAppearance}>
-              Retry
-            </button>
-          </div>
-        ) : null}
-
-        {appearanceSaved && !appearanceError ? (
-          <p
-            className="settings-preference-state is-success"
-            role="status"
-          >
-            Appearance saved automatically and applied across Part Pilot.
-          </p>
-        ) : null}
+          <section className="settings-preference-card" aria-labelledby="settings-reservation-title" data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362" data-partpilot-preference-autosave="PARTPILOT:REVERSIBLE_PREFERENCE_AUTOSAVE:V667">
+            <div className="settings-preference-card-heading">
+              <div>
+                <span className="card-label">Reservation workflow</span>
+                <h3 id="settings-reservation-title">Reservation defaults</h3>
+                <p>Set the suggested expiry for new manual reservations. Existing reservations are never rewritten.</p>
+              </div>
+              <button className="settings-action settings-action-secondary" type="button" disabled={reservationSettingsLoading || reservationSettingsSaving || preferenceResetting} onClick={() => openPreferenceResetDialog("reservations")}>Reset to default</button>
+            </div>
+            {reservationSettingsLoading ? <p className="settings-preference-state" role="status">Loading reservation defaults...</p> : null}
+            {!reservationSettingsLoading && reservationDraft ? (
+              <div className="settings-reservation-form">
+                <div className="settings-segmented-control" role="radiogroup" aria-label="Default reservation expiry">
+                  <button type="button" role="radio" aria-checked={reservationDraft.expiry_mode === "none"} className={reservationDraft.expiry_mode === "none" ? "is-active" : ""} onClick={() => chooseReservationExpiryMode("none")} disabled={reservationSettingsSaving}>No automatic expiry</button>
+                  <button type="button" role="radio" aria-checked={reservationDraft.expiry_mode === "default"} className={reservationDraft.expiry_mode === "default" ? "is-active" : ""} onClick={() => chooseReservationExpiryMode("default")} disabled={reservationSettingsSaving}>Default expiry after</button>
+                </div>
+                {reservationDraft.expiry_mode === "default" ? (
+                  <label className="settings-days-field">
+                    <span>Default expiry duration</span>
+                    <span className="settings-days-control"><input type="number" min={1} max={3650} step={1} inputMode="numeric" value={reservationDraft.default_days ?? ""} onChange={(event) => updateReservationDefaultDays(event.currentTarget.value)} aria-invalid={Boolean(reservationDaysError)} aria-describedby="reservation-default-days-help" disabled={reservationSettingsSaving} /><strong>days</strong></span>
+                    <small id="reservation-default-days-help">Calculated when New reservation is opened.</small>
+                  </label>
+                ) : <p className="settings-reservation-summary">New reservations start with no expiry selected.</p>}
+                {reservationDaysError ? <p className="settings-preference-state is-error" role="alert">{reservationDaysError}</p> : null}
+              </div>
+            ) : null}
+            {reservationSettingsSaving ? <p className="settings-preference-state" role="status">Saving reservation defaults...</p> : null}
+            {reservationSettingsError && !reservationDaysError ? <div className="settings-preference-state is-error" role="alert"><span>{reservationSettingsError}</span>{!reservationDraft ? <button type="button" onClick={() => setReservationReloadVersion((value) => value + 1)}>Retry</button> : null}</div> : null}
+            {reservationSettingsSaved && !reservationSettingsError ? <p className="settings-preference-state is-success" role="status">Reservation defaults saved automatically.</p> : null}
+            {preferenceResetMessage?.target === "reservations" ? <p className="settings-preference-state is-success" role="status">{preferenceResetMessage.text}</p> : null}
+            <p className="settings-preference-default-note">Default: No automatic expiry</p>
+          </section>
+        </div>
       </section>
 
       <div
         className="settings-content-grid"
         data-partpilot-settings-layout="PARTPILOT:SETTINGS_DESKTOP_COMPOSITION:V423"
       >
-        <section
-          id="settings-inventory"
-          className="card settings-search-compact settings-grid-inventory"
-          aria-labelledby="settings-search-title"
-          hidden={activeSettingsSection !== "inventory"}
-          data-partpilot-compact-search="PARTPILOT:COMPACT_OUT_OF_STOCK_PREFERENCE:V418"
-        >
-          <div className="settings-search-compact-copy">
-            <span className="card-label">Inventory search</span>
-            <h2 id="settings-search-title">
-              Separate out-of-stock results
-            </h2>
-            <p id="settings-search-description">
-              Show zero-stock matches below available parts when All is
-              selected. The explicit Out filter always remains available.
-            </p>
-          </div>
-
-          <div className="settings-search-compact-control">
-            {searchSettingsLoading ? (
-              <span
-                className="settings-search-compact-status"
-                role="status"
-              >
-                Loading...
-              </span>
-            ) : null}
-
-            {!searchSettingsLoading && searchSettings ? (
-              <label
-                className={
-                  searchSettingsSaving
-                    ? "settings-compact-switch-control is-disabled"
-                    : "settings-compact-switch-control"
-                }
-              >
-                <span className="settings-compact-switch-state">
-                  {searchSettingsSaving
-                    ? "Saving..."
-                    : searchSettings.show_out_of_stock_section
-                      ? "On"
-                      : "Off"}
-                </span>
-                <input
-                  type="checkbox"
-                  role="switch"
-                  checked={
-                    searchSettings.show_out_of_stock_section
-                  }
-                  onChange={(event) =>
-                    void handleOutOfStockPreference(
-                      event.target.checked
-                    )
-                  }
-                  disabled={searchSettingsSaving}
-                  aria-label="Show a separate out-of-stock section"
-                  aria-describedby="settings-search-description"
-                />
-                <span
-                  className="settings-switch"
-                  aria-hidden="true"
-                />
-              </label>
-            ) : null}
-          </div>
-
-          {searchSettingsError ? (
-            <p
-              className="settings-search-compact-feedback is-error"
-              role="alert"
-            >
-              {searchSettingsError}
-            </p>
-          ) : null}
-
-          {searchSettingsSaved && !searchSettingsError ? (
-            <p
-              className="settings-search-compact-feedback is-success"
-              role="status"
-            >
-              Preference saved automatically.
-            </p>
-          ) : null}
-        </section>
-
-        <section
-          id="settings-reservations"
-          className="card settings-section settings-reservation-section settings-grid-reservations"
-          aria-labelledby="settings-reservation-title"
-          hidden={activeSettingsSection !== "reservations"}
-          data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362"
-          data-partpilot-preference-autosave="PARTPILOT:REVERSIBLE_PREFERENCE_AUTOSAVE:V667"
-        >
-          <div className="settings-section-heading">
-            <div>
-              <span className="card-label">Reservations</span>
-              <h2 id="settings-reservation-title">
-                Reservation defaults
-              </h2>
-              <p>
-                Set the suggested expiry for new manual reservations.
-                Existing reservations are never rewritten. Changes save
-                automatically.
-              </p>
-            </div>
-          </div>
-
-          {reservationSettingsLoading ? (
-            <p
-              className="settings-preference-state"
-              role="status"
-            >
-              Loading reservation defaults...
-            </p>
-          ) : null}
-
-          {!reservationSettingsLoading && reservationDraft ? (
-            <div className="settings-reservation-form">
-              <div
-                className="settings-segmented-control"
-                role="radiogroup"
-                aria-label="Default reservation expiry"
-              >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={
-                    reservationDraft.expiry_mode === "none"
-                  }
-                  className={
-                    reservationDraft.expiry_mode === "none"
-                      ? "is-active"
-                      : ""
-                  }
-                  onClick={() =>
-                    chooseReservationExpiryMode("none")
-                  }
-                  disabled={reservationSettingsSaving}
-                >
-                  No automatic expiry
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={
-                    reservationDraft.expiry_mode === "default"
-                  }
-                  className={
-                    reservationDraft.expiry_mode === "default"
-                      ? "is-active"
-                      : ""
-                  }
-                  onClick={() =>
-                    chooseReservationExpiryMode("default")
-                  }
-                  disabled={reservationSettingsSaving}
-                >
-                  Default expiry after
-                </button>
-              </div>
-
-              {reservationDraft.expiry_mode === "default" ? (
-                <label className="settings-days-field">
-                  <span>Default expiry duration</span>
-                  <span className="settings-days-control">
-                    <input
-                      type="number"
-                      min={1}
-                      max={3650}
-                      step={1}
-                      inputMode="numeric"
-                      value={
-                        reservationDraft.default_days ?? ""
-                      }
-                      onChange={(event) =>
-                        updateReservationDefaultDays(
-                          event.currentTarget.value
-                        )
-                      }
-                      aria-invalid={Boolean(
-                        reservationDaysError
-                      )}
-                      aria-describedby="reservation-default-days-help"
-                      disabled={reservationSettingsSaving}
-                    />
-                    <strong>days</strong>
-                  </span>
-                  <small id="reservation-default-days-help">
-                    Calculated when New reservation is opened.
-                  </small>
-                </label>
-              ) : (
-                <p className="settings-reservation-summary">
-                  New reservations start with no expiry selected.
-                </p>
-              )}
-
-              {reservationDaysError ? (
-                <p
-                  className="settings-preference-state is-error"
-                  role="alert"
-                >
-                  {reservationDaysError}
-                </p>
-              ) : null}
-
-            </div>
-          ) : null}
-
-          {reservationSettingsSaving ? (
-            <p
-              className="settings-preference-state"
-              role="status"
-            >
-              Saving reservation defaults...
-            </p>
-          ) : null}
-
-          {reservationSettingsError &&
-          !reservationDaysError ? (
-            <div
-              className="settings-preference-state is-error"
-              role="alert"
-            >
-              <span>{reservationSettingsError}</span>
-              {!reservationDraft ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setReservationReloadVersion(
-                      (value) => value + 1
-                    )
-                  }
-                >
-                  Retry
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {reservationSettingsSaved &&
-          !reservationSettingsError ? (
-            <p
-              className="settings-preference-state is-success"
-              role="status"
-            >
-              Reservation defaults saved automatically.
-            </p>
-          ) : null}
-        </section>
-
         <ApiKeySettingsSection
           token={token}
           hidden={activeSettingsSection !== "api"}
@@ -3413,81 +3224,23 @@ export function Settings() {
         </div>
       ) : null}
 
-      {resetDialogOpen ? (
-        <div
-          className="settings-reset-backdrop"
-          data-partpilot-reset-dialog="PARTPILOT:SETTINGS_RESET_DIALOG:V412"
-          data-partpilot-reset-refinement="PARTPILOT:SETTINGS_RESET_DIALOG_REFINEMENT:V415"
-        >
-          <section
-            className="settings-reset-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="settings-reset-dialog-title"
-            aria-describedby="settings-reset-dialog-description"
-          >
+      {preferenceResetTarget ? (
+        <div className="settings-reset-backdrop" data-partpilot-preference-reset-dialog="PARTPILOT:TARGETED_PREFERENCE_RESET_UI:V673">
+          <section className="settings-reset-dialog is-preference-reset" role="dialog" aria-modal="true" aria-labelledby="settings-preference-reset-title" aria-describedby="settings-preference-reset-description">
             <header>
-              <p className="eyebrow">Final confirmation</p>
-              <h2 id="settings-reset-dialog-title">
-                Erase the Part Pilot database?
-              </h2>
+              <p className="eyebrow">Preference default</p>
+              <h2 id="settings-preference-reset-title">Reset {preferenceResetTarget === "appearance" ? "Theme" : preferenceResetTarget === "inventory" ? "Inventory display" : "Reservation defaults"}?</h2>
             </header>
             <div className="settings-reset-dialog-content">
-              <p id="settings-reset-dialog-description">
-                This immediately removes every local database record
-                and signs you out. This action cannot be undone.
+              <p id="settings-preference-reset-description">
+                {preferenceResetTarget === "appearance" ? "Theme will return to Dark. Inventory and reservation preferences will not change." : preferenceResetTarget === "inventory" ? "Inventory display will return to separate out-of-stock results. Theme and reservation preferences will not change." : "New-reservation defaults will return to no automatic expiry. Existing reservations, theme, and inventory preferences will not change."}
               </p>
-              <dl>
-                <div>
-                  <dt>Scope</dt>
-                  <dd>Accounts, inventory, workflows, history, settings</dd>
-                </div>
-              </dl>
-              <label className="settings-reset-confirmation">
-                <span>
-                  Type <code>{RESET_CONFIRMATION}</code> to continue
-                </span>
-                <input
-                  type="text"
-                  value={confirmation}
-                  onChange={(event) => {
-                    setConfirmation(event.target.value);
-                    setResetError(null);
-                  }}
-                  placeholder={RESET_CONFIRMATION}
-                  autoComplete="off"
-                  spellCheck={false}
-                  autoFocus
-                  aria-invalid={Boolean(resetError)}
-                />
-              </label>
-              {resetError ? (
-                <p className="form-error" role="alert">
-                  {resetError}
-                </p>
-              ) : null}
+              <p className="settings-preference-preserved-copy">Accounts, credentials, MCP/API configuration, inventory data, Projects, Reservations, backups, and history are preserved.</p>
+              {preferenceResetError ? <p className="form-error" role="alert">{preferenceResetError}</p> : null}
             </div>
             <footer>
-              <button
-                className="settings-action settings-action-secondary"
-                type="button"
-                disabled={isResetting}
-                onClick={closeDatabaseResetDialog}
-              >
-                Keep existing data
-              </button>
-              <button
-                className="danger-button"
-                type="button"
-                disabled={!canReset}
-                onClick={() =>
-                  void confirmDatabaseReset()
-                }
-              >
-                {isResetting
-                  ? "Erasing database..."
-                  : "Erase database permanently"}
-              </button>
+              <button className="settings-action settings-action-secondary" type="button" disabled={preferenceResetting} onClick={closePreferenceResetDialog}>Keep current setting</button>
+              <button className="settings-action" type="button" disabled={!canConfirmPreferenceReset} onClick={() => void confirmPreferenceReset()}>{preferenceResetting ? "Resetting..." : "Reset to default"}</button>
             </footer>
           </section>
         </div>

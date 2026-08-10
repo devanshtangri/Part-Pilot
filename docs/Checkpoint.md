@@ -3877,3 +3877,16 @@ autosave is the next Settings task, followed by authenticated SSE invalidation.
 - Deferred dashboard-metrics UX: keep the Stock alert metric card, remove the inline Low stock inventory table, and make the card open a dialog listing all parts currently generating stock alerts. Implement this later with the broader dashboard metrics expansion.
 - Patch 669 commits/pushes the exact browser-approved `Settings.tsx` plus Checkpoint, Roadmap and compact project-memory updates only. Live database contents, credentials, MCP policy and deployment are preserved.
 - Next Settings slice: one guarded Reset preferences to defaults action that resets only reversible preferences and preserves users, sessions, credentials, inventory, Projects/Reservations, backups and audit/history data.
+
+
+<!-- PARTPILOT:PREFERENCES_TARGETED_RESET_CHECKPOINT:V674 -->
+## Chat 23 Preferences consolidation and targeted reset checkpoint — Patch 674
+
+- Patch 673 is browser approved and replaces the rejected combined-reset design before it was committed.
+- Settings now has one `Preferences` workspace for current reversible user-facing defaults: Theme, Inventory display and Reservation defaults. Legacy Appearance/Inventory/Reservations settings hashes redirect to Preferences instead of breaking deep links.
+- Autosave semantics remain independent: Theme and Inventory display persist on selection; Reservation expiry mode persists immediately and default-days debounce remains 550 ms.
+- Each current preference card has its own `Reset to default` action and target-specific confirmation. The authenticated reset contract accepts exactly one target: `appearance`, `inventory` or `reservations`.
+- Targeted reset smoke coverage proves each target preserves the other preference groups, existing Reservation records, security/MCP/API configuration and business data; the two-key reservation reset is atomic.
+- Defaults are Dark theme, separate out-of-stock results enabled, and no automatic reservation expiry.
+- Currency belongs in Preferences next. Add the already-persisted app-wide ISO currency selector with locale-aware formatting only; do not perform FX conversion or rewrite historical stored numbers.
+- Patch 674 commits/pushes exactly the eight browser-approved Patch 673 files plus Checkpoint, Roadmap and compact project memory. It does not redeploy or mutate live SQLite, credentials, MCP policy or the instance secret.

@@ -2657,28 +2657,31 @@ client is fully connected and the write contract is independently approved.
 
 ### Phase E — expanded preferences
 
-- [ ] General: instance name, locale, timezone, currency, date/time, landing
-  page, navigation.
-- [ ] Appearance: theme, accent, density, font size, reduced motion, contrast,
-  table density, sticky headings, sidebar.
-- [ ] Inventory: default filter/sort/page size/location/type, remembered filters,
-  columns, low-stock threshold, negative-stock policy, quantity precision,
-  note/confirmation rules, required metadata, duplicate warnings.
-- [ ] Reservations: expiry, section, sorting, Project selection, quantity,
-  over-reservation, note/Project requirements, warnings, grace period, optional
-  automatic expiration.
+- [ ] Preferences workspace: theme, accent, density, font size, reduced motion,
+  contrast, table density, sticky headings, sidebar, ISO currency, locale/time
+  presentation, landing page and navigation behavior.
+- [ ] Inventory-facing preferences: default filter/sort/page size/location/type,
+  remembered filters, columns and other reversible display/default behavior. Keep
+  stock policy, quantity rules and destructive/consequential controls outside the
+  preference-autosave model.
+- [ ] Reservation-facing preferences: expiry/default presentation, remembered
+  section/sorting and other reversible defaults. Keep lifecycle mutations,
+  over-reservation policy and consequential Project/Reservation actions explicit.
 - [ ] Data & Maintenance: scheduled backups/retention, export/import preview,
   storage, integrity, diagnostics, audit retention, explicit cleanup.
 
 ### Phase F — restore defaults
 
-- [ ] Document defaults for every preference key.
-- [ ] Per-section preview and restore API.
-- [ ] One audit event per restore.
-- [ ] Global preference-only restore.
-- [ ] Preserve users, credentials, clients, API keys, inventory, lifecycle data,
-  backups, and history.
-- [ ] Separate MCP preference restore from destructive access reset.
+- [x] Current Theme, Inventory display and Reservation-default cards document and
+  expose their own `Reset to default` actions.
+- [x] Targeted authenticated restore API resets exactly one current preference
+  group and preserves users, credentials, clients, API keys, inventory, lifecycle
+  records, backups, history and unrelated preference groups.
+- [ ] Extend the same per-card/per-section default model as new Preferences are
+  added; do not reintroduce one combined reset for unrelated preference groups.
+- [ ] Add restore audit events/preview where a future preference group warrants it.
+- [ ] Keep MCP/security restore separate from reversible Preferences and destructive
+  access/data reset.
 
 ### Phase G — safeguarded MCP writes
 
@@ -2949,9 +2952,7 @@ write tools are complete. Notifications & Messaging remain post-v1.
 - [ ] Protect `/docs`, `/redoc` and the chosen OpenAPI-schema exposure policy
   deliberately before public alpha while keeping actual API administration
   session-only.
-- [ ] Surface the already-persisted app-wide currency as an explicit Settings
-  selector. Use ISO currency semantics and locale-aware formatting; changing the
-  selector does not convert stored historical price numbers.
+- [ ] Add the already-persisted app-wide ISO currency selector to the `Preferences` workspace. Use locale-aware formatting; changing the selector does not perform FX conversion or rewrite stored historical price numbers.
 - [ ] Add server-backed Stored Parts summary metrics over the complete active
   inventory, not the current page: Total components, Inventory value with
   valuation coverage, Available, Reserved, Low stock, Out of stock and distinct
@@ -3050,8 +3051,8 @@ feedback/checkpoint. Do not squeeze implementation into the Chat 22 boundary.
 - [x] Discrete reversible preferences persist immediately. Reservation expiry mode now follows the same model.
 - [x] Reservation default-days uses a 550 ms debounce so typing does not create one request per keystroke.
 - [x] Current preference autosaves expose saving/saved/error state and restore the last confirmed value on request failure; Reservation defaults also guard late responses from overwriting newer edits.
-- [ ] Keep one explicit `Reset to defaults` / factory-default action for preference restoration, with confirmation/preview where appropriate.
-- [ ] Preference reset must never reset users, passwords/sessions, OAuth/direct clients, API keys, credentials, inventory, Projects/Reservations, backups or audit/history data.
+- [x] Current Preferences use independent per-card `Reset to default` actions for Theme, Inventory display and Reservation defaults; each action confirms its own target.
+- [x] Targeted preference reset preserves unrelated preferences plus users, passwords/sessions, OAuth/direct clients, API keys, credentials, inventory, Project/Reservation records, backups and audit/history data.
 - [x] Autosave remains excluded from consequential/create/edit workflows such as Part edits, Project/Reservation mutations, password changes, MCP/security policy, credential/client creation, key rotation/revocation, backup/restore and delete.
 
 ### Live data synchronization
@@ -3109,8 +3110,8 @@ Implementation order:
    immediately after approval.
 3. Finish restrained Settings hierarchy and reversible preference autosave.
    Toggles/selects save immediately, text/number preferences debounce, ordinary
-   Save/Reset-changes controls disappear, and one guarded Reset-to-defaults
-   action remains.
+   Save/Reset-changes controls disappear, and reversible preference groups use
+   independent scoped Reset-to-default actions.
 4. Implement authenticated SSE invalidation plus targeted refetch for
    near-immediate cross-client updates. Polling is fallback only; routine
    Refresh controls disappear after each path is proven.
@@ -3146,7 +3147,7 @@ only when their runtime contracts exist.
    dependency-disabled controls no longer impersonate an active save.
 2. Continue Settings modernization with reversible preference autosave. Toggles/selects
    persist immediately; text/number preferences debounce; ordinary Save/Reset-changes
-   controls disappear; one guarded Reset-to-defaults remains.
+   controls disappear; reversible preference groups reset independently.
 3. Add authenticated SSE invalidation plus targeted refetch with reconnect/resync.
    Polling is fallback only; remove routine Refresh after each live-sync path is
    proven.
@@ -3182,5 +3183,18 @@ Next: reversible preference autosave, then authenticated SSE invalidation/target
 - [x] Invalid days are not sent; failures restore confirmed server state; stale responses cannot overwrite newer edits.
 - [x] Ordinary Reservation Save/Reset-changes controls removed.
 - [x] Security, credentials, lifecycle and destructive actions remain explicit.
-- [ ] Add one guarded preference-only Reset to defaults action.
+- [x] Consolidate Theme, Inventory display and Reservation defaults under Preferences with independent targeted Reset-to-default actions.
+- [ ] Add the persisted ISO currency selector to Preferences next; formatting only, no FX conversion.
+- [ ] Later dashboard metrics: Stock alert card opens an all-alert-parts dialog; remove the inline Low stock inventory table.
+
+
+<!-- PARTPILOT:PREFERENCES_TARGETED_RESET_COMPLETE:V674 -->
+## Chat 23 Preferences consolidation and targeted resets — Patch 674
+
+- [x] Replace separate Appearance/Inventory/Reservations settings tabs with one Preferences workspace for the current reversible defaults.
+- [x] Keep legacy settings hashes routed to Preferences.
+- [x] Keep autosave behavior independent for Theme, Inventory display and Reservation defaults.
+- [x] Give each current preference card its own target-specific Reset-to-default action and confirmation.
+- [x] Backend reset accepts exactly one preference target and preserves unrelated preference/security/business state; reservation reset is atomic.
+- [ ] Next: persisted ISO currency selector inside Preferences with locale-aware formatting only and no FX conversion.
 - [ ] Later dashboard metrics: Stock alert card opens an all-alert-parts dialog; remove the inline Low stock inventory table.

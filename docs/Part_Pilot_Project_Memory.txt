@@ -1,4 +1,4 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V669 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V674 -->
 
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
@@ -16,7 +16,7 @@ Patch workflow
 
 Chat boundary
 - Chat 22 closes through Patch 660 boundary recovery with 22 MCP-permission application files still pending browser approval.
-- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 666 checkpointed Direct MCP hierarchy; Patch 668 browser-approved reversible preference autosave; Patch 669 checkpoints it. Preference-only Reset to defaults is next.
+- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 673 browser-approved Preferences consolidation + targeted resets; Patch 674 checkpoints it. ISO currency in Preferences is next.
 
 Data safety
 - Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs; never broad OAuth cleanup. SQLite integrity/FKs must pass.
@@ -25,7 +25,7 @@ Data safety
 
 Completed application
 - Typed inventory/catalogues; universal search/filter/sort/pagination; quantity workflows; soft delete/restore; History; atomic Reservation/Project lifecycles.
-- Responsive dark/light/system Settings; strict portable backup/restore with staging/rollback/session invalidation.
+- Responsive dark/light/system Settings; current reversible defaults are consolidated under Preferences: Theme, Inventory display and Reservation defaults. Each autosaves independently and has its own targeted Reset-to-default action; reset preserves unrelated preferences/security/business data. Strict portable backup/restore retains staging/rollback/session invalidation.
 - Browser-approved responsive regression: Projects lifecycle headers remain readable through intermediate widths; navigation uses a drawer at 821-1080px while preserving desktop content spacing and existing <=820px compact behavior.
 - Recycle bin: recoverable delete default, typed-confirm atomic purge, active/reserved blockers, audit retention, custom Part Type dependency protection across active + deleted inventory.
 - Current-user account/security: username/display/avatar incl DB-backed normalized custom avatar, password change, safe sessions, targeted/revoke-all-other, current-session preservation, secret-free audit. Four older sessions remain Unknown; never infer/backfill.
@@ -44,24 +44,22 @@ MCP/OAuth
 - Browser-approved Settings Direct MCP hierarchy: Allow direct clients + No authentication sit with Named direct clients; global Server/Read/Write stay separate. Dependency-disabled uses `not-allowed`; `wait` only while saving.
 
 Recovery lessons
-- 628: CSS comment marker stripped by minification; use DOM/value/custom-property markers.
-- 629: frozen packaged CSS hash differed from rehearsal; freeze exact script-produced bytes.
-- 631: numbered preflight caught that an assistant rehearsal had accidentally applied exact intended live CSS/image. Never mutate live repo/deployment during rehearsal; isolated /tmp only.
-- Canonical Docker exact-image checks also require ignored bytecode exclusion and Git-canonical file modes.
+- 628/629: minification can strip comment markers and packaged bytes can differ from rehearsal; use runtime-safe markers and freeze exact script-produced bytes.
+- 631: rehearsal accidentally touched live source/image; all rehearsals must stay isolated under /tmp. Canonical Docker checks also require ignored bytecode exclusion and Git-canonical modes.
 - Durable log checks must match bytes actually written to logs, not terminal-only output. Patch 667 repeated this against Patch 666; Patch 668 recovered and also stopped freezing mutable live MCP/database state across user activity.
 
 Remaining V1
-1. Guarded preference-only Reset to defaults + remaining Settings hierarchy cleanup.
+1. Add persisted ISO currency selector to Preferences; locale-aware formatting only, no FX conversion.
 2. SSE invalidation/targeted refetch replaces routine Refresh; polling fallback only.
-3. API docs/schema hardening; ISO currency formatting; Stored Parts/dashboard metrics. Dashboard Stock alert card later opens an all-alert-parts dialog instead of an inline low-stock table.
-4. Preference/default restoration; roles; safeguarded MCP writes; final alpha regression.
+3. API docs/schema hardening; Stored Parts/dashboard metrics. Dashboard Stock alert card later opens an all-alert-parts dialog instead of an inline low-stock table.
+4. Expand per-card preference defaults as new Preferences land; roles; safeguarded MCP writes; final alpha regression.
 - Notifications & Messaging remain post-v1.
 
 
 Autosave/live-sync V1 task (Patch 656)
 - Reversible Settings preferences: no ordinary Save/Reset-changes buttons.
   Toggles/selects persist on change; reservation days debounce 550 ms.
-  Patch 668 browser-approved this behavior. Keep one guarded Reset to defaults. Never autosave create/edit, credentials,
+  Patch 673 consolidates these under Preferences and adds independent targeted resets. Never autosave create/edit, credentials,
   password, lifecycle, backup/restore, delete/revoke/rotate actions.
 - Replace routine manual Refresh with authenticated server-driven invalidation +
   targeted refetch. Prefer SSE for current one-way change notifications,

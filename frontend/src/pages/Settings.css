@@ -4152,3 +4152,80 @@
 @media (max-width: 760px) {
   .settings-mcp-direct-access { padding: 13px; }
 }
+
+/* PARTPILOT:SETTINGS_PREFERENCES_WORKSPACE_STYLES:V673 */
+.settings-page { --partpilot-settings-preferences-workspace-v673: 1; }
+.settings-preferences-section { gap: 16px; }
+.settings-preferences-grid { display: grid; gap: 12px; }
+.settings-preference-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: var(--panel-soft);
+}
+.settings-preference-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.settings-preference-card-heading > div { min-width: 0; }
+.settings-preference-card-heading h3,
+.settings-preference-card-heading p,
+.settings-preference-default-note,
+.settings-preference-preserved-copy { margin: 0; }
+.settings-preference-card-heading h3 {
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 1rem;
+  letter-spacing: -0.015em;
+}
+.settings-preference-card-heading p {
+  max-width: 760px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.73rem;
+  line-height: 1.48;
+}
+.settings-preference-card-heading .settings-action { flex: 0 0 auto; }
+.settings-preference-inline-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 36px;
+}
+.settings-preference-default-note {
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.settings-reset-dialog.is-preference-reset { border-color: var(--panel-border); }
+.settings-reset-dialog.is-preference-reset .eyebrow { color: var(--accent); }
+.settings-preference-preserved-copy {
+  padding: 9px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+@media (max-width: 680px) {
+  .settings-preference-card { padding: 13px; }
+  .settings-preference-card-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .settings-preference-card-heading .settings-action,
+  .settings-reset-dialog.is-preference-reset footer .settings-action { width: 100%; }
+  .settings-reset-dialog.is-preference-reset footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+}

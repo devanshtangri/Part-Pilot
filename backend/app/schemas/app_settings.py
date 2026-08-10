@@ -64,6 +64,21 @@ class AppearanceSettingsUpdateRequest(BaseModel):
     theme: AppearanceTheme
 
 
+# PARTPILOT:TARGETED_PREFERENCE_RESET_SCHEMA:V673
+ReversiblePreferenceResetTarget = Literal["appearance", "inventory", "reservations"]
+
+class ReversiblePreferenceResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: ReversiblePreferenceResetTarget
+
+class ReversiblePreferenceResetResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: ReversiblePreferenceResetTarget
+    appearance: AppearanceSettingsResponse | None = None
+    inventory: SearchSettingsResponse | None = None
+    reservations: ReservationSettingsResponse | None = None
+
+
 # PARTPILOT:MCP_SETTINGS_SCHEMA:V473
 class McpSettingsResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
