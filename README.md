@@ -529,3 +529,12 @@ authenticated MCP `tools/list` catalogue, grey client overrides under global
 blocks, show the current absence of real write tools honestly, and align the
 Add-direct-client form styling. The complete permission batch remains
 uncommitted application source until browser approval.
+
+<!-- PARTPILOT:REGIONAL_DISPLAY_README:V684 -->
+## Regional display preferences
+
+Part Pilot provides workspace-level Currency and Display timezone preferences under Settings → Preferences → Regional display.
+
+- Currency uses a persisted uppercase three-letter ISO code for display formatting only. Changing it does not perform foreign-exchange conversion or rewrite historical Project/Reservation currency snapshots.
+- Display timezone uses an IANA timezone and changes passive timestamp presentation across the workspace. Stored timestamps are not rewritten, and datetime-local entry semantics are unchanged.
+- Both preferences save independently and use the same themed Settings controls as the rest of Part Pilot.

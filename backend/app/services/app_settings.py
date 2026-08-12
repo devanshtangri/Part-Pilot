@@ -12,6 +12,8 @@ from app.models import AuditLog
 from app.schemas.app_settings import (
     AppearanceSettingsResponse,
     AppearanceSettingsUpdateRequest,
+    CurrencySettingsResponse,
+    CurrencySettingsUpdateRequest,
     McpSettingsResponse,
     McpSettingsUpdateRequest,
     ReservationSettingsResponse,
@@ -20,7 +22,10 @@ from app.schemas.app_settings import (
     ReversiblePreferenceResetTarget,
     SearchSettingsResponse,
     SearchSettingsUpdateRequest,
+    TimezoneSettingsResponse,
+    TimezoneSettingsUpdateRequest,
 )
+from app.services.app_setup import DEFAULT_CURRENCY_KEY, DEFAULT_TIMEZONE_KEY
 from app.services.mcp_oauth import (
     MCP_ENABLED_KEY,
     MCP_READ_ENABLED_KEY,
@@ -135,6 +140,120 @@ def update_search_settings(
     return SearchSettingsResponse(
         show_out_of_stock_section=after_value
     )
+
+
+# PARTPILOT:CURRENCY_PREFERENCE_SERVICE:V675
+def get_currency_settings(db: Session) -> CurrencySettingsResponse:
+    currency = get_str_setting(db, DEFAULT_CURRENCY_KEY, "").strip().upper()
+    if len(currency) != 3 or not currency.isalpha():
+        raise RuntimeError("Default currency is not configured correctly")
+    return CurrencySettingsResponse(currency=currency)
+
+
+def update_currency_settings(
+    db: Session,
+    payload: CurrencySettingsUpdateRequest,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> CurrencySettingsResponse:
+    before = get_currency_settings(db)
+    after = CurrencySettingsResponse(currency=payload.currency)
+    if before == after:
+        return before
+
+    try:
+        setting = set_app_setting(
+            db,
+            DEFAULT_CURRENCY_KEY,
+            after.currency,
+            text_value=after.currency,
+            commit=False,
+        )
+        db.add(
+            AuditLog(
+                event_type="settings.currency_updated",
+                entity_type="app_setting",
+                entity_id=setting.id,
+                actor_type="user" if actor_user_id is not None else "system",
+                actor_user_id=actor_user_id,
+                summary="Updated default currency",
+                before_json={"currency": before.currency},
+                after_json={"currency": after.currency},
+                metadata_json={
+                    "setting_key": DEFAULT_CURRENCY_KEY,
+                    "changed_fields": ["currency"],
+                    "formatting_only": True,
+                    "historical_snapshots_preserved": True,
+                },
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(setting)
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+    return after
+
+
+# PARTPILOT:TIMEZONE_PREFERENCE_SERVICE:V676
+def get_timezone_settings(db: Session) -> TimezoneSettingsResponse:
+    timezone = get_str_setting(db, DEFAULT_TIMEZONE_KEY, "").strip()
+    if not timezone:
+        raise RuntimeError("Default timezone is not configured correctly")
+    return TimezoneSettingsResponse(timezone=timezone)
+
+
+def update_timezone_settings(
+    db: Session,
+    payload: TimezoneSettingsUpdateRequest,
+    *,
+    actor_user_id: int | None = None,
+    commit: bool = True,
+) -> TimezoneSettingsResponse:
+    before = get_timezone_settings(db)
+    after = TimezoneSettingsResponse(timezone=payload.timezone)
+    if before == after:
+        return before
+
+    try:
+        setting = set_app_setting(
+            db,
+            DEFAULT_TIMEZONE_KEY,
+            after.timezone,
+            text_value=after.timezone,
+            commit=False,
+        )
+        db.add(
+            AuditLog(
+                event_type="settings.timezone_updated",
+                entity_type="app_setting",
+                entity_id=setting.id,
+                actor_type="user" if actor_user_id is not None else "system",
+                actor_user_id=actor_user_id,
+                summary="Updated display timezone",
+                before_json={"timezone": before.timezone},
+                after_json={"timezone": after.timezone},
+                metadata_json={
+                    "setting_key": DEFAULT_TIMEZONE_KEY,
+                    "changed_fields": ["timezone"],
+                    "display_only": True,
+                    "stored_timestamps_preserved": True,
+                },
+            )
+        )
+        db.flush()
+        if commit:
+            db.commit()
+            db.refresh(setting)
+    except Exception:
+        if commit:
+            db.rollback()
+        raise
+    return after
 
 
 # PARTPILOT:RESERVATION_SETTINGS_SERVICE:V361

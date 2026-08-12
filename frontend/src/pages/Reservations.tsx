@@ -13,6 +13,7 @@ import type {
 } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { formatWorkspaceDateTime, parseApiDateTime } from "../utils/dateTime";
 import {
   cancelReservation,
   consumeReservation,
@@ -97,26 +98,8 @@ interface DraftItem {
 }
 
 // PARTPILOT:RESERVATION_API_DATETIME_UTC:V348
-function parseApiDateTime(value: string): Date {
-  const normalised = value.trim().replace(" ", "T");
-  const zoned = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalised)
-    ? normalised
-    : `${normalised}Z`;
-  return new Date(zoned);
-}
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "No expiry";
-  }
-  const date = parseApiDateTime(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(date);
+function formatDate(value: string | null, timezone: string | null): string {
+  return formatWorkspaceDateTime(value, timezone, "No expiry");
 }
 
 function localDateTimeInputFromDate(date: Date): string {
@@ -298,7 +281,7 @@ function activityStockSummary(
 type ReservationLifecycleAction = "cancel" | "consume" | "expire";
 
 export function Reservations() {
-  const { token } = useAuth();
+  const { token, timezone } = useAuth();
 
   const [collection, setCollection] = useState<ReservationCollection>({
     total: 0,
@@ -1190,7 +1173,7 @@ const runAction = async () => {
                       {reservation.items.length === 1 ? "" : "s"}
                       {" · "}
                       {reservation.expiry_at
-                        ? `Expires ${formatDate(reservation.expiry_at)}`
+                        ? `Expires ${formatDate(reservation.expiry_at, timezone)}`
                         : "No expiry"}
                     </small>
                   </span>
@@ -1203,7 +1186,7 @@ const runAction = async () => {
                     {reservationUnits(reservation)}
                   </span>
                   <span className="reservation-row-date">
-                    {formatDate(reservation.updated_at)}
+                    {formatDate(reservation.updated_at, timezone)}
                   </span>
                 </button>
               ))
@@ -1297,7 +1280,7 @@ const runAction = async () => {
                   <p>
                     Reservation #{selectedReservation.id}
                     {" · "}
-                    Created {formatDate(selectedReservation.created_at)}
+                    Created {formatDate(selectedReservation.created_at, timezone)}
                   </p>
                 </div>
                 <button
@@ -1322,7 +1305,7 @@ const runAction = async () => {
               <dl className="reservation-facts">
                 <div>
                   <dt>Expiry</dt>
-                  <dd>{formatDate(selectedReservation.expiry_at)}</dd>
+                  <dd>{formatDate(selectedReservation.expiry_at, timezone)}</dd>
                 </div>
                 <div>
                   <dt>Reserved value</dt>
@@ -1450,7 +1433,7 @@ const runAction = async () => {
                             <div className="reservation-activity-entry-header">
                               <strong>{activityTitle(activity)}</strong>
                               <time dateTime={activity.occurred_at}>
-                                {formatDate(activity.occurred_at)}
+                                {formatDate(activity.occurred_at, timezone)}
                               </time>
                             </div>
                             {activity.summary ? (

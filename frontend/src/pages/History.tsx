@@ -13,6 +13,7 @@ import {
   getHistory,
   getHistoryFilterOptions
 } from "../services/historyClient";
+import { formatWorkspaceCompactDateTime, formatWorkspaceDateTime } from "../utils/dateTime";
 import type {
   HistoryCollection,
   HistoryEntry,
@@ -100,39 +101,12 @@ function messageFrom(error: unknown): string {
     : "Unexpected request failure.";
 }
 
-function parseApiDateTime(value: string): Date {
-  const normalised = value.trim().replace(" ", "T");
-  const zoned = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalised)
-    ? normalised
-    : `${normalised}Z`;
-  return new Date(zoned);
+function formatDate(value: string | null, timezone: string | null): string {
+  return formatWorkspaceDateTime(value, timezone);
 }
 
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "Not recorded";
-  }
-  const date = parseApiDateTime(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(date);
-}
-
-function formatCompactDate(value: string): string {
-  const date = parseApiDateTime(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(date);
+function formatCompactDate(value: string, timezone: string | null): string {
+  return formatWorkspaceCompactDateTime(value, timezone);
 }
 
 function localInputToIso(value: string): string | undefined {
@@ -244,7 +218,7 @@ function countFacet(
 }
 
 export function History() {
-  const { token } = useAuth();
+  const { token, timezone } = useAuth();
 
   const [collection, setCollection] =
     useState<HistoryCollection>(EMPTY_COLLECTION);
@@ -821,7 +795,7 @@ export function History() {
                     className="history-row-date"
                     dateTime={entry.occurred_at}
                   >
-                    {formatCompactDate(entry.occurred_at)}
+                    {formatCompactDate(entry.occurred_at, timezone)}
                   </time>
                 </button>
               ))
@@ -923,7 +897,7 @@ export function History() {
               <dl className="history-facts">
                 <div>
                   <dt>Occurred</dt>
-                  <dd>{formatDate(selectedEntry.occurred_at)}</dd>
+                  <dd>{formatDate(selectedEntry.occurred_at, timezone)}</dd>
                 </div>
                 <div>
                   <dt>Actor</dt>

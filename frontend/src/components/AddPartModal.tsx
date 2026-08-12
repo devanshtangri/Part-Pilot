@@ -8,6 +8,7 @@ import type {
   FormEvent
 } from "react";
 
+import { useAuth } from "../auth/AuthContext";
 import { createPart } from "../services/partsClient";
 // PATCH 095: reusable manufacturer selector
 import {
@@ -153,6 +154,7 @@ export function AddPartModal({
   initialPartTypeId,
   onClose
 }: AddPartModalProps) {
+  const { defaultCurrency } = useAuth();
   const activeTypes = useMemo(
     () => partTypes.filter((partType) => partType.is_active),
     [partTypes]
@@ -1056,7 +1058,7 @@ export function AddPartModal({
 
                 <div className="add-part-grid">
                   <label>
-                    <span>Unit price</span>
+                    <span>Unit price{defaultCurrency ? ` (${defaultCurrency})` : ""}</span>
                     <input
                       type="number"
                       min="0"

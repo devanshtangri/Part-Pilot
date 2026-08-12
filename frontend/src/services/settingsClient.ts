@@ -1,6 +1,8 @@
 import type {
   AppearanceSettings,
   AppearanceSettingsUpdatePayload,
+  CurrencySettings,
+  CurrencySettingsUpdatePayload,
   McpDirectAuthCustomHeaderPayload,
   McpDirectAuthKeyResponse,
   McpDirectAuthStatus,
@@ -27,7 +29,9 @@ import type {
   ReversiblePreferenceResetPayload,
   ReversiblePreferenceResetResponse,
   SearchSettings,
-  SearchSettingsUpdatePayload
+  SearchSettingsUpdatePayload,
+  TimezoneSettings,
+  TimezoneSettingsUpdatePayload
 } from "../types/settings";
 
 
@@ -103,6 +107,42 @@ export function updateSearchSettings(
   payload: SearchSettingsUpdatePayload
 ): Promise<SearchSettings> {
   return requestJson<SearchSettings>("/settings/search", token, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+
+// PARTPILOT:CURRENCY_PREFERENCE_CLIENT:V675
+export function getCurrencySettings(
+  token: string
+): Promise<CurrencySettings> {
+  return requestJson<CurrencySettings>("/settings/currency", token);
+}
+
+export function updateCurrencySettings(
+  token: string,
+  payload: CurrencySettingsUpdatePayload
+): Promise<CurrencySettings> {
+  return requestJson<CurrencySettings>("/settings/currency", token, {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+}
+
+
+// PARTPILOT:TIMEZONE_PREFERENCE_CLIENT:V676
+export function getTimezoneSettings(
+  token: string
+): Promise<TimezoneSettings> {
+  return requestJson<TimezoneSettings>("/settings/timezone", token);
+}
+
+export function updateTimezoneSettings(
+  token: string,
+  payload: TimezoneSettingsUpdatePayload
+): Promise<TimezoneSettings> {
+  return requestJson<TimezoneSettings>("/settings/timezone", token, {
     method: "PATCH",
     body: JSON.stringify(payload)
   });

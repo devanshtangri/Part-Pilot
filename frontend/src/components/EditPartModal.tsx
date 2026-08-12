@@ -9,6 +9,7 @@ import type {
   FormEvent
 } from "react";
 
+import { useAuth } from "../auth/AuthContext";
 import {
   createManufacturer,
   getManufacturers
@@ -167,6 +168,7 @@ export function EditPartModal({
   onClose,
   onSaved
 }: EditPartModalProps) {
+  const { defaultCurrency } = useAuth();
   const [partNumber, setPartNumber] = useState(part.part_number ?? "");
   const [name, setName] = useState(part.name ?? "");
   const [description, setDescription] =
@@ -956,7 +958,7 @@ export function EditPartModal({
 
               <div className="add-part-grid">
                 <label>
-                  <span>Unit price</span>
+                  <span>Unit price{defaultCurrency ? ` (${defaultCurrency})` : ""}</span>
                   <input
                     type="number"
                     min="0"

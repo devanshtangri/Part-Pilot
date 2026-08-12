@@ -3890,3 +3890,16 @@ autosave is the next Settings task, followed by authenticated SSE invalidation.
 - Defaults are Dark theme, separate out-of-stock results enabled, and no automatic reservation expiry.
 - Currency belongs in Preferences next. Add the already-persisted app-wide ISO currency selector with locale-aware formatting only; do not perform FX conversion or rewrite historical stored numbers.
 - Patch 674 commits/pushes exactly the eight browser-approved Patch 673 files plus Checkpoint, Roadmap and compact project memory. It does not redeploy or mutate live SQLite, credentials, MCP policy or the instance secret.
+
+<!-- PARTPILOT:REGIONAL_DISPLAY_CHECKPOINT:V684 -->
+## Chat 23 regional display checkpoint — Patch 684
+
+- Patches 675 and 683 are browser approved and complete the regional display preference slice.
+- Preferences now exposes a themed `Regional display` card with `Currency & timezone`; the controls use the Part Pilot select treatment, sit in two columns on wider screens and stack below 760 px.
+- Currency is a persisted uppercase three-letter ISO display preference. Inventory/Add/Edit formatting follows the selected currency without FX conversion, and historical Project/Reservation currency snapshots remain authoritative.
+- Display timezone is a persisted IANA timezone preference. It changes passive timestamp presentation across History, Projects, Reservations, Stored Parts/lifecycle and Settings/API/MCP surfaces without rewriting stored timestamps or changing datetime-local entry semantics.
+- Backend currency/timezone APIs are protected and independently autosaved with no-op semantics, rollback/stale protection and targeted audit behavior. Copied-database currency, timezone, preference-reset and complete smokes pass.
+- Patch 681 was consumed by a one-byte blank line at `Settings.css` EOF. Patch 682 corrected that byte but exposed an invalid deployment assertion that expected a TypeScript source comment to survive Vite minification. Patch 683 kept the exact application candidate and verified compiled runtime semantics instead.
+- Browser-approved runtime image: `sha256:7a285a3ebb7eccf9eddb7c375a2b5616773e5aa40283ce270e41aff445ad23b9`, healthy with restart count 0 and Alembic `0016_mcp_tool_permissions`.
+- Patch 684 checkpoints/pushes exactly the 20 approved application files plus durable documentation. It does not redeploy or intentionally mutate live SQLite, credentials, MCP policy or the instance secret.
+- Next: Patch 685 closes Chat 23. Authenticated SSE invalidation/targeted refetch begins in the next chat.

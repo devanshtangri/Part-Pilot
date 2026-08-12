@@ -3198,3 +3198,24 @@ Next: reversible preference autosave, then authenticated SSE invalidation/target
 - [x] Backend reset accepts exactly one preference target and preserves unrelated preference/security/business state; reservation reset is atomic.
 - [ ] Next: persisted ISO currency selector inside Preferences with locale-aware formatting only and no FX conversion.
 - [ ] Later dashboard metrics: Stock alert card opens an all-alert-parts dialog; remove the inline Low stock inventory table.
+
+<!-- PARTPILOT:REGIONAL_DISPLAY_COMPLETE:V684 -->
+## Chat 23 regional display and currency — Patch 684
+
+- [x] Persist app-wide uppercase three-letter ISO currency as display/formatting semantics only.
+- [x] Apply currency to current inventory/Add/Edit price presentation without FX conversion.
+- [x] Preserve historical Project/Reservation currency snapshots.
+- [x] Add persisted IANA display timezone with protected GET/PATCH APIs and copied-DB smoke coverage.
+- [x] Apply workspace timezone to passive timestamps without rewriting stored timestamps or datetime-local input semantics.
+- [x] Theme Currency and Display timezone controls consistently with Part Pilot and stack them responsively below 760 px.
+- [x] Browser approve the combined Patch 675 + Regional display/timezone source and checkpoint it in Patch 684.
+
+### Next implementation order
+
+1. Patch 685: complete the Chat 23 durable boundary/handoff.
+2. Authenticated SSE invalidation + targeted refetch across Dashboard, Stored Parts, Projects, Reservations, History, Settings and API/MCP administration; one authenticated stream, reconnect/resync and polling fallback.
+3. Harden API docs/OpenAPI exposure for public alpha.
+4. Add server-backed whole-inventory Stored Parts metrics and the Dashboard Stock alert dialog; remove the inline Low stock table.
+5. Add Owner/Admin/Operator/Viewer roles, safeguarded MCP write tools and final alpha accessibility/security/responsive/API-MCP regression.
+
+Notifications & Messaging remain post-v1.

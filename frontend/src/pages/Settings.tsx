@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useMemo,
   useRef,
   useState
 } from "react";
@@ -34,19 +35,23 @@ import {
   waitForPartPilotReady
 } from "../services/backupsClient";
 import {
+  getCurrencySettings,
   getMcpOAuthManageableClients,
   getMcpSettings,
   getMcpToolPermissions,
   registerMcpOAuthClient,
   getReservationSettings,
   getSearchSettings,
+  getTimezoneSettings,
   resetReversiblePreference,
   revokeMcpOAuthClient,
+  updateCurrencySettings,
   updateMcpOAuthClientPermissions,
   updateMcpSettings,
   updateMcpToolPermissions,
   updateReservationSettings,
-  updateSearchSettings
+  updateSearchSettings,
+  updateTimezoneSettings
 } from "../services/settingsClient";
 import type {
   AuthSession,
@@ -59,6 +64,7 @@ import type {
 } from "../types/backups";
 import type {
   AppearanceTheme,
+  CurrencySettings,
   McpOAuthClientRegistrationResponse,
   McpOAuthClientType,
   McpToolPermissionsResponse,
@@ -68,8 +74,11 @@ import type {
   ReservationExpiryMode,
   ReversiblePreferenceResetTarget,
   ReservationSettings,
-  SearchSettings
+  SearchSettings,
+  TimezoneSettings
 } from "../types/settings";
+import { formatWorkspaceDateTime } from "../utils/dateTime";
+import { getCurrencyOptions, getTimezoneOptions } from "../utils/setupDefaults";
 import "./Settings.css";
 
 const RESET_CONFIRMATION = "RESET PART PILOT";
@@ -111,9 +120,8 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
-function formatUtc(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+function formatUtc(value: string, timezone: string | null): string {
+  return formatWorkspaceDateTime(value, timezone);
 }
 
 interface AccountProfileDraft {
@@ -256,9 +264,11 @@ const APPEARANCE_OPTIONS: Array<{
 ];
 
 export function Settings() {
-  const { token, user, avatarImageUrl, refreshUser } = useAuth();
+  const { token, user, avatarImageUrl, refreshUser, timezone, syncDefaultCurrency, syncTimezone } = useAuth();
   const location = useLocation();
   const restoreFileInputRef = useRef<HTMLInputElement | null>(null);
+  const currencyOptions = useMemo(() => getCurrencyOptions(), []);
+  const timezoneOptions = useMemo(() => getTimezoneOptions(), []);
   const accountAvatarInputRef = useRef<HTMLInputElement | null>(null);
   const [activeSettingsSection, setActiveSettingsSection] =
     useState<SettingsSection>(settingsSectionFromHash);
@@ -311,6 +321,24 @@ export function Settings() {
     useState<string | null>(null);
   const [searchSettingsSaved, setSearchSettingsSaved] =
     useState(false);
+
+  // PARTPILOT:CURRENCY_PREFERENCE_UI:V675
+  const [currencySettings, setCurrencySettings] =
+    useState<CurrencySettings | null>(null);
+  const [currencySettingsLoading, setCurrencySettingsLoading] = useState(true);
+  const [currencySettingsSaving, setCurrencySettingsSaving] = useState(false);
+  const [currencySettingsError, setCurrencySettingsError] =
+    useState<string | null>(null);
+  const [currencySettingsSaved, setCurrencySettingsSaved] = useState(false);
+
+  // PARTPILOT:TIMEZONE_PREFERENCE_UI:V676
+  const [timezoneSettings, setTimezoneSettings] =
+    useState<TimezoneSettings | null>(null);
+  const [timezoneSettingsLoading, setTimezoneSettingsLoading] = useState(true);
+  const [timezoneSettingsSaving, setTimezoneSettingsSaving] = useState(false);
+  const [timezoneSettingsError, setTimezoneSettingsError] =
+    useState<string | null>(null);
+  const [timezoneSettingsSaved, setTimezoneSettingsSaved] = useState(false);
 
   const [reservationSettings, setReservationSettings] =
     useState<ReservationSettings | null>(null);
@@ -421,7 +449,7 @@ export function Settings() {
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
   const preferenceMutationInProgress =
-    appearanceSaving || searchSettingsSaving || reservationSettingsSaving;
+    appearanceSaving || currencySettingsSaving || timezoneSettingsSaving || searchSettingsSaving || reservationSettingsSaving;
   const canConfirmPreferenceReset =
     preferenceResetTarget !== null &&
     !preferenceResetting &&
@@ -592,6 +620,78 @@ export function Settings() {
       cancelled = true;
     };
   }, [token]);
+
+  // PARTPILOT:CURRENCY_PREFERENCE_UI:V675
+  useEffect(() => {
+    if (!token) {
+      setCurrencySettings(null);
+      setCurrencySettingsLoading(false);
+      setCurrencySettingsError("Your session is unavailable. Sign in again.");
+      return;
+    }
+
+    let cancelled = false;
+    setCurrencySettingsLoading(true);
+    setCurrencySettingsError(null);
+    setCurrencySettingsSaved(false);
+
+    getCurrencySettings(token)
+      .then((result) => {
+        if (!cancelled) {
+          setCurrencySettings(result);
+          syncDefaultCurrency(result.currency);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setCurrencySettings(null);
+          setCurrencySettingsError(
+            caught instanceof Error ? caught.message : "Unable to load currency preference"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCurrencySettingsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [syncDefaultCurrency, token]);
+
+  // PARTPILOT:TIMEZONE_PREFERENCE_UI:V676
+  useEffect(() => {
+    if (!token) {
+      setTimezoneSettings(null);
+      setTimezoneSettingsLoading(false);
+      setTimezoneSettingsError("Your session is unavailable. Sign in again.");
+      return;
+    }
+
+    let cancelled = false;
+    setTimezoneSettingsLoading(true);
+    setTimezoneSettingsError(null);
+    setTimezoneSettingsSaved(false);
+
+    getTimezoneSettings(token)
+      .then((result) => {
+        if (!cancelled) {
+          setTimezoneSettings(result);
+          syncTimezone(result.timezone);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setTimezoneSettings(null);
+          setTimezoneSettingsError(
+            caught instanceof Error ? caught.message : "Unable to load timezone preference"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTimezoneSettingsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [syncTimezone, token]);
 
   useEffect(() => {
     if (!token) {
@@ -1336,6 +1436,60 @@ export function Settings() {
       setMcpOAuthRevokeError(caught instanceof Error ? caught.message : "Unable to revoke the OAuth client");
     } finally {
       setMcpOAuthRevokingId(null);
+    }
+  }
+
+  async function handleCurrencyPreference(nextCurrency: string): Promise<void> {
+    if (!token || !currencySettings || currencySettingsSaving) return;
+    const normalized = nextCurrency.trim().toUpperCase();
+    if (normalized === currencySettings.currency) return;
+
+    const previous = currencySettings;
+    setCurrencySettings({ currency: normalized });
+    setCurrencySettingsSaving(true);
+    setCurrencySettingsError(null);
+    setCurrencySettingsSaved(false);
+
+    try {
+      const saved = await updateCurrencySettings(token, { currency: normalized });
+      setCurrencySettings(saved);
+      syncDefaultCurrency(saved.currency);
+      setCurrencySettingsSaved(true);
+    } catch (caught) {
+      setCurrencySettings(previous);
+      syncDefaultCurrency(previous.currency);
+      setCurrencySettingsError(
+        caught instanceof Error ? caught.message : "Unable to save currency preference"
+      );
+    } finally {
+      setCurrencySettingsSaving(false);
+    }
+  }
+
+  async function handleTimezonePreference(nextTimezone: string): Promise<void> {
+    if (!token || !timezoneSettings || timezoneSettingsSaving) return;
+    const normalized = nextTimezone.trim();
+    if (normalized === timezoneSettings.timezone) return;
+
+    const previous = timezoneSettings;
+    setTimezoneSettings({ timezone: normalized });
+    setTimezoneSettingsSaving(true);
+    setTimezoneSettingsError(null);
+    setTimezoneSettingsSaved(false);
+
+    try {
+      const saved = await updateTimezoneSettings(token, { timezone: normalized });
+      setTimezoneSettings(saved);
+      syncTimezone(saved.timezone);
+      setTimezoneSettingsSaved(true);
+    } catch (caught) {
+      setTimezoneSettings(previous);
+      syncTimezone(previous.timezone);
+      setTimezoneSettingsError(
+        caught instanceof Error ? caught.message : "Unable to save timezone preference"
+      );
+    } finally {
+      setTimezoneSettingsSaving(false);
     }
   }
 
@@ -2302,10 +2456,10 @@ export function Settings() {
                       </div>
                       <div className="settings-account-session-meta">
                         <span>
-                          Signed in {formatUtc(session.created_at)}
+                          Signed in {formatUtc(session.created_at, timezone)}
                         </span>
                         <span>
-                          Expires {formatUtc(session.expires_at)}
+                          Expires {formatUtc(session.expires_at, timezone)}
                         </span>
                         {session.ip_address ? (
                           <span>IP {session.ip_address}</span>
@@ -2371,7 +2525,7 @@ export function Settings() {
             <h2 id="settings-preferences-title">Preferences</h2>
             <p>
               Control interface and workflow defaults in one place. Changes
-              save automatically; each card can be reset independently.
+              save automatically; fixed defaults can be reset independently.
             </p>
           </div>
         </div>
@@ -2405,6 +2559,49 @@ export function Settings() {
             {appearanceSaved && !appearanceError ? <p className="settings-preference-state is-success" role="status">Appearance saved automatically and applied across Part Pilot.</p> : null}
             {preferenceResetMessage?.target === "appearance" ? <p className="settings-preference-state is-success" role="status">{preferenceResetMessage.text}</p> : null}
             <p className="settings-preference-default-note">Default: Dark</p>
+          </section>
+
+          <section className="settings-preference-card settings-regional-card" aria-labelledby="settings-regional-title" data-partpilot-regional-display="PARTPILOT:REGIONAL_DISPLAY_PREFERENCES:V676">
+            <div className="settings-preference-card-heading">
+              <div>
+                <span className="card-label">Regional display</span>
+                <h3 id="settings-regional-title">Currency &amp; timezone</h3>
+                <p>Set how Part Pilot displays money and stored timestamps across the workspace. These choices do not convert stored prices, rewrite historical currency snapshots, or alter stored UTC timestamps.</p>
+              </div>
+            </div>
+            <div className="settings-regional-grid">
+              <label className="settings-field">
+                <span>Currency</span>
+                {currencySettingsLoading ? <small role="status">Loading currency...</small> : null}
+                {!currencySettingsLoading && currencySettings ? (
+                  <span className="settings-select-shell">
+                    <select value={currencySettings.currency} disabled={currencySettingsSaving} onChange={(event) => void handleCurrencyPreference(event.currentTarget.value)} aria-describedby="settings-currency-help">
+                      {currencyOptions.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
+                    </select>
+                  </span>
+                ) : null}
+                <small id="settings-currency-help">Used for inventory price formatting and future Project/Reservation price snapshots. No FX conversion is performed.</small>
+                {currencySettingsSaving ? <small className="settings-preference-state" role="status">Saving currency...</small> : null}
+                {currencySettingsError ? <small className="settings-preference-state is-error" role="alert">{currencySettingsError}</small> : null}
+                {currencySettingsSaved && !currencySettingsError ? <small className="settings-preference-state is-success" role="status">Currency saved.</small> : null}
+              </label>
+              <label className="settings-field">
+                <span>Display timezone</span>
+                {timezoneSettingsLoading ? <small role="status">Loading timezone...</small> : null}
+                {!timezoneSettingsLoading && timezoneSettings ? (
+                  <span className="settings-select-shell">
+                    <select value={timezoneSettings.timezone} disabled={timezoneSettingsSaving} onChange={(event) => void handleTimezonePreference(event.currentTarget.value)} aria-describedby="settings-timezone-help">
+                      {!timezoneOptions.some((option) => option.value === timezoneSettings.timezone) ? <option value={timezoneSettings.timezone}>{timezoneSettings.timezone}</option> : null}
+                      {timezoneOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                  </span>
+                ) : null}
+                <small id="settings-timezone-help">Controls passive date/time display across Part Pilot. Stored timestamps and datetime-entry semantics are unchanged.</small>
+                {timezoneSettingsSaving ? <small className="settings-preference-state" role="status">Saving timezone...</small> : null}
+                {timezoneSettingsError ? <small className="settings-preference-state is-error" role="alert">{timezoneSettingsError}</small> : null}
+                {timezoneSettingsSaved && !timezoneSettingsError ? <small className="settings-preference-state is-success" role="status">Timezone saved and applied.</small> : null}
+              </label>
+            </div>
           </section>
 
           <section className="settings-preference-card" aria-labelledby="settings-search-title" data-partpilot-compact-search="PARTPILOT:COMPACT_OUT_OF_STOCK_PREFERENCE:V418">
@@ -2679,7 +2876,7 @@ export function Settings() {
                     {mcpOAuthVisibleClients.map((client) => (
                       <article className={`settings-mcp-oauth-client is-${client.status}`} key={client.database_id}>
                         <header><div><strong>{client.client_name}</strong><span>{client.client_type === "confidential" ? "Confidential OAuth client" : "Public OAuth client"}</span></div><span className={`settings-mcp-oauth-status is-${client.status}`}>{client.status === "connected" ? "Connected" : client.status === "registered" ? "Registered" : "Revoked"}</span></header>
-                        <dl><div><dt>Origin</dt><dd>{client.redirect_origins.length > 0 ? client.redirect_origins.join(", ") : "No web origin"}</dd></div><div><dt>Auth</dt><dd>{client.token_endpoint_auth_method === "none" ? "None" : client.token_endpoint_auth_method === "client_secret_basic" ? "Client secret Basic" : "Client secret POST"}</dd></div><div><dt>Created</dt><dd>{formatUtc(client.created_at)}</dd></div><div><dt>Connected</dt><dd>{client.connected_at ? formatUtc(client.connected_at) : "Not yet"}</dd></div></dl>
+                        <dl><div><dt>Origin</dt><dd>{client.redirect_origins.length > 0 ? client.redirect_origins.join(", ") : "No web origin"}</dd></div><div><dt>Auth</dt><dd>{client.token_endpoint_auth_method === "none" ? "None" : client.token_endpoint_auth_method === "client_secret_basic" ? "Client secret Basic" : "Client secret POST"}</dd></div><div><dt>Created</dt><dd>{formatUtc(client.created_at, timezone)}</dd></div><div><dt>Connected</dt><dd>{client.connected_at ? formatUtc(client.connected_at, timezone) : "Not yet"}</dd></div></dl>
                         <footer>
                           <span>{client.status === "connected" ? `${client.active_token_count} active session${client.active_token_count === 1 ? "" : "s"}` : client.status === "registered" ? "Awaiting first authorization" : "Registration disabled"} · {client.tool_permissions.filter((tool) => tool.effective_enabled).length}/{client.tool_permissions.length} tools effective</span>
                           {client.status !== "revoked" ? (
@@ -2886,7 +3083,8 @@ export function Settings() {
                         <dd>
                           {formatUtc(
                             backupStatus.latest_manual_backup
-                              .generated_at_utc
+                              .generated_at_utc,
+                            timezone
                           )}
                         </dd>
                       </div>
@@ -3076,7 +3274,7 @@ export function Settings() {
               <p id="settings-mcp-oauth-credential-description">Copy these values into the client now.{mcpOAuthCredential.client_secret ? " The client secret is shown only in this result and cannot be retrieved later." : " This public client does not use a client secret."}</p>
               <div className="settings-mcp-oauth-credential-field"><label htmlFor="settings-mcp-oauth-client-id">Client ID</label><div><input id="settings-mcp-oauth-client-id" type="text" value={mcpOAuthCredential.client_id} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /><button className="settings-action settings-action-secondary" type="button" onClick={() => void copyMcpOAuthCredential(mcpOAuthCredential.client_id, "client_id")}>{mcpOAuthCredentialCopied === "client_id" ? "Copied" : "Copy ID"}</button></div></div>
               {mcpOAuthCredential.client_secret ? <div className="settings-mcp-oauth-credential-field is-secret"><label htmlFor="settings-mcp-oauth-client-secret">Client secret</label><div><input id="settings-mcp-oauth-client-secret" type={mcpOAuthSecretVisible ? "text" : "password"} value={mcpOAuthCredential.client_secret} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /><button className="settings-action settings-action-secondary" type="button" onClick={() => setMcpOAuthSecretVisible((value) => !value)}>{mcpOAuthSecretVisible ? "Hide" : "Show"}</button><button className="settings-action settings-action-secondary" type="button" onClick={() => void copyMcpOAuthCredential(mcpOAuthCredential.client_secret ?? "", "client_secret")}>{mcpOAuthCredentialCopied === "client_secret" ? "Copied" : "Copy secret"}</button></div></div> : null}
-              <dl><div><dt>Record</dt><dd>#{mcpOAuthCredential.database_id}</dd></div><div><dt>Client type</dt><dd>{mcpOAuthCredential.client_type === "public" ? "Public" : "Confidential"}</dd></div><div><dt>Token auth</dt><dd>{mcpOAuthCredential.token_endpoint_auth_method}</dd></div><div><dt>Redirect URI</dt><dd>{mcpOAuthCredential.redirect_uris.join(", ")}</dd></div><div><dt>Created</dt><dd>{formatUtc(mcpOAuthCredential.created_at)}</dd></div></dl>
+              <dl><div><dt>Record</dt><dd>#{mcpOAuthCredential.database_id}</dd></div><div><dt>Client type</dt><dd>{mcpOAuthCredential.client_type === "public" ? "Public" : "Confidential"}</dd></div><div><dt>Token auth</dt><dd>{mcpOAuthCredential.token_endpoint_auth_method}</dd></div><div><dt>Redirect URI</dt><dd>{mcpOAuthCredential.redirect_uris.join(", ")}</dd></div><div><dt>Created</dt><dd>{formatUtc(mcpOAuthCredential.created_at, timezone)}</dd></div></dl>
               {mcpOAuthCredential.client_secret ? <p className="settings-mcp-oauth-secret-warning">Closing this result permanently removes the plaintext secret from this page. Part Pilot stores only its digest.</p> : null}
             </div>
             <footer><button className="settings-action settings-action-primary" type="button" autoFocus onClick={closeMcpOAuthCredentialDialog}>I saved the credentials</button></footer>
@@ -3088,7 +3286,7 @@ export function Settings() {
         <div className="settings-mcp-oauth-backdrop" data-partpilot-mcp-oauth-revoke-dialog="PARTPILOT:MCP_OAUTH_CLIENT_REVOKE_DIALOG:V569">
           <section className="settings-mcp-oauth-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-mcp-oauth-dialog-title" aria-describedby="settings-mcp-oauth-dialog-description">
             <header><p className="eyebrow">{mcpOAuthRevokeTarget.status === "connected" ? "Connected OAuth client" : "Registered OAuth client"}</p><h2 id="settings-mcp-oauth-dialog-title">Revoke {mcpOAuthRevokeTarget.client_name}?</h2></header>
-            <div className="settings-mcp-oauth-dialog-content"><p id="settings-mcp-oauth-dialog-description">{mcpOAuthRevokeTarget.status === "connected" ? "The client will be disconnected immediately. Active tokens and consent will stop working, but Part Pilot data will not be removed." : "This registration will be disabled before its first authorization. Part Pilot data will not be removed."}</p><dl><div><dt>Client</dt><dd>{mcpOAuthRevokeTarget.client_name}</dd></div><div><dt>Origin</dt><dd>{mcpOAuthRevokeTarget.redirect_origins.join(", ")}</dd></div><div><dt>Status</dt><dd>{mcpOAuthRevokeTarget.status === "connected" ? "Connected" : "Registered"}</dd></div><div><dt>Last used</dt><dd>{mcpOAuthRevokeTarget.last_used_at ? formatUtc(mcpOAuthRevokeTarget.last_used_at) : "Never"}</dd></div></dl><p className="settings-mcp-oauth-warning">{mcpOAuthRevokeTarget.status === "connected" ? "Confirming this action may interrupt an active request from this client." : "Confirming this action permanently disables this registration."}</p>{mcpOAuthRevokeError ? <p className="form-error" role="alert">{mcpOAuthRevokeError}</p> : null}</div>
+            <div className="settings-mcp-oauth-dialog-content"><p id="settings-mcp-oauth-dialog-description">{mcpOAuthRevokeTarget.status === "connected" ? "The client will be disconnected immediately. Active tokens and consent will stop working, but Part Pilot data will not be removed." : "This registration will be disabled before its first authorization. Part Pilot data will not be removed."}</p><dl><div><dt>Client</dt><dd>{mcpOAuthRevokeTarget.client_name}</dd></div><div><dt>Origin</dt><dd>{mcpOAuthRevokeTarget.redirect_origins.join(", ")}</dd></div><div><dt>Status</dt><dd>{mcpOAuthRevokeTarget.status === "connected" ? "Connected" : "Registered"}</dd></div><div><dt>Last used</dt><dd>{mcpOAuthRevokeTarget.last_used_at ? formatUtc(mcpOAuthRevokeTarget.last_used_at, timezone) : "Never"}</dd></div></dl><p className="settings-mcp-oauth-warning">{mcpOAuthRevokeTarget.status === "connected" ? "Confirming this action may interrupt an active request from this client." : "Confirming this action permanently disables this registration."}</p>{mcpOAuthRevokeError ? <p className="form-error" role="alert">{mcpOAuthRevokeError}</p> : null}</div>
             <footer><button className="settings-action settings-action-secondary" type="button" autoFocus disabled={mcpOAuthRevokingId !== null} onClick={closeMcpOAuthRevokeDialog}>Keep client</button><button className="settings-action settings-action-danger" type="button" disabled={mcpOAuthRevokingId !== null} onClick={() => void confirmMcpOAuthRevocation()}>{mcpOAuthRevokingId !== null ? "Revoking..." : mcpOAuthRevokeTarget.status === "connected" ? "Revoke access" : "Revoke client"}</button></footer>
           </section>
         </div>
@@ -3137,7 +3335,7 @@ export function Settings() {
                     </div>
                     <div>
                       <dt>Backup created</dt>
-                      <dd>{formatUtc(restoreValidation.backup_created_at_utc)}</dd>
+                      <dd>{formatUtc(restoreValidation.backup_created_at_utc, timezone)}</dd>
                     </div>
                     <div>
                       <dt>Database size</dt>
@@ -3156,7 +3354,7 @@ export function Settings() {
                     </div>
                     <div>
                       <dt>Review expires</dt>
-                      <dd>{formatUtc(restoreValidation.expires_at_utc)}</dd>
+                      <dd>{formatUtc(restoreValidation.expires_at_utc, timezone)}</dd>
                     </div>
                   </dl>
                   {restoreValidation.warnings.map((warning) => (

@@ -8,6 +8,8 @@ from app.db.session import get_db
 from app.schemas.app_settings import (
     AppearanceSettingsResponse,
     AppearanceSettingsUpdateRequest,
+    CurrencySettingsResponse,
+    CurrencySettingsUpdateRequest,
     McpDirectAuthCustomHeaderRequest,
     McpDirectAuthKeyResponse,
     McpDirectAuthStatusResponse,
@@ -35,6 +37,8 @@ from app.schemas.app_settings import (
     ReversiblePreferenceResetResponse,
     SearchSettingsResponse,
     SearchSettingsUpdateRequest,
+    TimezoneSettingsResponse,
+    TimezoneSettingsUpdateRequest,
 )
 from app.services.mcp_direct_auth import (
     DIRECT_AUTH_BEARER_KEY,
@@ -86,14 +90,18 @@ from app.services.app_settings import (
     AppearanceThemeUnavailableError,
     McpSettingsValidationError,
     get_appearance_settings,
+    get_currency_settings,
     get_mcp_settings,
     get_reservation_settings,
     get_search_settings,
+    get_timezone_settings,
     reset_reversible_preference,
     update_appearance_settings,
+    update_currency_settings,
     update_mcp_settings,
     update_reservation_settings,
     update_search_settings,
+    update_timezone_settings,
 )
 
 
@@ -116,6 +124,54 @@ def patch_search_settings(
     db: Session = Depends(get_db),
 ) -> SearchSettingsResponse:
     return update_search_settings(
+        db,
+        payload,
+        actor_user_id=current_user.id,
+        commit=True,
+    )
+
+
+# PARTPILOT:CURRENCY_PREFERENCE_ROUTE:V675
+@router.get("/currency", response_model=CurrencySettingsResponse)
+def read_currency_settings(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CurrencySettingsResponse:
+    del current_user
+    return get_currency_settings(db)
+
+
+@router.patch("/currency", response_model=CurrencySettingsResponse)
+def patch_currency_settings(
+    payload: CurrencySettingsUpdateRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CurrencySettingsResponse:
+    return update_currency_settings(
+        db,
+        payload,
+        actor_user_id=current_user.id,
+        commit=True,
+    )
+
+
+# PARTPILOT:TIMEZONE_PREFERENCE_ROUTE:V676
+@router.get("/timezone", response_model=TimezoneSettingsResponse)
+def read_timezone_settings(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TimezoneSettingsResponse:
+    del current_user
+    return get_timezone_settings(db)
+
+
+@router.patch("/timezone", response_model=TimezoneSettingsResponse)
+def patch_timezone_settings(
+    payload: TimezoneSettingsUpdateRequest,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TimezoneSettingsResponse:
+    return update_timezone_settings(
         db,
         payload,
         actor_user_id=current_user.id,

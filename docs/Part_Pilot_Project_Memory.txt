@@ -69,3 +69,20 @@ Autosave/live-sync V1 task (Patch 656)
 Chat22 recovery
 - 657 pre-write: packaged workspace-smoke SHA 53305a21... differed by formatting from passed rehearsal 29cd1e22.... Patch 661 reproduced the exact passed bytes and succeeded.
 - 658 pre-write: three forbidden Roadmap trailing-space lines. Patch 659 diagnosed it; Patch 660 boundary recovery succeeded.
+
+<!-- PARTPILOT:PROJECT_MEMORY:V684 -->
+
+Regional display checkpoint
+- Patch 683 browser approved the combined Patch 675 currency + Regional display/timezone source. Patch 684 is the checkpoint/commit/push milestone; Chat 23 boundary remains Patch 685.
+- Preferences has a themed Regional display / Currency & timezone card. Currency is persisted uppercase three-letter ISO display formatting only: no FX conversion and no historical Project/Reservation currency rewrite.
+- Workspace display timezone is persisted as an IANA zone and affects passive timestamp display only. Stored timestamps and datetime-local entry semantics are never rewritten.
+- Passive timezone formatting covers History, Projects, Reservations, Stored Parts/lifecycle and Settings/API/MCP timestamp surfaces. Currency/timezone save independently with rollback/stale protection and protected APIs.
+- Browser-approved runtime image is sha256:7a285a3ebb7eccf9eddb7c375a2b5616773e5aa40283ce270e41aff445ad23b9; Alembic remains 0016_mcp_tool_permissions.
+- Recovery lesson: source comments are not valid compiled Vite runtime markers because minification may strip them. Verify rendered/runtime semantics or intentionally preserved data markers instead.
+
+Remaining V1 after Chat 23 boundary
+1. Authenticated SSE invalidation/targeted refetch; polling fallback only.
+2. API docs/OpenAPI hardening.
+3. Whole-inventory Stored Parts metrics + Dashboard Stock alert dialog; remove inline Low stock table.
+4. Owner/Admin/Operator/Viewer roles, safeguarded MCP writes, final alpha regression.
+- Notifications & Messaging remain post-v1.

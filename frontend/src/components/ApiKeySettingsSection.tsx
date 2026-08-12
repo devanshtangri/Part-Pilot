@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { useAuth } from "../auth/AuthContext";
+import { formatWorkspaceDateTime } from "../utils/dateTime";
 import {
   createApiKey,
   getApiKeys,
@@ -68,10 +70,8 @@ const SCOPE_DETAILS: Record<
   }
 };
 
-function formatTimestamp(value: string | null): string {
-  if (!value) return "Never";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+function formatTimestamp(value: string | null, timezone: string | null): string {
+  return formatWorkspaceDateTime(value, timezone, "Never");
 }
 
 function expiryDraft(value: string | null): string {
@@ -104,6 +104,7 @@ export function ApiKeySettingsSection({
   token,
   hidden
 }: ApiKeySettingsSectionProps) {
+  const { timezone } = useAuth();
   const [collection, setCollection] = useState<ApiKeyListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -492,10 +493,10 @@ export function ApiKeySettingsSection({
                   {key.scopes.map((scope) => <span key={scope}>{scope}</span>)}
                 </div>
                 <dl>
-                  <div><dt>Created</dt><dd>{formatTimestamp(key.created_at)}</dd></div>
-                  <div><dt>Last used</dt><dd>{formatTimestamp(key.last_used_at)}</dd></div>
-                  <div><dt>Expires</dt><dd>{key.expires_at ? formatTimestamp(key.expires_at) : "Never"}</dd></div>
-                  <div><dt>Rotated</dt><dd>{formatTimestamp(key.rotated_at)}</dd></div>
+                  <div><dt>Created</dt><dd>{formatTimestamp(key.created_at, timezone)}</dd></div>
+                  <div><dt>Last used</dt><dd>{formatTimestamp(key.last_used_at, timezone)}</dd></div>
+                  <div><dt>Expires</dt><dd>{key.expires_at ? formatTimestamp(key.expires_at, timezone) : "Never"}</dd></div>
+                  <div><dt>Rotated</dt><dd>{formatTimestamp(key.rotated_at, timezone)}</dd></div>
                 </dl>
                 <footer>
                   <span>{key.scopes.length} permission{key.scopes.length === 1 ? "" : "s"}</span>
@@ -589,8 +590,8 @@ export function ApiKeySettingsSection({
               <dl className="settings-security-dialog-summary">
                 <div><dt>Key</dt><dd>{confirmation.key.name}</dd></div>
                 <div><dt>Permissions</dt><dd>{confirmation.key.scopes.length}</dd></div>
-                <div><dt>Last used</dt><dd>{formatTimestamp(confirmation.key.last_used_at)}</dd></div>
-                <div><dt>Expires</dt><dd>{confirmation.key.expires_at ? formatTimestamp(confirmation.key.expires_at) : "Never"}</dd></div>
+                <div><dt>Last used</dt><dd>{formatTimestamp(confirmation.key.last_used_at, timezone)}</dd></div>
+                <div><dt>Expires</dt><dd>{confirmation.key.expires_at ? formatTimestamp(confirmation.key.expires_at, timezone) : "Never"}</dd></div>
               </dl>
               {error ? <p className="form-error" role="alert">{error}</p> : null}
             </div>
@@ -625,7 +626,7 @@ export function ApiKeySettingsSection({
             <div className="settings-api-secret-content">
               <div className="settings-api-secret-meta">
                 <strong>{secret.name}</strong>
-                <span>{secret.scopes.length} permissions · {secret.expires_at ? `expires ${formatTimestamp(secret.expires_at)}` : "no expiry"}</span>
+                <span>{secret.scopes.length} permissions · {secret.expires_at ? `expires ${formatTimestamp(secret.expires_at, timezone)}` : "no expiry"}</span>
               </div>
               <label>
                 <span>API key</span>

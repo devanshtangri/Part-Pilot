@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { McpClientPermissionsDialog } from "./McpClientPermissionsDialog";
+import { useAuth } from "../auth/AuthContext";
+import { formatWorkspaceDateTime } from "../utils/dateTime";
 import {
   createMcpNamedDirectClient,
   getMcpNamedDirectClients,
@@ -48,10 +50,8 @@ interface Props {
   permissionReloadVersion?: number;
 }
 
-function formatUtc(value: string | null): string {
-  if (!value) return "Never";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+function formatUtc(value: string | null, timezone: string | null): string {
+  return formatWorkspaceDateTime(value, timezone, "Never");
 }
 
 function modeLabel(mode: McpNamedDirectClientMode): string {
@@ -88,6 +88,7 @@ export function McpDirectClientsSection({
   disabled,
   permissionReloadVersion = 0
 }: Props) {
+  const { timezone } = useAuth();
   const [clients, setClients] = useState<McpNamedDirectClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -411,9 +412,9 @@ export function McpDirectClientsSection({
               </header>
               <dl>
                 <div><dt>Credential</dt><dd>{client.mode === "trusted_network" ? `${client.trusted_networks.length} CIDR${client.trusted_networks.length === 1 ? "" : "s"}` : client.masked_key ?? "Not available"}</dd></div>
-                <div><dt>Last used</dt><dd>{formatUtc(client.last_used_at)}</dd></div>
+                <div><dt>Last used</dt><dd>{formatUtc(client.last_used_at, timezone)}</dd></div>
                 <div><dt>Last address</dt><dd>{client.last_resolved_client_ip ?? "Never resolved"}</dd></div>
-                <div><dt>{client.mode === "trusted_network" ? "Updated" : "Rotated"}</dt><dd>{formatUtc(client.mode === "trusted_network" ? client.updated_at : client.rotated_at)}</dd></div>
+                <div><dt>{client.mode === "trusted_network" ? "Updated" : "Rotated"}</dt><dd>{formatUtc(client.mode === "trusted_network" ? client.updated_at : client.rotated_at, timezone)}</dd></div>
               </dl>
               {client.mode === "custom_header" && client.custom_header_name ? (
                 <p className="settings-mcp-named-direct-detail">Header: <code>{client.custom_header_name}</code></p>

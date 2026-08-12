@@ -9,6 +9,7 @@ import type {
   FormEvent } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { formatWorkspaceDateTime } from "../utils/dateTime";
 import {
   VIEW_PREFERENCE_KEYS,
   readEnumViewPreference,
@@ -323,11 +324,20 @@ function inventoryFieldDisplayValue(
   return field.value_text || null;
 }
 
-function inventoryDateLabel(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleString();
+function formatInventoryMoney(value: string | null, currency: string | null): string {
+  if (value === null) return "Not specified";
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || !currency) return value;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(parsed);
+  } catch {
+    return `${currency} ${parsed.toLocaleString()}`;
+  }
+}
+
+
+function inventoryDateLabel(value: string, timezone: string | null): string {
+  return formatWorkspaceDateTime(value, timezone);
 }
 
 // PATCH 137: compact quantity adjustment and movement history UI
@@ -436,7 +446,7 @@ interface PartManagerProps {
 export function PartManager({
   inventoryOnly = false
 }: PartManagerProps) {
-  const { token } = useAuth();
+  const { token, defaultCurrency, timezone } = useAuth();
   const [collection, setCollection] = useState<PartTypeCollection | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<FilterMode>(() =>
@@ -3493,7 +3503,8 @@ function closeCreator() {
                                 <span>
                                   {movementTypeLabel(movement)}
                                   {` · ${inventoryDateLabel(
-                                    movement.created_at
+                                    movement.created_at,
+                                    timezone
                                   )}`}
                                 </span>
                               </div>
@@ -3603,8 +3614,10 @@ function closeCreator() {
                       <div>
                         <dt>Unit price</dt>
                         <dd>
-                          {selectedInventoryPart.unit_price
-                            ?? "Not specified"}
+                          {formatInventoryMoney(
+                            selectedInventoryPart.unit_price,
+                            defaultCurrency
+                          )}
                         </dd>
                       </div>
                       <div>
@@ -3627,7 +3640,8 @@ function closeCreator() {
                         <dt>Created</dt>
                         <dd>
                           {inventoryDateLabel(
-                            selectedInventoryPart.created_at
+                            selectedInventoryPart.created_at,
+                            timezone
                           )}
                         </dd>
                       </div>
@@ -3635,7 +3649,8 @@ function closeCreator() {
                         <dt>Last updated</dt>
                         <dd>
                           {inventoryDateLabel(
-                            selectedInventoryPart.updated_at
+                            selectedInventoryPart.updated_at,
+                            timezone
                           )}
                         </dd>
                       </div>

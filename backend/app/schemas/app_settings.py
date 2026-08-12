@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Annotated, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
 
 
 class SearchSettingsResponse(BaseModel):
@@ -16,6 +17,67 @@ class SearchSettingsUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     show_out_of_stock_section: bool
+
+
+# PARTPILOT:CURRENCY_PREFERENCE_SCHEMA:V675
+CurrencyCode = Annotated[str, Field(min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")]
+
+
+class CurrencySettingsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    currency: CurrencyCode
+
+
+class CurrencySettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    currency: CurrencyCode
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def normalize_currency(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
+
+
+# PARTPILOT:TIMEZONE_PREFERENCE_SCHEMA:V676
+class TimezoneSettingsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    timezone: str = Field(min_length=1, max_length=100)
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("Timezone must be a valid IANA timezone") from exc
+        return value
+
+
+class TimezoneSettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    timezone: str = Field(min_length=1, max_length=100)
+
+    @field_validator("timezone", mode="before")
+    @classmethod
+    def normalize_timezone(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip()
+        return value
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError("Timezone must be a valid IANA timezone") from exc
+        return value
 
 
 # PARTPILOT:RESERVATION_SETTINGS_SCHEMA:V361

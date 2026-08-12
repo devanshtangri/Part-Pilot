@@ -8,6 +8,26 @@ export interface SearchSettingsUpdatePayload {
 }
 
 
+// PARTPILOT:CURRENCY_PREFERENCE_TYPES:V675
+export interface CurrencySettings {
+  currency: string;
+}
+
+export interface CurrencySettingsUpdatePayload {
+  currency: string;
+}
+
+
+// PARTPILOT:TIMEZONE_PREFERENCE_TYPES:V676
+export interface TimezoneSettings {
+  timezone: string;
+}
+
+export interface TimezoneSettingsUpdatePayload {
+  timezone: string;
+}
+
+
 // PARTPILOT:RESERVATION_EXPIRY_SETTINGS_TYPES:V362
 export type ReservationExpiryMode = "none" | "default";
 

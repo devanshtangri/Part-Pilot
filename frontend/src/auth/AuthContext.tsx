@@ -43,6 +43,8 @@ interface AuthContextValue {
   login: (payload: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<AuthUser>;
+  syncDefaultCurrency: (currency: string) => void;
+  syncTimezone: (timezone: string) => void;
   clearAuthError: () => void;
 }
 
@@ -258,6 +260,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return currentUser;
   }, [loadAvatarImage, replaceAvatarImageUrl, token]);
 
+  // PARTPILOT:CURRENCY_PREFERENCE_AUTH_SYNC:V675
+  const syncDefaultCurrency = useCallback((currency: string) => {
+    setDefaultCurrency(currency.trim().toUpperCase());
+  }, []);
+
+  // PARTPILOT:TIMEZONE_PREFERENCE_AUTH_SYNC:V676
+  const syncTimezone = useCallback((nextTimezone: string) => {
+    setTimezone(nextTimezone.trim());
+  }, []);
+
   const clearAuthError = useCallback(() => {
     setAuthError(null);
   }, []);
@@ -278,6 +290,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       refreshUser,
+      syncDefaultCurrency,
+      syncTimezone,
       clearAuthError
     }),
     [
@@ -293,6 +307,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshUser,
       setup,
       setupComplete,
+      syncDefaultCurrency,
+      syncTimezone,
       timezone,
       token,
       user

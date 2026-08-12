@@ -4229,3 +4229,69 @@
     flex-direction: column-reverse;
   }
 }
+
+/* PARTPILOT:REGIONAL_DISPLAY_PREFERENCE_STYLES:V676 */
+.settings-regional-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 980px;
+}
+.settings-regional-card .settings-field {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+}
+.settings-regional-card .settings-field > span:first-child {
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 760;
+}
+.settings-select-shell {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.settings-select-shell::after {
+  content: "⌄";
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateY(-58%);
+}
+.settings-select-shell select {
+  width: 100%;
+  min-height: 38px;
+  padding: 7px 34px 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  outline: none;
+  appearance: none;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+}
+.settings-select-shell select:hover:not(:disabled) { border-color: var(--muted); }
+.settings-select-shell select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.settings-select-shell select:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+.settings-regional-card .settings-field > small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+.settings-regional-card .settings-field > small.settings-preference-state { margin: 0; }
+@media (max-width: 760px) {
+  .settings-regional-grid { grid-template-columns: 1fr; }
+}

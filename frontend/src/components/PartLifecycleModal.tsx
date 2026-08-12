@@ -4,6 +4,8 @@ import {
   useMemo,
   useState
 } from "react";
+import { useAuth } from "../auth/AuthContext";
+import { formatWorkspaceDateTime } from "../utils/dateTime";
 import {
   deletePart,
   getDeletedParts,
@@ -36,11 +38,8 @@ function partName(part: Part): string {
 }
 
 
-function dateLabel(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleString();
+function dateLabel(value: string, timezone: string | null): string {
+  return formatWorkspaceDateTime(value, timezone);
 }
 
 
@@ -55,6 +54,7 @@ export function PartLifecycleModal({
   partTypeFilter,
   onClearPartTypeFilter
 }: PartLifecycleModalProps) {
+  const { timezone } = useAuth();
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletedCollection, setDeletedCollection] =
@@ -728,7 +728,7 @@ export function PartLifecycleModal({
                       {part.part_type_name}
                     </span>
                     <small>
-                      Deleted {dateLabel(part.deleted_at)}
+                      Deleted {dateLabel(part.deleted_at, timezone)}
                       {" · "}
                       Total stock {part.total_quantity}
                     </small>

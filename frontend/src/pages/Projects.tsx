@@ -13,6 +13,7 @@ import type {
 } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { formatWorkspaceDateTime } from "../utils/dateTime";
 import { getParts } from "../services/partsClient";
 import {
   cancelProject,
@@ -103,23 +104,8 @@ function writeProjectStatusPreference(value: ProjectStatus | "all"): void {
   }
 }
 
-function parseApiDateTime(value: string): Date {
-  const normalised = value.trim().replace(" ", "T");
-  const zoned = /(?:Z|[+-]\d{2}:\d{2})$/i.test(normalised)
-    ? normalised
-    : `${normalised}Z`;
-  return new Date(zoned);
-}
-
-function formatDate(value: string): string {
-  const date = parseApiDateTime(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short"
-  }).format(date);
+function formatDate(value: string, timezone: string | null): string {
+  return formatWorkspaceDateTime(value, timezone);
 }
 
 function formatMoney(
@@ -257,7 +243,7 @@ function emptyCollection(offset = 0): ProjectCollection {
 }
 
 export function Projects() {
-  const { token } = useAuth();
+  const { token, timezone } = useAuth();
   const listRequestId = useRef(0);
   const detailRequestId = useRef(0);
   const partSearchRequestId = useRef(0);
@@ -930,7 +916,7 @@ async function submitProjectLifecycle() {
                     {project.item_count} / {project.total_units}
                   </span>
                   <span className="project-row-date">
-                    {formatDate(project.updated_at)}
+                    {formatDate(project.updated_at, timezone)}
                   </span>
                 </button>
               ))
@@ -1143,8 +1129,8 @@ async function submitProjectLifecycle() {
               </section>
 
               <footer className="project-detail-footer">
-                <span>Created {formatDate(selectedProject.created_at)}</span>
-                <span>Updated {formatDate(selectedProject.updated_at)}</span>
+                <span>Created {formatDate(selectedProject.created_at, timezone)}</span>
+                <span>Updated {formatDate(selectedProject.updated_at, timezone)}</span>
               </footer>
             </>
           ) : null}
