@@ -471,7 +471,7 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | Trusted-network authentication with IPv4/IPv6 CIDRs | Available |
 | Named direct MCP clients (Bearer/custom-header/trusted-network) | Available |
 | Direct-client master and typed-confirmed no-auth fallback | Available |
-| Individual-tool and per-client MCP permissions | Not yet implemented |
+| Individual-tool and per-client MCP permissions | Available |
 | Safeguarded MCP write tools | Not yet implemented |
 
 The live installation keeps MCP and read tools enabled while write
@@ -538,3 +538,10 @@ Part Pilot provides workspace-level Currency and Display timezone preferences un
 - Currency uses a persisted uppercase three-letter ISO code for display formatting only. Changing it does not perform foreign-exchange conversion or rewrite historical Project/Reservation currency snapshots.
 - Display timezone uses an IANA timezone and changes passive timestamp presentation across the workspace. Stored timestamps are not rewritten, and datetime-local entry semantics are unchanged.
 - Both preferences save independently and use the same themed Settings controls as the rest of Part Pilot.
+
+<!-- PARTPILOT:CHAT23_PUBLIC_MILESTONE:V685 -->
+## Chat 23 public milestone
+
+Chat 23 completes MCP permission finalization and Settings modernization. Part Pilot now has principal-aware individual MCP tool permissions, a clearer Direct MCP access hierarchy, reversible Preferences autosave with independent targeted resets, and workspace-level Currency + Display timezone controls. Currency is display formatting only; timezone changes passive presentation only. Historical currency snapshots and stored timestamps remain authoritative.
+
+The next implementation milestone is authenticated server-driven invalidation/targeted refetch, followed by public-alpha API documentation hardening and whole-inventory metrics.

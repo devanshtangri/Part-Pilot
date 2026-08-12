@@ -3903,3 +3903,22 @@ autosave is the next Settings task, followed by authenticated SSE invalidation.
 - Browser-approved runtime image: `sha256:7a285a3ebb7eccf9eddb7c375a2b5616773e5aa40283ce270e41aff445ad23b9`, healthy with restart count 0 and Alembic `0016_mcp_tool_permissions`.
 - Patch 684 checkpoints/pushes exactly the 20 approved application files plus durable documentation. It does not redeploy or intentionally mutate live SQLite, credentials, MCP policy or the instance secret.
 - Next: Patch 685 closes Chat 23. Authenticated SSE invalidation/targeted refetch begins in the next chat.
+
+<!-- PARTPILOT:CHAT23_TO_CHAT24_BOUNDARY:V685 -->
+## Chat 23 complete — Chat 24 next
+
+- Chat 23 owned patches `661-685` and is closed by Patch 685.
+- Patch 684 checkpointed the browser-approved Regional display/currency/timezone work at pre-boundary HEAD `0d231871a46f490e4437711b6b9ab658334cd98d` (`Add regional currency and timezone preferences`).
+- Chat 23 also checkpointed principal-aware MCP tool permissions, the Direct MCP Settings hierarchy, reversible preference autosave, Preferences consolidation with independent targeted resets, and the themed Regional display card.
+- The application working tree and index are clean at the Patch 685 boundary. There is no pending browser-test source to carry forward.
+- Approved runtime remains `sha256:7a285a3ebb7eccf9eddb7c375a2b5616773e5aa40283ce270e41aff445ad23b9`, healthy with restart count `0`; Alembic remains `0016_mcp_tool_permissions`.
+- Patch 685 is documentation/handoff only. It must not redeploy, mutate live SQLite, change credentials/security configuration, or alter application source.
+
+Authoritative next-chat identity:
+
+- Title: `Chat 24: Authenticated Live Sync and Public Alpha Hardening`
+- Patch range: `686-710`
+- First patch: `686`
+- Planned boundary: `710`
+
+Chat 24 starts with authenticated SSE invalidation plus targeted refetch. Preserve existing stale-request guards, filters, pagination and selection. Use one authenticated stream, reconnect/resync behavior and polling fallback; remove routine Refresh controls only after each path is proven. API docs/OpenAPI hardening follows, then whole-inventory Stored Parts metrics/Dashboard Stock alert dialog, roles, safeguarded MCP writes and final alpha regression.

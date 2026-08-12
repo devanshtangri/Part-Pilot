@@ -3184,7 +3184,7 @@ Next: reversible preference autosave, then authenticated SSE invalidation/target
 - [x] Ordinary Reservation Save/Reset-changes controls removed.
 - [x] Security, credentials, lifecycle and destructive actions remain explicit.
 - [x] Consolidate Theme, Inventory display and Reservation defaults under Preferences with independent targeted Reset-to-default actions.
-- [ ] Add the persisted ISO currency selector to Preferences next; formatting only, no FX conversion.
+- [x] Persisted ISO currency selector completed with Regional display/timezone in Patch 684; formatting only, no FX conversion.
 - [ ] Later dashboard metrics: Stock alert card opens an all-alert-parts dialog; remove the inline Low stock inventory table.
 
 
@@ -3196,7 +3196,7 @@ Next: reversible preference autosave, then authenticated SSE invalidation/target
 - [x] Keep autosave behavior independent for Theme, Inventory display and Reservation defaults.
 - [x] Give each current preference card its own target-specific Reset-to-default action and confirmation.
 - [x] Backend reset accepts exactly one preference target and preserves unrelated preference/security/business state; reservation reset is atomic.
-- [ ] Next: persisted ISO currency selector inside Preferences with locale-aware formatting only and no FX conversion.
+- [x] Persisted ISO currency selector and themed Regional display/timezone completed and checkpointed in Patch 684.
 - [ ] Later dashboard metrics: Stock alert card opens an all-alert-parts dialog; remove the inline Low stock inventory table.
 
 <!-- PARTPILOT:REGIONAL_DISPLAY_COMPLETE:V684 -->
@@ -3217,5 +3217,24 @@ Next: reversible preference autosave, then authenticated SSE invalidation/target
 3. Harden API docs/OpenAPI exposure for public alpha.
 4. Add server-backed whole-inventory Stored Parts metrics and the Dashboard Stock alert dialog; remove the inline Low stock table.
 5. Add Owner/Admin/Operator/Viewer roles, safeguarded MCP write tools and final alpha accessibility/security/responsive/API-MCP regression.
+
+Notifications & Messaging remain post-v1.
+
+<!-- PARTPILOT:CHAT24_PLAN:V685 -->
+## Chat 24 plan — authenticated live sync and public-alpha hardening
+
+**Required title:** `Chat 24: Authenticated Live Sync and Public Alpha Hardening`
+**Patch range:** `686-710`
+**First patch:** `686`
+**Planned boundary:** `710`
+
+Implementation order:
+
+1. Add authenticated server-driven invalidation using one SSE-compatible stream and targeted refetch across Dashboard, Stored Parts, Projects, Reservations, History, Settings and API/MCP administration. Preserve stale-request guards, filters, pagination and current selection. Reconnect/resync on interruption; polling is fallback only; keep Retry on explicit errors.
+2. Remove routine Refresh controls only after the corresponding live-sync path is proven reliable in browser testing.
+3. Harden `/docs`, `/redoc` and `/openapi.json` exposure/schema behavior for public alpha without weakening authenticated application APIs.
+4. Add server-backed whole-inventory Stored Parts metrics: Total components, Inventory value with price coverage, Available, Reserved, Low stock, Out of stock and distinct Part count. Keep the Dashboard Stock alert metric card, make it open a dialog listing all alert-producing parts, and remove the inline Low stock table.
+5. Add Owner/Admin/Operator/Viewer roles, then safeguarded MCP write tools through the canonical catalogue/permission model only when their runtime contracts exist.
+6. Finish alpha accessibility, security, responsive and API/MCP regression.
 
 Notifications & Messaging remain post-v1.
