@@ -3922,3 +3922,36 @@ Authoritative next-chat identity:
 - Planned boundary: `710`
 
 Chat 24 starts with authenticated SSE invalidation plus targeted refetch. Preserve existing stale-request guards, filters, pagination and selection. Use one authenticated stream, reconnect/resync behavior and polling fallback; remove routine Refresh controls only after each path is proven. API docs/OpenAPI hardening follows, then whole-inventory Stored Parts metrics/Dashboard Stock alert dialog, roles, safeguarded MCP writes and final alpha regression.
+
+
+<!-- PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_CHECKPOINT:V699 -->
+## Authenticated Inventory/History live sync browser-approved — Patch 698
+
+Patch 699 checkpoints the first browser-approved Chat 24 live-synchronization
+slice after the Patch 691-697 implementation/recovery sequence.
+
+Browser-approved behavior:
+- protected `GET /api/live/events` and `GET /api/live/state`;
+- one authenticated fetch/ReadableStream SSE client using the existing Bearer
+  session, with no token in the URL;
+- generation/sequence state, bounded replay/resync, topic revisions, reconnect
+  backoff, heartbeat, lifecycle-aware stream termination and polling only while
+  streaming is degraded;
+- same-origin `BroadcastChannel` relay with event-ID deduplication so multiple
+  open Part Pilot tabs receive the same invalidation promptly while SSE remains
+  authoritative;
+- successful part create/edit/quantity/delete/restore/purge routes publish only
+  post-commit `inventory` + `history` invalidations;
+- Stored Parts/Part Manager refreshes server results without resetting local
+  search, filters, sorting, pagination or selection, and an already-open
+  inventory drawer refreshes selected-part details plus recent movements;
+- History refreshes automatically and its responsive filter grid/date controls
+  are browser-approved at the previously problematic intermediate widths.
+
+The existing manual Refresh/Retry paths remain available during the broader
+migration. This milestone does **not** mark all live synchronization complete.
+Projects, Reservations, Dashboard, Settings and API/MCP administration still
+need deliberate topic publication/subscription wiring and browser proof.
+
+Next work: continue the Chat 24 live-sync expansion, then public-alpha
+OpenAPI/docs hardening and the remaining V1 items in the established roadmap.

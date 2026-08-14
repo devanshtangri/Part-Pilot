@@ -9,6 +9,7 @@ import {
 import type { ChangeEvent } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import {
   getHistory,
   getHistoryFilterOptions
@@ -219,6 +220,8 @@ function countFacet(
 
 export function History() {
   const { token, timezone } = useAuth();
+  const historyLiveRevision = useLiveSyncRevision("history");
+  const lastHistoryLiveRevision = useRef(historyLiveRevision);
 
   const [collection, setCollection] =
     useState<HistoryCollection>(EMPTY_COLLECTION);
@@ -247,6 +250,15 @@ export function History() {
 
   const listRequest = useRef(0);
   const optionsRequest = useRef(0);
+
+  // PARTPILOT:HISTORY_LIVE_INVALIDATION:V692
+  useEffect(() => {
+    if (historyLiveRevision === lastHistoryLiveRevision.current) {
+      return;
+    }
+    lastHistoryLiveRevision.current = historyLiveRevision;
+    setReloadVersion((current) => current + 1);
+  }, [historyLiveRevision]);
 
   const dateRangeError = useMemo(() => {
     if (!fromDate || !toDate) {

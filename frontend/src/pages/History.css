@@ -171,15 +171,27 @@
 }
 
 .history-filter-grid {
+  --partpilot-history-filter-grid-v695: 1;
   display: grid;
-  grid-template-columns: repeat(5, minmax(145px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px 12px;
 }
 
 .history-filter-grid label {
   display: grid;
   min-width: 0;
   gap: 5px;
+}
+
+.history-filter-grid input[type="datetime-local"] {
+  --partpilot-history-datetime-containment-v696: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  box-sizing: border-box;
 }
 
 .history-filter-grid label > span {
@@ -195,10 +207,12 @@
 
 .history-filter-actions {
   display: flex;
-  grid-column: span 3;
+  grid-column: 1 / -1;
+  min-height: 40px;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+  padding-top: 2px;
 }
 
 .history-filter-actions > span {
@@ -740,11 +754,11 @@
 
 @media (max-width: 1280px) {
   .history-filter-grid {
-    grid-template-columns: repeat(4, minmax(145px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   }
 
   .history-filter-actions {
-    grid-column: span 2;
+    grid-column: 1 / -1;
   }
 
   .history-list-columns,
@@ -764,11 +778,11 @@
 
 @media (max-width: 1050px) {
   .history-filter-grid {
-    grid-template-columns: repeat(3, minmax(145px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   }
 
   .history-filter-actions {
-    grid-column: span 2;
+    grid-column: 1 / -1;
   }
 
   .history-workspace {

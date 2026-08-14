@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./AppLayout";
 import { AppearanceProvider } from "../appearance/AppearanceContext";
 import { AuthProvider, useAuth } from "../auth/AuthContext";
+import { LiveSyncProvider } from "../live/LiveSyncContext";
 import { AuthScreen } from "../pages/AuthScreen";
 import { Dashboard } from "../pages/Dashboard";
 import { Inventory } from "../pages/Inventory";
@@ -63,9 +64,11 @@ function AppRoutes() {
 export function App() {
   return (
     <AuthProvider>
-      <AppearanceProvider>
-        <AppRoutes />
-      </AppearanceProvider>
+      <LiveSyncProvider>
+        <AppearanceProvider>
+          <AppRoutes />
+        </AppearanceProvider>
+      </LiveSyncProvider>
     </AuthProvider>
   );
 }

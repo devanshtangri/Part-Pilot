@@ -545,3 +545,19 @@ Part Pilot provides workspace-level Currency and Display timezone preferences un
 Chat 23 completes MCP permission finalization and Settings modernization. Part Pilot now has principal-aware individual MCP tool permissions, a clearer Direct MCP access hierarchy, reversible Preferences autosave with independent targeted resets, and workspace-level Currency + Display timezone controls. Currency is display formatting only; timezone changes passive presentation only. Historical currency snapshots and stored timestamps remain authoritative.
 
 The next implementation milestone is authenticated server-driven invalidation/targeted refetch, followed by public-alpha API documentation hardening and whole-inventory metrics.
+
+
+<!-- PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_README:V699 -->
+### Authenticated live updates
+
+Part Pilot now has a browser-approved authenticated live-update foundation for
+Stored Parts/Part Manager and History. Successful inventory mutations emit
+server-side invalidations over an authenticated event stream; open tabs refetch
+the affected data without rewriting each tab's local search/filter/sort/page or
+selection state. Same-browser tabs also relay deduplicated invalidations for
+prompt multi-tab updates, while reconnect/replay and degraded polling provide
+recovery if the stream is interrupted.
+
+This is an incremental public-alpha hardening feature. Other workspaces are
+being migrated to the same invalidation model deliberately rather than relying
+on broad full-page refreshes.

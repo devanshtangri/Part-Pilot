@@ -95,3 +95,25 @@ Chat 23 boundary
 - Start Chat 24 with authenticated SSE-compatible invalidation + targeted refetch. One authenticated stream, reconnect/resync, polling fallback, Retry on errors; preserve stale guards/filters/pagination/selection and remove routine Refresh only after each path is proven.
 - Then harden API docs/OpenAPI, add whole-inventory Stored Parts metrics + Dashboard Stock alert dialog, roles, safeguarded MCP writes and final alpha regression.
 - Runtime at boundary: sha256:7a285a3ebb7eccf9eddb7c375a2b5616773e5aa40283ce270e41aff445ad23b9, healthy, restart 0; Alembic 0016_mcp_tool_permissions. Live DB/settings/MCP policy remain mutable and must not be frozen as future prerequisites.
+
+
+PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_MEMORY:V699
+Chat 24 live-sync milestone — Patch 699
+- Browser-approved first slice: Inventory/Part Manager + History.
+- Backend: protected `/api/live/events` + `/api/live/state`; process-local broker
+  with generation/sequence, replay/resync, topic revisions and lifecycle-aware
+  SSE termination. Current one-process topology is supported; multiworker later
+  requires shared pub/sub/outbox.
+- Frontend: authenticated fetch/ReadableStream SSE; Last-Event-ID reconnect;
+  backoff; polling only while degraded; same-origin BroadcastChannel relay with
+  event-ID deduplication.
+- Part mutations publish `inventory` + `history` only after committed service
+  success. Stored Parts keeps local filters/search/sort/page/selection and
+  refetches results; open selected-part drawers and movements refresh too.
+- History auto-refetch and intermediate-width filter/date layout are approved.
+- Manual Refresh/Retry remains during migration. Live sync is not globally
+  complete: Dashboard, Projects, Reservations, Settings/account and API/MCP
+  administration still require deliberate wiring/browser proof.
+- Next after broader live sync: public-alpha OpenAPI/docs hardening, inventory
+  metrics + Dashboard Stock alert dialog, roles, safeguarded MCP writes, final
+  alpha regression. Notifications remain post-v1.

@@ -40,6 +40,19 @@ from app.services.parts import (
     soft_delete_part,
     list_low_stock_parts,
 )
+from app.services.live_sync import publish_live_invalidation
+
+
+# PARTPILOT:PART_MUTATION_LIVE_SYNC:V692
+def _publish_part_mutation(part_id: int | None = None) -> None:
+    publish_live_invalidation(
+        ("inventory", "history"),
+        resource=(
+            {"type": "part", "id": part_id}
+            if part_id is not None
+            else None
+        ),
+    )
 
 
 router = APIRouter(prefix="/parts", tags=["parts"])
@@ -153,12 +166,14 @@ def create_inventory_part(
     db: Session = Depends(get_db),
 ) -> PartResponse:
     try:
-        return create_part(
+        result = create_part(
             db,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_part_mutation(result.id)
+        return result
     except PartConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -203,12 +218,14 @@ def purge_inventory_parts(
     db: Session = Depends(get_db),
 ) -> DeletedPartPurgeResponse:
     try:
-        return purge_deleted_parts(
+        result = purge_deleted_parts(
             db,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_part_mutation()
+        return result
     except PartNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -231,12 +248,14 @@ def restore_inventory_part(
     db: Session = Depends(get_db),
 ) -> PartResponse:
     try:
-        return restore_part(
+        result = restore_part(
             db,
             part_id,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_part_mutation(part_id)
+        return result
     except PartNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -259,12 +278,14 @@ def delete_inventory_part(
     db: Session = Depends(get_db),
 ) -> DeletedPartResponse:
     try:
-        return soft_delete_part(
+        result = soft_delete_part(
             db,
             part_id,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_part_mutation(part_id)
+        return result
     except PartNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -289,13 +310,15 @@ def create_part_quantity_adjustment(
     db: Session = Depends(get_db),
 ) -> PartQuantityAdjustmentResponse:
     try:
-        return adjust_part_quantity(
+        result = adjust_part_quantity(
             db,
             part_id,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_part_mutation(part_id)
+        return result
     except PartNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -343,13 +366,15 @@ def update_inventory_part(
     db: Session = Depends(get_db),
 ) -> PartResponse:
     try:
-        return update_part_metadata(
+        result = update_part_metadata(
             db,
             part_id,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_part_mutation(part_id)
+        return result
     except PartNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -3238,3 +3238,36 @@ Implementation order:
 6. Finish alpha accessibility, security, responsive and API/MCP regression.
 
 Notifications & Messaging remain post-v1.
+
+
+<!-- PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_ROADMAP:V699 -->
+### Patch 699 — first authenticated live-sync slice browser-approved
+
+Completed:
+- [x] Process-local live-sync broker with generation/sequence, bounded replay,
+  resync and topic revision state.
+- [x] Protected authenticated SSE stream/state endpoints that cooperate with
+  lifecycle drain/maintenance.
+- [x] Frontend fetch/ReadableStream SSE client with Last-Event-ID reconnect,
+  bounded backoff and degraded polling fallback.
+- [x] Same-origin BroadcastChannel invalidation relay with event-ID
+  deduplication for reliable multi-tab browser behavior.
+- [x] Post-commit `inventory` + `history` publication for part mutations.
+- [x] Stored Parts/Part Manager targeted refetch, including selected drawer and
+  movement history, while preserving local filters/search/sort/page/selection.
+- [x] History targeted refetch and intermediate-width filter/date layout fixes.
+- [x] Browser approval for the Inventory/Part Manager + History slice.
+
+Still required before the live-sync task is complete:
+- [ ] Dashboard invalidation/refetch paths.
+- [ ] Projects invalidation/refetch paths.
+- [ ] Reservations invalidation/refetch paths.
+- [ ] Settings/preferences/account status invalidation where server-side
+  changes can make another open client stale.
+- [ ] API/MCP administration/integration status invalidation.
+- [ ] Deliberately remove routine Refresh controls only after each
+  corresponding path has its own browser proof; keep Retry for errors.
+
+After the live-sync expansion, continue Chat 24 with public-alpha OpenAPI/docs
+hardening, whole-inventory Stored Parts metrics + Dashboard Stock alert dialog,
+roles, safeguarded MCP write tools and final alpha regression.

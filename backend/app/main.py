@@ -57,6 +57,8 @@ from app.api.routes.reservations import router as reservations_router
 from app.api.routes.projects import router as projects_router
 # PARTPILOT:SYSTEM_HISTORY_ROUTER_REGISTRATION:V406
 from app.api.routes.history import router as history_router
+# PARTPILOT:AUTHENTICATED_LIVE_SYNC_ROUTER:V687
+from app.api.routes.live_sync import router as live_sync_router
 # PARTPILOT:BACKUP_DOWNLOAD_ROUTER:V434
 from app.api.routes.backups import router as backups_router
 # PARTPILOT:RESTORE_VALIDATION_ROUTER:V438
@@ -144,6 +146,8 @@ app.include_router(reservations_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
 # PARTPILOT:SYSTEM_HISTORY_ROUTER_REGISTRATION:V406
 app.include_router(history_router, prefix="/api")
+# PARTPILOT:AUTHENTICATED_LIVE_SYNC_REGISTRATION:V687
+app.include_router(live_sync_router, prefix="/api")
 # PARTPILOT:BACKUP_DOWNLOAD_ROUTER:V434
 app.include_router(backups_router, prefix="/api")
 # PARTPILOT:RESTORE_VALIDATION_ROUTER:V438

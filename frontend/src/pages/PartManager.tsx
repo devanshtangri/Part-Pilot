@@ -9,6 +9,7 @@ import type {
   FormEvent } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import { formatWorkspaceDateTime } from "../utils/dateTime";
 import {
   VIEW_PREFERENCE_KEYS,
@@ -447,6 +448,8 @@ export function PartManager({
   inventoryOnly = false
 }: PartManagerProps) {
   const { token, defaultCurrency, timezone } = useAuth();
+  const inventoryLiveRevision = useLiveSyncRevision("inventory");
+  const lastInventoryLiveRevision = useRef(inventoryLiveRevision);
   const [collection, setCollection] = useState<PartTypeCollection | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<FilterMode>(() =>
@@ -615,6 +618,15 @@ export function PartManager({
     id: number;
     name: string;
   } | null>(null);
+
+  // PARTPILOT:INVENTORY_LIVE_INVALIDATION:V692
+  useEffect(() => {
+    if (inventoryLiveRevision === lastInventoryLiveRevision.current) {
+      return;
+    }
+    lastInventoryLiveRevision.current = inventoryLiveRevision;
+    setInventoryRefreshSequence((current) => current + 1);
+  }, [inventoryLiveRevision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -934,6 +946,7 @@ export function PartManager({
     };
   }, [token, inventoryRefreshSequence]);
 
+  // PARTPILOT:SELECTED_PART_LIVE_REFRESH:V695
   useEffect(() => {
     if (selectedInventoryPartId === null || !token) {
       return;
@@ -968,8 +981,9 @@ export function PartManager({
     return () => {
       cancelled = true;
     };
-  }, [selectedInventoryPartId, token]);
+  }, [selectedInventoryPartId, token, inventoryRefreshSequence]);
 
+  // PARTPILOT:SELECTED_PART_MOVEMENTS_LIVE_REFRESH:V695
   useEffect(() => {
     if (selectedInventoryPartId === null || !token) {
       setPartMovements([]);
@@ -1004,7 +1018,7 @@ export function PartManager({
     return () => {
       cancelled = true;
     };
-  }, [selectedInventoryPartId, token]);
+  }, [selectedInventoryPartId, token, inventoryRefreshSequence]);
 
   useEffect(() => {
     if (selectedInventoryPartId === null) {
