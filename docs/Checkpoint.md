@@ -3982,3 +3982,24 @@ Inventory/History plus Projects/Reservations are now browser-approved live-sync
 surfaces. Dashboard, Settings/account and API/MCP administration remain to be
 migrated deliberately. Routine Refresh controls remain until each remaining
 surface is separately proven.
+
+
+<!-- PARTPILOT:DASHBOARD_LIVE_SYNC_CHECKPOINT:V704 -->
+## Dashboard inventory live sync browser-approved — Patch 704
+
+Patch 704 checkpoints the browser-approved Dashboard live-sync slice.
+
+Browser-approved behavior:
+- Dashboard subscribes to the existing authenticated `inventory` live topic;
+- low-stock summary/count/list refresh automatically after inventory mutations;
+- an already-open universal inventory search refetches automatically;
+- search text stays local and unchanged during live invalidation;
+- selected universal-search part is preserved by ID when it still matches;
+- existing stale-request sequencing remains authoritative so older responses
+  cannot overwrite a newer live-refreshed result;
+- the shared authenticated SSE + BroadcastChannel transport and backend
+  inventory publication contract remain unchanged.
+
+Inventory/History, Projects/Reservations and Dashboard are now browser-approved
+live-sync surfaces. Settings/account and API/MCP administration remain the
+primary live-sync surfaces still pending.

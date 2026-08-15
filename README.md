@@ -571,3 +571,12 @@ system. Linked Project/Reservation edits and lifecycle changes invalidate the
 affected workspaces after successful commits, and open tabs refetch their
 current lists/details/activity without replacing local filters, search,
 pagination or selection.
+
+
+<!-- PARTPILOT:DASHBOARD_LIVE_SYNC_README:V704 -->
+### Dashboard live inventory updates
+
+The Dashboard now follows authenticated inventory invalidations too. Low-stock
+alerts and an already-open universal search refresh automatically after
+inventory changes, while each tab keeps its own query and current selected
+search result whenever that part still matches.

@@ -132,3 +132,17 @@ Chat 24 live-sync milestone — Patch 702
   SSE + BroadcastChannel delivery remains the transport.
 - Inventory/History and Projects/Reservations are approved. Dashboard,
   Settings/account and API/MCP administration still need live-sync wiring.
+
+
+PARTPILOT:DASHBOARD_LIVE_SYNC_MEMORY:V704
+Chat 24 live-sync milestone — Patch 704
+- Browser-approved Dashboard inventory live sync.
+- Dashboard low-stock summary and an open universal search subscribe to the
+  existing `inventory` topic.
+- Universal-search text remains local; selected result is retained by ID when
+  it still matches after refetch; stale request sequence protection is kept.
+- No new backend publisher was needed: approved inventory mutation publication
+  remains the source of truth.
+- Approved live-sync surfaces now include Inventory/History,
+  Projects/Reservations and Dashboard.
+- Settings/account and API/MCP administration remain pending live-sync work.

@@ -7,6 +7,7 @@ import {
 import { Link } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
+import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import { getHealth } from "../services/apiClient";
 import {
   getLowStockParts,
@@ -77,10 +78,13 @@ function universalSearchFieldValue(
 export function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const { token } = useAuth();
+  const inventoryLiveRevision = useLiveSyncRevision("inventory");
+  const lastInventoryLiveRevision = useRef(inventoryLiveRevision);
   const [lowStock, setLowStock] = useState<LowStockSummary | null>(null);
   const [lowStockLoading, setLowStockLoading] = useState(true);
   const [lowStockError, setLowStockError] = useState<string | null>(null);
   const [lowStockRefreshSequence, setLowStockRefreshSequence] = useState(0);
+  const [searchRefreshSequence, setSearchRefreshSequence] = useState(0);
   // PATCH 217: Dashboard universal-search state
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState("");
@@ -105,6 +109,16 @@ export function Dashboard() {
         setHealth(null);
       });
   }, []);
+
+  // PARTPILOT:DASHBOARD_INVENTORY_LIVE_SYNC:V703
+  useEffect(() => {
+    if (inventoryLiveRevision === lastInventoryLiveRevision.current) {
+      return;
+    }
+    lastInventoryLiveRevision.current = inventoryLiveRevision;
+    setLowStockRefreshSequence((current) => current + 1);
+    setSearchRefreshSequence((current) => current + 1);
+  }, [inventoryLiveRevision]);
 
   useEffect(() => {
     if (!token) {
@@ -301,8 +315,9 @@ export function Dashboard() {
             return;
           }
           setSearchResults(result);
-          setSelectedSearchPart(
-            result.parts.find((part) => part.available_quantity > 0)
+          setSelectedSearchPart((current) =>
+            result.parts.find((part) => part.id === current?.id)
+            ?? result.parts.find((part) => part.available_quantity > 0)
             ?? result.parts[0]
             ?? null
           );
@@ -329,10 +344,13 @@ export function Dashboard() {
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [searchInput, searchOpen, token]);
+  }, [searchInput, searchOpen, searchRefreshSequence, token]);
 
   return (
-    <section className="page-stack dashboard-page">
+    <section
+      className="page-stack dashboard-page"
+      data-partpilot-live-sync="PARTPILOT:DASHBOARD_INVENTORY_LIVE_SYNC:V703"
+    >
       <div className="page-header">
         <p className="eyebrow">Inventory overview</p>
         <h1>Dashboard</h1>

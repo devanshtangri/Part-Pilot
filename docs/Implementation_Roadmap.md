@@ -3294,3 +3294,24 @@ Remaining live-sync surfaces:
 Then continue Chat 24 with public-alpha OpenAPI/docs hardening, whole-inventory
 Stored Parts metrics + Dashboard Stock alert dialog, roles, safeguarded MCP
 write tools and final alpha regression.
+
+
+<!-- PARTPILOT:DASHBOARD_LIVE_SYNC_ROADMAP:V704 -->
+### Patch 704 — Dashboard inventory live sync browser-approved
+
+Completed:
+- [x] Dashboard low-stock summary reacts to `inventory`.
+- [x] Open Dashboard universal search reacts to `inventory`.
+- [x] Search query remains local during live refetch.
+- [x] Selected search result is preserved by ID when still present.
+- [x] Existing stale-request guard remains in force.
+- [x] Browser proof for cross-tab quantity/metadata refresh.
+
+Remaining live-sync work:
+- [ ] Settings/account state that can become stale cross-client.
+- [ ] API/MCP administration/integration status.
+- [ ] Remove routine Refresh controls only after remaining surfaces are proven.
+
+After live-sync completion, continue Chat 24 with public-alpha OpenAPI/docs
+hardening, whole-inventory Stored Parts metrics + Dashboard Stock alert dialog,
+roles, safeguarded MCP write tools and final alpha regression.
