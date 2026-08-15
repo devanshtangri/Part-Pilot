@@ -13,6 +13,7 @@ import type {
 } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import { formatWorkspaceDateTime, parseApiDateTime } from "../utils/dateTime";
 import {
   cancelReservation,
@@ -282,6 +283,8 @@ type ReservationLifecycleAction = "cancel" | "consume" | "expire";
 
 export function Reservations() {
   const { token, timezone } = useAuth();
+  const reservationsLiveRevision = useLiveSyncRevision("reservations");
+  const lastReservationsLiveRevision = useRef(reservationsLiveRevision);
 
   const [collection, setCollection] = useState<ReservationCollection>({
     total: 0,
@@ -346,6 +349,18 @@ const [actionNotice, setActionNotice] = useState("");
   const detailRequest = useRef(0);
   const activityRequest = useRef(0);
   const expiryInputRef = useRef<HTMLInputElement>(null);
+
+  // PARTPILOT:RESERVATIONS_LIVE_INVALIDATION:V700
+  useEffect(() => {
+    if (
+      reservationsLiveRevision === lastReservationsLiveRevision.current
+    ) {
+      return;
+    }
+    lastReservationsLiveRevision.current = reservationsLiveRevision;
+    setReloadVersion((current) => current + 1);
+    setActivityReloadVersion((current) => current + 1);
+  }, [reservationsLiveRevision]);
 
   useEffect(() => {
     if (!token) {
@@ -450,7 +465,7 @@ const [actionNotice, setActionNotice] = useState("");
       });
 
     return () => controller.abort();
-  }, [selectedId, token]);
+  }, [reloadVersion, selectedId, token]);
 
 useEffect(() => {
     if (!token || selectedId === null) {
@@ -1011,6 +1026,7 @@ const runAction = async () => {
     <section
       className="page-stack reservations-page"
       data-partpilot-marker="PARTPILOT:RESERVATIONS_WORKSPACE:V322"
+      data-partpilot-live-sync="PARTPILOT:RESERVATIONS_LIVE_INVALIDATION:V700"
       data-partpilot-mobile-landing="PARTPILOT:MOBILE_RESERVATION_LANDING:V343"
       data-partpilot-reservation-edit="PARTPILOT:RESERVATION_EDIT_FRONTEND:V347"
       data-partpilot-reservation-noop="PARTPILOT:RESERVATION_NOOP_FIX:V348"

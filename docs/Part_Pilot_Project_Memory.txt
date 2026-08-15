@@ -117,3 +117,18 @@ Chat 24 live-sync milestone — Patch 699
 - Next after broader live sync: public-alpha OpenAPI/docs hardening, inventory
   metrics + Dashboard Stock alert dialog, roles, safeguarded MCP writes, final
   alpha regression. Notifications remain post-v1.
+
+
+PARTPILOT:PROJECTS_RESERVATIONS_LIVE_SYNC_MEMORY:V702
+Chat 24 live-sync milestone — Patch 702
+- Browser-approved second slice: Projects + Reservations.
+- Project mutations publish post-commit topics according to whether they are
+  draft-only or stock/reservation affecting.
+- Reservation mutations publish Reservations/History, add Inventory for
+  quantity/lifecycle effects, and add Projects when a linked Project changes.
+- Projects refetch list + selected detail on `projects`; Reservations refetch
+  list + selected detail + Activity on `reservations`.
+- Local filters/search/page/selection remain tab-local; shared authenticated
+  SSE + BroadcastChannel delivery remains the transport.
+- Inventory/History and Projects/Reservations are approved. Dashboard,
+  Settings/account and API/MCP administration still need live-sync wiring.

@@ -3271,3 +3271,26 @@ Still required before the live-sync task is complete:
 After the live-sync expansion, continue Chat 24 with public-alpha OpenAPI/docs
 hardening, whole-inventory Stored Parts metrics + Dashboard Stock alert dialog,
 roles, safeguarded MCP write tools and final alpha regression.
+
+
+<!-- PARTPILOT:PROJECTS_RESERVATIONS_LIVE_SYNC_ROADMAP:V702 -->
+### Patch 702 — Projects/Reservations live sync browser-approved
+
+Completed in the second live-sync slice:
+- [x] Projects post-commit topic publication.
+- [x] Reservations post-commit topic publication.
+- [x] Linked Project/Reservation cross-workspace invalidation.
+- [x] Projects list + selected-detail targeted refetch.
+- [x] Reservations list + selected-detail + Activity targeted refetch.
+- [x] Browser proof that observing tabs update without copying another tab's
+  local filter/search/page/selection controls.
+
+Remaining live-sync surfaces:
+- [ ] Dashboard status/stock alert refresh paths.
+- [ ] Settings/preferences/account state that can become stale cross-client.
+- [ ] API/MCP administration/integration status.
+- [ ] Remove routine Refresh only after each remaining path has browser proof.
+
+Then continue Chat 24 with public-alpha OpenAPI/docs hardening, whole-inventory
+Stored Parts metrics + Dashboard Stock alert dialog, roles, safeguarded MCP
+write tools and final alpha regression.

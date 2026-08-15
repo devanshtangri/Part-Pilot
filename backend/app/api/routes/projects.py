@@ -26,6 +26,26 @@ from app.services.projects import (
     reserve_project,
     update_project,
 )
+from app.services.live_sync import publish_live_invalidation
+
+
+# PARTPILOT:PROJECT_LIVE_SYNC_PUBLICATION:V700
+def _publish_project_mutation(
+    project_id: int,
+    project_status: str,
+) -> None:
+    topics = ("projects", "history")
+    if project_status != "draft":
+        topics = (
+            "inventory",
+            "projects",
+            "reservations",
+            "history",
+        )
+    publish_live_invalidation(
+        topics,
+        resource={"type": "project", "id": project_id},
+    )
 
 
 router = APIRouter(
@@ -89,12 +109,14 @@ def create_project_record(
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     try:
-        return create_project(
+        result = create_project(
             db,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_project_mutation(result.id, result.status)
+        return result
     except ProjectConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -118,13 +140,15 @@ def update_project_record(
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     try:
-        return update_project(
+        result = update_project(
             db,
             project_id,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_project_mutation(result.id, result.status)
+        return result
     except ProjectNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -151,12 +175,14 @@ def reserve_project_record(
     db: Session = Depends(get_db),
 ) -> ProjectResponse:
     try:
-        return reserve_project(
+        result = reserve_project(
             db,
             project_id,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_project_mutation(result.id, result.status)
+        return result
     except ProjectNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -186,12 +212,14 @@ def consume_project_record(
     from app.services.projects import consume_project
 
     try:
-        return consume_project(
+        result = consume_project(
             db,
             project_id,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_project_mutation(result.id, result.status)
+        return result
     except ProjectNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -216,12 +244,14 @@ def cancel_project_record(
     from app.services.projects import cancel_project
 
     try:
-        return cancel_project(
+        result = cancel_project(
             db,
             project_id,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_project_mutation(result.id, result.status)
+        return result
     except ProjectNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

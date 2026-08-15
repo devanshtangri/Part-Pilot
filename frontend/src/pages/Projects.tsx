@@ -13,6 +13,7 @@ import type {
 } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import { formatWorkspaceDateTime } from "../utils/dateTime";
 import { getParts } from "../services/partsClient";
 import {
@@ -244,6 +245,8 @@ function emptyCollection(offset = 0): ProjectCollection {
 
 export function Projects() {
   const { token, timezone } = useAuth();
+  const projectsLiveRevision = useLiveSyncRevision("projects");
+  const lastProjectsLiveRevision = useRef(projectsLiveRevision);
   const listRequestId = useRef(0);
   const detailRequestId = useRef(0);
   const partSearchRequestId = useRef(0);
@@ -288,6 +291,15 @@ const [lifecycleNotice, setLifecycleNotice] =
   const [partOptions, setPartOptions] = useState<Part[]>([]);
   const [partSearchLoading, setPartSearchLoading] = useState(false);
   const [partSearchError, setPartSearchError] = useState("");
+
+  // PARTPILOT:PROJECTS_LIVE_INVALIDATION:V700
+  useEffect(() => {
+    if (projectsLiveRevision === lastProjectsLiveRevision.current) {
+      return;
+    }
+    lastProjectsLiveRevision.current = projectsLiveRevision;
+    setReloadVersion((current) => current + 1);
+  }, [projectsLiveRevision]);
 
   useEffect(() => {
     writeProjectStatusPreference(statusFilter);
@@ -381,7 +393,7 @@ const [lifecycleNotice, setLifecycleNotice] =
     return () => {
       controller.abort();
     };
-  }, [selectedId, token]);
+  }, [reloadVersion, selectedId, token]);
 
   useEffect(() => {
     if (formMode === null) {
@@ -796,6 +808,7 @@ async function submitProjectLifecycle() {
     <section
       className="projects-page page-stack"
       data-partpilot-marker="PARTPILOT:PROJECTS_WORKSPACE:V381"
+      data-partpilot-live-sync="PARTPILOT:PROJECTS_LIVE_INVALIDATION:V700"
       data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"
       data-partpilot-project-mobile-landing="PARTPILOT:PROJECT_MOBILE_LANDING:V399"
       data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"

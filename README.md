@@ -561,3 +561,13 @@ recovery if the stream is interrupted.
 This is an incremental public-alpha hardening feature. Other workspaces are
 being migrated to the same invalidation model deliberately rather than relying
 on broad full-page refreshes.
+
+
+<!-- PARTPILOT:PROJECTS_RESERVATIONS_LIVE_SYNC_README:V702 -->
+### Projects and Reservations live updates
+
+Projects and Reservations now participate in the authenticated live-update
+system. Linked Project/Reservation edits and lifecycle changes invalidate the
+affected workspaces after successful commits, and open tabs refetch their
+current lists/details/activity without replacing local filters, search,
+pagination or selection.

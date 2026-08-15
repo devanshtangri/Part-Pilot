@@ -3955,3 +3955,30 @@ need deliberate topic publication/subscription wiring and browser proof.
 
 Next work: continue the Chat 24 live-sync expansion, then public-alpha
 OpenAPI/docs hardening and the remaining V1 items in the established roadmap.
+
+
+<!-- PARTPILOT:PROJECTS_RESERVATIONS_LIVE_SYNC_CHECKPOINT:V702 -->
+## Projects and Reservations live sync browser-approved — Patch 702
+
+Patch 702 checkpoints the second browser-approved Chat 24 live-sync slice.
+
+Browser-approved behavior:
+- Project create/update publishes `projects` + `history` while stock-affecting
+  Project reserve/edit/consume/cancel operations also invalidate `inventory`
+  and `reservations`;
+- Reservation create/update/lifecycle operations invalidate Reservations,
+  History and Inventory, and linked-Project operations also invalidate Projects;
+- terminal Reservation deletion invalidates Reservations + History without
+  falsely claiming an inventory rewrite;
+- Projects subscribes to `projects` and refetches both its current list and
+  already-selected detail while preserving local status filter, page and
+  selection behavior;
+- Reservations subscribes to `reservations` and refetches list, selected detail
+  and Activity while preserving each tab's local search/filter/page/selection;
+- the browser-approved authenticated SSE/BroadcastChannel transport remains
+  shared and unchanged.
+
+Inventory/History plus Projects/Reservations are now browser-approved live-sync
+surfaces. Dashboard, Settings/account and API/MCP administration remain to be
+migrated deliberately. Routine Refresh controls remain until each remaining
+surface is separately proven.

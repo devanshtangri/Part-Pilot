@@ -31,6 +31,26 @@ from app.services.reservations import (
     list_reservations,
     update_reservation,
 )
+from app.services.live_sync import publish_live_invalidation
+
+
+# PARTPILOT:RESERVATION_LIVE_SYNC_PUBLICATION:V700
+def _publish_reservation_mutation(
+    reservation_id: int,
+    *,
+    project_id: int | None,
+    inventory_changed: bool,
+) -> None:
+    topics: list[str] = []
+    if inventory_changed:
+        topics.append("inventory")
+    if project_id is not None:
+        topics.append("projects")
+    topics.extend(("reservations", "history"))
+    publish_live_invalidation(
+        tuple(topics),
+        resource={"type": "reservation", "id": reservation_id},
+    )
 
 
 router = APIRouter(
@@ -94,12 +114,18 @@ def create_reservation_record(
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
-        return create_reservation(
+        result = create_reservation(
             db,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_reservation_mutation(
+            result.id,
+            project_id=result.project_id,
+            inventory_changed=True,
+        )
+        return result
     except ReservationConflictError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -126,13 +152,19 @@ def update_reservation_record(
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
-        return update_reservation(
+        result = update_reservation(
             db,
             reservation_id,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_reservation_mutation(
+            result.id,
+            project_id=result.project_id,
+            inventory_changed=True,
+        )
+        return result
     except ReservationNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -162,13 +194,19 @@ def delete_reservation_record(
     db: Session = Depends(get_db),
 ) -> ReservationDeleteResponse:
     try:
-        return delete_reservation(
+        result = delete_reservation(
             db,
             reservation_id,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_reservation_mutation(
+            result.id,
+            project_id=None,
+            inventory_changed=False,
+        )
+        return result
     except ReservationNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -197,12 +235,18 @@ def cancel_reservation_record(
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
-        return cancel_reservation(
+        result = cancel_reservation(
             db,
             reservation_id,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_reservation_mutation(
+            result.id,
+            project_id=result.project_id,
+            inventory_changed=True,
+        )
+        return result
     except ReservationNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -226,12 +270,18 @@ def consume_reservation_record(
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
-        return consume_reservation(
+        result = consume_reservation(
             db,
             reservation_id,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_reservation_mutation(
+            result.id,
+            project_id=result.project_id,
+            inventory_changed=True,
+        )
+        return result
     except ReservationNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -255,12 +305,18 @@ def expire_reservation_record(
     db: Session = Depends(get_db),
 ) -> ReservationResponse:
     try:
-        return expire_reservation(
+        result = expire_reservation(
             db,
             reservation_id,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_reservation_mutation(
+            result.id,
+            project_id=result.project_id,
+            inventory_changed=True,
+        )
+        return result
     except ReservationNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
