@@ -449,6 +449,7 @@ export function PartManager({
 }: PartManagerProps) {
   const { token, defaultCurrency, timezone } = useAuth();
   const inventoryLiveRevision = useLiveSyncRevision("inventory");
+  const preferencesLiveRevision = useLiveSyncRevision("preferences");
   const lastInventoryLiveRevision = useRef(inventoryLiveRevision);
   const [collection, setCollection] = useState<PartTypeCollection | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -944,7 +945,11 @@ export function PartManager({
     return () => {
       cancelled = true;
     };
-  }, [token, inventoryRefreshSequence]);
+  }, [
+    preferencesLiveRevision,
+    token,
+    inventoryRefreshSequence
+  ]);
 
   // PARTPILOT:SELECTED_PART_LIVE_REFRESH:V695
   useEffect(() => {

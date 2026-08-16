@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import {
   getAppearanceSettings,
   updateAppearanceSettings
@@ -87,6 +88,9 @@ export function AppearanceProvider({
   children: ReactNode;
 }) {
   const { token } = useAuth();
+  const preferencesLiveRevision = useLiveSyncRevision("preferences");
+  const lastPreferencesLiveRevision = useRef(preferencesLiveRevision);
+  const pendingPreferencesReloadRef = useRef(false);
   const [theme, setTheme] = useState<AppearanceTheme>(() =>
     readStoredTheme()
   );
@@ -102,6 +106,30 @@ export function AppearanceProvider({
   const [reloadVersion, setReloadVersion] = useState(0);
   const requestIdRef = useRef(0);
   const mutationIdRef = useRef(0);
+
+  // PARTPILOT:GLOBAL_APPEARANCE_PREFERENCE_LIVE_SYNC:V705
+  useEffect(() => {
+    if (
+      preferencesLiveRevision
+      === lastPreferencesLiveRevision.current
+    ) {
+      return;
+    }
+    lastPreferencesLiveRevision.current = preferencesLiveRevision;
+    pendingPreferencesReloadRef.current = true;
+    if (!isSaving) {
+      pendingPreferencesReloadRef.current = false;
+      setReloadVersion((value) => value + 1);
+    }
+  }, [isSaving, preferencesLiveRevision]);
+
+  useEffect(() => {
+    if (isSaving || !pendingPreferencesReloadRef.current) {
+      return;
+    }
+    pendingPreferencesReloadRef.current = false;
+    setReloadVersion((value) => value + 1);
+  }, [isSaving]);
 
   useEffect(() => {
     setResolvedTheme(applyTheme(theme));

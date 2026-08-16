@@ -87,6 +87,16 @@ from app.services.api_keys import (
     ApiKeyScopeError,
     validate_api_key,
 )
+from app.services.live_sync import publish_live_invalidation
+
+
+# PARTPILOT:ACCOUNT_LIVE_SYNC_PUBLICATION:V705
+def _publish_account_mutation(user_id: int) -> None:
+    publish_live_invalidation(
+        ("account", "history"),
+        resource={"type": "user", "id": user_id},
+    )
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -426,6 +436,7 @@ def update_profile(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
+    _publish_account_mutation(updated.id)
     return _profile_response(updated)
 
 
@@ -488,6 +499,7 @@ async def upload_profile_avatar_image(
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_account_mutation(current_user.id)
     except AvatarImageValidationError as exc:
         db.rollback()
         raise HTTPException(
@@ -509,6 +521,7 @@ def delete_profile_avatar_image(
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_account_mutation(current_user.id)
     except AvatarImageValidationError as exc:
         db.rollback()
         raise HTTPException(
@@ -608,6 +621,7 @@ def change_password_route(
             detail=str(exc),
         ) from exc
 
+    _publish_account_mutation(current_user.id)
     return PasswordChangeResponse(ok=True, revoked_other_sessions=revoked)
 
 
@@ -669,6 +683,7 @@ def revoke_other_sessions_route(
             detail="Invalid or expired session",
         ) from exc
 
+    _publish_account_mutation(current_user.id)
     return OtherSessionsRevokeResponse(ok=True, revoked_sessions=revoked)
 
 
@@ -715,4 +730,5 @@ def revoke_session_route(
             detail="Invalid or expired session",
         ) from exc
 
+    _publish_account_mutation(current_user.id)
     return SessionRevokeResponse(ok=True, revoked=revoked)

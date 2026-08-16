@@ -3315,3 +3315,27 @@ Remaining live-sync work:
 After live-sync completion, continue Chat 24 with public-alpha OpenAPI/docs
 hardening, whole-inventory Stored Parts metrics + Dashboard Stock alert dialog,
 roles, safeguarded MCP write tools and final alpha regression.
+
+
+<!-- PARTPILOT:SETTINGS_ACCOUNT_LIVE_SYNC_ROADMAP:V706 -->
+### Patch 706 - Settings/account/preferences live sync browser-approved
+
+Completed:
+- [x] Preferences publish post-commit `preferences` + `history`.
+- [x] Profile/avatar/password/session mutations publish `account` + `history`.
+- [x] Manual backup generation publishes `backups` + `history`.
+- [x] Theme, currency, timezone and account identity update across open tabs.
+- [x] Part Manager and Dashboard follow the shared inventory display preference.
+- [x] Settings follows preference/account/session/backup status invalidations.
+- [x] Unsaved Account and Reservation drafts survive cross-tab refresh.
+- [x] Active save/autosave/reset/security/backup operations defer live reload.
+- [x] Browser proof completed for the non-credential Settings slice.
+
+Remaining live-sync work:
+- [ ] REST API key administration via `integrations.api_keys`.
+- [ ] MCP administration/status via `integrations.mcp`.
+- [ ] Remove routine Refresh controls only where each surface is fully proven.
+
+After the integration slice, continue Chat 24 with public-alpha OpenAPI/docs
+hardening, whole-inventory Stored Parts metrics + Dashboard Stock alert dialog,
+roles, safeguarded MCP write tools and final alpha regression.

@@ -29,8 +29,10 @@ from app.services.backups import (
     remove_backup_operation_directory,
     sqlite_path_from_database_url,
 )
+from app.services.live_sync import publish_live_invalidation
 
 
+# PARTPILOT:BACKUP_STATUS_LIVE_SYNC_PUBLICATION:V705
 router = APIRouter(prefix="/backups", tags=["backups"])
 BACKUP_GENERATION_LOCK = threading.Lock()
 BACKUP_OPERATION_PARENT = Path(tempfile.gettempdir())
@@ -120,6 +122,7 @@ def download_backup(
             actor_user_id=current_user.id,
             commit=True,
         )
+        publish_live_invalidation(("backups", "history"))
 
         return FileResponse(
             path=artifact.archive_path,

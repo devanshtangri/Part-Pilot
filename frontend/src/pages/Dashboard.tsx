@@ -79,6 +79,7 @@ export function Dashboard() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const { token } = useAuth();
   const inventoryLiveRevision = useLiveSyncRevision("inventory");
+  const preferencesLiveRevision = useLiveSyncRevision("preferences");
   const lastInventoryLiveRevision = useRef(inventoryLiveRevision);
   const [lowStock, setLowStock] = useState<LowStockSummary | null>(null);
   const [lowStockLoading, setLowStockLoading] = useState(true);
@@ -195,7 +196,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [preferencesLiveRevision, token]);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;

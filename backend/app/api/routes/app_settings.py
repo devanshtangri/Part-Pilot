@@ -103,6 +103,15 @@ from app.services.app_settings import (
     update_search_settings,
     update_timezone_settings,
 )
+from app.services.live_sync import publish_live_invalidation
+
+
+# PARTPILOT:PREFERENCES_LIVE_SYNC_PUBLICATION:V705
+def _publish_preference_mutation(user_id: int) -> None:
+    publish_live_invalidation(
+        ("preferences", "history"),
+        resource={"type": "preferences", "id": user_id},
+    )
 
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -123,12 +132,14 @@ def patch_search_settings(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SearchSettingsResponse:
-    return update_search_settings(
+    result = update_search_settings(
         db,
         payload,
         actor_user_id=current_user.id,
         commit=True,
     )
+    _publish_preference_mutation(current_user.id)
+    return result
 
 
 # PARTPILOT:CURRENCY_PREFERENCE_ROUTE:V675
@@ -147,12 +158,14 @@ def patch_currency_settings(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CurrencySettingsResponse:
-    return update_currency_settings(
+    result = update_currency_settings(
         db,
         payload,
         actor_user_id=current_user.id,
         commit=True,
     )
+    _publish_preference_mutation(current_user.id)
+    return result
 
 
 # PARTPILOT:TIMEZONE_PREFERENCE_ROUTE:V676
@@ -171,12 +184,14 @@ def patch_timezone_settings(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> TimezoneSettingsResponse:
-    return update_timezone_settings(
+    result = update_timezone_settings(
         db,
         payload,
         actor_user_id=current_user.id,
         commit=True,
     )
+    _publish_preference_mutation(current_user.id)
+    return result
 
 
 # PARTPILOT:RESERVATION_SETTINGS_ROUTE:V361
@@ -195,12 +210,14 @@ def patch_reservation_settings(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ReservationSettingsResponse:
-    return update_reservation_settings(
+    result = update_reservation_settings(
         db,
         payload,
         actor_user_id=current_user.id,
         commit=True,
     )
+    _publish_preference_mutation(current_user.id)
+    return result
 
 
 # PARTPILOT:APPEARANCE_SETTINGS_ROUTE:V411
@@ -226,12 +243,14 @@ def patch_appearance_settings(
     db: Session = Depends(get_db),
 ) -> AppearanceSettingsResponse:
     try:
-        return update_appearance_settings(
+        result = update_appearance_settings(
             db,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_preference_mutation(current_user.id)
+        return result
     except AppearanceThemeUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -246,7 +265,14 @@ def reset_preference_to_default(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ReversiblePreferenceResetResponse:
-    return reset_reversible_preference(db, target=payload.target, actor_user_id=current_user.id, commit=True)
+    result = reset_reversible_preference(
+        db,
+        target=payload.target,
+        actor_user_id=current_user.id,
+        commit=True,
+    )
+    _publish_preference_mutation(current_user.id)
+    return result
 
 
 # PARTPILOT:MCP_SETTINGS_ROUTE:V473

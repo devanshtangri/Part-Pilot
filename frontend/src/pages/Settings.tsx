@@ -11,6 +11,7 @@ import {
   useAppearance
 } from "../appearance/AppearanceContext";
 import { useAuth } from "../auth/AuthContext";
+import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import { ApiKeySettingsSection } from "../components/ApiKeySettingsSection";
 import { McpClientPermissionsDialog } from "../components/McpClientPermissionsDialog";
 import { McpDirectClientsSection } from "../components/McpDirectClientsSection";
@@ -265,6 +266,17 @@ const APPEARANCE_OPTIONS: Array<{
 
 export function Settings() {
   const { token, user, avatarImageUrl, refreshUser, timezone, syncDefaultCurrency, syncTimezone } = useAuth();
+  const preferencesLiveRevision = useLiveSyncRevision("preferences");
+  const accountLiveRevision = useLiveSyncRevision("account");
+  const backupsLiveRevision = useLiveSyncRevision("backups");
+  const lastPreferencesLiveRevision = useRef(preferencesLiveRevision);
+  const lastAccountLiveRevision = useRef(accountLiveRevision);
+  const lastBackupsLiveRevision = useRef(backupsLiveRevision);
+  const pendingPreferencesLiveReloadRef = useRef(false);
+  const pendingAccountLiveReloadRef = useRef(false);
+  const pendingBackupsLiveReloadRef = useRef(false);
+  const preserveAccountDraftOnLiveReloadRef = useRef(false);
+  const preserveReservationDraftOnLiveReloadRef = useRef(false);
   const location = useLocation();
   const restoreFileInputRef = useRef<HTMLInputElement | null>(null);
   const currencyOptions = useMemo(() => getCurrencyOptions(), []);
@@ -297,6 +309,7 @@ export function Settings() {
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountMessage, setAccountMessage] = useState<string | null>(null);
   const [accountReloadVersion, setAccountReloadVersion] = useState(0);
+  const [preferenceReloadVersion, setPreferenceReloadVersion] = useState(0);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -448,6 +461,33 @@ export function Settings() {
   const [restoreRestarting, setRestoreRestarting] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
+  const accountProfileChanged = Boolean(
+    accountProfile
+      && accountDraft
+      && (
+        accountDraft.username !== accountProfile.username
+        || accountDraft.displayName !== accountProfile.display_name
+        || accountDraft.avatarId !== accountProfile.avatar_id
+      )
+  );
+  const reservationDraftChanged = Boolean(
+    reservationSettings
+      && reservationDraft
+      && (
+        reservationDraft.expiry_mode !== reservationSettings.expiry_mode
+        || !Object.is(
+          reservationDraft.default_days,
+          reservationSettings.default_days
+        )
+      )
+  );
+  const accountMutationInProgress =
+    accountSaving
+    || accountAvatarUploading
+    || accountAvatarRemoving
+    || passwordSaving
+    || sessionRevokingId !== null
+    || sessionsRevokingAll;
   const preferenceMutationInProgress =
     appearanceSaving || currencySettingsSaving || timezoneSettingsSaving || searchSettingsSaving || reservationSettingsSaving;
   const canConfirmPreferenceReset =
@@ -514,6 +554,90 @@ export function Settings() {
     setActiveSettingsSection(settingsSectionFromHash());
   }, [location.hash]);
 
+  // PARTPILOT:SETTINGS_ACCOUNT_PREFERENCES_LIVE_SYNC:V705
+  useEffect(() => {
+    if (
+      preferencesLiveRevision
+      === lastPreferencesLiveRevision.current
+    ) {
+      return;
+    }
+    lastPreferencesLiveRevision.current = preferencesLiveRevision;
+    pendingPreferencesLiveReloadRef.current = true;
+  }, [preferencesLiveRevision]);
+
+  useEffect(() => {
+    if (
+      !pendingPreferencesLiveReloadRef.current
+      || preferenceMutationInProgress
+      || preferenceResetting
+      || reservationAutosaveTimerRef.current !== null
+    ) {
+      return;
+    }
+    preserveReservationDraftOnLiveReloadRef.current =
+      reservationDraftChanged;
+    pendingPreferencesLiveReloadRef.current = false;
+    setPreferenceReloadVersion((value) => value + 1);
+    setReservationReloadVersion((value) => value + 1);
+  }, [
+    preferenceMutationInProgress,
+    preferenceResetting,
+    preferencesLiveRevision,
+    reservationDraftChanged
+  ]);
+
+  useEffect(() => {
+    if (accountLiveRevision === lastAccountLiveRevision.current) {
+      return;
+    }
+    lastAccountLiveRevision.current = accountLiveRevision;
+    pendingAccountLiveReloadRef.current = true;
+  }, [accountLiveRevision]);
+
+  useEffect(() => {
+    if (
+      !pendingAccountLiveReloadRef.current
+      || accountMutationInProgress
+    ) {
+      return;
+    }
+    preserveAccountDraftOnLiveReloadRef.current =
+      accountProfileChanged;
+    pendingAccountLiveReloadRef.current = false;
+    setAccountReloadVersion((value) => value + 1);
+  }, [
+    accountLiveRevision,
+    accountMutationInProgress,
+    accountProfileChanged
+  ]);
+
+  useEffect(() => {
+    if (backupsLiveRevision === lastBackupsLiveRevision.current) {
+      return;
+    }
+    lastBackupsLiveRevision.current = backupsLiveRevision;
+    pendingBackupsLiveReloadRef.current = true;
+  }, [backupsLiveRevision]);
+
+  useEffect(() => {
+    if (
+      !pendingBackupsLiveReloadRef.current
+      || backupDownloading
+      || restoreCommitting
+      || restoreRestarting
+    ) {
+      return;
+    }
+    pendingBackupsLiveReloadRef.current = false;
+    setBackupStatusReloadVersion((value) => value + 1);
+  }, [
+    backupDownloading,
+    backupsLiveRevision,
+    restoreCommitting,
+    restoreRestarting
+  ]);
+
   useEffect(() => {
     return () => {
       if (reservationAutosaveTimerRef.current !== null) {
@@ -552,15 +676,19 @@ export function Settings() {
       .then(([profile, sessions]) => {
         if (cancelled) return;
         setAccountProfile(profile);
-        setAccountDraft({
-          username: profile.username,
-          displayName: profile.display_name,
-          avatarId: profile.avatar_id
-        });
+        if (!preserveAccountDraftOnLiveReloadRef.current) {
+          setAccountDraft({
+            username: profile.username,
+            displayName: profile.display_name,
+            avatarId: profile.avatar_id
+          });
+        }
+        preserveAccountDraftOnLiveReloadRef.current = false;
         setAccountSessions(sessions.sessions);
       })
       .catch((caught) => {
         if (cancelled) return;
+        preserveAccountDraftOnLiveReloadRef.current = false;
         const message =
           caught instanceof Error
             ? caught.message
@@ -619,7 +747,7 @@ export function Settings() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [preferenceReloadVersion, token]);
 
   // PARTPILOT:CURRENCY_PREFERENCE_UI:V675
   useEffect(() => {
@@ -655,7 +783,7 @@ export function Settings() {
       });
 
     return () => { cancelled = true; };
-  }, [syncDefaultCurrency, token]);
+  }, [preferenceReloadVersion, syncDefaultCurrency, token]);
 
   // PARTPILOT:TIMEZONE_PREFERENCE_UI:V676
   useEffect(() => {
@@ -691,7 +819,7 @@ export function Settings() {
       });
 
     return () => { cancelled = true; };
-  }, [syncTimezone, token]);
+  }, [preferenceReloadVersion, syncTimezone, token]);
 
   useEffect(() => {
     if (!token) {
@@ -713,11 +841,15 @@ export function Settings() {
       .then((result) => {
         if (!cancelled) {
           setReservationSettings(result);
-          setReservationDraft(result);
+          if (!preserveReservationDraftOnLiveReloadRef.current) {
+            setReservationDraft(result);
+          }
+          preserveReservationDraftOnLiveReloadRef.current = false;
         }
       })
       .catch((caught) => {
         if (!cancelled) {
+          preserveReservationDraftOnLiveReloadRef.current = false;
           setReservationSettings(null);
           setReservationDraft(null);
           setReservationSettingsError(
@@ -1959,6 +2091,7 @@ export function Settings() {
       data-partpilot-account-custom-avatar="PARTPILOT:SETTINGS_CUSTOM_AVATAR_UI:V602"
       data-partpilot-rest-api-keys="PARTPILOT:REST_API_KEY_SETTINGS_UI:V618"
       data-partpilot-preferences-workspace="PARTPILOT:SETTINGS_PREFERENCES_WORKSPACE:V673"
+      data-partpilot-live-sync="PARTPILOT:SETTINGS_ACCOUNT_PREFERENCES_LIVE_SYNC:V705"
       data-partpilot-active-settings-section={activeSettingsSection}
     >
       <header className="page-header settings-page-header">

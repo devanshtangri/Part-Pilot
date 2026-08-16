@@ -4003,3 +4003,27 @@ Browser-approved behavior:
 Inventory/History, Projects/Reservations and Dashboard are now browser-approved
 live-sync surfaces. Settings/account and API/MCP administration remain the
 primary live-sync surfaces still pending.
+
+
+<!-- PARTPILOT:SETTINGS_ACCOUNT_LIVE_SYNC_CHECKPOINT:V706 -->
+## Settings, account and preferences live sync browser-approved - Patch 706
+
+Patch 706 checkpoints the browser-approved Settings/account/preferences slice.
+
+Browser-approved behavior:
+- reversible search, currency, timezone, reservation-default and appearance
+  mutations publish `preferences` + `history` after durable commit;
+- account profile/avatar/password/session mutations publish `account` +
+  `history` after durable commit;
+- manual backup generation publishes `backups` + `history` after the backup
+  audit record is durably committed;
+- global appearance, currency, timezone and sidebar account identity refresh
+  across open authenticated tabs;
+- Dashboard and Part Manager refresh the shared out-of-stock display preference;
+- Settings refreshes preferences, account/session state and manual-backup status;
+- unsaved Account and Reservation drafts are preserved, and live reload defers
+  around active save/autosave/reset/avatar/password/session/backup operations.
+
+Inventory/History, Projects/Reservations, Dashboard and non-credential Settings
+are now browser-approved live-sync surfaces. REST API key and MCP
+administration/integration state remains the final isolated live-sync slice.

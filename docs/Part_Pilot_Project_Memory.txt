@@ -146,3 +146,20 @@ Chat 24 live-sync milestone — Patch 704
 - Approved live-sync surfaces now include Inventory/History,
   Projects/Reservations and Dashboard.
 - Settings/account and API/MCP administration remain pending live-sync work.
+
+
+PARTPILOT:SETTINGS_ACCOUNT_LIVE_SYNC_MEMORY:V706
+Chat 24 live-sync milestone - Patch 706
+- Browser-approved Settings/account/preferences/manual-backup live sync.
+- Preferences publish `preferences` + `history`; account mutations publish
+  `account` + `history`; manual backup generation publishes `backups` +
+  `history`, all after successful committed operations.
+- Global appearance/currency/timezone/sidebar identity follow live revisions.
+- Dashboard + Part Manager follow the out-of-stock display preference.
+- Settings refreshes server-backed preference/account/session/backup state.
+- Unsaved Account and Reservation drafts are preserved; active mutation and
+  autosave/security/backup workflows defer live reload.
+- Approved live-sync surfaces now cover Inventory/History,
+  Projects/Reservations, Dashboard and non-credential Settings.
+- REST API keys and MCP administration remain the final isolated live-sync
+  slice before broader public-alpha hardening.

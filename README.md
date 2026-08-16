@@ -580,3 +580,13 @@ The Dashboard now follows authenticated inventory invalidations too. Low-stock
 alerts and an already-open universal search refresh automatically after
 inventory changes, while each tab keeps its own query and current selected
 search result whenever that part still matches.
+
+
+<!-- PARTPILOT:SETTINGS_ACCOUNT_LIVE_SYNC_README:V706 -->
+### Live Settings and account updates
+
+Part Pilot now propagates workspace preferences, account identity/session
+changes and manual-backup status across authenticated open tabs. Theme,
+currency, timezone and inventory display preferences update their existing
+consumers automatically, while unfinished local Account or Reservation edits
+are protected from cross-tab refresh.
