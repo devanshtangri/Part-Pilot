@@ -590,3 +590,12 @@ changes and manual-backup status across authenticated open tabs. Theme,
 currency, timezone and inventory display preferences update their existing
 consumers automatically, while unfinished local Account or Reservation edits
 are protected from cross-tab refresh.
+
+
+<!-- PARTPILOT:CHAT24_DIAGNOSTIC_BOUNDARY_README:V710 -->
+### Chat 24 live-sync boundary
+
+Authenticated live sync is browser-approved for Inventory/History,
+Projects/Reservations, Dashboard and non-credential Settings. The remaining
+REST API-key/MCP integration slice moves to Chat 25 after a diagnostic found
+legacy OAuth smoke tests coupled to mutable historical client IDs.

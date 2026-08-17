@@ -163,3 +163,22 @@ Chat 24 live-sync milestone - Patch 706
   Projects/Reservations, Dashboard and non-credential Settings.
 - REST API keys and MCP administration remain the final isolated live-sync
   slice before broader public-alpha hardening.
+
+
+PARTPILOT:CHAT24_DIAGNOSTIC_BOUNDARY_MEMORY:V710
+Chat 24 boundary - Patch 710
+- Chat 24 range 686-710 is closed with a diagnostic-only boundary.
+- Browser-approved/checkpointed live sync: Inventory/History (699),
+  Projects/Reservations (702), Dashboard (704), Settings/account/preferences
+  and manual-backup status (706).
+- API-key/MCP integration live sync remains pending after consumed 707-709.
+- 707 found stale manageable OAuth smoke fields; 708 incorrectly required
+  terminal-only failure prose from a durable log; 709 then exposed hard-coded
+  historical connected client IDs 9 and 13.
+- Clean app state remains Patch 706; no integration browser-test source carries
+  across the boundary.
+- Chat 25 title: `Chat 25: Integration Live Sync Recovery and Public Alpha
+  Hardening`; range 711-735; first patch 711; boundary 735.
+- Patch 711 must replace live-ID assumptions with test-owned OAuth connected
+  fixtures via register -> consent -> authorization code -> token exchange,
+  exact cleanup and copied-DB logical snapshot restoration.

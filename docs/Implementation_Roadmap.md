@@ -3339,3 +3339,20 @@ Remaining live-sync work:
 After the integration slice, continue Chat 24 with public-alpha OpenAPI/docs
 hardening, whole-inventory Stored Parts metrics + Dashboard Stock alert dialog,
 roles, safeguarded MCP write tools and final alpha regression.
+
+
+<!-- PARTPILOT:CHAT24_TO_CHAT25_DIAGNOSTIC_ROADMAP:V710 -->
+### Patch 710 - Chat 24 diagnostic boundary
+
+- [x] Preserve the clean Patch 706 application checkpoint after 707/708/709
+  recovery failures.
+- [x] Diagnose the manageable-OAuth smoke's stale permission-field contract.
+- [x] Diagnose the durable-log evidence-contract mistake in Patch 708.
+- [x] Diagnose hard-coded connected client IDs 9 and 13 as mutable-live-data
+  coupling.
+- [x] Define fixture-owned connected OAuth recovery for Patch 711.
+- [x] Move remaining integration live-sync/browser proof into Chat 25.
+
+Chat 25 starts at Patch 711. The final integration live-sync slice remains
+unapproved/uncommitted; public-alpha hardening follows only after that slice is
+recovered and browser-approved.

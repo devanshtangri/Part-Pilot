@@ -4027,3 +4027,22 @@ Browser-approved behavior:
 Inventory/History, Projects/Reservations, Dashboard and non-credential Settings
 are now browser-approved live-sync surfaces. REST API key and MCP
 administration/integration state remains the final isolated live-sync slice.
+
+
+<!-- PARTPILOT:CHAT24_DIAGNOSTIC_BOUNDARY:V710 -->
+## Chat 24 diagnostic boundary - Patch 710
+
+Chat 24 closes on a documentation-only diagnostic boundary after the final
+API-key/MCP live-sync slice exposed stale manageable-OAuth smoke assumptions.
+
+Patches 707-709 did not leave application source pending. The authoritative app
+state remains the browser-approved Patch 706 checkpoint.
+
+The exact recovery contract is documented in
+`docs/diagonostic_710_oauth_manageable_fixture_contract.md`. The key issue is a
+hard-coded assumption that OAuth client IDs 9 and 13 are connected; production
+OAuth state is mutable and those identities/statuses are not valid test
+invariants.
+
+Next chat: `Chat 25: Integration Live Sync Recovery and Public Alpha Hardening`,
+patches `711-735`, starting with a fixture-owned connected-OAuth smoke recovery.
