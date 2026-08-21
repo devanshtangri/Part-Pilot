@@ -81,6 +81,8 @@ export function Dashboard() {
   const inventoryLiveRevision = useLiveSyncRevision("inventory");
   const preferencesLiveRevision = useLiveSyncRevision("preferences");
   const lastInventoryLiveRevision = useRef(inventoryLiveRevision);
+  const lowStockLoadedTokenRef = useRef<string | null>(null);
+  const searchLoadedKeyRef = useRef<string | null>(null);
   const [lowStock, setLowStock] = useState<LowStockSummary | null>(null);
   const [lowStockLoading, setLowStockLoading] = useState(true);
   const [lowStockError, setLowStockError] = useState<string | null>(null);
@@ -123,6 +125,7 @@ export function Dashboard() {
 
   useEffect(() => {
     if (!token) {
+      lowStockLoadedTokenRef.current = null;
       setLowStock(null);
       setLowStockError("Your session is unavailable. Sign in again.");
       setLowStockLoading(false);
@@ -130,19 +133,21 @@ export function Dashboard() {
     }
 
     let cancelled = false;
+    const hasCachedLowStock = lowStockLoadedTokenRef.current === token;
 
-    setLowStockLoading(true);
+    setLowStockLoading(!hasCachedLowStock);
     setLowStockError(null);
 
     getLowStockParts(token, { limit: 8 })
       .then((result) => {
         if (!cancelled) {
+          lowStockLoadedTokenRef.current = token;
           setLowStock(result);
         }
       })
       .catch((caught) => {
         if (!cancelled) {
-          setLowStock(null);
+          if (!hasCachedLowStock) setLowStock(null);
           setLowStockError(
             caught instanceof Error
               ? caught.message
@@ -284,6 +289,7 @@ export function Dashboard() {
 
     const normalized = searchInput.trim().replace(/\s+/g, " ");
     if (!normalized) {
+      searchLoadedKeyRef.current = null;
       setSearchTerm("");
       setSearchResults(null);
       setSelectedSearchPart(null);
@@ -293,6 +299,7 @@ export function Dashboard() {
     }
 
     if (!token) {
+      searchLoadedKeyRef.current = null;
       setSearchTerm(normalized);
       setSearchResults(null);
       setSelectedSearchPart(null);
@@ -301,9 +308,11 @@ export function Dashboard() {
       return;
     }
 
+    const loadKey = `${token}:${normalized}`;
+    const hasCachedSearch = searchLoadedKeyRef.current === loadKey;
     setSearchTerm(normalized);
     setSearchError(null);
-    setSearchLoading(true);
+    setSearchLoading(!hasCachedSearch);
 
     const timeoutId = window.setTimeout(() => {
       getParts(token, {
@@ -315,6 +324,7 @@ export function Dashboard() {
           if (requestSequence !== searchRequestSequenceRef.current) {
             return;
           }
+          searchLoadedKeyRef.current = loadKey;
           setSearchResults(result);
           setSelectedSearchPart((current) =>
             result.parts.find((part) => part.id === current?.id)
@@ -327,8 +337,10 @@ export function Dashboard() {
           if (requestSequence !== searchRequestSequenceRef.current) {
             return;
           }
-          setSearchResults(null);
-          setSelectedSearchPart(null);
+          if (!hasCachedSearch) {
+            setSearchResults(null);
+            setSelectedSearchPart(null);
+          }
           setSearchError(
             caught instanceof Error
               ? caught.message
@@ -351,6 +363,7 @@ export function Dashboard() {
     <section
       className="page-stack dashboard-page"
       data-partpilot-live-sync="PARTPILOT:DASHBOARD_INVENTORY_LIVE_SYNC:V703"
+      data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
     >
       <div className="page-header">
         <p className="eyebrow">Inventory overview</p>

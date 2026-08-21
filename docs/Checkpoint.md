@@ -4107,3 +4107,31 @@ other live-sync consumers including Projects, Reservations, History, Dashboard,
 Settings preferences/account/backups, API keys and selected inventory details.
 The next hardening slice standardizes cache-aware background refresh there before
 continuing broader public-alpha feature work.
+
+
+<!-- PARTPILOT:STABLE_BACKGROUND_REFRESH_CHECKPOINT:V719 -->
+## Stable live background refresh browser-approved - Patch 719
+
+Patch 719 checkpoints the browser-approved refresh-stability sweep from Patch
+718 across Projects, Reservations, History, Dashboard, Settings/account/data,
+REST API keys and selected Stored Parts details/history.
+
+Browser-approved behavior:
+- first loads and real data-identity changes may still use blocking loading UI;
+- same-token, same-query/page/selection live refreshes keep last-known-good
+  content mounted and replace it in place when the new response arrives;
+- Projects list/detail, Reservations list/detail/activity and History stay
+  visible during matching live refetches;
+- Dashboard low-stock and already-open universal-search results stay visible;
+- Appearance, currency, timezone, inventory display and Reservation-default
+  controls no longer disappear during background preference refreshes;
+- Account profile/sessions, manual-backup status and REST API-key lists stay
+  mounted during their live refreshes;
+- selected Stored Parts detail and recent movement history refresh in place;
+- cached state is scoped to the current auth token and relevant query/selection;
+- transient background failures preserve the last-known-good snapshot while
+  surfacing the error, rather than erasing valid visible data.
+
+The main Stored Parts inventory register already had a cache-aware refresh model
+and was intentionally left unchanged. Current live-sync surfaces now share the
+same initial-load versus background-refresh UX contract.

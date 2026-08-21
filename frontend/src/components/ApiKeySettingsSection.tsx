@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "../auth/AuthContext";
 import { formatWorkspaceDateTime } from "../utils/dateTime";
@@ -108,6 +108,7 @@ export function ApiKeySettingsSection({
 }: ApiKeySettingsSectionProps) {
   const { timezone } = useAuth();
   const [collection, setCollection] = useState<ApiKeyListResponse | null>(null);
+  const loadedTokenRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -128,21 +129,26 @@ export function ApiKeySettingsSection({
 
   useEffect(() => {
     if (!token) {
+      loadedTokenRef.current = null;
       setCollection(null);
       setLoading(false);
       setError("Your session is unavailable. Sign in again.");
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    const hasCachedCollection = loadedTokenRef.current === token;
+    setLoading(!hasCachedCollection);
     setError(null);
     getApiKeys(token)
       .then((result) => {
-        if (!cancelled) setCollection(result);
+        if (!cancelled) {
+          loadedTokenRef.current = token;
+          setCollection(result);
+        }
       })
       .catch((caught) => {
         if (!cancelled) {
-          setCollection(null);
+          if (!hasCachedCollection) setCollection(null);
           setError(
             caught instanceof Error ? caught.message : "Unable to load API keys"
           );
@@ -310,6 +316,7 @@ export function ApiKeySettingsSection({
         className="card settings-section settings-api-section settings-grid-api"
         aria-labelledby="settings-api-title"
         data-partpilot-live-sync="PARTPILOT:API_KEY_INTEGRATION_LIVE_SYNC:V708"
+        data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
         hidden={hidden}
         data-partpilot-rest-api-keys="PARTPILOT:REST_API_KEY_SETTINGS_UI:V618"
       >

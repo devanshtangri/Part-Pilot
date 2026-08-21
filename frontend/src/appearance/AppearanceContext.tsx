@@ -106,6 +106,7 @@ export function AppearanceProvider({
   const [reloadVersion, setReloadVersion] = useState(0);
   const requestIdRef = useRef(0);
   const mutationIdRef = useRef(0);
+  const loadedTokenRef = useRef<string | null>(null);
 
   // PARTPILOT:GLOBAL_APPEARANCE_PREFERENCE_LIVE_SYNC:V705
   useEffect(() => {
@@ -154,13 +155,15 @@ export function AppearanceProvider({
     requestIdRef.current = requestId;
 
     if (!token) {
+      loadedTokenRef.current = null;
       setIsLoading(false);
       setError(null);
       return;
     }
 
     let cancelled = false;
-    setIsLoading(true);
+    const hasCachedAppearance = loadedTokenRef.current === token;
+    setIsLoading(!hasCachedAppearance);
     setError(null);
     setSaved(false);
 
@@ -169,6 +172,7 @@ export function AppearanceProvider({
         if (cancelled || requestIdRef.current !== requestId) {
           return;
         }
+        loadedTokenRef.current = token;
         setLightThemeAvailable(settings.light_theme_available);
         setTheme(settings.theme);
       })

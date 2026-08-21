@@ -568,6 +568,8 @@ export function PartManager({
     useState<number | null>(null);
   const [selectedInventoryPart, setSelectedInventoryPart] =
     useState<Part | null>(null);
+  const partDetailsLoadedKeyRef = useRef<string | null>(null);
+  const partMovementsLoadedKeyRef = useRef<string | null>(null);
   const [partDetailsLoading, setPartDetailsLoading] = useState(false);
   const [partDetailsError, setPartDetailsError] =
     useState<string | null>(null);
@@ -954,17 +956,21 @@ export function PartManager({
   // PARTPILOT:SELECTED_PART_LIVE_REFRESH:V695
   useEffect(() => {
     if (selectedInventoryPartId === null || !token) {
+      partDetailsLoadedKeyRef.current = null;
       return;
     }
 
     let cancelled = false;
-    setPartDetailsLoading(true);
+    const loadKey = `${token}:${selectedInventoryPartId}`;
+    const hasCachedDetail = partDetailsLoadedKeyRef.current === loadKey;
+    setPartDetailsLoading(!hasCachedDetail);
     setPartDetailsError(null);
-    setSelectedInventoryPart(null);
+    if (!hasCachedDetail) setSelectedInventoryPart(null);
 
     getPart(token, selectedInventoryPartId)
       .then((part) => {
         if (!cancelled) {
+          partDetailsLoadedKeyRef.current = loadKey;
           setSelectedInventoryPart(part);
         }
       })
@@ -991,17 +997,22 @@ export function PartManager({
   // PARTPILOT:SELECTED_PART_MOVEMENTS_LIVE_REFRESH:V695
   useEffect(() => {
     if (selectedInventoryPartId === null || !token) {
+      partMovementsLoadedKeyRef.current = null;
       setPartMovements([]);
       setPartMovementsLoading(false);
       return;
     }
 
     let cancelled = false;
-    setPartMovementsLoading(true);
+    const loadKey = `${token}:${selectedInventoryPartId}`;
+    const hasCachedMovements = partMovementsLoadedKeyRef.current === loadKey;
+    setPartMovementsLoading(!hasCachedMovements);
+    if (!hasCachedMovements) setPartMovements([]);
     setPartMovementsError(null);
     getPartMovements(token, selectedInventoryPartId, { limit: 12 })
       .then((result) => {
         if (!cancelled) {
+          partMovementsLoadedKeyRef.current = loadKey;
           setPartMovements(result.movements);
         }
       })
@@ -3311,6 +3322,7 @@ function closeCreator() {
               data-number-format-version={
                 PART_DETAIL_NUMBER_FORMAT_VERSION
               }
+              data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
             >
               {partDetailsLoading
                 || (!selectedInventoryPart && !partDetailsError) ? (

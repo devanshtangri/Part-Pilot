@@ -620,3 +620,13 @@ The no-auth fallback still requires explicit confirmation before enabling, and
 credential/client lifecycle actions remain explicit. Already-loaded MCP state
 stays visible while authenticated live-sync refreshes happen in the background,
 so normal cross-tab updates no longer replace the section with a loading flash.
+
+
+<!-- PARTPILOT:STABLE_BACKGROUND_REFRESH_README:V719 -->
+### Stable live background refresh
+
+Already-loaded live-sync surfaces now stay mounted while matching authenticated
+background refetches run. Blocking loading states are reserved for first loads
+or genuine query/page/selection changes; cross-tab updates replace cached data
+in place. This behavior covers Projects, Reservations, History, Dashboard,
+Settings/account/data, REST API keys and selected Stored Parts details/history.

@@ -3412,3 +3412,26 @@ Immediate hardening work:
 After refresh-stability hardening, continue with OpenAPI/public API docs,
 whole-inventory Stored Parts metrics, Dashboard Stock alert dialog, roles,
 safeguarded MCP write tools and final public-alpha regression.
+
+
+<!-- PARTPILOT:STABLE_BACKGROUND_REFRESH_ROADMAP:V719 -->
+### Patch 719 - Stable live background refresh browser-approved
+
+Completed:
+- [x] Projects list/detail stable same-identity live refresh.
+- [x] Reservations list/detail/activity stable same-identity live refresh.
+- [x] History register/filter-option background refresh without register flash.
+- [x] Dashboard low-stock and open-search background refresh stability.
+- [x] Preferences/account/manual-backup refresh stability.
+- [x] REST API-key list refresh stability.
+- [x] Selected Stored Parts detail/movement refresh stability.
+- [x] Token/query/selection-scoped cache guards and last-known-good error policy.
+- [x] Browser proof across the full refresh-stability sweep.
+
+Next public-alpha work:
+- [ ] Harden OpenAPI/public API documentation.
+- [ ] Add whole-inventory Stored Parts metrics.
+- [ ] Add the Dashboard Stock alert dialog.
+- [ ] Add roles/authorization foundations.
+- [ ] Add safeguarded MCP write tools.
+- [ ] Run final public-alpha regression/hardening.

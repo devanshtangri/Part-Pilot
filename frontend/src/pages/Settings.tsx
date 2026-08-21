@@ -377,6 +377,12 @@ export function Settings() {
   const reservationAutosaveTimerRef = useRef<number | null>(null);
   const reservationSaveRequestRef = useRef(0);
   const reservationEditVersionRef = useRef(0);
+  const accountLoadedTokenRef = useRef<string | null>(null);
+  const searchSettingsLoadedTokenRef = useRef<string | null>(null);
+  const currencySettingsLoadedTokenRef = useRef<string | null>(null);
+  const timezoneSettingsLoadedTokenRef = useRef<string | null>(null);
+  const reservationSettingsLoadedTokenRef = useRef<string | null>(null);
+  const backupStatusLoadedTokenRef = useRef<string | null>(null);
 
   const [mcpSettings, setMcpSettings] =
     useState<McpSettings | null>(null);
@@ -707,6 +713,7 @@ export function Settings() {
 
   useEffect(() => {
     if (!token) {
+      accountLoadedTokenRef.current = null;
       setAccountProfile(null);
       setAccountDraft(null);
       setAccountSessions([]);
@@ -718,14 +725,21 @@ export function Settings() {
     }
 
     let cancelled = false;
-    setAccountLoading(true);
-    setSessionsLoading(true);
+    const hasCachedAccount = accountLoadedTokenRef.current === token;
+    if (!hasCachedAccount) {
+      setAccountProfile(null);
+      setAccountDraft(null);
+      setAccountSessions([]);
+    }
+    setAccountLoading(!hasCachedAccount);
+    setSessionsLoading(!hasCachedAccount);
     setAccountError(null);
     setSessionsError(null);
 
     Promise.all([getProfile(token), getSessions(token)])
       .then(([profile, sessions]) => {
         if (cancelled) return;
+        accountLoadedTokenRef.current = token;
         setAccountProfile(profile);
         if (!preserveAccountDraftOnLiveReloadRef.current) {
           setAccountDraft({
@@ -761,6 +775,7 @@ export function Settings() {
 
   useEffect(() => {
     if (!token) {
+      searchSettingsLoadedTokenRef.current = null;
       setSearchSettings(null);
       setSearchSettingsLoading(false);
       setSearchSettingsError(
@@ -770,18 +785,20 @@ export function Settings() {
     }
 
     let cancelled = false;
-    setSearchSettingsLoading(true);
+    const hasCachedSearchSettings = searchSettingsLoadedTokenRef.current === token;
+    setSearchSettingsLoading(!hasCachedSearchSettings);
     setSearchSettingsError(null);
 
     getSearchSettings(token)
       .then((result) => {
         if (!cancelled) {
+          searchSettingsLoadedTokenRef.current = token;
           setSearchSettings(result);
         }
       })
       .catch((caught) => {
         if (!cancelled) {
-          setSearchSettings(null);
+          if (!hasCachedSearchSettings) setSearchSettings(null);
           setSearchSettingsError(
             caught instanceof Error
               ? caught.message
@@ -803,6 +820,7 @@ export function Settings() {
   // PARTPILOT:CURRENCY_PREFERENCE_UI:V675
   useEffect(() => {
     if (!token) {
+      currencySettingsLoadedTokenRef.current = null;
       setCurrencySettings(null);
       setCurrencySettingsLoading(false);
       setCurrencySettingsError("Your session is unavailable. Sign in again.");
@@ -810,20 +828,22 @@ export function Settings() {
     }
 
     let cancelled = false;
-    setCurrencySettingsLoading(true);
+    const hasCachedCurrency = currencySettingsLoadedTokenRef.current === token;
+    setCurrencySettingsLoading(!hasCachedCurrency);
     setCurrencySettingsError(null);
     setCurrencySettingsSaved(false);
 
     getCurrencySettings(token)
       .then((result) => {
         if (!cancelled) {
+          currencySettingsLoadedTokenRef.current = token;
           setCurrencySettings(result);
           syncDefaultCurrency(result.currency);
         }
       })
       .catch((caught) => {
         if (!cancelled) {
-          setCurrencySettings(null);
+          if (!hasCachedCurrency) setCurrencySettings(null);
           setCurrencySettingsError(
             caught instanceof Error ? caught.message : "Unable to load currency preference"
           );
@@ -839,6 +859,7 @@ export function Settings() {
   // PARTPILOT:TIMEZONE_PREFERENCE_UI:V676
   useEffect(() => {
     if (!token) {
+      timezoneSettingsLoadedTokenRef.current = null;
       setTimezoneSettings(null);
       setTimezoneSettingsLoading(false);
       setTimezoneSettingsError("Your session is unavailable. Sign in again.");
@@ -846,20 +867,22 @@ export function Settings() {
     }
 
     let cancelled = false;
-    setTimezoneSettingsLoading(true);
+    const hasCachedTimezone = timezoneSettingsLoadedTokenRef.current === token;
+    setTimezoneSettingsLoading(!hasCachedTimezone);
     setTimezoneSettingsError(null);
     setTimezoneSettingsSaved(false);
 
     getTimezoneSettings(token)
       .then((result) => {
         if (!cancelled) {
+          timezoneSettingsLoadedTokenRef.current = token;
           setTimezoneSettings(result);
           syncTimezone(result.timezone);
         }
       })
       .catch((caught) => {
         if (!cancelled) {
-          setTimezoneSettings(null);
+          if (!hasCachedTimezone) setTimezoneSettings(null);
           setTimezoneSettingsError(
             caught instanceof Error ? caught.message : "Unable to load timezone preference"
           );
@@ -874,6 +897,7 @@ export function Settings() {
 
   useEffect(() => {
     if (!token) {
+      reservationSettingsLoadedTokenRef.current = null;
       setReservationSettings(null);
       setReservationDraft(null);
       setReservationSettingsLoading(false);
@@ -884,13 +908,16 @@ export function Settings() {
     }
 
     let cancelled = false;
-    setReservationSettingsLoading(true);
+    const hasCachedReservationSettings =
+      reservationSettingsLoadedTokenRef.current === token;
+    setReservationSettingsLoading(!hasCachedReservationSettings);
     setReservationSettingsError(null);
     setReservationSettingsSaved(false);
 
     getReservationSettings(token)
       .then((result) => {
         if (!cancelled) {
+          reservationSettingsLoadedTokenRef.current = token;
           setReservationSettings(result);
           if (!preserveReservationDraftOnLiveReloadRef.current) {
             setReservationDraft(result);
@@ -901,8 +928,10 @@ export function Settings() {
       .catch((caught) => {
         if (!cancelled) {
           preserveReservationDraftOnLiveReloadRef.current = false;
-          setReservationSettings(null);
-          setReservationDraft(null);
+          if (!hasCachedReservationSettings) {
+            setReservationSettings(null);
+            setReservationDraft(null);
+          }
           setReservationSettingsError(
             caught instanceof Error
               ? caught.message
@@ -1059,6 +1088,7 @@ export function Settings() {
   // PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454
   useEffect(() => {
     if (!token) {
+      backupStatusLoadedTokenRef.current = null;
       setBackupStatus(null);
       setBackupStatusLoading(false);
       setBackupStatusError(
@@ -1068,18 +1098,20 @@ export function Settings() {
     }
 
     let cancelled = false;
-    setBackupStatusLoading(true);
+    const hasCachedBackupStatus = backupStatusLoadedTokenRef.current === token;
+    setBackupStatusLoading(!hasCachedBackupStatus);
     setBackupStatusError(null);
 
     getManualBackupStatus(token)
       .then((result) => {
         if (!cancelled) {
+          backupStatusLoadedTokenRef.current = token;
           setBackupStatus(result);
         }
       })
       .catch((caught) => {
         if (!cancelled) {
-          setBackupStatus(null);
+          if (!hasCachedBackupStatus) setBackupStatus(null);
           setBackupStatusError(
             caught instanceof Error
               ? caught.message
@@ -2271,6 +2303,7 @@ export function Settings() {
 
       <section
         id="settings-account"
+        data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
         className="card settings-section settings-account-section"
         aria-labelledby="settings-account-title"
         hidden={activeSettingsSection !== "account"}
@@ -2732,6 +2765,7 @@ export function Settings() {
 
       <section
         id="settings-preferences"
+        data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
         className="card settings-section settings-preferences-section"
         aria-labelledby="settings-preferences-title"
         hidden={activeSettingsSection !== "preferences"}
@@ -3221,6 +3255,7 @@ export function Settings() {
 
         <section
           id="settings-data"
+          data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
           className="card settings-section settings-data-section settings-grid-data"
           aria-labelledby="settings-data-title"
           hidden={activeSettingsSection !== "data"}

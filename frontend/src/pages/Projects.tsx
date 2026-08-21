@@ -250,6 +250,8 @@ export function Projects() {
   const listRequestId = useRef(0);
   const detailRequestId = useRef(0);
   const partSearchRequestId = useRef(0);
+  const listLoadedKeyRef = useRef<string | null>(null);
+  const detailLoadedKeyRef = useRef<string | null>(null);
 
   const [collection, setCollection] = useState<ProjectCollection>(() =>
     emptyCollection()
@@ -307,6 +309,7 @@ const [lifecycleNotice, setLifecycleNotice] =
 
   useEffect(() => {
     if (!token) {
+      listLoadedKeyRef.current = null;
       setCollection(emptyCollection(pageOffset));
       setListLoading(false);
       setListError("Sign in to view Projects.");
@@ -315,7 +318,9 @@ const [lifecycleNotice, setLifecycleNotice] =
 
     const requestId = ++listRequestId.current;
     const controller = new AbortController();
-    setListLoading(true);
+    const loadKey = `${token}:${statusFilter}:${pageOffset}`;
+    const hasCachedList = listLoadedKeyRef.current === loadKey;
+    setListLoading(!hasCachedList);
     setListError("");
 
     getProjects(token, {
@@ -328,6 +333,7 @@ const [lifecycleNotice, setLifecycleNotice] =
         if (requestId !== listRequestId.current) {
           return;
         }
+        listLoadedKeyRef.current = loadKey;
         setCollection(response);
         setSelectedId((current) => {
           if (current !== null && response.projects.some((item) => item.id === current)) {
@@ -343,8 +349,10 @@ const [lifecycleNotice, setLifecycleNotice] =
         if (controller.signal.aborted || requestId !== listRequestId.current) {
           return;
         }
-        setCollection(emptyCollection(pageOffset));
-        setSelectedId(null);
+        if (!hasCachedList) {
+          setCollection(emptyCollection(pageOffset));
+          setSelectedId(null);
+        }
         setListError(messageFrom(error));
       })
       .finally(() => {
@@ -360,6 +368,7 @@ const [lifecycleNotice, setLifecycleNotice] =
 
   useEffect(() => {
     if (!token || selectedId === null) {
+      detailLoadedKeyRef.current = null;
       setSelectedProject(null);
       setDetailLoading(false);
       setDetailError("");
@@ -368,12 +377,16 @@ const [lifecycleNotice, setLifecycleNotice] =
 
     const requestId = ++detailRequestId.current;
     const controller = new AbortController();
-    setDetailLoading(true);
+    const loadKey = `${token}:${selectedId}`;
+    const hasCachedDetail = detailLoadedKeyRef.current === loadKey;
+    setDetailLoading(!hasCachedDetail);
+    if (!hasCachedDetail) setSelectedProject(null);
     setDetailError("");
 
     getProject(token, selectedId, controller.signal)
       .then((project) => {
         if (requestId === detailRequestId.current) {
+          detailLoadedKeyRef.current = loadKey;
           setSelectedProject(project);
         }
       })
@@ -381,7 +394,7 @@ const [lifecycleNotice, setLifecycleNotice] =
         if (controller.signal.aborted || requestId !== detailRequestId.current) {
           return;
         }
-        setSelectedProject(null);
+        if (!hasCachedDetail) setSelectedProject(null);
         setDetailError(messageFrom(error));
       })
       .finally(() => {
@@ -809,6 +822,7 @@ async function submitProjectLifecycle() {
       className="projects-page page-stack"
       data-partpilot-marker="PARTPILOT:PROJECTS_WORKSPACE:V381"
       data-partpilot-live-sync="PARTPILOT:PROJECTS_LIVE_INVALIDATION:V700"
+      data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
       data-partpilot-project-lifecycle="PARTPILOT:PROJECT_TERMINAL_ACTIONS:V398"
       data-partpilot-project-mobile-landing="PARTPILOT:PROJECT_MOBILE_LANDING:V399"
       data-partpilot-compact-summary="PARTPILOT:COMPACT_MOBILE_SUMMARY:V399"

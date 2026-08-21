@@ -348,6 +348,9 @@ const [actionNotice, setActionNotice] = useState("");
   const listRequest = useRef(0);
   const detailRequest = useRef(0);
   const activityRequest = useRef(0);
+  const listLoadedKeyRef = useRef<string | null>(null);
+  const detailLoadedKeyRef = useRef<string | null>(null);
+  const activityLoadedKeyRef = useRef<string | null>(null);
   const expiryInputRef = useRef<HTMLInputElement>(null);
 
   // PARTPILOT:RESERVATIONS_LIVE_INVALIDATION:V700
@@ -364,6 +367,7 @@ const [actionNotice, setActionNotice] = useState("");
 
   useEffect(() => {
     if (!token) {
+      listLoadedKeyRef.current = null;
       setCollection({
         total: 0,
         limit: PAGE_SIZE,
@@ -378,7 +382,9 @@ const [actionNotice, setActionNotice] = useState("");
 
     const controller = new AbortController();
     const requestId = ++listRequest.current;
-    setListLoading(true);
+    const loadKey = `${token}:${statusFilter}:${pageOffset}`;
+    const hasCachedList = listLoadedKeyRef.current === loadKey;
+    setListLoading(!hasCachedList);
     setListError("");
 
     void getReservations(token, {
@@ -391,6 +397,7 @@ const [actionNotice, setActionNotice] = useState("");
         if (requestId !== listRequest.current) {
           return;
         }
+        listLoadedKeyRef.current = loadKey;
         setCollection(nextCollection);
         setSelectedId((current) => {
           if (
@@ -429,6 +436,7 @@ const [actionNotice, setActionNotice] = useState("");
 
   useEffect(() => {
     if (!token || selectedId === null) {
+      detailLoadedKeyRef.current = null;
       setSelectedReservation(null);
       setDetailLoading(false);
       return;
@@ -436,13 +444,17 @@ const [actionNotice, setActionNotice] = useState("");
 
     const controller = new AbortController();
     const requestId = ++detailRequest.current;
-    setDetailLoading(true);
+    const loadKey = `${token}:${selectedId}`;
+    const hasCachedDetail = detailLoadedKeyRef.current === loadKey;
+    setDetailLoading(!hasCachedDetail);
+    if (!hasCachedDetail) setSelectedReservation(null);
     setDetailError("");
     setActionError("");
 
     void getReservation(token, selectedId, controller.signal)
       .then((reservation) => {
         if (requestId === detailRequest.current) {
+          detailLoadedKeyRef.current = loadKey;
           setSelectedReservation(reservation);
         }
       })
@@ -455,7 +467,7 @@ const [actionNotice, setActionNotice] = useState("");
         }
         if (requestId === detailRequest.current) {
           setDetailError(messageFrom(error));
-          setSelectedReservation(null);
+          if (!hasCachedDetail) setSelectedReservation(null);
         }
       })
       .finally(() => {
@@ -469,6 +481,7 @@ const [actionNotice, setActionNotice] = useState("");
 
 useEffect(() => {
     if (!token || selectedId === null) {
+      activityLoadedKeyRef.current = null;
       setActivityCollection({
         reservation_id: 0,
         total: 0,
@@ -483,12 +496,24 @@ useEffect(() => {
 
     const controller = new AbortController();
     const requestId = ++activityRequest.current;
-    setActivityLoading(true);
+    const loadKey = `${token}:${selectedId}`;
+    const hasCachedActivity = activityLoadedKeyRef.current === loadKey;
+    setActivityLoading(!hasCachedActivity);
+    if (!hasCachedActivity) {
+      setActivityCollection({
+        reservation_id: selectedId,
+        total: 0,
+        limit: 100,
+        offset: 0,
+        activities: []
+      });
+    }
     setActivityError("");
 
     void getReservationActivity(token, selectedId, controller.signal)
       .then((nextActivity) => {
         if (requestId === activityRequest.current) {
+          activityLoadedKeyRef.current = loadKey;
           setActivityCollection(nextActivity);
         }
       })
@@ -501,13 +526,15 @@ useEffect(() => {
         }
         if (requestId === activityRequest.current) {
           setActivityError(messageFrom(error));
-          setActivityCollection({
-            reservation_id: selectedId,
-            total: 0,
-            limit: 100,
-            offset: 0,
-            activities: []
-          });
+          if (!hasCachedActivity) {
+            setActivityCollection({
+              reservation_id: selectedId,
+              total: 0,
+              limit: 100,
+              offset: 0,
+              activities: []
+            });
+          }
         }
       })
       .finally(() => {
@@ -1027,6 +1054,7 @@ const runAction = async () => {
       className="page-stack reservations-page"
       data-partpilot-marker="PARTPILOT:RESERVATIONS_WORKSPACE:V322"
       data-partpilot-live-sync="PARTPILOT:RESERVATIONS_LIVE_INVALIDATION:V700"
+      data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
       data-partpilot-mobile-landing="PARTPILOT:MOBILE_RESERVATION_LANDING:V343"
       data-partpilot-reservation-edit="PARTPILOT:RESERVATION_EDIT_FRONTEND:V347"
       data-partpilot-reservation-noop="PARTPILOT:RESERVATION_NOOP_FIX:V348"

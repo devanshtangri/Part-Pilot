@@ -214,3 +214,17 @@ Chat 25 UX hardening milestone - Patch 717
 - Audit found the same loading/refetch flash pattern in Projects, Reservations,
   History, Dashboard, Settings preferences/account/backups, API keys and selected
   inventory detail/history. Stabilize those next before broader alpha features.
+
+
+
+PARTPILOT:STABLE_BACKGROUND_REFRESH_MEMORY:V719
+Chat 25 refresh-stability milestone - Patch 719
+- Browser-approved no-flash background refresh now covers Projects,
+  Reservations, History, Dashboard, Settings preferences/account/backups, REST
+  API keys and selected Stored Parts detail/history.
+- Initial loads/data-identity changes may block; same-token/query/selection live
+  refetches retain last-known-good content and update it in place.
+- Transient background failures keep the visible snapshot and surface errors.
+- Main Stored Parts register already used this cache-aware pattern and was not
+  changed. Next: OpenAPI/docs, metrics + Stock alert dialog, roles, safeguarded
+  MCP writes and final alpha regression.

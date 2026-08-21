@@ -250,6 +250,8 @@ export function History() {
 
   const listRequest = useRef(0);
   const optionsRequest = useRef(0);
+  const listLoadedKeyRef = useRef<string | null>(null);
+  const optionsLoadedTokenRef = useRef<string | null>(null);
 
   // PARTPILOT:HISTORY_LIVE_INVALIDATION:V692
   useEffect(() => {
@@ -326,6 +328,7 @@ export function History() {
 
   useEffect(() => {
     if (!token) {
+      optionsLoadedTokenRef.current = null;
       setFilterOptions(EMPTY_OPTIONS);
       setOptionsLoading(false);
       return;
@@ -333,12 +336,14 @@ export function History() {
 
     const controller = new AbortController();
     const requestId = ++optionsRequest.current;
-    setOptionsLoading(true);
+    const hasCachedOptions = optionsLoadedTokenRef.current === token;
+    setOptionsLoading(!hasCachedOptions);
     setOptionsError("");
 
     void getHistoryFilterOptions(token, controller.signal)
       .then((options) => {
         if (requestId === optionsRequest.current) {
+          optionsLoadedTokenRef.current = token;
           setFilterOptions(options);
         }
       })
@@ -365,6 +370,7 @@ export function History() {
 
   useEffect(() => {
     if (!token) {
+      listLoadedKeyRef.current = null;
       setCollection(EMPTY_COLLECTION);
       setSelectedKey(null);
       setListLoading(false);
@@ -378,7 +384,13 @@ export function History() {
 
     const controller = new AbortController();
     const requestId = ++listRequest.current;
-    setListLoading(true);
+    const loadKey = JSON.stringify([
+      token, kindFilter, entityFilter, eventFilter, actorTypeFilter,
+      actorUserFilter, movementFilter, fromDate, toDate,
+      debouncedQuery, pageOffset
+    ]);
+    const hasCachedList = listLoadedKeyRef.current === loadKey;
+    setListLoading(!hasCachedList);
     setListError("");
 
     void getHistory(token, {
@@ -401,6 +413,7 @@ export function History() {
         if (requestId !== listRequest.current) {
           return;
         }
+        listLoadedKeyRef.current = loadKey;
         setCollection(nextCollection);
         setSelectedKey((current) => {
           if (
@@ -427,11 +440,13 @@ export function History() {
         }
         if (requestId === listRequest.current) {
           setListError(messageFrom(error));
-          setCollection({
-            ...EMPTY_COLLECTION,
-            offset: pageOffset
-          });
-          setSelectedKey(null);
+          if (!hasCachedList) {
+            setCollection({
+              ...EMPTY_COLLECTION,
+              offset: pageOffset
+            });
+            setSelectedKey(null);
+          }
         }
       })
       .finally(() => {
@@ -494,6 +509,7 @@ export function History() {
     <section
       className="page-stack history-page"
       data-partpilot-history="PARTPILOT:SYSTEM_HISTORY_WORKSPACE:V408"
+      data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
       data-partpilot-history-mobile="PARTPILOT:HISTORY_MOBILE_REGISTER_FIRST:V408"
       data-partpilot-history-entity-acronyms="PARTPILOT:HISTORY_ENTITY_ACRONYM_NORMALIZATION:V543"
     >
