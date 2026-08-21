@@ -19,6 +19,7 @@ import type {
 interface ApiKeySettingsSectionProps {
   token: string | null;
   hidden: boolean;
+  liveReloadVersion: number;
 }
 
 type ApiKeyEditorMode = "create" | "edit";
@@ -102,7 +103,8 @@ async function copyText(value: string): Promise<void> {
 
 export function ApiKeySettingsSection({
   token,
-  hidden
+  hidden,
+  liveReloadVersion
 }: ApiKeySettingsSectionProps) {
   const { timezone } = useAuth();
   const [collection, setCollection] = useState<ApiKeyListResponse | null>(null);
@@ -152,7 +154,7 @@ export function ApiKeySettingsSection({
     return () => {
       cancelled = true;
     };
-  }, [reloadVersion, token]);
+  }, [liveReloadVersion, reloadVersion, token]);
 
   const availableScopes = collection?.available_scopes ?? [];
   const readScopes = useMemo(
@@ -307,6 +309,7 @@ export function ApiKeySettingsSection({
         id="settings-api"
         className="card settings-section settings-api-section settings-grid-api"
         aria-labelledby="settings-api-title"
+        data-partpilot-live-sync="PARTPILOT:API_KEY_INTEGRATION_LIVE_SYNC:V708"
         hidden={hidden}
         data-partpilot-rest-api-keys="PARTPILOT:REST_API_KEY_SETTINGS_UI:V618"
       >

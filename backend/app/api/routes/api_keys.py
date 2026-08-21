@@ -26,6 +26,15 @@ from app.services.api_keys import (
     scopes_for_api_key,
     update_api_key,
 )
+from app.services.live_sync import publish_live_invalidation
+
+
+# PARTPILOT:API_KEY_LIVE_SYNC_PUBLICATION:V708
+def _publish_api_key_mutation(key_id: int) -> None:
+    publish_live_invalidation(
+        ("integrations.api_keys", "history"),
+        resource={"type": "api_key", "id": key_id},
+    )
 
 
 # PARTPILOT:REST_API_KEY_ADMIN_ROUTE:V615
@@ -117,6 +126,7 @@ def create_api_key_route(
         )
     except (ApiKeyValidationError, ApiKeyStateError) as exc:
         _raise_service_error(exc)
+    _publish_api_key_mutation(issued.record.id)
     return _secret_response(issued)
 
 
@@ -145,6 +155,7 @@ def update_api_key_route(
         ApiKeyValidationError,
     ) as exc:
         _raise_service_error(exc)
+    _publish_api_key_mutation(record.id)
     return _summary(record)
 
 
@@ -169,6 +180,7 @@ def rotate_api_key_route(
         ApiKeyValidationError,
     ) as exc:
         _raise_service_error(exc)
+    _publish_api_key_mutation(issued.record.id)
     return _secret_response(issued)
 
 
@@ -193,4 +205,5 @@ def revoke_api_key_route(
         ApiKeyValidationError,
     ) as exc:
         _raise_service_error(exc)
+    _publish_api_key_mutation(record.id)
     return _summary(record)

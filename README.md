@@ -599,3 +599,14 @@ Authenticated live sync is browser-approved for Inventory/History,
 Projects/Reservations, Dashboard and non-credential Settings. The remaining
 REST API-key/MCP integration slice moves to Chat 25 after a diagnostic found
 legacy OAuth smoke tests coupled to mutable historical client IDs.
+
+
+<!-- PARTPILOT:INTEGRATION_LIVE_SYNC_README:V714 -->
+### Live API-key and MCP integration updates
+
+REST API-key and MCP administration now participate in Part Pilot's
+authenticated live-update system. Open tabs refresh integration state after
+successful mutations without transporting plaintext credentials, while local
+unfinished MCP drafts and credential dialogs remain protected. Together with
+the earlier inventory, project, reservation, Dashboard and Settings slices,
+this completes the current public-alpha live-sync migration.

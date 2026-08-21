@@ -3356,3 +3356,33 @@ roles, safeguarded MCP write tools and final alpha regression.
 Chat 25 starts at Patch 711. The final integration live-sync slice remains
 unapproved/uncommitted; public-alpha hardening follows only after that slice is
 recovered and browser-approved.
+
+
+<!-- PARTPILOT:INTEGRATION_LIVE_SYNC_ROADMAP:V714 -->
+### Patch 714 - API-key/MCP integration live sync browser-approved
+
+Completed:
+- [x] REST API-key administration live invalidation without secret transport.
+- [x] MCP settings and global/client permission live invalidation.
+- [x] Manual OAuth and named direct-client lifecycle live invalidation.
+- [x] External OAuth lifecycle invalidation with refresh-token History noise
+  suppression.
+- [x] Cross-tab targeted refetch with unfinished MCP draft preservation.
+- [x] Credential reveal/rotation dialog isolation across tabs.
+- [x] Fixture-owned manageable OAuth smoke independent of historical IDs.
+- [x] OAuth HTTP smoke safe against copied production OAuth persistence.
+- [x] Browser approval of the final current-scope live-sync integration slice.
+
+Current-scope authenticated live-sync migration is complete.
+
+Next public-alpha work:
+- [ ] Harden OpenAPI/public API documentation.
+- [ ] Add whole-inventory Stored Parts metrics.
+- [ ] Add the Dashboard Stock alert dialog.
+- [ ] Add roles/authorization foundations.
+- [ ] Add safeguarded MCP write tools.
+- [ ] Run final public-alpha regression/hardening.
+
+MCP configuration currently retains its explicit `Save changes` interaction;
+changing that behavior is a separate UX/semantics task rather than part of this
+approved live-sync checkpoint.

@@ -56,6 +56,17 @@ from app.services.mcp_oauth import (
     validate_redirect_uri,
     validate_resource_uri,
 )
+from app.services.live_sync import publish_live_invalidation
+
+
+# PARTPILOT:MCP_OAUTH_INTEGRATION_LIVE_SYNC:V708
+def _publish_oauth_state(*, include_history: bool = True) -> None:
+    topics = (
+        ("integrations.mcp", "history")
+        if include_history
+        else ("integrations.mcp",)
+    )
+    publish_live_invalidation(topics)
 
 
 # PARTPILOT:MCP_OAUTH_HTTP_ROUTES:V467
@@ -731,6 +742,7 @@ def dynamic_client_registration(
             commit=True,
         )
         client = registered.client
+        _publish_oauth_state()
         issued_at = int(client.created_at.replace(tzinfo=timezone.utc).timestamp())
         content = DynamicClientRegistrationResponse(
             client_id=registered.client_id,
@@ -960,6 +972,7 @@ async def authorize_decision(
             commit=False,
         )
         db.commit()
+        _publish_oauth_state()
     except McpOAuthError as exc:
         db.rollback()
         return _redirect_oauth_error(
@@ -1016,6 +1029,7 @@ async def token_endpoint(
                 resource_uri=resource,
                 commit=True,
             )
+            _publish_oauth_state()
         elif grant_type == "refresh_token":
             scope_value = form.get("scope")
             issued = rotate_refresh_token(
@@ -1027,6 +1041,7 @@ async def token_endpoint(
                 resource_uri=resource,
                 commit=True,
             )
+            _publish_oauth_state(include_history=False)
         else:
             raise McpOAuthValidationError("Unsupported grant_type.")
         content = OAuthTokenResponse(
@@ -1086,6 +1101,7 @@ async def revocation_endpoint(
                 client_secret=client_secret,
                 commit=True,
             )
+            _publish_oauth_state()
         return Response(status_code=200, headers=_no_store_headers())
     except McpOAuthInvalidClientError as exc:
         db.rollback()

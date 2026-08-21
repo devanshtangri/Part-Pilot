@@ -182,3 +182,19 @@ Chat 24 boundary - Patch 710
 - Patch 711 must replace live-ID assumptions with test-owned OAuth connected
   fixtures via register -> consent -> authorization code -> token exchange,
   exact cleanup and copied-DB logical snapshot restoration.
+
+
+PARTPILOT:INTEGRATION_LIVE_SYNC_MEMORY:V714
+Chat 25 live-sync milestone - Patch 714
+- Browser-approved API-key/MCP integration live sync completes the current
+  authenticated live-sync migration.
+- API-key events carry invalidation only; plaintext secrets never cross tabs.
+- MCP settings/permissions/OAuth/direct-client state targeted-refetches across
+  tabs while unfinished MCP drafts and local credential dialogs are preserved.
+- Routine OAuth refresh avoids History noise; consequential lifecycle changes
+  invalidate MCP integration state and History as appropriate.
+- OAuth smokes are fixture-owned and copied-production-data-safe with exact
+  logical restoration.
+- MCP still uses explicit `Save changes`; changing that is a separate UX task.
+- Next: OpenAPI/docs hardening, inventory metrics, Dashboard Stock alerts,
+  roles, safeguarded MCP write tools and final public-alpha regression.

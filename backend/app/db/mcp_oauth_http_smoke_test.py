@@ -305,10 +305,15 @@ def exchange(
     return body
 
 
-def oauth_code_count() -> int:
+def oauth_code_count(client_id: str) -> int:
     db = sqlite3.connect(sqlite_path())
     try:
-        return int(db.execute("SELECT COUNT(*) FROM mcp_oauth_authorization_codes").fetchone()[0])
+        row = db.execute(
+            "SELECT COUNT(*) FROM mcp_oauth_authorization_codes "
+            "WHERE client_id = (SELECT id FROM mcp_oauth_clients WHERE client_id = ?)",
+            (client_id,),
+        ).fetchone()
+        return int(row[0]) if row is not None else 0
     finally:
         db.close()
 
@@ -327,12 +332,15 @@ def cleanup_fixture(
             ).scalar_one_or_none()
             if oauth_client is not None:
                 db.delete(oauth_client)
+        fixture_client_ids = set(client_ids)
         for audit in list(
             db.execute(
                 select(AuditLog).where(AuditLog.event_type.like("mcp.oauth_%"))
             ).scalars()
         ):
-            db.delete(audit)
+            metadata = audit.metadata_json if isinstance(audit.metadata_json, dict) else {}
+            if metadata.get("client_id") in fixture_client_ids:
+                db.delete(audit)
         user = db.execute(
             select(User).where(User.username == fixture_username)
         ).scalar_one_or_none()
@@ -358,20 +366,9 @@ def cleanup_fixture(
 
 def main() -> None:
     before = database_snapshot()
-    if any(before.get(table) for table in (
-        "mcp_oauth_clients",
-        "mcp_oauth_authorization_codes",
-        "mcp_oauth_tokens",
-        "mcp_oauth_consents",
-    )):
-        fail("OAuth HTTP smoke requires empty OAuth persistence tables")
-    if any(
-        row.get("event_type", "").startswith("mcp.oauth_")
-        for row in before.get("audit_log", [])
-    ):
-        fail("OAuth HTTP smoke requires no pre-existing OAuth audit rows")
 
     fixture_username = "ppoauth" + uuid4().hex[:12]
+    fixture_client_name = "Claude Website Patch 713 Smoke " + uuid4().hex[:8]
     fixture_password = "PartPilot-OAuth-Smoke-518!"
     client_ids: list[str] = []
     setting_keys = (
@@ -434,7 +431,7 @@ def main() -> None:
 
             registration_payload = {
                 "redirect_uris": [REDIRECT],
-                "client_name": "Claude Website Patch 518 Smoke",
+                "client_name": fixture_client_name,
                 "client_uri": "https://claude.ai",
                 "grant_types": ["authorization_code", "refresh_token"],
                 "response_types": ["code"],
@@ -575,7 +572,7 @@ def main() -> None:
                 "password": fixture_password,
                 "decision": "approve",
             }
-            before_codes = oauth_code_count()
+            before_codes = oauth_code_count(client_id)
             first_approve = client.post(
                 "/oauth/authorize",
                 data=duplicate_form,
@@ -587,7 +584,7 @@ def main() -> None:
                 state=duplicate_state,
                 label="first authorization approval",
             )
-            if oauth_code_count() != before_codes + 1:
+            if oauth_code_count(client_id) != before_codes + 1:
                 fail("First approval did not create exactly one authorization code")
             deleted_cookie = first_approve.headers.get("set-cookie", "")
             if "partpilot_mcp_oauth_csrf=" not in deleted_cookie or "Max-Age=0" not in deleted_cookie:
@@ -610,7 +607,7 @@ def main() -> None:
             ):
                 if marker not in duplicate.text:
                     fail(f"Expired page is missing guidance {marker!r}")
-            if oauth_code_count() != before_codes + 1:
+            if oauth_code_count(client_id) != before_codes + 1:
                 fail("Duplicate authorization POST created another code")
 
             wrong_resource = client.post(
@@ -767,10 +764,26 @@ def main() -> None:
 
             db = SessionLocal()
             try:
-                token_rows = list(db.execute(select(McpOAuthToken)).scalars())
                 client_row = db.execute(
                     select(McpOAuthClient).where(McpOAuthClient.client_id == client_id)
                 ).scalar_one()
+                token_rows = list(
+                    db.execute(
+                        select(McpOAuthToken).where(
+                            McpOAuthToken.client_id == client_row.id
+                        )
+                    ).scalars()
+                )
+                fixture_audits = [
+                    audit
+                    for audit in db.execute(
+                        select(AuditLog).where(
+                            AuditLog.event_type.like("mcp.oauth_%")
+                        )
+                    ).scalars()
+                    if isinstance(audit.metadata_json, dict)
+                    and audit.metadata_json.get("client_id") == client_id
+                ]
                 persisted = json.dumps(
                     {
                         "client": {
@@ -785,14 +798,7 @@ def main() -> None:
                             }
                             for token in token_rows
                         ],
-                        "audits": [
-                            audit.metadata_json
-                            for audit in db.execute(
-                                select(AuditLog).where(
-                                    AuditLog.event_type.like("mcp.oauth_%")
-                                )
-                            ).scalars()
-                        ],
+                        "audits": [audit.metadata_json for audit in fixture_audits],
                     },
                     sort_keys=True,
                 )
@@ -832,7 +838,7 @@ def main() -> None:
         "login, first approval, duplicate POST expiry, denial, invalid/unavailable/"
         "server-error pages, exact callback state, PKCE/resource validation, token "
         "exchange/replay, refresh rotation/replay, revocation, hashed credentials, "
-        "no-store security headers and exact copied-database cleanup"
+        "no-store security headers, coexistence with pre-existing OAuth state and exact copied-database cleanup"
     )
 
 

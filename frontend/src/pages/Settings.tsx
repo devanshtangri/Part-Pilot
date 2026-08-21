@@ -269,14 +269,21 @@ export function Settings() {
   const preferencesLiveRevision = useLiveSyncRevision("preferences");
   const accountLiveRevision = useLiveSyncRevision("account");
   const backupsLiveRevision = useLiveSyncRevision("backups");
+  const apiKeysLiveRevision = useLiveSyncRevision("integrations.api_keys");
+  const mcpIntegrationLiveRevision = useLiveSyncRevision("integrations.mcp");
   const lastPreferencesLiveRevision = useRef(preferencesLiveRevision);
   const lastAccountLiveRevision = useRef(accountLiveRevision);
   const lastBackupsLiveRevision = useRef(backupsLiveRevision);
+  const lastApiKeysLiveRevision = useRef(apiKeysLiveRevision);
+  const lastMcpIntegrationLiveRevision = useRef(mcpIntegrationLiveRevision);
   const pendingPreferencesLiveReloadRef = useRef(false);
   const pendingAccountLiveReloadRef = useRef(false);
   const pendingBackupsLiveReloadRef = useRef(false);
+  const pendingMcpIntegrationReloadRef = useRef(false);
   const preserveAccountDraftOnLiveReloadRef = useRef(false);
   const preserveReservationDraftOnLiveReloadRef = useRef(false);
+  const preserveMcpDraftOnLiveReloadRef = useRef(false);
+  const preserveMcpToolPermissionsDraftOnLiveReloadRef = useRef(false);
   const location = useLocation();
   const restoreFileInputRef = useRef<HTMLInputElement | null>(null);
   const currencyOptions = useMemo(() => getCurrencyOptions(), []);
@@ -384,6 +391,7 @@ export function Settings() {
   const [mcpSettingsSaved, setMcpSettingsSaved] =
     useState(false);
   const [mcpReloadVersion, setMcpReloadVersion] = useState(0);
+  const [apiKeyLiveReloadVersion, setApiKeyLiveReloadVersion] = useState(0);
   const [mcpUrlCopied, setMcpUrlCopied] = useState(false);
   const [mcpCopyError, setMcpCopyError] =
     useState<string | null>(null);
@@ -527,6 +535,12 @@ export function Settings() {
         mcpToolPermissionsDraft.tools.find((draft) => draft.name === tool.name)?.enabled !== tool.enabled
       )
   );
+  const mcpMutationInProgress =
+    mcpSettingsSaving
+    || mcpToolPermissionsSaving
+    || mcpOAuthRegistering
+    || mcpOAuthRevokingId !== null
+    || mcpOAuthPermissionSaving;
   const mcpNoAuthConfirmationReady =
     mcpNoAuthConfirmation === "ALLOW NO AUTH";
   const mcpServerUrl = `${window.location.origin}/mcp`;
@@ -636,6 +650,36 @@ export function Settings() {
     backupsLiveRevision,
     restoreCommitting,
     restoreRestarting
+  ]);
+
+  // PARTPILOT:API_KEY_MCP_INTEGRATION_LIVE_SYNC:V708
+  useEffect(() => {
+    if (apiKeysLiveRevision === lastApiKeysLiveRevision.current) return;
+    lastApiKeysLiveRevision.current = apiKeysLiveRevision;
+    setApiKeyLiveReloadVersion((value) => value + 1);
+  }, [apiKeysLiveRevision]);
+
+  useEffect(() => {
+    if (mcpIntegrationLiveRevision === lastMcpIntegrationLiveRevision.current) return;
+    lastMcpIntegrationLiveRevision.current = mcpIntegrationLiveRevision;
+    pendingMcpIntegrationReloadRef.current = true;
+  }, [mcpIntegrationLiveRevision]);
+
+  useEffect(() => {
+    if (!pendingMcpIntegrationReloadRef.current || mcpMutationInProgress) return;
+    preserveMcpDraftOnLiveReloadRef.current = mcpSettingsChanged;
+    preserveMcpToolPermissionsDraftOnLiveReloadRef.current =
+      mcpToolPermissionsChanged;
+    pendingMcpIntegrationReloadRef.current = false;
+    setMcpReloadVersion((value) => value + 1);
+    setMcpToolPermissionsReloadVersion((value) => value + 1);
+    setMcpOAuthReloadVersion((value) => value + 1);
+    setMcpPermissionRefreshVersion((value) => value + 1);
+  }, [
+    mcpIntegrationLiveRevision,
+    mcpMutationInProgress,
+    mcpSettingsChanged,
+    mcpToolPermissionsChanged
   ]);
 
   useEffect(() => {
@@ -891,13 +935,15 @@ export function Settings() {
       .then((result) => {
         if (!cancelled) {
           setMcpSettings(result);
-          setMcpDraft(result);
+          if (!preserveMcpDraftOnLiveReloadRef.current) setMcpDraft(result);
+          preserveMcpDraftOnLiveReloadRef.current = false;
         }
       })
       .catch((caught) => {
         if (!cancelled) {
           setMcpSettings(null);
-          setMcpDraft(null);
+          if (!preserveMcpDraftOnLiveReloadRef.current) setMcpDraft(null);
+          preserveMcpDraftOnLiveReloadRef.current = false;
           setMcpSettingsError(
             caught instanceof Error
               ? caught.message
@@ -933,13 +979,19 @@ export function Settings() {
       .then((result) => {
         if (!cancelled) {
           setMcpToolPermissions(result);
-          setMcpToolPermissionsDraft(result);
+          if (!preserveMcpToolPermissionsDraftOnLiveReloadRef.current) {
+            setMcpToolPermissionsDraft(result);
+          }
+          preserveMcpToolPermissionsDraftOnLiveReloadRef.current = false;
         }
       })
       .catch((caught) => {
         if (!cancelled) {
           setMcpToolPermissions(null);
-          setMcpToolPermissionsDraft(null);
+          if (!preserveMcpToolPermissionsDraftOnLiveReloadRef.current) {
+            setMcpToolPermissionsDraft(null);
+          }
+          preserveMcpToolPermissionsDraftOnLiveReloadRef.current = false;
           setMcpToolPermissionsError(
             caught instanceof Error ? caught.message : "Unable to load MCP tool permissions"
           );
@@ -2092,6 +2144,7 @@ export function Settings() {
       data-partpilot-rest-api-keys="PARTPILOT:REST_API_KEY_SETTINGS_UI:V618"
       data-partpilot-preferences-workspace="PARTPILOT:SETTINGS_PREFERENCES_WORKSPACE:V673"
       data-partpilot-live-sync="PARTPILOT:SETTINGS_ACCOUNT_PREFERENCES_LIVE_SYNC:V705"
+      data-partpilot-integrations-live-sync="PARTPILOT:API_KEY_MCP_INTEGRATION_LIVE_SYNC:V708"
       data-partpilot-active-settings-section={activeSettingsSection}
     >
       <header className="page-header settings-page-header">
@@ -2804,6 +2857,7 @@ export function Settings() {
         <ApiKeySettingsSection
           token={token}
           hidden={activeSettingsSection !== "api"}
+          liveReloadVersion={apiKeyLiveReloadVersion}
         />
 
         <section

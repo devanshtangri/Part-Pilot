@@ -4046,3 +4046,36 @@ invariants.
 
 Next chat: `Chat 25: Integration Live Sync Recovery and Public Alpha Hardening`,
 patches `711-735`, starting with a fixture-owned connected-OAuth smoke recovery.
+
+
+<!-- PARTPILOT:INTEGRATION_LIVE_SYNC_CHECKPOINT:V714 -->
+## API-key and MCP integration live sync browser-approved - Patch 714
+
+Patch 714 checkpoints the final browser-approved authenticated live-sync slice.
+
+Browser-approved behavior:
+- REST API-key create/edit/rotate/revoke mutations publish
+  `integrations.api_keys` plus `history` after durable success without exposing
+  plaintext credentials in live payloads;
+- MCP settings, global/client permissions, manual OAuth administration, named
+  direct clients and direct-auth mutations publish `integrations.mcp` with
+  history invalidation where the operation is consequential;
+- external OAuth registration/consent/first token exchange/revocation refreshes
+  MCP integration state, while routine refresh-token rotation avoids History
+  noise;
+- observing tabs targeted-refetch API-key/MCP state while preserving unfinished
+  local MCP drafts and active local credential dialogs;
+- one-time/revealed credentials remain local to the requesting tab and are not
+  transported by live sync;
+- manageable OAuth and OAuth HTTP smokes now use fixture-owned identities and
+  coexist safely with pre-existing copied production OAuth state while proving
+  exact logical database restoration.
+
+The current public-alpha live-sync scope is now browser-approved across
+Inventory/History, Projects/Reservations, Dashboard, Settings/account,
+REST API keys and MCP administration.
+
+The MCP section still uses its existing explicit `Save changes` action. Patch
+714 does not change that save semantic; any autosave/removal decision belongs in
+a separate UX patch so consequential MCP settings are not silently changed as
+part of this checkpoint.

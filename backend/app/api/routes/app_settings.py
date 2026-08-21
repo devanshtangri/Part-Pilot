@@ -114,6 +114,21 @@ def _publish_preference_mutation(user_id: int) -> None:
     )
 
 
+# PARTPILOT:MCP_INTEGRATION_LIVE_SYNC_PUBLICATION:V708
+def _publish_mcp_mutation(user_id: int) -> None:
+    publish_live_invalidation(
+        ("integrations.mcp", "history"),
+        resource={"type": "mcp", "id": user_id},
+    )
+
+
+def _publish_mcp_history(user_id: int) -> None:
+    publish_live_invalidation(
+        ("history",),
+        resource={"type": "mcp", "id": user_id},
+    )
+
+
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
@@ -292,12 +307,14 @@ def patch_mcp_settings(
     db: Session = Depends(get_db),
 ) -> McpSettingsResponse:
     try:
-        return update_mcp_settings(
+        result = update_mcp_settings(
             db,
             payload,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_mcp_mutation(current_user.id)
+        return result
     except McpSettingsValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -355,12 +372,14 @@ def patch_mcp_tool_permissions(
 ) -> McpToolPermissionsResponse:
     _no_store(response)
     try:
-        return update_global_tool_permissions(
+        result = update_global_tool_permissions(
             db,
             payload.permissions,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_mcp_mutation(current_user.id)
+        return result
     except McpToolPermissionConfigurationError as exc:
         raise _mcp_permission_error(exc) from exc
 
@@ -378,7 +397,7 @@ def patch_mcp_oauth_client_permissions(
 ) -> McpClientToolPermissionsResponse:
     _no_store(response)
     try:
-        return update_oauth_client_tool_permissions(
+        result = update_oauth_client_tool_permissions(
             db,
             user_id=current_user.id,
             client_database_id=client_database_id,
@@ -386,6 +405,8 @@ def patch_mcp_oauth_client_permissions(
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_mcp_mutation(current_user.id)
+        return result
     except (
         McpToolPermissionConfigurationError,
         McpToolPermissionTargetNotFoundError,
@@ -406,13 +427,15 @@ def patch_mcp_direct_client_permissions(
 ) -> McpClientToolPermissionsResponse:
     _no_store(response)
     try:
-        return update_direct_client_tool_permissions(
+        result = update_direct_client_tool_permissions(
             db,
             client_id=client_id,
             denied_tools=payload.denied_tools,
             actor_user_id=current_user.id,
             commit=True,
         )
+        _publish_mcp_mutation(current_user.id)
+        return result
     except (
         McpToolPermissionConfigurationError,
         McpToolPermissionTargetNotFoundError,
@@ -441,6 +464,7 @@ def create_mcp_oauth_client(payload: McpOAuthClientRegistrationRequest, response
     except McpOAuthValidationError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,detail=str(exc),headers={"Cache-Control":"no-store","Pragma":"no-cache"}) from exc
     client=registered.client
+    _publish_mcp_mutation(current_user.id)
     return McpOAuthClientRegistrationResponse(database_id=client.id,client_id=registered.client_id,client_name=client.client_name,redirect_uris=list(client.redirect_uris_json or []),client_type=payload.client_type,token_endpoint_auth_method=client.token_endpoint_auth_method,created_at=client.created_at,client_secret=registered.client_secret)
 
 
@@ -480,12 +504,14 @@ def delete_mcp_oauth_client(
 ) -> McpOAuthClientsResponse:
     _no_store(response)
     try:
-        return revoke_connected_oauth_client(
+        result = revoke_connected_oauth_client(
             db,
             user_id=current_user.id,
             client_database_id=client_database_id,
             commit=True,
         )
+        _publish_mcp_mutation(current_user.id)
+        return result
     except McpOAuthConnectedClientNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -607,6 +633,7 @@ def create_mcp_direct_client(
         McpDirectAuthNetworkError,
     ) as exc:
         raise _named_direct_error(exc) from exc
+    _publish_mcp_mutation(current_user.id)
     if hasattr(created, "plaintext_key"):
         record = created.record
         key = created.plaintext_key
@@ -646,6 +673,7 @@ def patch_mcp_direct_client(
         McpDirectAuthNotConfiguredError,
     ) as exc:
         raise _named_direct_error(exc) from exc
+    _publish_mcp_mutation(current_user.id)
     return _named_direct_client_summary(db, record)
 
 
@@ -675,6 +703,7 @@ def rotate_mcp_named_direct_client(
         McpDirectAuthNotConfiguredError,
     ) as exc:
         raise _named_direct_error(exc) from exc
+    _publish_mcp_mutation(current_user.id)
     return McpDirectClientKeyResponse(
         **_named_direct_client_summary(db, issued.record).model_dump(),
         key=issued.plaintext_key,
@@ -700,6 +729,7 @@ def reveal_mcp_named_direct_client(
             commit=True,
         )
         record = get_named_direct_client(db, client_id)
+        _publish_mcp_history(current_user.id)
     except (
         McpDirectAuthConfigurationError,
         McpDirectAuthDecryptionError,
@@ -738,6 +768,7 @@ def put_mcp_named_direct_client_networks(
         McpDirectAuthNotConfiguredError,
     ) as exc:
         raise _named_direct_error(exc) from exc
+    _publish_mcp_mutation(current_user.id)
     return _named_direct_client_summary(db, record)
 
 
@@ -764,6 +795,7 @@ def delete_mcp_named_direct_client(
         McpDirectAuthNotConfiguredError,
     ) as exc:
         raise _named_direct_error(exc) from exc
+    _publish_mcp_mutation(current_user.id)
     return _named_direct_clients_response(db)
 
 
@@ -820,6 +852,7 @@ def rotate_mcp_direct_key(response: Response, current_user=Depends(get_current_u
                 "Pragma": "no-cache",
             },
         ) from exc
+    _publish_mcp_mutation(current_user.id)
     current=_direct_auth_status(db)
     return McpDirectAuthKeyResponse(**current.model_dump(),key=issued.plaintext_key)
 
@@ -861,6 +894,7 @@ def rotate_mcp_custom_header_key(
                 "Pragma": "no-cache",
             },
         ) from exc
+    _publish_mcp_mutation(current_user.id)
     current = _direct_auth_status(db)
     return McpDirectAuthKeyResponse(
         **current.model_dump(),
@@ -898,6 +932,7 @@ def configure_mcp_trusted_networks(
             detail=str(exc),
             headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
         ) from exc
+    _publish_mcp_mutation(current_user.id)
     return _direct_auth_status(db)
 
 @router.post("/mcp/direct-auth/reveal", response_model=McpDirectAuthKeyResponse)
@@ -914,6 +949,7 @@ def reveal_mcp_direct_key(response: Response, current_user=Depends(get_current_u
                 "Pragma": "no-cache",
             },
         ) from exc
+    _publish_mcp_history(current_user.id)
     current=_direct_auth_status(db)
     return McpDirectAuthKeyResponse(**current.model_dump(),key=key)
 
@@ -921,4 +957,5 @@ def reveal_mcp_direct_key(response: Response, current_user=Depends(get_current_u
 def delete_mcp_direct_auth(response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpDirectAuthStatusResponse:
     _no_store(response)
     disable_direct_auth(db,actor_user_id=current_user.id,commit=True)
+    _publish_mcp_mutation(current_user.id)
     return _direct_auth_status(db)
