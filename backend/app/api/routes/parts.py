@@ -22,6 +22,7 @@ from app.schemas.parts import (
     DeletedPartPurgeRequest,
     DeletedPartPurgeResponse,
     DeletedPartResponse,
+    InventoryMetricsResponse,
     LowStockSummaryResponse,
 )
 from app.services.parts import (
@@ -38,6 +39,7 @@ from app.services.parts import (
     purge_deleted_parts,
     restore_part,
     soft_delete_part,
+    get_inventory_metrics,
     list_low_stock_parts,
 )
 from app.services.live_sync import publish_live_invalidation
@@ -153,6 +155,17 @@ def read_low_stock_parts(
     )
 
 
+# PARTPILOT:WHOLE_INVENTORY_METRICS_ROUTE:V724
+@router.get(
+    "/metrics",
+    response_model=InventoryMetricsResponse,
+)
+def read_inventory_metrics(
+    current_user=Depends(require_inventory_read),
+    db: Session = Depends(get_db),
+) -> InventoryMetricsResponse:
+    del current_user
+    return get_inventory_metrics(db)
 
 
 @router.post(

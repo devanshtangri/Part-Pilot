@@ -3454,3 +3454,24 @@ Next public-alpha work:
 - [ ] Add roles/authorization foundations.
 - [ ] Add safeguarded MCP write tools.
 - [ ] Run final public-alpha regression/hardening.
+
+
+<!-- PARTPILOT:INVENTORY_METRICS_ROADMAP:V728 -->
+### Patch 728 - Stored Parts whole-inventory metrics browser-approved
+
+Completed:
+- [x] Whole-inventory active-part, physical, reserved and available totals.
+- [x] Inventory value with explicit priced-record coverage and display-only
+  workspace currency semantics.
+- [x] Stock-alert aggregate using the existing low/out-of-stock definition.
+- [x] Protected `/api/parts/metrics` with `inventory:read` API-key scope.
+- [x] OpenAPI/API-key scope map expanded from 43 to 44 operations.
+- [x] Live inventory refresh without card flashing.
+- [x] Symmetric container-aware 6 / 3 / 2 / 1 responsive card layout.
+- [x] Browser approval and copied-production regression proof.
+
+Next public-alpha work:
+- [ ] Add the Dashboard Stock alert dialog.
+- [ ] Add roles/authorization foundations.
+- [ ] Add safeguarded MCP write tools.
+- [ ] Run final public-alpha regression/hardening.

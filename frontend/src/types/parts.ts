@@ -91,6 +91,20 @@ export interface PartCollection {
 }
 
 
+// PARTPILOT:WHOLE_INVENTORY_METRICS_TYPES:V724
+export interface InventoryMetrics {
+  active_part_count: number;
+  physical_quantity: number;
+  reserved_quantity: number;
+  available_quantity: number;
+  priced_part_count: number;
+  inventory_value: string;
+  stock_alert_count: number;
+  low_stock_count: number;
+  out_of_stock_count: number;
+}
+
+
 // PATCH 186: dashboard low-stock summary contract
 export interface LowStockSummary {
   total: number;

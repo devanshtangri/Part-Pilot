@@ -3761,3 +3761,81 @@
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
+
+
+/* PARTPILOT:WHOLE_INVENTORY_METRICS_CSS:V724 */
+/* PARTPILOT:WHOLE_INVENTORY_METRICS_RESPONSIVE:V726 */
+/* PARTPILOT:WHOLE_INVENTORY_METRICS_SYMMETRIC:V727 */
+.part-manager-page.inventory-page {
+  container-name: stored-parts-page !important;
+  container-type: inline-size !important;
+}
+
+.part-manager-page .inventory-metrics {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  gap: 9px !important;
+  width: 100% !important;
+  align-items: stretch !important;
+}
+
+.part-manager-page .inventory-metrics .card {
+  display: grid !important;
+  min-width: 0 !important;
+  min-height: 78px !important;
+  align-content: center !important;
+  gap: 3px !important;
+  padding: 10px 12px !important;
+}
+
+.part-manager-page .inventory-metrics .card > span,
+.part-manager-page .inventory-metrics .card > small {
+  overflow: hidden !important;
+  color: var(--muted) !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .inventory-metrics .card > span {
+  font-size: 0.73rem !important;
+}
+
+.part-manager-page .inventory-metrics .card > strong {
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  font-size: clamp(1.05rem, 1.6vw, 1.25rem) !important;
+  line-height: 1.15 !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.part-manager-page .inventory-metrics .card > small {
+  font-size: 0.64rem !important;
+}
+
+.part-manager-page .inventory-metrics-error {
+  grid-column: 1 / -1 !important;
+  margin-top: -1px !important;
+  color: var(--muted) !important;
+  font-size: 0.7rem !important;
+}
+
+@container stored-parts-page (max-width: 900px) {
+  .part-manager-page .inventory-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@container stored-parts-page (max-width: 620px) {
+  .part-manager-page .inventory-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@container stored-parts-page (max-width: 430px) {
+  .part-manager-page .inventory-metrics {
+    grid-template-columns: 1fr !important;
+  }
+}
+/* END PARTPILOT:WHOLE_INVENTORY_METRICS_CSS:V724 */

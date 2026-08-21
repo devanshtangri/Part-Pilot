@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal
 
 from urllib.parse import urlparse
 
@@ -49,6 +50,7 @@ from app.schemas.parts import (
     DeletedPartPurgeRequest,
     DeletedPartPurgeResponse,
     DeletedPartResponse,
+    InventoryMetricsResponse,
     LowStockSummaryResponse,
 )
 
@@ -929,6 +931,55 @@ def list_parts(
         limit=limit,
         offset=offset,
         parts=[_serialize_part(db, part) for part in parts],
+    )
+
+
+# PARTPILOT:WHOLE_INVENTORY_METRICS_SERVICE:V724
+def get_inventory_metrics(db: Session) -> InventoryMetricsResponse:
+    conditions = (Part.is_deleted.is_(False),)
+    row = db.execute(
+        select(
+            func.count(Part.id),
+            func.coalesce(func.sum(Part.total_quantity), 0),
+            func.coalesce(func.sum(Part.reserved_quantity), 0),
+            func.count(Part.id).filter(Part.unit_price.is_not(None)),
+        ).where(*conditions)
+    ).one()
+
+    active_part_count = int(row[0])
+    physical_quantity = int(row[1])
+    reserved_quantity = int(row[2])
+    priced_part_count = int(row[3])
+    inventory_value = sum(
+        (
+            Decimal(total_quantity) * unit_price
+            for total_quantity, unit_price in db.execute(
+                select(Part.total_quantity, Part.unit_price).where(
+                    *conditions,
+                    Part.unit_price.is_not(None),
+                )
+            ).all()
+            if unit_price is not None
+        ),
+        Decimal("0"),
+    )
+
+    # PARTPILOT:WHOLE_INVENTORY_STOCK_ALERT_METRIC:V727
+    # Reuse the dashboard/low-stock service so Stored Parts summary semantics
+    # cannot drift from the existing alert definition. limit=0 avoids serializing
+    # any part rows while retaining the aggregate total/low/out counts.
+    alerts = list_low_stock_parts(db, limit=0)
+
+    return InventoryMetricsResponse(
+        active_part_count=active_part_count,
+        physical_quantity=physical_quantity,
+        reserved_quantity=reserved_quantity,
+        available_quantity=physical_quantity - reserved_quantity,
+        priced_part_count=priced_part_count,
+        inventory_value=inventory_value,
+        stock_alert_count=alerts.total,
+        low_stock_count=alerts.low_stock_count,
+        out_of_stock_count=alerts.out_of_stock_count,
     )
 
 

@@ -240,3 +240,18 @@ Chat 25 public-alpha hardening milestone - Patch 723
   validation/commit/bootstrap/rollback tests pass.
 - Next: Stored Parts metrics, Dashboard Stock alert dialog, roles, safeguarded MCP
   write tools and final alpha regression.
+
+
+
+PARTPILOT:INVENTORY_METRICS_MEMORY:V728
+Chat 25 public-alpha hardening milestone - Patch 728
+- Browser-approved Stored Parts summary has six whole-inventory cards: active
+  records, physical/reserved/available units, Stock alerts and Inventory value.
+- Metrics ignore current filters/pages and deleted parts; value reports pricing
+  coverage and uses workspace currency for display only.
+- Stock alerts reuse the existing low/out semantics; the responsive grid is
+  container-aware 6/3/2/1 and live refresh keeps cached cards mounted.
+- `GET /api/parts/metrics` is protected by session or `inventory:read`; the
+  explicit API-key/OpenAPI scope map now contains 44 operations.
+- Next: Dashboard Stock alert dialog, roles, safeguarded MCP writes and final
+  public-alpha regression.

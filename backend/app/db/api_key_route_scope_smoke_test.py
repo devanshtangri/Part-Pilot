@@ -17,6 +17,7 @@ from app.services.auth import create_session
 EXPECTED_SCOPES = {
     ("GET", "/api/parts"): "inventory:read",
     ("GET", "/api/parts/low-stock"): "inventory:read",
+    ("GET", "/api/parts/metrics"): "inventory:read",
     ("POST", "/api/parts"): "inventory:write",
     ("GET", "/api/parts/deleted"): "inventory:read",
     ("POST", "/api/parts/deleted/purge"): "inventory:write",
@@ -328,7 +329,7 @@ def main() -> None:
             db.execute(delete(UserSession).where(UserSession.id > session_floor))
             db.commit()
 
-    print("[PASS] REST API keys authenticate only explicitly scoped application routes, enforce all 43 registered method/path scopes, expose exact Bearer/scope/access OpenAPI metadata and Swagger UI, preserve session fallback, reject insufficient/invalid/revoked keys, track successful last use, and remain excluded from Auth/Settings/Backup/Restore/live-sync administration")
+    print("[PASS] REST API keys authenticate only explicitly scoped application routes, enforce all 44 registered method/path scopes, expose exact Bearer/scope/access OpenAPI metadata and Swagger UI, preserve session fallback, reject insufficient/invalid/revoked keys, track successful last use, and remain excluded from Auth/Settings/Backup/Restore/live-sync administration")
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import type {
   Part,
   PartCollection,
   PartStockStatus,
+  InventoryMetrics,
   LowStockSummary,
   PartMovementCollection,
   QuantityAdjustmentPayload,
@@ -176,6 +177,14 @@ export function getParts(
     `/parts${query ? `?${query}` : ""}`,
     token
   );
+}
+
+
+// PARTPILOT:WHOLE_INVENTORY_METRICS_CLIENT:V724
+export function getInventoryMetrics(
+  token: string
+): Promise<InventoryMetrics> {
+  return requestJson<InventoryMetrics>("/parts/metrics", token);
 }
 
 

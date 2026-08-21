@@ -639,3 +639,15 @@ Swagger and ReDoc now describe Part Pilot's Bearer authentication model, exact
 REST API-key scopes, session-only administration and MCP OAuth protocol boundary.
 The same hardening sweep aligned restore schemas to Alembic 0016 and made restore
 logical hashing safe for SQLite BLOB data such as custom avatars.
+
+
+<!-- PARTPILOT:INVENTORY_METRICS_README:V728 -->
+### Whole-inventory Stored Parts metrics
+
+Stored Parts now presents six live whole-inventory metrics for active records,
+physical/reserved/available units, Stock alerts and inventory value. The cards
+are independent of the current table filters/page, exclude deleted parts, keep
+pricing coverage visible, and use workspace currency for display only. Their
+responsive grid follows the available Stored Parts width symmetrically, while
+`GET /api/parts/metrics` is available to authenticated sessions and
+`inventory:read` REST API keys.

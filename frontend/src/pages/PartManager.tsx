@@ -35,6 +35,7 @@ import {
 // PATCH 110: basic inventory browsing collection
 import {
   adjustPartQuantity,
+  getInventoryMetrics,
   getPart,
   getPartMovements,
   getParts
@@ -45,6 +46,7 @@ import type { LocationOption } from "../types/locations";
 import type {
   Part,
   PartCollection,
+  InventoryMetrics,
   PartStockStatus,
   QuantityAdjustmentOperation,
   StockMovement,
@@ -469,6 +471,13 @@ export function PartManager({
     useState<string | null>(null);
   const [inventoryRefreshSequence, setInventoryRefreshSequence] =
     useState(0);
+  // PARTPILOT:WHOLE_INVENTORY_METRICS_STATE:V724
+  const [inventoryMetrics, setInventoryMetrics] =
+    useState<InventoryMetrics | null>(null);
+  const [inventoryMetricsLoading, setInventoryMetricsLoading] = useState(true);
+  const [inventoryMetricsError, setInventoryMetricsError] =
+    useState<string | null>(null);
+  const inventoryMetricsLoadedTokenRef = useRef<string | null>(null);
   // PATCH 232: PARTPILOT_STORED_PARTS_SERVER_SEARCH_V233
   const [inventoryQuery, setInventoryQuery] = useState("");
   const [inventoryServerSearch, setInventoryServerSearch] =
@@ -797,6 +806,58 @@ export function PartManager({
       inventoryPageSize
     );
   }, [inventoryPageSize]);
+
+  // PARTPILOT:WHOLE_INVENTORY_METRICS_LIVE_REFRESH:V724
+  useEffect(() => {
+    if (!inventoryOnly) {
+      inventoryMetricsLoadedTokenRef.current = null;
+      setInventoryMetrics(null);
+      setInventoryMetricsLoading(false);
+      setInventoryMetricsError(null);
+      return;
+    }
+
+    if (!token) {
+      inventoryMetricsLoadedTokenRef.current = null;
+      setInventoryMetrics(null);
+      setInventoryMetricsLoading(false);
+      setInventoryMetricsError(
+        "Inventory metrics are unavailable without an active session."
+      );
+      return;
+    }
+
+    let cancelled = false;
+    const hasCachedMetrics =
+      inventoryMetricsLoadedTokenRef.current === token;
+    setInventoryMetricsLoading(!hasCachedMetrics);
+    setInventoryMetricsError(null);
+
+    getInventoryMetrics(token)
+      .then((result) => {
+        if (!cancelled) {
+          inventoryMetricsLoadedTokenRef.current = token;
+          setInventoryMetrics(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          if (!hasCachedMetrics) setInventoryMetrics(null);
+          setInventoryMetricsError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load inventory metrics"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setInventoryMetricsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inventoryOnly, token, inventoryRefreshSequence]);
 
   // PATCH 233: debounce Stored Parts server search
   useEffect(() => {
@@ -2056,6 +2117,91 @@ function closeCreator() {
                 </div>
               </header>
       )}
+
+      {inventoryOnly ? (
+        <section
+          className="inventory-metrics"
+          aria-label="Whole inventory summary"
+          aria-busy={inventoryMetricsLoading}
+          data-inventory-metrics-version="PARTPILOT:WHOLE_INVENTORY_METRICS:V724"
+          data-inventory-stock-alert-version="PARTPILOT:WHOLE_INVENTORY_STOCK_ALERT:V727"
+        >
+          <article className="card">
+            <span>Stored parts</span>
+            <strong>
+              {inventoryMetrics
+                ? inventoryMetrics.active_part_count.toLocaleString()
+                : "—"}
+            </strong>
+            <small>Active records</small>
+          </article>
+          <article className="card">
+            <span>Physical units</span>
+            <strong>
+              {inventoryMetrics
+                ? inventoryMetrics.physical_quantity.toLocaleString()
+                : "—"}
+            </strong>
+            <small>On hand</small>
+          </article>
+          <article className="card">
+            <span>Reserved units</span>
+            <strong>
+              {inventoryMetrics
+                ? inventoryMetrics.reserved_quantity.toLocaleString()
+                : "—"}
+            </strong>
+            <small>Committed</small>
+          </article>
+          <article className="card">
+            <span>Available units</span>
+            <strong>
+              {inventoryMetrics
+                ? inventoryMetrics.available_quantity.toLocaleString()
+                : "—"}
+            </strong>
+            <small>Free to use</small>
+          </article>
+          <article className="card">
+            <span>Stock alerts</span>
+            <strong>
+              {inventoryMetrics
+                ? inventoryMetrics.stock_alert_count.toLocaleString()
+                : "—"}
+            </strong>
+            <small>
+              {inventoryMetrics
+                ? `${inventoryMetrics.low_stock_count.toLocaleString()} low · ${
+                    inventoryMetrics.out_of_stock_count.toLocaleString()
+                  } out`
+                : "Low and out of stock"}
+            </small>
+          </article>
+          <article className="card inventory-value-metric">
+            <span>Inventory value</span>
+            <strong>
+              {inventoryMetrics
+                ? formatInventoryMoney(
+                    inventoryMetrics.inventory_value,
+                    defaultCurrency
+                  )
+                : "—"}
+            </strong>
+            <small>
+              {inventoryMetrics
+                ? `${inventoryMetrics.priced_part_count.toLocaleString()} of ${
+                    inventoryMetrics.active_part_count.toLocaleString()
+                  } priced`
+                : "Priced physical stock"}
+            </small>
+          </article>
+          {inventoryMetricsError ? (
+            <div className="inventory-metrics-error" role="status">
+              {inventoryMetricsError}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {!inventoryOnly && collection ? (
         <section className="part-manager-stats" aria-label="Part type totals">

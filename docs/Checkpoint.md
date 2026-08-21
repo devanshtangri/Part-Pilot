@@ -4157,3 +4157,28 @@ Restore safety recovered during the same validation sweep:
   including binary avatar data, and detects changed blobs;
 - copied-production restore validation, commit, bootstrap/rollback, backup,
   OpenAPI/API-key, live-sync, OAuth and complete smokes pass.
+
+
+<!-- PARTPILOT:INVENTORY_METRICS_CHECKPOINT:V728 -->
+## Stored Parts whole-inventory metrics browser-approved - Patch 728
+
+Patch 728 checkpoints the browser-approved Stored Parts metrics batch from
+Patches 724, 726 and 727. Patch 725 was consumed by a production-asset marker
+proof that incorrectly expected a stripped CSS source comment.
+
+Browser-approved behavior:
+- Stored Parts shows six whole-inventory cards: Stored parts, Physical units,
+  Reserved units, Available units, Stock alerts and Inventory value;
+- totals are computed server-side from active inventory and are independent of
+  the current search, filters, pagination or visible rows;
+- deleted/recycle-bin parts are excluded;
+- Inventory value sums priced physical stock and reports pricing coverage; the
+  workspace currency is display formatting only and no FX conversion occurs;
+- Stock alerts reuse the existing low/out-of-stock service semantics and show
+  both low-stock and out-of-stock counts;
+- the six-card grid follows Stored Parts container width as 6 -> 3 -> 2 -> 1
+  columns, avoiding asymmetric 5+1 or 4+2 rows;
+- metrics subscribe to the existing `inventory` live topic and retain cached
+  values during same-session background refreshes;
+- protected `GET /api/parts/metrics` accepts sessions or `inventory:read` REST
+  API keys, bringing the explicit scoped OpenAPI surface to 44 operations.

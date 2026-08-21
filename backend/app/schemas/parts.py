@@ -223,6 +223,19 @@ class PartCollectionResponse(BaseModel):
     parts: list[PartResponse]
 
 
+# PARTPILOT:WHOLE_INVENTORY_METRICS_SCHEMA:V724
+class InventoryMetricsResponse(BaseModel):
+    active_part_count: int = Field(ge=0)
+    physical_quantity: int = Field(ge=0)
+    reserved_quantity: int = Field(ge=0)
+    available_quantity: int = Field(ge=0)
+    priced_part_count: int = Field(ge=0)
+    inventory_value: Decimal = Field(ge=0)
+    stock_alert_count: int = Field(ge=0)
+    low_stock_count: int = Field(ge=0)
+    out_of_stock_count: int = Field(ge=0)
+
+
 # PATCH 182: dashboard-ready low-stock summary schema
 class LowStockSummaryResponse(BaseModel):
     total: int
