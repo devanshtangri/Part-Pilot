@@ -3435,3 +3435,22 @@ Next public-alpha work:
 - [ ] Add roles/authorization foundations.
 - [ ] Add safeguarded MCP write tools.
 - [ ] Run final public-alpha regression/hardening.
+
+
+<!-- PARTPILOT:OPENAPI_RESTORE_ROADMAP:V723 -->
+### Patch 723 - Public OpenAPI and restore recovery browser-approved
+
+Completed:
+- [x] Swagger/ReDoc API metadata and Bearer authorization contract.
+- [x] Exact 43-operation REST API-key scope/access documentation.
+- [x] Session-only/public/OAuth protocol access classification.
+- [x] Restore schemas aligned to Alembic 0016.
+- [x] BLOB-safe deterministic restore logical hashing and regression proof.
+- [x] Browser approval and copied-production restore/API regression proof.
+
+Next public-alpha work:
+- [ ] Add whole-inventory Stored Parts metrics.
+- [ ] Add the Dashboard Stock alert dialog.
+- [ ] Add roles/authorization foundations.
+- [ ] Add safeguarded MCP write tools.
+- [ ] Run final public-alpha regression/hardening.

@@ -280,6 +280,18 @@ def discover_pending_restore_job(
     return pending[0]
 
 
+def _logical_sqlite_value(value: Any) -> Any:
+    if isinstance(value, bytes):
+        return {
+            "__partpilot_sqlite_blob_hex__": value.hex(),
+        }
+    if value is None or isinstance(value, (str, int, float)):
+        return value
+    raise RestoreBootstrapError(
+        "SQLite logical hash encountered an unsupported value type."
+    )
+
+
 def sqlite_logical_sha256(
     database_path: Path,
 ) -> str:
@@ -315,7 +327,10 @@ def sqlite_logical_sha256(
             ):
                 digest.update(
                     canonical_json_bytes(
-                        list(row)
+                        [
+                            _logical_sqlite_value(value)
+                            for value in row
+                        ]
                     )
                 )
     finally:

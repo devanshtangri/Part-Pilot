@@ -29,6 +29,10 @@ from app.services.auth import (
     create_session,
     create_user,
 )
+from app.schemas.restores import (
+    RestoreStageState,
+    RestoreValidationResponse,
+)
 from app.services.backups import (
     BACKUP_FORMAT_VERSION,
     BACKUP_MEDIA_TYPE,
@@ -304,6 +308,24 @@ def build_compression_bomb(
 
 
 def check_restore_validation_api() -> None:
+    response_revision = (
+        RestoreValidationResponse.model_json_schema()
+        ["properties"]["alembic_revision"].get("const")
+    )
+    stage_revision = (
+        RestoreStageState.model_json_schema()
+        ["properties"]["alembic_revision"].get("const")
+    )
+    if (
+        response_revision != EXPECTED_ALEMBIC_REVISION
+        or stage_revision != EXPECTED_ALEMBIC_REVISION
+    ):
+        fail(
+            "Restore schema revision contract drifted: "
+            f"response={response_revision!r}, stage={stage_revision!r}, "
+            f"expected={EXPECTED_ALEMBIC_REVISION!r}"
+        )
+
     database_path = (
         sqlite_path_from_database_url(
             get_settings().database_url
@@ -355,9 +377,23 @@ def check_restore_validation_api() -> None:
         fastapi_app
     )
     try:
-        paths = client.get(
+        openapi_document = client.get(
             "/openapi.json"
-        ).json().get("paths", {})
+        ).json()
+        paths = openapi_document.get("paths", {})
+        restore_schema_revision = (
+            openapi_document.get("components", {})
+            .get("schemas", {})
+            .get("RestoreValidationResponse", {})
+            .get("properties", {})
+            .get("alembic_revision", {})
+            .get("const")
+        )
+        if restore_schema_revision != EXPECTED_ALEMBIC_REVISION:
+            fail(
+                "Restore validation OpenAPI revision contract is stale: "
+                f"{restore_schema_revision!r}"
+            )
         if set(
             paths.get(
                 "/api/restores/validate",

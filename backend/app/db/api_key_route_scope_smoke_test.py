@@ -65,6 +65,19 @@ SESSION_ONLY_PREFIXES = (
     "/api/backups",
     "/api/restores",
 )
+OPENAPI_SECURITY_SCHEME = "PartPilotBearer"
+OPENAPI_SESSION_ONLY_SAMPLES = (
+    ("GET", "/api/settings/api-keys"),
+    ("GET", "/api/backups/status"),
+    ("GET", "/api/auth/me"),
+    ("GET", "/api/live/state"),
+)
+OPENAPI_PUBLIC_SAMPLES = (
+    ("GET", "/health"),
+    ("GET", "/api/health"),
+    ("GET", "/api/auth/setup-status"),
+    ("POST", "/api/auth/login"),
+)
 
 
 def fail(message: str) -> None:
@@ -109,6 +122,96 @@ def route_contract() -> None:
         fail(f"API-key route scope map mismatch: missing={missing}, extra={extra}")
 
 
+def openapi_documentation_contract(client: TestClient) -> None:
+    response = client.get("/openapi.json")
+    if response.status_code != 200:
+        fail(f"OpenAPI document unavailable: {response.status_code}")
+    document = response.json()
+    info = document.get("info", {})
+    if info.get("title") != "Part Pilot" or info.get("version") != "0.1.0":
+        fail(f"OpenAPI info metadata mismatch: {info}")
+    description = info.get("description") or ""
+    for marker in ("REST API keys", "Authorization: Bearer", "MCP"):
+        if marker not in description:
+            fail(f"OpenAPI description is missing {marker!r}")
+
+    scheme = (
+        document.get("components", {})
+        .get("securitySchemes", {})
+        .get(OPENAPI_SECURITY_SCHEME)
+    )
+    if not isinstance(scheme, dict) or scheme.get("type") != "http" or scheme.get("scheme") != "bearer":
+        fail(f"OpenAPI Bearer security scheme mismatch: {scheme}")
+    if "pp_api_key_" not in str(scheme.get("description", "")):
+        fail("OpenAPI Bearer scheme does not explain REST API-key usage")
+
+    scope_catalog = document.get("x-partpilot-api-key-scopes")
+    if not isinstance(scope_catalog, list):
+        fail("OpenAPI API-key scope catalogue is missing")
+    if [item.get("name") for item in scope_catalog] != list(AVAILABLE_API_KEY_SCOPES):
+        fail(f"OpenAPI API-key scope catalogue mismatch: {scope_catalog}")
+    if any(not item.get("description") for item in scope_catalog):
+        fail("OpenAPI API-key scope catalogue contains an undocumented scope")
+
+    tag_names = [tag.get("name") for tag in document.get("tags", [])]
+    required_tags = {
+        "parts", "part-types", "manufacturers", "packages", "locations",
+        "projects", "reservations", "history", "auth", "settings",
+        "health", "live-sync", "backups", "restores", "mcp-oauth",
+    }
+    if not required_tags.issubset(tag_names):
+        fail(f"OpenAPI tag metadata incomplete: {tag_names}")
+
+    paths = document.get("paths", {})
+    for (method, path), required_scope in EXPECTED_SCOPES.items():
+        operation = paths.get(path, {}).get(method.lower())
+        if not isinstance(operation, dict):
+            fail(f"OpenAPI missing API-key operation {method} {path}")
+        if operation.get("security") != [{OPENAPI_SECURITY_SCHEME: []}]:
+            fail(f"OpenAPI security mismatch for {method} {path}: {operation.get('security')}")
+        if operation.get("x-partpilot-access") != "api-key-or-session":
+            fail(f"OpenAPI access class mismatch for {method} {path}")
+        if operation.get("x-partpilot-api-key-scope") != required_scope:
+            fail(f"OpenAPI scope mismatch for {method} {path}")
+        if required_scope not in str(operation.get("description", "")):
+            fail(f"OpenAPI description omits required scope for {method} {path}")
+        responses = operation.get("responses", {})
+        if "401" not in responses or "403" not in responses:
+            fail(f"OpenAPI auth responses incomplete for {method} {path}")
+
+    for method, path in OPENAPI_SESSION_ONLY_SAMPLES:
+        operation = paths.get(path, {}).get(method.lower())
+        if not isinstance(operation, dict):
+            fail(f"OpenAPI missing session-only sample {method} {path}")
+        if operation.get("security") != [{OPENAPI_SECURITY_SCHEME: []}]:
+            fail(f"Session-only OpenAPI security mismatch for {method} {path}")
+        if operation.get("x-partpilot-access") != "session-only":
+            fail(f"Session-only OpenAPI access mismatch for {method} {path}")
+        if "x-partpilot-api-key-scope" in operation:
+            fail(f"Session-only OpenAPI operation exposes API-key scope: {method} {path}")
+        if "REST API keys are not accepted" not in str(operation.get("description", "")):
+            fail(f"Session-only OpenAPI description is ambiguous for {method} {path}")
+
+    for method, path in OPENAPI_PUBLIC_SAMPLES:
+        operation = paths.get(path, {}).get(method.lower())
+        if not isinstance(operation, dict) or operation.get("x-partpilot-access") != "public":
+            fail(f"Public OpenAPI access mismatch for {method} {path}")
+        if operation.get("security"):
+            fail(f"Public OpenAPI route unexpectedly requires Bearer auth: {method} {path}")
+
+    oauth = paths.get("/oauth/token", {}).get("post")
+    if not isinstance(oauth, dict) or oauth.get("x-partpilot-access") != "oauth-protocol":
+        fail("OAuth token endpoint is not documented as OAuth protocol access")
+    if oauth.get("security"):
+        fail("OAuth token endpoint incorrectly advertises Part Pilot Bearer auth")
+    if "/mcp" in paths:
+        fail("MCP Streamable HTTP endpoint must remain excluded from OpenAPI")
+
+    docs = client.get("/docs")
+    if docs.status_code != 200 or "swagger-ui" not in docs.text.lower():
+        fail(f"Swagger UI unavailable: {docs.status_code}")
+
+
 def main() -> None:
     route_contract()
     with SessionLocal() as db:
@@ -144,6 +247,7 @@ def main() -> None:
 
     try:
         client = TestClient(app)
+        openapi_documentation_contract(client)
         all_headers = {"Authorization": f"Bearer {all_key}"}
         limited_headers = {"Authorization": f"Bearer {limited_key}"}
         session_headers = {"Authorization": f"Bearer {session_token}"}
@@ -224,7 +328,7 @@ def main() -> None:
             db.execute(delete(UserSession).where(UserSession.id > session_floor))
             db.commit()
 
-    print("[PASS] REST API keys authenticate only explicitly scoped application routes, enforce all 43 registered method/path scopes, preserve session fallback, reject insufficient/invalid/revoked keys, track successful last use, and remain excluded from Auth/Settings/Backup/Restore administration")
+    print("[PASS] REST API keys authenticate only explicitly scoped application routes, enforce all 43 registered method/path scopes, expose exact Bearer/scope/access OpenAPI metadata and Swagger UI, preserve session fallback, reject insufficient/invalid/revoked keys, track successful last use, and remain excluded from Auth/Settings/Backup/Restore/live-sync administration")
 
 
 if __name__ == "__main__":

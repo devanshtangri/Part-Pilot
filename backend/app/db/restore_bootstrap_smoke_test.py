@@ -22,6 +22,7 @@ from app.services.restore_bootstrap import (
     BOOTSTRAP_EVENT_SUCCESS,
     prepare_restore_commit_job,
     process_pending_restore,
+    sqlite_logical_sha256,
 )
 from app.services.restores import (
     RESTORE_RESULT_FILENAME,
@@ -161,6 +162,41 @@ def load_result(
     return RestoreBootstrapResult.model_validate(
         payload
     )
+
+
+def check_blob_logical_hash(root: Path) -> None:
+    database = root / "blob-logical-hash.db"
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(
+            "CREATE TABLE blob_probe ("
+            "id INTEGER PRIMARY KEY, payload BLOB, note TEXT)"
+        )
+        connection.execute(
+            "INSERT INTO blob_probe (payload, note) VALUES (?, ?)",
+            (b"\x00\xffpart-pilot", "binary fixture"),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    first = sqlite_logical_sha256(database)
+    second = sqlite_logical_sha256(database)
+    if first != second:
+        fail("SQLite logical hash is not stable for identical BLOB data.")
+
+    connection = sqlite3.connect(database)
+    try:
+        connection.execute(
+            "UPDATE blob_probe SET payload=? WHERE id=1",
+            (b"\x00\xfepart-pilot",),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    changed = sqlite_logical_sha256(database)
+    if changed == first:
+        fail("SQLite logical hash did not detect a changed BLOB value.")
 
 
 def check_noop(
@@ -523,6 +559,7 @@ def main() -> None:
         )
     )
     os.chmod(root, 0o700)
+    check_blob_logical_hash(root)
     try:
         check_noop(
             root,

@@ -228,3 +228,15 @@ Chat 25 refresh-stability milestone - Patch 719
 - Main Stored Parts register already used this cache-aware pattern and was not
   changed. Next: OpenAPI/docs, metrics + Stock alert dialog, roles, safeguarded
   MCP writes and final alpha regression.
+
+
+
+PARTPILOT:OPENAPI_RESTORE_MEMORY:V723
+Chat 25 public-alpha hardening milestone - Patch 723
+- Browser-approved Swagger/ReDoc documents Bearer auth, all 43 REST API-key
+  operations/scopes, session-only administration and separate MCP OAuth access.
+- Restore validation/staging schemas match Alembic 0016.
+- Restore logical hashing safely handles SQLite BLOBs; copied-production
+  validation/commit/bootstrap/rollback tests pass.
+- Next: Stored Parts metrics, Dashboard Stock alert dialog, roles, safeguarded MCP
+  write tools and final alpha regression.

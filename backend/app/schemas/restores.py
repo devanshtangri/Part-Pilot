@@ -31,7 +31,7 @@ class RestoreValidationResponse(RestoreContractModel):
     expires_at_utc: str
     format_version: Literal[2]
     alembic_revision: Literal[
-        "0015_mcp_direct_clients"
+        "0016_mcp_tool_permissions"
     ]
     archive_sha256: str = Field(
         pattern=r"^[0-9a-f]{64}$"
@@ -81,7 +81,7 @@ class RestoreStageState(RestoreContractModel):
     expires_at_utc: str
     format_version: Literal[2]
     alembic_revision: Literal[
-        "0015_mcp_direct_clients"
+        "0016_mcp_tool_permissions"
     ]
     critical_schema_sha256: str = Field(
         pattern=r"^[0-9a-f]{64}$"

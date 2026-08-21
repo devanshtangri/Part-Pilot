@@ -630,3 +630,12 @@ background refetches run. Blocking loading states are reserved for first loads
 or genuine query/page/selection changes; cross-tab updates replace cached data
 in place. This behavior covers Projects, Reservations, History, Dashboard,
 Settings/account/data, REST API keys and selected Stored Parts details/history.
+
+
+<!-- PARTPILOT:OPENAPI_RESTORE_README:V723 -->
+### Public API documentation and restore safety
+
+Swagger and ReDoc now describe Part Pilot's Bearer authentication model, exact
+REST API-key scopes, session-only administration and MCP OAuth protocol boundary.
+The same hardening sweep aligned restore schemas to Alembic 0016 and made restore
+logical hashing safe for SQLite BLOB data such as custom avatars.

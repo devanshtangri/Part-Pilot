@@ -4135,3 +4135,25 @@ Browser-approved behavior:
 The main Stored Parts inventory register already had a cache-aware refresh model
 and was intentionally left unchanged. Current live-sync surfaces now share the
 same initial-load versus background-refresh UX contract.
+
+
+<!-- PARTPILOT:OPENAPI_RESTORE_CHECKPOINT:V723 -->
+## Public OpenAPI and restore recovery browser-approved - Patch 723
+
+Patch 723 checkpoints the browser-approved Patch 722 recovery.
+
+Public API documentation now:
+- publishes Part Pilot API version/description and tag metadata in Swagger/ReDoc;
+- exposes one Bearer authorization scheme for session tokens or REST API keys;
+- marks all 43 API-key-capable method/path operations with the exact required
+  scope plus documented 401/403 behavior;
+- labels administrative routes as session-only and MCP OAuth routes as protocol
+  endpoints, while `/mcp` remains outside OpenAPI.
+
+Restore safety recovered during the same validation sweep:
+- restore validation/staging schema contracts now match Alembic
+  `0016_mcp_tool_permissions`;
+- restore bootstrap logical hashing deterministically encodes SQLite BLOB values,
+  including binary avatar data, and detects changed blobs;
+- copied-production restore validation, commit, bootstrap/rollback, backup,
+  OpenAPI/API-key, live-sync, OAuth and complete smokes pass.
