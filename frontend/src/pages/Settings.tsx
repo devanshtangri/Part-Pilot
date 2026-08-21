@@ -390,6 +390,9 @@ export function Settings() {
     useState<string | null>(null);
   const [mcpSettingsSaved, setMcpSettingsSaved] =
     useState(false);
+  const mcpSettingsSaveRequestRef = useRef(0);
+  const mcpSettingsEditVersionRef = useRef(0);
+  const mcpSettingsLoadedTokenRef = useRef<string | null>(null);
   const [mcpReloadVersion, setMcpReloadVersion] = useState(0);
   const [apiKeyLiveReloadVersion, setApiKeyLiveReloadVersion] = useState(0);
   const [mcpUrlCopied, setMcpUrlCopied] = useState(false);
@@ -404,6 +407,9 @@ export function Settings() {
   const [mcpToolPermissionsSaving, setMcpToolPermissionsSaving] = useState(false);
   const [mcpToolPermissionsError, setMcpToolPermissionsError] = useState<string | null>(null);
   const [mcpToolPermissionsSaved, setMcpToolPermissionsSaved] = useState(false);
+  const mcpToolPermissionSaveRequestRef = useRef(0);
+  const mcpToolPermissionEditVersionRef = useRef(0);
+  const mcpToolPermissionsLoadedTokenRef = useRef<string | null>(null);
   const [mcpToolPermissionsReloadVersion, setMcpToolPermissionsReloadVersion] = useState(0);
   const [mcpPermissionRefreshVersion, setMcpPermissionRefreshVersion] = useState(0);
   // PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569
@@ -413,6 +419,7 @@ export function Settings() {
   const [mcpOAuthClientsLoading, setMcpOAuthClientsLoading] = useState(true);
   const [mcpOAuthClientsError, setMcpOAuthClientsError] = useState<string | null>(null);
   const [mcpOAuthClientsMessage, setMcpOAuthClientsMessage] = useState<string | null>(null);
+  const mcpOAuthClientsLoadedTokenRef = useRef<string | null>(null);
   const [mcpOAuthReloadVersion, setMcpOAuthReloadVersion] = useState(0);
   const [mcpOAuthRevokeTarget, setMcpOAuthRevokeTarget] = useState<McpOAuthManageableClientSummary | null>(null);
   const [mcpOAuthRevokingId, setMcpOAuthRevokingId] = useState<number | null>(null);
@@ -917,6 +924,7 @@ export function Settings() {
   // PARTPILOT:MCP_SETTINGS_UI:V473
   useEffect(() => {
     if (!token) {
+      mcpSettingsLoadedTokenRef.current = null;
       setMcpSettings(null);
       setMcpDraft(null);
       setMcpSettingsLoading(false);
@@ -927,7 +935,9 @@ export function Settings() {
     }
 
     let cancelled = false;
-    setMcpSettingsLoading(true);
+    const hasCachedMcpSettings =
+      mcpSettingsLoadedTokenRef.current === token && mcpDraft !== null;
+    setMcpSettingsLoading(!hasCachedMcpSettings);
     setMcpSettingsError(null);
     setMcpSettingsSaved(false);
 
@@ -935,14 +945,17 @@ export function Settings() {
       .then((result) => {
         if (!cancelled) {
           setMcpSettings(result);
+          mcpSettingsLoadedTokenRef.current = token;
           if (!preserveMcpDraftOnLiveReloadRef.current) setMcpDraft(result);
           preserveMcpDraftOnLiveReloadRef.current = false;
         }
       })
       .catch((caught) => {
         if (!cancelled) {
-          setMcpSettings(null);
-          if (!preserveMcpDraftOnLiveReloadRef.current) setMcpDraft(null);
+          if (!hasCachedMcpSettings) {
+            setMcpSettings(null);
+            if (!preserveMcpDraftOnLiveReloadRef.current) setMcpDraft(null);
+          }
           preserveMcpDraftOnLiveReloadRef.current = false;
           setMcpSettingsError(
             caught instanceof Error
@@ -965,6 +978,7 @@ export function Settings() {
   // PARTPILOT:MCP_TOOL_PERMISSIONS_UI:V654
   useEffect(() => {
     if (!token) {
+      mcpToolPermissionsLoadedTokenRef.current = null;
       setMcpToolPermissions(null);
       setMcpToolPermissionsDraft(null);
       setMcpToolPermissionsLoading(false);
@@ -972,13 +986,16 @@ export function Settings() {
       return;
     }
     let cancelled = false;
-    setMcpToolPermissionsLoading(true);
+    const hasCachedMcpToolPermissions =
+      mcpToolPermissionsLoadedTokenRef.current === token && mcpToolPermissionsDraft !== null;
+    setMcpToolPermissionsLoading(!hasCachedMcpToolPermissions);
     setMcpToolPermissionsError(null);
     setMcpToolPermissionsSaved(false);
     getMcpToolPermissions(token)
       .then((result) => {
         if (!cancelled) {
           setMcpToolPermissions(result);
+          mcpToolPermissionsLoadedTokenRef.current = token;
           if (!preserveMcpToolPermissionsDraftOnLiveReloadRef.current) {
             setMcpToolPermissionsDraft(result);
           }
@@ -987,9 +1004,11 @@ export function Settings() {
       })
       .catch((caught) => {
         if (!cancelled) {
-          setMcpToolPermissions(null);
-          if (!preserveMcpToolPermissionsDraftOnLiveReloadRef.current) {
-            setMcpToolPermissionsDraft(null);
+          if (!hasCachedMcpToolPermissions) {
+            setMcpToolPermissions(null);
+            if (!preserveMcpToolPermissionsDraftOnLiveReloadRef.current) {
+              setMcpToolPermissionsDraft(null);
+            }
           }
           preserveMcpToolPermissionsDraftOnLiveReloadRef.current = false;
           setMcpToolPermissionsError(
@@ -1006,6 +1025,7 @@ export function Settings() {
   // PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569
   useEffect(() => {
     if (!token) {
+      mcpOAuthClientsLoadedTokenRef.current = null;
       setMcpOAuthClients(null);
       setMcpOAuthClientsLoading(false);
       setMcpOAuthClientsError("Your session is unavailable. Sign in again.");
@@ -1013,13 +1033,20 @@ export function Settings() {
       return;
     }
     let cancelled = false;
-    setMcpOAuthClientsLoading(true);
+    const hasCachedMcpOAuthClients =
+      mcpOAuthClientsLoadedTokenRef.current === token && mcpOAuthClients !== null;
+    setMcpOAuthClientsLoading(!hasCachedMcpOAuthClients);
     setMcpOAuthClientsError(null);
     getMcpOAuthManageableClients(token)
-      .then((result) => { if (!cancelled) setMcpOAuthClients(result.clients); })
+      .then((result) => {
+        if (!cancelled) {
+          setMcpOAuthClients(result.clients);
+          mcpOAuthClientsLoadedTokenRef.current = token;
+        }
+      })
       .catch((caught) => {
         if (!cancelled) {
-          setMcpOAuthClients(null);
+          if (!hasCachedMcpOAuthClients) setMcpOAuthClients(null);
           setMcpOAuthClientsError(caught instanceof Error ? caught.message : "Unable to load OAuth clients");
         }
       })
@@ -1282,155 +1309,160 @@ export function Settings() {
     }, RESERVATION_AUTOSAVE_DELAY_MS);
   }
 
-  function updateMcpDraft(
-    field:
-      | "enabled"
-      | "read_tools_enabled"
-      | "write_tools_enabled"
-      | "direct_clients_enabled"
-      | "direct_no_auth_enabled",
-    value: boolean
-  ): void {
-    if (!mcpDraft || mcpSettingsSaving) {
-      return;
-    }
-    const next = { ...mcpDraft, [field]: value };
-    if (field === "enabled" && !value) {
-      next.direct_no_auth_enabled = false;
-    }
-    if (field === "direct_clients_enabled" && !value) {
-      next.direct_no_auth_enabled = false;
-      setMcpNoAuthConfirmation("");
-      setMcpNoAuthDialogOpen(false);
-    }
-    setMcpDraft(next);
-    setMcpSettingsError(null);
-    setMcpSettingsSaved(false);
-  }
-
-  function requestMcpNoAuth(nextValue: boolean): void {
-    if (!mcpDraft || mcpSettingsSaving) {
-      return;
-    }
-    setMcpSettingsError(null);
-    setMcpSettingsSaved(false);
-    if (!nextValue) {
-      setMcpDraft({ ...mcpDraft, direct_no_auth_enabled: false });
-      setMcpNoAuthConfirmation("");
-      setMcpNoAuthDialogOpen(false);
-      return;
-    }
-    if (!mcpDraft.enabled || !mcpDraft.direct_clients_enabled) {
-      return;
-    }
-    setMcpNoAuthConfirmation("");
-    setMcpNoAuthDialogOpen(true);
-  }
-
-  function confirmMcpNoAuth(): void {
-    if (!mcpDraft || !mcpNoAuthConfirmationReady || mcpSettingsSaving) {
-      return;
-    }
-    setMcpDraft({ ...mcpDraft, direct_no_auth_enabled: true });
-    setMcpNoAuthDialogOpen(false);
-    setMcpSettingsError(null);
-    setMcpSettingsSaved(false);
-  }
-
-  function resetMcpDraft(): void {
-    if (!mcpSettings || mcpSettingsSaving) {
-      return;
-    }
-    setMcpDraft(mcpSettings);
-    setMcpNoAuthConfirmation("");
-    setMcpNoAuthDialogOpen(false);
-    setMcpSettingsError(null);
-    setMcpSettingsSaved(false);
-  }
-
-  async function saveMcpAccess(): Promise<void> {
-    if (!token || !mcpDraft || mcpSettingsSaving) {
-      return;
-    }
-
-    const enablingNoAuth = Boolean(
-      mcpSettings &&
-        !mcpSettings.direct_no_auth_enabled &&
-        mcpDraft.direct_no_auth_enabled
-    );
+  // PARTPILOT:MCP_AUTOSAVE:V715
+  async function persistMcpAccess(
+    next: McpSettings,
+    editVersion: number,
+    noAuthConfirmation: string | null = null
+  ): Promise<void> {
+    if (!token || !mcpSettings || mcpSettingsSaving) return;
+    const previousConfirmed = mcpSettings;
+    const requestId = mcpSettingsSaveRequestRef.current + 1;
+    mcpSettingsSaveRequestRef.current = requestId;
     setMcpSettingsSaving(true);
     setMcpSettingsError(null);
     setMcpSettingsSaved(false);
     try {
       const saved = await updateMcpSettings(token, {
-        enabled: mcpDraft.enabled,
-        read_tools_enabled: mcpDraft.read_tools_enabled,
-        write_tools_enabled: mcpDraft.write_tools_enabled,
-        direct_clients_enabled: mcpDraft.direct_clients_enabled,
-        direct_no_auth_enabled: mcpDraft.direct_no_auth_enabled,
-        direct_no_auth_confirmation: enablingNoAuth
-          ? mcpNoAuthConfirmation
-          : null
+        enabled: next.enabled,
+        read_tools_enabled: next.read_tools_enabled,
+        write_tools_enabled: next.write_tools_enabled,
+        direct_clients_enabled: next.direct_clients_enabled,
+        direct_no_auth_enabled: next.direct_no_auth_enabled,
+        direct_no_auth_confirmation: noAuthConfirmation
       });
+      if (mcpSettingsSaveRequestRef.current !== requestId) return;
       setMcpSettings(saved);
-      setMcpDraft(saved);
-      setMcpNoAuthConfirmation("");
-      setMcpNoAuthDialogOpen(false);
+      if (mcpSettingsEditVersionRef.current === editVersion) setMcpDraft(saved);
       setMcpSettingsSaved(true);
     } catch (caught) {
+      if (mcpSettingsSaveRequestRef.current !== requestId) return;
+      mcpSettingsEditVersionRef.current += 1;
+      setMcpDraft(previousConfirmed);
       setMcpSettingsError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to save MCP settings"
+        caught instanceof Error ? caught.message : "Unable to save MCP settings"
       );
     } finally {
-      setMcpSettingsSaving(false);
+      if (mcpSettingsSaveRequestRef.current === requestId) setMcpSettingsSaving(false);
     }
   }
 
-  function updateMcpToolPermissionDraft(name: string, enabled: boolean): void {
-    if (!mcpToolPermissionsDraft || mcpToolPermissionsSaving) return;
-    setMcpToolPermissionsDraft({
-      tools: mcpToolPermissionsDraft.tools.map((tool) =>
-        tool.name === name ? { ...tool, enabled } : tool
-      )
-    });
-    setMcpToolPermissionsError(null);
-    setMcpToolPermissionsSaved(false);
-  }
-
-  function resetMcpToolPermissions(): void {
-    if (!mcpToolPermissions || mcpToolPermissionsSaving) return;
-    setMcpToolPermissionsDraft(mcpToolPermissions);
-    setMcpToolPermissionsError(null);
-    setMcpToolPermissionsSaved(false);
-  }
-
-  async function saveMcpToolPermissions(): Promise<void> {
-    if (!token || !mcpToolPermissions || !mcpToolPermissionsDraft || mcpToolPermissionsSaving) return;
-    const permissions: Record<string, boolean> = {};
-    for (const draft of mcpToolPermissionsDraft.tools) {
-      const current = mcpToolPermissions.tools.find((tool) => tool.name === draft.name);
-      if (current && current.enabled !== draft.enabled) permissions[draft.name] = draft.enabled;
+  function updateMcpDraft(
+    field:
+      | "enabled"
+      | "read_tools_enabled"
+      | "write_tools_enabled"
+      | "direct_clients_enabled",
+    value: boolean
+  ): void {
+    if (!mcpDraft || !mcpSettings || mcpSettingsSaving) return;
+    const next = { ...mcpDraft, [field]: value };
+    if (field === "enabled" && !value) next.direct_no_auth_enabled = false;
+    if (field === "direct_clients_enabled" && !value) {
+      next.direct_no_auth_enabled = false;
+      setMcpNoAuthConfirmation("");
+      setMcpNoAuthDialogOpen(false);
     }
-    if (Object.keys(permissions).length === 0) return;
+    const editVersion = mcpSettingsEditVersionRef.current + 1;
+    mcpSettingsEditVersionRef.current = editVersion;
+    setMcpDraft(next);
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+    void persistMcpAccess(next, editVersion);
+  }
+
+  function requestMcpNoAuth(nextValue: boolean): void {
+    if (!mcpDraft || !mcpSettings || mcpSettingsSaving) return;
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+    if (!nextValue) {
+      const next = { ...mcpDraft, direct_no_auth_enabled: false };
+      const editVersion = mcpSettingsEditVersionRef.current + 1;
+      mcpSettingsEditVersionRef.current = editVersion;
+      setMcpDraft(next);
+      setMcpNoAuthConfirmation("");
+      setMcpNoAuthDialogOpen(false);
+      void persistMcpAccess(next, editVersion);
+      return;
+    }
+    if (!mcpDraft.enabled || !mcpDraft.direct_clients_enabled) return;
+    setMcpNoAuthConfirmation("");
+    setMcpNoAuthDialogOpen(true);
+  }
+
+  function confirmMcpNoAuth(): void {
+    if (
+      !mcpDraft ||
+      !mcpSettings ||
+      !mcpNoAuthConfirmationReady ||
+      mcpSettingsSaving
+    ) return;
+    const next = { ...mcpDraft, direct_no_auth_enabled: true };
+    const confirmation = mcpNoAuthConfirmation;
+    const editVersion = mcpSettingsEditVersionRef.current + 1;
+    mcpSettingsEditVersionRef.current = editVersion;
+    setMcpDraft(next);
+    setMcpNoAuthDialogOpen(false);
+    setMcpNoAuthConfirmation("");
+    setMcpSettingsError(null);
+    setMcpSettingsSaved(false);
+    void persistMcpAccess(next, editVersion, confirmation);
+  }
+
+  async function persistMcpToolPermission(
+    name: string,
+    enabled: boolean,
+    nextDraft: McpToolPermissionsResponse,
+    editVersion: number
+  ): Promise<void> {
+    if (!token || !mcpToolPermissions || mcpToolPermissionsSaving) return;
+    const previousConfirmed = mcpToolPermissions;
+    const requestId = mcpToolPermissionSaveRequestRef.current + 1;
+    mcpToolPermissionSaveRequestRef.current = requestId;
     setMcpToolPermissionsSaving(true);
     setMcpToolPermissionsError(null);
     setMcpToolPermissionsSaved(false);
     try {
-      const saved = await updateMcpToolPermissions(token, { permissions });
+      const saved = await updateMcpToolPermissions(token, {
+        permissions: { [name]: enabled }
+      });
+      if (mcpToolPermissionSaveRequestRef.current !== requestId) return;
       setMcpToolPermissions(saved);
-      setMcpToolPermissionsDraft(saved);
+      if (mcpToolPermissionEditVersionRef.current === editVersion) {
+        setMcpToolPermissionsDraft(saved);
+      } else {
+        setMcpToolPermissionsDraft(nextDraft);
+      }
       setMcpToolPermissionsSaved(true);
       setMcpPermissionRefreshVersion((value) => value + 1);
       setMcpOAuthReloadVersion((value) => value + 1);
     } catch (caught) {
+      if (mcpToolPermissionSaveRequestRef.current !== requestId) return;
+      mcpToolPermissionEditVersionRef.current += 1;
+      setMcpToolPermissionsDraft(previousConfirmed);
       setMcpToolPermissionsError(
         caught instanceof Error ? caught.message : "Unable to save MCP tool permissions"
       );
     } finally {
-      setMcpToolPermissionsSaving(false);
+      if (mcpToolPermissionSaveRequestRef.current === requestId) {
+        setMcpToolPermissionsSaving(false);
+      }
     }
+  }
+
+  function updateMcpToolPermissionDraft(name: string, enabled: boolean): void {
+    if (!mcpToolPermissions || !mcpToolPermissionsDraft || mcpToolPermissionsSaving) return;
+    const nextDraft = {
+      tools: mcpToolPermissionsDraft.tools.map((tool) =>
+        tool.name === name ? { ...tool, enabled } : tool
+      )
+    };
+    const editVersion = mcpToolPermissionEditVersionRef.current + 1;
+    mcpToolPermissionEditVersionRef.current = editVersion;
+    setMcpToolPermissionsDraft(nextDraft);
+    setMcpToolPermissionsError(null);
+    setMcpToolPermissionsSaved(false);
+    void persistMcpToolPermission(name, enabled, nextDraft, editVersion);
   }
 
   async function copyMcpServerUrl(): Promise<void> {
@@ -2866,6 +2898,8 @@ export function Settings() {
           aria-labelledby="settings-mcp-title"
           hidden={activeSettingsSection !== "mcp"}
           data-partpilot-mcp-direct-auth="PARTPILOT:MCP_DIRECT_AUTH_UI:V500"
+          data-partpilot-mcp-autosave="PARTPILOT:MCP_AUTOSAVE:V715"
+          data-partpilot-mcp-background-refresh="PARTPILOT:MCP_BACKGROUND_REFRESH:V716"
         >
           <div className="settings-section-heading settings-mcp-heading">
             <div>
@@ -2889,13 +2923,13 @@ export function Settings() {
             ) : null}
           </div>
 
-          {mcpSettingsLoading ? (
+          {mcpSettingsLoading && !mcpDraft ? (
             <p className="settings-preference-state" role="status">
               Loading MCP settings...
             </p>
           ) : null}
 
-          {!mcpSettingsLoading && mcpDraft ? (
+          {mcpDraft ? (
             <>
               <div
                 className="settings-mcp-access-control"
@@ -2946,10 +2980,10 @@ export function Settings() {
                     </span>
                   ) : null}
                 </div>
-                {mcpToolPermissionsLoading ? (
+                {mcpToolPermissionsLoading && !mcpToolPermissionsDraft ? (
                   <p className="settings-mcp-permission-state" role="status">Loading tool permissions...</p>
                 ) : null}
-                {!mcpToolPermissionsLoading && mcpToolPermissionsDraft ? (
+                {mcpToolPermissionsDraft ? (
                   <div className="settings-mcp-tool-permission-list">
                     {mcpToolPermissionsDraft.tools.map((tool) => {
                       const disabled = !mcpDraft.enabled || !mcpDraft.read_tools_enabled || mcpToolPermissionsSaving;
@@ -2967,7 +3001,7 @@ export function Settings() {
                   </div>
                 ) : null}
                 {!mcpDraft.enabled || !mcpDraft.read_tools_enabled ? (
-                  <p className="settings-mcp-permission-state">Enable the MCP server and Read tools, then save MCP access to edit global tool permissions.</p>
+                  <p className="settings-mcp-permission-state">Enable the MCP server and Read tools to edit global tool permissions.</p>
                 ) : null}
                 <div className="settings-mcp-write-tool-empty" data-partpilot-mcp-write-tool-catalogue="PARTPILOT:MCP_WRITE_TOOL_CATALOGUE_EMPTY:V657">
                   <div>
@@ -2982,11 +3016,8 @@ export function Settings() {
                     {!mcpToolPermissionsDraft ? <button type="button" onClick={() => setMcpToolPermissionsReloadVersion((value) => value + 1)}>Retry</button> : null}
                   </div>
                 ) : null}
-                {mcpToolPermissionsSaved && !mcpToolPermissionsError ? <p className="settings-preference-state is-success" role="status">MCP tool permissions saved.</p> : null}
-                <div className="settings-mcp-permission-actions">
-                  <button className="settings-action settings-action-secondary" type="button" disabled={!mcpToolPermissionsChanged || mcpToolPermissionsSaving} onClick={resetMcpToolPermissions}>Reset changes</button>
-                  <button className="settings-action settings-action-primary" type="button" disabled={!mcpToolPermissionsChanged || mcpToolPermissionsSaving || !mcpDraft.enabled || !mcpDraft.read_tools_enabled} onClick={() => void saveMcpToolPermissions()}>{mcpToolPermissionsSaving ? "Saving permissions..." : "Save tool permissions"}</button>
-                </div>
+                {mcpToolPermissionsSaving && !mcpToolPermissionsError ? <p className="settings-preference-state" role="status">Saving tool permission automatically...</p> : null}
+                {mcpToolPermissionsSaved && !mcpToolPermissionsError ? <p className="settings-preference-state is-success" role="status">MCP tool permission saved automatically.</p> : null}
               </div>
 
               <div className="settings-mcp-endpoint">
@@ -3057,8 +3088,8 @@ export function Settings() {
                   </div>
                 ) : null}
 
-                {mcpOAuthClientsLoading ? <p className="settings-mcp-oauth-state" role="status">Loading OAuth clients...</p> : null}
-                {!mcpOAuthClientsLoading && mcpOAuthVisibleClients && mcpOAuthVisibleClients.length > 0 ? (
+                {mcpOAuthClientsLoading && !mcpOAuthClients ? <p className="settings-mcp-oauth-state" role="status">Loading OAuth clients...</p> : null}
+                {mcpOAuthVisibleClients && mcpOAuthVisibleClients.length > 0 ? (
                   <div className="settings-mcp-oauth-list">
                     {mcpOAuthVisibleClients.map((client) => (
                       <article className={`settings-mcp-oauth-client is-${client.status}`} key={client.database_id}>
@@ -3077,7 +3108,7 @@ export function Settings() {
                     ))}
                   </div>
                 ) : null}
-                {!mcpOAuthClientsLoading && mcpOAuthVisibleClients?.length === 0 ? <p className="settings-mcp-oauth-state">No active OAuth clients are registered or connected.</p> : null}
+                {mcpOAuthVisibleClients?.length === 0 ? <p className="settings-mcp-oauth-state">No active OAuth clients are registered or connected.</p> : null}
                 {mcpOAuthClientsError ? <div className="settings-preference-state is-error" role="alert"><span>{mcpOAuthClientsError}</span>{!mcpOAuthClients ? <button type="button" onClick={() => setMcpOAuthReloadVersion((value) => value + 1)}>Retry</button> : null}</div> : null}
                 {mcpOAuthClientsMessage && !mcpOAuthClientsError ? <p className="settings-preference-state is-success" role="status">{mcpOAuthClientsMessage}</p> : null}
               </div>
@@ -3151,26 +3182,11 @@ export function Settings() {
                 </div>
               </dl>
 
-              <div className="settings-action-row">
-                <button
-                  className="settings-action settings-action-secondary"
-                  type="button"
-                  onClick={resetMcpDraft}
-                  disabled={!mcpSettingsChanged || mcpSettingsSaving}
-                >
-                  Reset changes
-                </button>
-                <button
-                  className="settings-action settings-action-primary"
-                  type="button"
-                  onClick={() => void saveMcpAccess()}
-                  disabled={!mcpSettingsChanged || mcpSettingsSaving}
-                >
-                  {mcpSettingsSaving
-                    ? "Saving MCP access..."
-                    : "Save MCP access"}
-                </button>
-              </div>
+              {mcpSettingsSaving && !mcpSettingsError ? (
+                <p className="settings-preference-state" role="status">
+                  Saving MCP access automatically...
+                </p>
+              ) : null}
             </>
           ) : null}
 
@@ -3198,7 +3214,7 @@ export function Settings() {
               className="settings-preference-state is-success"
               role="status"
             >
-              MCP access settings saved.
+              MCP access settings saved automatically.
             </p>
           ) : null}
         </section>

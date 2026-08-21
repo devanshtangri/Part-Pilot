@@ -198,3 +198,19 @@ Chat 25 live-sync milestone - Patch 714
 - MCP still uses explicit `Save changes`; changing that is a separate UX task.
 - Next: OpenAPI/docs hardening, inventory metrics, Dashboard Stock alerts,
   roles, safeguarded MCP write tools and final public-alpha regression.
+
+
+
+PARTPILOT:MCP_AUTOSAVE_STABLE_REFRESH_MEMORY:V717
+Chat 25 UX hardening milestone - Patch 717
+- Browser-approved MCP access/tool-permission autosave; manual save/reset controls
+  are removed for reversible MCP settings.
+- Enabling no-auth still requires `ALLOW NO AUTH`; credential and client
+  lifecycle actions remain explicit.
+- MCP settings, global permissions, OAuth clients and named direct clients keep
+  cached content mounted during background/live refetches; initial loading is
+  distinct and cached data is auth-token scoped.
+- Cross-tab MCP live sync and local secret/dialog isolation remain intact.
+- Audit found the same loading/refetch flash pattern in Projects, Reservations,
+  History, Dashboard, Settings preferences/account/backups, API keys and selected
+  inventory detail/history. Stabilize those next before broader alpha features.

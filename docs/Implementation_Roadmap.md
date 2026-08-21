@@ -3386,3 +3386,29 @@ Next public-alpha work:
 MCP configuration currently retains its explicit `Save changes` interaction;
 changing that behavior is a separate UX/semantics task rather than part of this
 approved live-sync checkpoint.
+
+
+<!-- PARTPILOT:MCP_AUTOSAVE_STABLE_REFRESH_ROADMAP:V717 -->
+### Patch 717 - MCP autosave and stable background refresh browser-approved
+
+Completed:
+- [x] Remove manual save/reset controls from reversible MCP access settings.
+- [x] Autosave global read-tool permissions with rollback/stale guards.
+- [x] Preserve explicit confirmation for enabling no-auth.
+- [x] Keep loaded MCP settings/tool/OAuth/direct-client content mounted during
+  background/live refetches.
+- [x] Scope cached MCP refresh state to the active auth token.
+- [x] Browser proof that MCP autosave no longer flashes the section.
+
+Immediate hardening work:
+- [ ] Apply initial-load vs background-refresh separation to Projects.
+- [ ] Apply it to Reservations list/detail/activity.
+- [ ] Apply it to History and Dashboard live-refresh surfaces.
+- [ ] Apply it to Settings preferences/account/backups and REST API keys.
+- [ ] Apply it to selected Stored Parts detail/movement refreshes.
+- [ ] Preserve last-known-good content on transient background-refresh failures.
+- [ ] Browser-test cross-tab refresh stability across the full sweep.
+
+After refresh-stability hardening, continue with OpenAPI/public API docs,
+whole-inventory Stored Parts metrics, Dashboard Stock alert dialog, roles,
+safeguarded MCP write tools and final public-alpha regression.

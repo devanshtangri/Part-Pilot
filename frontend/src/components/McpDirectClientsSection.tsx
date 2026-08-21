@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { McpClientPermissionsDialog } from "./McpClientPermissionsDialog";
 import { useAuth } from "../auth/AuthContext";
@@ -90,6 +90,7 @@ export function McpDirectClientsSection({
 }: Props) {
   const { timezone } = useAuth();
   const [clients, setClients] = useState<McpNamedDirectClient[]>([]);
+  const loadedTokenRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -106,11 +107,16 @@ export function McpDirectClientsSection({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    const hasCachedClients = loadedTokenRef.current === token;
+    setLoading(!hasCachedClients);
+    if (!hasCachedClients) setClients([]);
     setError(null);
     getMcpNamedDirectClients(token)
       .then((result) => {
-        if (!cancelled) setClients(result.clients);
+        if (!cancelled) {
+          setClients(result.clients);
+          loadedTokenRef.current = token;
+        }
       })
       .catch((caught) => {
         if (!cancelled) {
@@ -389,7 +395,7 @@ export function McpDirectClientsSection({
 
       {disabled ? (
         <p className="settings-mcp-named-direct-note">
-          Enable the MCP server and Allow direct MCP clients, then save MCP access to manage clients.
+          Enable the MCP server and Allow direct MCP clients to manage clients.
         </p>
       ) : null}
       {loading ? <p className="settings-mcp-named-direct-note">Loading direct clients...</p> : null}

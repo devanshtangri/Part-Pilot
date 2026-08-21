@@ -610,3 +610,13 @@ successful mutations without transporting plaintext credentials, while local
 unfinished MCP drafts and credential dialogs remain protected. Together with
 the earlier inventory, project, reservation, Dashboard and Settings slices,
 this completes the current public-alpha live-sync migration.
+
+
+<!-- PARTPILOT:MCP_AUTOSAVE_STABLE_REFRESH_README:V717 -->
+### Stable MCP autosave
+
+Reversible MCP access and global read-tool permissions now save automatically.
+The no-auth fallback still requires explicit confirmation before enabling, and
+credential/client lifecycle actions remain explicit. Already-loaded MCP state
+stays visible while authenticated live-sync refreshes happen in the background,
+so normal cross-tab updates no longer replace the section with a loading flash.

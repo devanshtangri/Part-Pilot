@@ -4079,3 +4079,31 @@ The MCP section still uses its existing explicit `Save changes` action. Patch
 714 does not change that save semantic; any autosave/removal decision belongs in
 a separate UX patch so consequential MCP settings are not silently changed as
 part of this checkpoint.
+
+
+<!-- PARTPILOT:MCP_AUTOSAVE_STABLE_REFRESH_CHECKPOINT:V717 -->
+## MCP autosave and stable background refresh browser-approved - Patch 717
+
+Patch 717 checkpoints the browser-approved MCP Settings UX refinement from
+Patches 715-716.
+
+Browser-approved behavior:
+- reversible MCP server/read/write/direct-access switches autosave immediately;
+- global read-tool permission switches autosave individually with rollback and
+  stale-request protection;
+- enabling no-auth remains consequential and still requires the explicit
+  `ALLOW NO AUTH` confirmation before the autosave is issued;
+- credential creation, reveal, rotation, revocation and OAuth/client lifecycle
+  actions remain explicit;
+- MCP settings, tool permissions, OAuth-client lists and named direct-client
+  lists keep their last-known-good content mounted during live/background
+  refetches instead of replacing it with a blocking loading state;
+- cached MCP data is scoped to the active auth token; initial loads still show
+  normal loading states;
+- cross-tab integration live sync and secret/dialog isolation remain intact.
+
+A follow-up audit found the same initial-load/background-refresh conflation in
+other live-sync consumers including Projects, Reservations, History, Dashboard,
+Settings preferences/account/backups, API keys and selected inventory details.
+The next hardening slice standardizes cache-aware background refresh there before
+continuing broader public-alpha feature work.
