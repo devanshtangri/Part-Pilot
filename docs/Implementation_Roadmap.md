@@ -3475,3 +3475,23 @@ Next public-alpha work:
 - [ ] Add roles/authorization foundations.
 - [ ] Add safeguarded MCP write tools.
 - [ ] Run final public-alpha regression/hardening.
+
+
+<!-- PARTPILOT:DASHBOARD_OPERATIONAL_HOME_ROADMAP:V731 -->
+### Patch 731 - Dashboard operational home browser-approved
+
+Completed:
+- [x] Dashboard Stock alerts launcher/dialog with live background refresh.
+- [x] Remove permanent Backend/Online status card.
+- [x] Remove duplicated inline Low-stock inventory table.
+- [x] Add responsive Quick actions for Add part, New project, Stored parts,
+  Reservations, Part Manager and History.
+- [x] Add one-shot Add part / New project modal intents.
+- [x] Remove routine Refresh buttons from the remaining live-synced workspaces
+  while preserving Retry/Try again error recovery.
+- [x] Browser approval and copied-production live-sync/application regression.
+
+Next public-alpha work:
+- [ ] Add roles/authorization foundations.
+- [ ] Add safeguarded MCP write tools.
+- [ ] Run final public-alpha regression/hardening.

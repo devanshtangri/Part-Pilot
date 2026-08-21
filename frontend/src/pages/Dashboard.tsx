@@ -8,13 +8,11 @@ import { Link } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import { useLiveSyncRevision } from "../live/LiveSyncContext";
-import { getHealth } from "../services/apiClient";
 import {
   getLowStockParts,
   getParts
 } from "../services/partsClient";
 import { getSearchSettings } from "../services/settingsClient";
-import type { HealthResponse } from "../types/health";
 import type {
   LowStockSummary,
   Part,
@@ -76,7 +74,6 @@ function universalSearchFieldValue(
 }
 
 export function Dashboard() {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
   const { token } = useAuth();
   const inventoryLiveRevision = useLiveSyncRevision("inventory");
   const preferencesLiveRevision = useLiveSyncRevision("preferences");
@@ -87,6 +84,18 @@ export function Dashboard() {
   const [lowStockLoading, setLowStockLoading] = useState(true);
   const [lowStockError, setLowStockError] = useState<string | null>(null);
   const [lowStockRefreshSequence, setLowStockRefreshSequence] = useState(0);
+  // PARTPILOT:DASHBOARD_STOCK_ALERT_DIALOG_STATE:V729
+  const [stockAlertDialogOpen, setStockAlertDialogOpen] = useState(false);
+  const [stockAlertDialog, setStockAlertDialog] =
+    useState<LowStockSummary | null>(null);
+  const [stockAlertDialogLoading, setStockAlertDialogLoading] = useState(false);
+  const [stockAlertDialogError, setStockAlertDialogError] =
+    useState<string | null>(null);
+  const [stockAlertDialogRefreshSequence, setStockAlertDialogRefreshSequence] =
+    useState(0);
+  const stockAlertDialogLoadedTokenRef = useRef<string | null>(null);
+  const stockAlertLauncherRef = useRef<HTMLButtonElement>(null);
+  const stockAlertCloseRef = useRef<HTMLButtonElement>(null);
   const [searchRefreshSequence, setSearchRefreshSequence] = useState(0);
   // PATCH 217: Dashboard universal-search state
   const [searchOpen, setSearchOpen] = useState(false);
@@ -105,14 +114,6 @@ export function Dashboard() {
   // PATCH 219: invalidate stale live-search responses
   const searchRequestSequenceRef = useRef(0);
 
-  useEffect(() => {
-    getHealth()
-      .then(setHealth)
-      .catch(() => {
-        setHealth(null);
-      });
-  }, []);
-
   // PARTPILOT:DASHBOARD_INVENTORY_LIVE_SYNC:V703
   useEffect(() => {
     if (inventoryLiveRevision === lastInventoryLiveRevision.current) {
@@ -120,6 +121,7 @@ export function Dashboard() {
     }
     lastInventoryLiveRevision.current = inventoryLiveRevision;
     setLowStockRefreshSequence((current) => current + 1);
+    setStockAlertDialogRefreshSequence((current) => current + 1);
     setSearchRefreshSequence((current) => current + 1);
   }, [inventoryLiveRevision]);
 
@@ -166,9 +168,92 @@ export function Dashboard() {
     };
   }, [token, lowStockRefreshSequence]);
 
-  function refreshLowStock(): void {
-    setLowStockRefreshSequence((current) => current + 1);
+  // PARTPILOT:DASHBOARD_STOCK_ALERT_DIALOG_DATA:V729
+  useEffect(() => {
+    if (!stockAlertDialogOpen) {
+      setStockAlertDialogLoading(false);
+      return;
+    }
+
+    if (!token) {
+      stockAlertDialogLoadedTokenRef.current = null;
+      setStockAlertDialog(null);
+      setStockAlertDialogError(
+        "Stock alerts are unavailable without an active session."
+      );
+      setStockAlertDialogLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const hasCachedDialog =
+      stockAlertDialogLoadedTokenRef.current === token
+      && stockAlertDialog !== null;
+
+    setStockAlertDialogLoading(!hasCachedDialog);
+    setStockAlertDialogError(null);
+
+    getLowStockParts(token, { limit: 50 })
+      .then((result) => {
+        if (!cancelled) {
+          stockAlertDialogLoadedTokenRef.current = token;
+          setStockAlertDialog(result);
+        }
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          if (!hasCachedDialog) setStockAlertDialog(null);
+          setStockAlertDialogError(
+            caught instanceof Error
+              ? caught.message
+              : "Unable to load stock alerts"
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setStockAlertDialogLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    stockAlertDialogOpen,
+    stockAlertDialogRefreshSequence,
+    token
+  ]);
+
+  function openStockAlertDialog(): void {
+    setSearchOpen(false);
+    setStockAlertDialogOpen(true);
   }
+
+  function closeStockAlertDialog(): void {
+    setStockAlertDialogOpen(false);
+    window.setTimeout(() => stockAlertLauncherRef.current?.focus(), 0);
+  }
+
+  function refreshStockAlertDialog(): void {
+    setStockAlertDialogRefreshSequence((current) => current + 1);
+  }
+
+  useEffect(() => {
+    if (!stockAlertDialogOpen) return;
+
+    function handleStockAlertKeyboard(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeStockAlertDialog();
+      }
+    }
+
+    window.addEventListener("keydown", handleStockAlertKeyboard);
+    window.setTimeout(() => stockAlertCloseRef.current?.focus(), 0);
+
+    return () => {
+      window.removeEventListener("keydown", handleStockAlertKeyboard);
+    };
+  }, [stockAlertDialogOpen]);
 
   useEffect(() => {
     if (!token) {
@@ -204,8 +289,6 @@ export function Dashboard() {
   }, [preferencesLiveRevision, token]);
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-
     function handleSearchKeyboard(event: KeyboardEvent): void {
       const target = event.target as HTMLElement | null;
       const isTypingTarget = Boolean(
@@ -221,6 +304,7 @@ export function Dashboard() {
       if (
         event.key === "/"
         && !searchOpen
+        && !stockAlertDialogOpen
         && !isTypingTarget
         && !event.metaKey
         && !event.ctrlKey
@@ -239,17 +323,27 @@ export function Dashboard() {
     window.addEventListener("keydown", handleSearchKeyboard);
 
     if (searchOpen) {
-      document.body.style.overflow = "hidden";
       window.setTimeout(() => {
         searchInputRef.current?.focus();
       }, 0);
     }
 
     return () => {
-      document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleSearchKeyboard);
     };
-  }, [searchOpen]);
+  }, [searchOpen, stockAlertDialogOpen]);
+
+  // PARTPILOT:DASHBOARD_DIALOG_SCROLL_LOCK:V729
+  useEffect(() => {
+    if (!searchOpen && !stockAlertDialogOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [searchOpen, stockAlertDialogOpen]);
 
   const availableSearchResults = useMemo(
     () =>
@@ -270,6 +364,7 @@ export function Dashboard() {
     : [];
 
   function openSearchDialog(): void {
+    setStockAlertDialogOpen(false);
     setSearchOpen(true);
   }
 
@@ -739,150 +834,228 @@ export function Dashboard() {
         </div>
       ) : null}
 
-      <div className="card-grid dashboard-summary-grid">
-        <article className="card">
-          <span className="card-label">Backend</span>
-          <strong>{health?.status === "ok" ? "Online" : "Checking..."}</strong>
-          <p>{health ? `${health.app} / ${health.environment}` : "Waiting for API response."}</p>
-        </article>
+      {stockAlertDialogOpen ? (
+        <div
+          className="dashboard-stock-alert-backdrop"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) closeStockAlertDialog();
+          }}
+        >
+          <section
+            id="dashboard-stock-alert-dialog"
+            className="dashboard-stock-alert-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dashboard-stock-alert-dialog-title"
+            aria-describedby="dashboard-stock-alert-dialog-description"
+            aria-busy={stockAlertDialogLoading}
+            data-dashboard-stock-alert-dialog="PARTPILOT:DASHBOARD_STOCK_ALERT_DIALOG:V729"
+          >
+            <header className="dashboard-stock-alert-dialog-header">
+              <div>
+                <p className="eyebrow">Attention required</p>
+                <h2 id="dashboard-stock-alert-dialog-title">Stock alerts</h2>
+                <p id="dashboard-stock-alert-dialog-description">
+                  Available stock after reservations compared with each part's
+                  configured low-stock threshold.
+                </p>
+              </div>
+              <button
+                ref={stockAlertCloseRef}
+                className="dashboard-stock-alert-close"
+                type="button"
+                onClick={closeStockAlertDialog}
+                aria-label="Close stock alerts"
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <path d="M4 4L12 12M12 4L4 12" />
+                </svg>
+              </button>
+            </header>
 
-        <article className="card dashboard-stock-count-card">
+            <div className="dashboard-stock-alert-dialog-summary">
+              <div>
+                <span>Total alerts</span>
+                <strong>{stockAlertDialog?.total ?? lowStock?.total ?? 0}</strong>
+              </div>
+              <div>
+                <span>Low stock</span>
+                <strong>
+                  {stockAlertDialog?.low_stock_count
+                    ?? lowStock?.low_stock_count
+                    ?? 0}
+                </strong>
+              </div>
+              <div>
+                <span>Out of stock</span>
+                <strong>
+                  {stockAlertDialog?.out_of_stock_count
+                    ?? lowStock?.out_of_stock_count
+                    ?? 0}
+                </strong>
+              </div>
+            </div>
+
+            <div className="dashboard-stock-alert-dialog-body">
+              {stockAlertDialogLoading && !stockAlertDialog ? (
+                <div className="dashboard-stock-alert-dialog-state" role="status">
+                  Loading stock alerts...
+                </div>
+              ) : null}
+
+              {stockAlertDialogError ? (
+                <div className="dashboard-stock-alert-dialog-state is-error" role="alert">
+                  <strong>Unable to load stock alerts</strong>
+                  <p>{stockAlertDialogError}</p>
+                  <button type="button" onClick={refreshStockAlertDialog}>
+                    Try again
+                  </button>
+                </div>
+              ) : null}
+
+              {!stockAlertDialogLoading
+                && !stockAlertDialogError
+                && stockAlertDialog
+                && stockAlertDialog.total === 0 ? (
+                  <div className="dashboard-stock-alert-dialog-state is-empty">
+                    <strong>Stock levels look healthy</strong>
+                    <p>No parts currently meet the low/out-of-stock alert rules.</p>
+                  </div>
+                ) : null}
+
+              {!stockAlertDialogError
+                && stockAlertDialog
+                && stockAlertDialog.parts.length > 0 ? (
+                  <div className="dashboard-stock-alert-dialog-list">
+                    {stockAlertDialog.parts.map((part) => (
+                      <div
+                        className={
+                          part.available_quantity <= 0
+                            ? "dashboard-low-stock-row is-out"
+                            : "dashboard-low-stock-row is-low"
+                        }
+                        key={part.id}
+                      >
+                        <div className="dashboard-low-stock-identity">
+                          <strong>{partDisplayName(part)}</strong>
+                          <span>{partContext(part) || "Inventory part"}</span>
+                        </div>
+                        <div className="dashboard-low-stock-quantity">
+                          <strong>{part.available_quantity}</strong>
+                          <span>available</span>
+                        </div>
+                        <div className="dashboard-low-stock-threshold">
+                          <span>Threshold</span>
+                          <strong>{part.low_stock_threshold ?? "—"}</strong>
+                        </div>
+                        <span className="dashboard-low-stock-badge">
+                          {stockStatusLabel(part)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+            </div>
+
+            <footer className="dashboard-stock-alert-dialog-footer">
+              <span>
+                {stockAlertDialog
+                  ? stockAlertDialog.total > stockAlertDialog.parts.length
+                    ? `Showing ${stockAlertDialog.parts.length} of ${stockAlertDialog.total} alerts.`
+                    : `${stockAlertDialog.total} alert${stockAlertDialog.total === 1 ? "" : "s"}.`
+                  : "Stock alerts use whole-inventory data."}
+              </span>
+              <Link to="/inventory" onClick={closeStockAlertDialog}>
+                Review inventory
+              </Link>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {/* PARTPILOT:DASHBOARD_OPERATIONAL_HOME:V730 */}
+      <button
+        ref={stockAlertLauncherRef}
+        className="card dashboard-stock-count-card dashboard-stock-alert-launcher dashboard-stock-alert-overview-card"
+        type="button"
+        onClick={openStockAlertDialog}
+        aria-label="Open stock alerts"
+        aria-haspopup="dialog"
+        aria-controls="dashboard-stock-alert-dialog"
+        aria-expanded={stockAlertDialogOpen}
+        data-dashboard-stock-alert-launcher="PARTPILOT:DASHBOARD_STOCK_ALERT_DIALOG:V729"
+      >
+        <span className="dashboard-stock-alert-overview-main">
           <span className="card-label">Stock alerts</span>
           <strong>{lowStockLoading ? "..." : lowStock?.total ?? 0}</strong>
-          <p>
-            {lowStockLoading
-              ? "Checking inventory thresholds."
-              : lowStockError
-                ? "Current alert totals are unavailable."
-                : `${lowStock?.low_stock_count ?? 0} low · ${
-                    lowStock?.out_of_stock_count ?? 0
-                  } out`}
-          </p>
-        </article>
+        </span>
+        <span className="dashboard-stock-alert-summary-copy">
+          {lowStockLoading
+            ? "Checking inventory thresholds."
+            : lowStockError
+              ? "Current alert totals are unavailable."
+              : `${lowStock?.low_stock_count ?? 0} low · ${
+                  lowStock?.out_of_stock_count ?? 0
+                } out`}
+        </span>
+        <span className="dashboard-stock-alert-launch-arrow" aria-hidden="true">
+          →
+        </span>
+      </button>
 
-        <article className="card dashboard-action-card">
-          <span className="card-label">Inventory</span>
-          <strong>Manage parts</strong>
-          <p>Review stock, locations, quantities, and part details.</p>
-          <Link to="/part-manager">Open Part Manager</Link>
-        </article>
-      </div>
-
-      <article
-        className="card dashboard-low-stock-card"
-        data-dashboard-low-stock-version="dashboard-low-stock-v186"
-        aria-labelledby="dashboard-low-stock-title"
-        aria-busy={lowStockLoading}
+      <section
+        className="dashboard-quick-actions"
+        aria-labelledby="dashboard-quick-actions-title"
+        data-dashboard-quick-actions="PARTPILOT:DASHBOARD_QUICK_ACTIONS:V730"
       >
-        <header className="dashboard-low-stock-header">
+        <header className="dashboard-quick-actions-header">
           <div>
-            <p className="eyebrow">Attention required</p>
-            <h2 id="dashboard-low-stock-title">Low-stock inventory</h2>
-            <p>
-              Alerts use available stock after reservations and each part's
-              configured threshold.
-            </p>
+            <p className="eyebrow">Quick actions</p>
+            <h2 id="dashboard-quick-actions-title">Jump into your workspace</h2>
           </div>
-
-          <div className="dashboard-low-stock-actions">
-            <span>
-              {lowStockLoading
-                ? "Loading..."
-                : `${lowStock?.total ?? 0} alert${
-                    (lowStock?.total ?? 0) === 1 ? "" : "s"
-                  }`}
-            </span>
-            <button
-              type="button"
-              onClick={refreshLowStock}
-              disabled={lowStockLoading || !token}
-            >
-              {lowStockLoading ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
+          <p>Common inventory and planning tasks without extra navigation.</p>
         </header>
 
-        {lowStockLoading ? (
-          <div
-            className="dashboard-low-stock-state"
-            role="status"
-            aria-live="polite"
-          >
-            Loading low-stock inventory...
-          </div>
-        ) : null}
+        <div className="dashboard-quick-action-grid">
+          <Link className="card dashboard-quick-action" to="/inventory?add=1">
+            <span>Inventory</span>
+            <strong>Add part</strong>
+            <small>Create a new stored inventory record.</small>
+            <span className="dashboard-quick-action-arrow" aria-hidden="true">→</span>
+          </Link>
+          <Link className="card dashboard-quick-action" to="/projects?create=1">
+            <span>Planning</span>
+            <strong>New project</strong>
+            <small>Start a Draft Project and plan required parts.</small>
+            <span className="dashboard-quick-action-arrow" aria-hidden="true">→</span>
+          </Link>
+          <Link className="card dashboard-quick-action" to="/inventory">
+            <span>Inventory</span>
+            <strong>Stored parts</strong>
+            <small>Search stock, quantities, locations, and details.</small>
+            <span className="dashboard-quick-action-arrow" aria-hidden="true">→</span>
+          </Link>
+          <Link className="card dashboard-quick-action" to="/reservations">
+            <span>Operations</span>
+            <strong>Reservations</strong>
+            <small>Review active holds and Project commitments.</small>
+            <span className="dashboard-quick-action-arrow" aria-hidden="true">→</span>
+          </Link>
+          <Link className="card dashboard-quick-action" to="/part-manager">
+            <span>Catalogue</span>
+            <strong>Part Manager</strong>
+            <small>Manage part types, templates, and custom fields.</small>
+            <span className="dashboard-quick-action-arrow" aria-hidden="true">→</span>
+          </Link>
+          <Link className="card dashboard-quick-action" to="/history">
+            <span>Audit</span>
+            <strong>History</strong>
+            <small>Inspect stock movements and system activity.</small>
+            <span className="dashboard-quick-action-arrow" aria-hidden="true">→</span>
+          </Link>
+        </div>
+      </section>
 
-        {!lowStockLoading && lowStockError ? (
-          <div className="dashboard-low-stock-state is-error" role="alert">
-            <strong>Unable to load stock alerts</strong>
-            <p>{lowStockError}</p>
-            <button type="button" onClick={refreshLowStock}>
-              Try again
-            </button>
-          </div>
-        ) : null}
-
-        {!lowStockLoading
-          && !lowStockError
-          && lowStock
-          && lowStock.total === 0 ? (
-            <div className="dashboard-low-stock-state is-empty">
-              <strong>Stock levels look healthy</strong>
-              <p>
-                No enabled low-stock threshold is currently being reached.
-              </p>
-            </div>
-          ) : null}
-
-        {!lowStockLoading
-          && !lowStockError
-          && lowStock
-          && lowStock.parts.length > 0 ? (
-            <div className="dashboard-low-stock-list">
-              {lowStock.parts.map((part) => (
-                <div
-                  className={
-                    part.available_quantity <= 0
-                      ? "dashboard-low-stock-row is-out"
-                      : "dashboard-low-stock-row is-low"
-                  }
-                  key={part.id}
-                >
-                  <div className="dashboard-low-stock-identity">
-                    <strong>{partDisplayName(part)}</strong>
-                    <span>{partContext(part) || "Inventory part"}</span>
-                  </div>
-
-                  <div className="dashboard-low-stock-quantity">
-                    <strong>{part.available_quantity}</strong>
-                    <span>available</span>
-                  </div>
-
-                  <div className="dashboard-low-stock-threshold">
-                    <span>Threshold</span>
-                    <strong>{part.low_stock_threshold ?? "—"}</strong>
-                  </div>
-
-                  <span className="dashboard-low-stock-badge">
-                    {stockStatusLabel(part)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
-
-        {!lowStockLoading
-          && !lowStockError
-          && lowStock
-          && lowStock.total > lowStock.parts.length ? (
-            <footer className="dashboard-low-stock-footer">
-              <span>
-                Showing {lowStock.parts.length} of {lowStock.total} alerts.
-              </span>
-              <Link to="/part-manager">Review all inventory</Link>
-            </footer>
-          ) : null}
-      </article>
     </section>
   );
 }

@@ -4182,3 +4182,27 @@ Browser-approved behavior:
   values during same-session background refreshes;
 - protected `GET /api/parts/metrics` accepts sessions or `inventory:read` REST
   API keys, bringing the explicit scoped OpenAPI surface to 44 operations.
+
+
+<!-- PARTPILOT:DASHBOARD_OPERATIONAL_HOME_CHECKPOINT:V731 -->
+## Dashboard operational home browser-approved - Patch 731
+
+Patch 731 checkpoints the browser-approved Dashboard Stock alerts dialog from
+Patch 729 plus the operational-home cleanup from Patch 730.
+
+Browser-approved behavior:
+- the Stock alerts summary card opens an accessible live-synced dialog with total,
+  low and out-of-stock counts, alert rows, Escape/backdrop/X close behavior,
+  focus restoration, narrow-screen layout and Review inventory navigation;
+- background inventory invalidations update the open dialog without replacing it
+  with a blocking loading state; Retry remains available only after real errors;
+- the permanent Backend/Online card and duplicated inline Low-stock inventory
+  table are removed from the Dashboard;
+- the Dashboard now presents six compact Quick actions: Add part, New project,
+  Stored parts, Reservations, Part Manager and History;
+- Add part and New project use one-shot URL intents that open the existing modal
+  then consume the query parameter so reload/back navigation does not reopen it;
+- routine Refresh controls are removed from Dashboard, Stored Parts, Projects,
+  Reservations and History because those surfaces are live-synced; explicit
+  Retry/Try again recovery remains for failed requests;
+- no backend, API, schema or database semantics changed in this UI cleanup.

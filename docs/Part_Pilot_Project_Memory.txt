@@ -243,15 +243,14 @@ Chat 25 public-alpha hardening milestone - Patch 723
 
 
 
-PARTPILOT:INVENTORY_METRICS_MEMORY:V728
-Chat 25 public-alpha hardening milestone - Patch 728
-- Browser-approved Stored Parts summary has six whole-inventory cards: active
-  records, physical/reserved/available units, Stock alerts and Inventory value.
-- Metrics ignore current filters/pages and deleted parts; value reports pricing
-  coverage and uses workspace currency for display only.
-- Stock alerts reuse the existing low/out semantics; the responsive grid is
-  container-aware 6/3/2/1 and live refresh keeps cached cards mounted.
-- `GET /api/parts/metrics` is protected by session or `inventory:read`; the
-  explicit API-key/OpenAPI scope map now contains 44 operations.
-- Next: Dashboard Stock alert dialog, roles, safeguarded MCP writes and final
-  public-alpha regression.
+PARTPILOT:DASHBOARD_OPERATIONAL_HOME_MEMORY:V731
+Chat 25 public-alpha hardening milestone - Patch 731
+- Stored Parts keeps the Patch 728 six-card whole-inventory metrics and 44-route
+  API-key/OpenAPI scope contract.
+- Dashboard Stock alerts now open a live-synced detail dialog; the redundant
+  Backend card and inline low-stock table are removed.
+- Quick actions cover Add part, New project, Stored parts, Reservations, Part
+  Manager and History; Add part/New project use consumed one-shot modal intents.
+- Routine Refresh controls are removed from live-synced Dashboard, Stored Parts,
+  Projects, Reservations and History; Retry/Try again remains for failures.
+- Next: roles, safeguarded MCP writes and final public-alpha regression.

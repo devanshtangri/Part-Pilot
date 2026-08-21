@@ -651,3 +651,13 @@ pricing coverage visible, and use workspace currency for display only. Their
 responsive grid follows the available Stored Parts width symmetrically, while
 `GET /api/parts/metrics` is available to authenticated sessions and
 `inventory:read` REST API keys.
+
+
+<!-- PARTPILOT:DASHBOARD_OPERATIONAL_HOME_README:V731 -->
+### Dashboard operational home
+
+The Dashboard now uses Stock alerts as the single gateway to a live-synced alert
+dialog and provides compact Quick actions for common inventory/project workflows.
+Redundant backend-status and inline low-stock panels are removed. Routine Refresh
+buttons are also gone from the live-synced Dashboard, Stored Parts, Projects,
+Reservations and History views; request-failure Retry actions remain available.

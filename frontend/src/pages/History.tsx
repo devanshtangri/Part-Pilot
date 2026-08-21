@@ -523,14 +523,6 @@ export function History() {
             before-and-after records from one chronological register.
           </p>
         </div>
-        <button
-          className="history-button"
-          type="button"
-          disabled={listLoading || optionsLoading}
-          onClick={() => setReloadVersion((value) => value + 1)}
-        >
-          Refresh
-        </button>
       </header>
 
       <div className="history-summary" aria-label="History summary">

@@ -11,6 +11,7 @@ import type {
   FormEvent,
   MouseEvent
 } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import { useLiveSyncRevision } from "../live/LiveSyncContext";
@@ -245,6 +246,7 @@ function emptyCollection(offset = 0): ProjectCollection {
 
 export function Projects() {
   const { token, timezone } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const projectsLiveRevision = useLiveSyncRevision("projects");
   const lastProjectsLiveRevision = useRef(projectsLiveRevision);
   const listRequestId = useRef(0);
@@ -306,6 +308,15 @@ const [lifecycleNotice, setLifecycleNotice] =
   useEffect(() => {
     writeProjectStatusPreference(statusFilter);
   }, [statusFilter]);
+
+  // PARTPILOT:DASHBOARD_QUICK_ACTION_INTENT:V730
+  useEffect(() => {
+    if (searchParams.get("create") !== "1") return;
+    openCreate();
+    const next = new URLSearchParams(searchParams);
+    next.delete("create");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!token) {
@@ -671,7 +682,7 @@ async function submitProjectLifecycle() {
     selectedProject?.id === lifecycleProjectId ? selectedProject : null;
   if (!project || project.status !== "reserved") {
     setLifecycleError(
-      "The selected Project is no longer Reserved. Refresh and review its current status."
+      "The selected Project is no longer Reserved. Review its current status."
     );
     return;
   }
@@ -882,14 +893,6 @@ async function submitProjectLifecycle() {
             </button>
           ))}
         </div>
-        <button
-          className="projects-button"
-          type="button"
-          disabled={listLoading}
-          onClick={() => setReloadVersion((value) => value + 1)}
-        >
-          Refresh
-        </button>
       </div>
 
       <div className="projects-workspace">

@@ -1139,14 +1139,6 @@ const runAction = async () => {
             placeholder="Search this page"
           />
         </label>
-        <button
-          className="reservations-button"
-          type="button"
-          onClick={() => setReloadVersion((value) => value + 1)}
-          disabled={listLoading}
-        >
-          Refresh
-        </button>
       </div>
 
       {listError ? (

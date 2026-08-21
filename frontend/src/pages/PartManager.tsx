@@ -7,6 +7,7 @@ import {
 import type {
   ChangeEvent,
   FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import { useLiveSyncRevision } from "../live/LiveSyncContext";
@@ -450,6 +451,7 @@ export function PartManager({
   inventoryOnly = false
 }: PartManagerProps) {
   const { token, defaultCurrency, timezone } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const inventoryLiveRevision = useLiveSyncRevision("inventory");
   const preferencesLiveRevision = useLiveSyncRevision("preferences");
   const lastInventoryLiveRevision = useRef(inventoryLiveRevision);
@@ -630,6 +632,15 @@ export function PartManager({
     id: number;
     name: string;
   } | null>(null);
+
+  // PARTPILOT:DASHBOARD_QUICK_ACTION_INTENT:V730
+  useEffect(() => {
+    if (!inventoryOnly || searchParams.get("add") !== "1") return;
+    setIsAddingPart(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("add");
+    setSearchParams(next, { replace: true });
+  }, [inventoryOnly, searchParams, setSearchParams]);
 
   // PARTPILOT:INVENTORY_LIVE_INVALIDATION:V692
   useEffect(() => {
@@ -3073,17 +3084,6 @@ function closeCreator() {
               disabled={!token}
             >
               Deleted items
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setInventoryRefreshSequence(
-                  (current) => current + 1
-                )
-              }
-              disabled={inventoryLoading || !token}
-            >
-              {inventoryLoading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </header>
