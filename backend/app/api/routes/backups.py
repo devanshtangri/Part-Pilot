@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import require_administrator_user
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.schemas.backups import ManualBackupStatusResponse
@@ -69,7 +69,7 @@ def _cleanup_artifact(
 )
 def read_manual_backup_status(
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> ManualBackupStatusResponse:
     del current_user
@@ -97,7 +97,7 @@ def read_manual_backup_status(
     },
 )
 def download_backup(
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> FileResponse:
     if not BACKUP_GENERATION_LOCK.acquire(blocking=False):

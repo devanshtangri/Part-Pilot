@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
 from app.models import AuditLog, User, UserSession
+from app.services.authorization import ROLE_OWNER, ROLE_VIEWER, normalize_user_role
 
 DEFAULT_SESSION_DAYS = 30
 USERNAME_PATTERN = re.compile(r"^[a-z0-9._]+$")
@@ -387,10 +388,12 @@ def create_user(
     username: str,
     password: str,
     display_name: str | None = None,
+    role: str = ROLE_OWNER,
     commit: bool = True,
 ) -> User:
     normalized_username = normalize_username(username)
     normalized_display_name = normalize_display_name(display_name, normalized_username)
+    normalized_role = normalize_user_role(role)
 
     if get_user_by_username(db, normalized_username) is not None:
         raise ValueError("Username already exists")
@@ -399,6 +402,7 @@ def create_user(
         username=normalized_username,
         display_name=normalized_display_name,
         password_hash=hash_password(password),
+        role=normalized_role,
         is_active=True,
     )
     db.add(user)
@@ -424,6 +428,7 @@ def create_first_user(
         username=username,
         password=password,
         display_name=display_name,
+        role=ROLE_OWNER,
         commit=commit,
     )
 

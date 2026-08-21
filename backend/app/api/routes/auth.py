@@ -67,6 +67,13 @@ from app.schemas.auth import (
     SessionListResponse,
     SessionResponse,
     SessionRevokeResponse,
+    ManagedUserActionResponse,
+    ManagedUserAccessUpdateRequest,
+    ManagedUserCreateRequest,
+    ManagedUserDeleteRequest,
+    ManagedUserListResponse,
+    ManagedUserPasswordResetRequest,
+    ManagedUserResponse,
 )
 from app.services.auth import (
     CurrentPasswordInvalidError,
@@ -88,6 +95,24 @@ from app.services.api_keys import (
     validate_api_key,
 )
 from app.services.live_sync import publish_live_invalidation
+from app.services.authorization import (
+    ROLE_ADMINISTRATOR,
+    ROLE_OWNER,
+    RoleAuthorizationError,
+    require_minimum_role,
+    require_rest_scope_role,
+)
+from app.services.user_admin import (
+    ManagedUserNotFoundError,
+    UserAdministrationError,
+    UserAdministrationForbiddenError,
+    create_managed_user,
+    delete_managed_user,
+    force_reset_managed_user_password,
+    list_managed_users,
+    revoke_managed_user_sessions,
+    update_managed_user_access,
+)
 
 
 # PARTPILOT:ACCOUNT_LIVE_SYNC_PUBLICATION:V705
@@ -157,6 +182,26 @@ def get_current_user(
     return user
 
 
+# PARTPILOT:USER_ROLE_ROUTE_DEPENDENCIES:V732
+def _minimum_role_dependency(minimum_role: str):
+    def dependency(current_user=Depends(get_current_user)):
+        try:
+            require_minimum_role(current_user, minimum_role)
+        except RoleAuthorizationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(exc),
+            ) from exc
+        return current_user
+
+    dependency.__name__ = f"require_{minimum_role}_user"
+    return dependency
+
+
+require_administrator_user = _minimum_role_dependency(ROLE_ADMINISTRATOR)
+require_owner_user = _minimum_role_dependency(ROLE_OWNER)
+
+
 # PARTPILOT:REST_API_KEY_ROUTE_SCOPE_AUTH:V616
 def _get_rest_user_for_scope(
     authorization: str | None,
@@ -166,7 +211,7 @@ def _get_rest_user_for_scope(
     token = _extract_bearer_token(authorization)
     if token.startswith(API_KEY_PREFIX):
         try:
-            return validate_api_key(
+            user = validate_api_key(
                 db,
                 token,
                 required_scopes=(required_scope,),
@@ -183,13 +228,21 @@ def _get_rest_user_for_scope(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid API key",
             ) from exc
+    else:
+        user = get_user_for_session_token(db, token)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired session",
+            )
 
-    user = get_user_for_session_token(db, token)
-    if user is None:
+    try:
+        require_rest_scope_role(user, required_scope)
+    except RoleAuthorizationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     return user
 
 
@@ -281,6 +334,7 @@ def setup(
         token=session_token.token,
         username=user.username,
         display_name=user.display_name,
+        role=user.role,
     )
 
 
@@ -290,7 +344,7 @@ def setup(
 )
 def complete_setup(
     payload: SetupPreferencesRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_owner_user),
     db: Session = Depends(get_db),
 ) -> SetupStatusResponse:
     del current_user
@@ -320,7 +374,7 @@ def complete_setup(
 )
 def debug_reset_database(
     payload: DebugResetRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_owner_user),
     db: Session = Depends(get_db),
 ) -> DebugResetResponse:
     del current_user
@@ -382,6 +436,7 @@ def login(
         token=session_token.token,
         username=user.username,
         display_name=user.display_name,
+        role=user.role,
     )
 
 
@@ -393,6 +448,7 @@ def _current_user_response(current_user) -> CurrentUserResponse:
         avatar_id=current_user.avatar_id,
         has_custom_avatar=current_user.avatar_image_data is not None,
         avatar_image_sha256=current_user.avatar_image_sha256,
+        role=current_user.role,
         is_active=current_user.is_active,
     )
 
@@ -732,3 +788,148 @@ def revoke_session_route(
 
     _publish_account_mutation(current_user.id)
     return SessionRevokeResponse(ok=True, revoked=revoked)
+
+# PARTPILOT:USER_ROLE_ADMIN_ROUTES:V732
+def _managed_user_response(user) -> ManagedUserResponse:
+    return ManagedUserResponse(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+        role=user.role,
+        is_active=user.is_active,
+        last_login_at=user.last_login_at,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
+
+
+def _raise_user_admin_error(exc: Exception) -> None:
+    if isinstance(exc, ManagedUserNotFoundError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if isinstance(exc, UserAdministrationForbiddenError):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    if isinstance(exc, UserAdministrationError):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    if isinstance(exc, ValueError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    raise exc
+
+
+@router.get("/users", response_model=ManagedUserListResponse)
+def read_managed_users(
+    current_user=Depends(require_administrator_user),
+    db: Session = Depends(get_db),
+) -> ManagedUserListResponse:
+    try:
+        users = list_managed_users(db, actor=current_user)
+    except (UserAdministrationForbiddenError, UserAdministrationError) as exc:
+        _raise_user_admin_error(exc)
+    return ManagedUserListResponse(
+        users=[_managed_user_response(user) for user in users],
+        total=len(users),
+    )
+
+
+@router.post("/users", response_model=ManagedUserResponse, status_code=status.HTTP_201_CREATED)
+def create_managed_user_route(
+    payload: ManagedUserCreateRequest,
+    current_user=Depends(require_administrator_user),
+    db: Session = Depends(get_db),
+) -> ManagedUserResponse:
+    try:
+        user = create_managed_user(
+            db,
+            actor=current_user,
+            username=payload.username,
+            display_name=payload.display_name,
+            password=payload.password,
+            role=payload.role,
+            commit=True,
+        )
+    except (UserAdministrationForbiddenError, UserAdministrationError, ValueError) as exc:
+        db.rollback(); _raise_user_admin_error(exc)
+    _publish_account_mutation(user.id)
+    return _managed_user_response(user)
+
+
+@router.patch("/users/{user_id}", response_model=ManagedUserResponse)
+def update_managed_user_access_route(
+    user_id: int,
+    payload: ManagedUserAccessUpdateRequest,
+    current_user=Depends(require_administrator_user),
+    db: Session = Depends(get_db),
+) -> ManagedUserResponse:
+    try:
+        user = update_managed_user_access(
+            db,
+            actor=current_user,
+            user_id=user_id,
+            role=payload.role,
+            is_active=payload.is_active,
+            commit=True,
+        )
+    except (ManagedUserNotFoundError, UserAdministrationForbiddenError, UserAdministrationError, ValueError) as exc:
+        db.rollback(); _raise_user_admin_error(exc)
+    _publish_account_mutation(user.id)
+    return _managed_user_response(user)
+
+
+@router.post("/users/{user_id}/force-password", response_model=ManagedUserActionResponse)
+def force_managed_user_password_route(
+    user_id: int,
+    payload: ManagedUserPasswordResetRequest,
+    current_user=Depends(require_administrator_user),
+    db: Session = Depends(get_db),
+) -> ManagedUserActionResponse:
+    try:
+        revoked = force_reset_managed_user_password(
+            db,
+            actor=current_user,
+            user_id=user_id,
+            new_password=payload.new_password,
+            commit=True,
+        )
+    except (ManagedUserNotFoundError, UserAdministrationForbiddenError, UserAdministrationError, ValueError) as exc:
+        db.rollback(); _raise_user_admin_error(exc)
+    _publish_account_mutation(user_id)
+    return ManagedUserActionResponse(ok=True, revoked_sessions=revoked)
+
+
+@router.post("/users/{user_id}/revoke-sessions", response_model=ManagedUserActionResponse)
+def revoke_managed_user_sessions_route(
+    user_id: int,
+    current_user=Depends(require_administrator_user),
+    db: Session = Depends(get_db),
+) -> ManagedUserActionResponse:
+    try:
+        revoked = revoke_managed_user_sessions(
+            db,
+            actor=current_user,
+            user_id=user_id,
+            commit=True,
+        )
+    except (ManagedUserNotFoundError, UserAdministrationForbiddenError, UserAdministrationError) as exc:
+        db.rollback(); _raise_user_admin_error(exc)
+    _publish_account_mutation(user_id)
+    return ManagedUserActionResponse(ok=True, revoked_sessions=revoked)
+
+
+@router.delete("/users/{user_id}", response_model=ManagedUserActionResponse)
+def delete_managed_user_route(
+    user_id: int,
+    payload: ManagedUserDeleteRequest,
+    current_user=Depends(require_administrator_user),
+    db: Session = Depends(get_db),
+) -> ManagedUserActionResponse:
+    try:
+        delete_managed_user(
+            db,
+            actor=current_user,
+            user_id=user_id,
+            confirmation_username=payload.confirmation_username,
+            commit=True,
+        )
+    except (ManagedUserNotFoundError, UserAdministrationForbiddenError, UserAdministrationError) as exc:
+        db.rollback(); _raise_user_admin_error(exc)
+    publish_live_invalidation(("account", "history"), resource={"type": "user", "id": user_id})
+    return ManagedUserActionResponse(ok=True)

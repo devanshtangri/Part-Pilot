@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, field_validator
 USERNAME_PATTERN = r"^[a-z0-9._]+$"
 CURRENCY_PATTERN = r"^[A-Z]{3}$"
 TIMEZONE_PATTERN = r"^[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)*$"
+UserRole = Literal["owner", "administrator", "operator", "viewer"]
+
 BuiltInAvatarId = Literal[
     "initials", "chip", "circuit", "terminal", "storage", "rocket"
 ]
@@ -70,6 +72,7 @@ class AuthTokenResponse(BaseModel):
     token: str
     username: str
     display_name: str
+    role: UserRole
 
 
 class CurrentUserResponse(BaseModel):
@@ -82,6 +85,7 @@ class CurrentUserResponse(BaseModel):
         default=None,
         pattern=r"^[0-9a-f]{64}$",
     )
+    role: UserRole
     is_active: bool
 
 
@@ -162,3 +166,65 @@ class SessionRevokeResponse(BaseModel):
 class OtherSessionsRevokeResponse(BaseModel):
     ok: bool
     revoked_sessions: int
+
+
+# PARTPILOT:USER_ROLE_ADMIN_SCHEMA:V732
+class ManagedUserResponse(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    role: UserRole
+    is_active: bool
+    last_login_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ManagedUserListResponse(BaseModel):
+    users: list[ManagedUserResponse]
+    total: int
+
+
+class ManagedUserCreateRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=80, pattern=USERNAME_PATTERN)
+    display_name: str = Field(min_length=1, max_length=160)
+    password: str = Field(min_length=8, max_length=256)
+    role: UserRole
+
+    @field_validator("username", mode="before")
+    @classmethod
+    def normalize_managed_username(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator("display_name", mode="before")
+    @classmethod
+    def normalize_managed_display_name(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+
+class ManagedUserAccessUpdateRequest(BaseModel):
+    role: UserRole | None = None
+    is_active: bool | None = None
+
+    @field_validator("is_active")
+    @classmethod
+    def preserve_boolean(cls, value: bool | None) -> bool | None:
+        return value
+
+
+class ManagedUserPasswordResetRequest(BaseModel):
+    new_password: str = Field(min_length=8, max_length=256)
+
+
+class ManagedUserDeleteRequest(BaseModel):
+    confirmation_username: str = Field(min_length=1, max_length=80)
+
+    @field_validator("confirmation_username", mode="before")
+    @classmethod
+    def normalize_confirmation_username(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+
+class ManagedUserActionResponse(BaseModel):
+    ok: bool
+    revoked_sessions: int = 0

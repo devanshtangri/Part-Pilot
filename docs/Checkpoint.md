@@ -4206,3 +4206,50 @@ Browser-approved behavior:
   Reservations and History because those surfaces are live-synced; explicit
   Retry/Try again recovery remains for failed requests;
 - no backend, API, schema or database semantics changed in this UI cleanup.
+
+
+<!-- PARTPILOT:USER_ROLES_AUTHORIZATION_CHECKPOINT:V733 -->
+## User roles and authorization foundation - Patch 733
+
+Patch 733 establishes the backend authorization foundation for multi-user Part
+Pilot workspaces and advances the production schema to `0017_user_roles`.
+
+Security contract:
+- users have one of Owner, Administrator, Operator or Viewer roles; all accounts
+  that predate this migration are explicitly preserved as Owner;
+- Viewer can use operational read paths, Operator adds operational write access,
+  Administrator adds workspace/integration/backup and lower-role user
+  administration, and Owner additionally controls restore/reset plus Owner
+  lifecycle operations;
+- every scoped REST API-key request is checked against both the key scope and the
+  current owning user's role, so an old high-scope key cannot survive a user
+  demotion as an escalation path;
+- session-only user administration can list/create users, change lower-role
+  access, disable/reactivate accounts, force-reset passwords, revoke sessions and
+  delete accounts with exact confirmation;
+- Administrators cannot create or administer Owner/Administrator accounts, users
+  cannot disable/delete their current account, and the last active Owner cannot
+  be disabled, deleted or demoted;
+- reversible workspace preference writes and MCP administration require
+  Administrator or Owner, backups require Administrator or Owner, and restore or
+  debug-reset operations require Owner; each role keeps its own profile/password/
+  session controls;
+- current OAuth MCP read access remains available to authenticated active users;
+  direct MCP credentials retain their independent global/client permission
+  ceiling. Safeguarded MCP write tools will layer Operator-or-higher enforcement
+  on this foundation in the next slice.
+
+Migration/backup safety:
+- SQLite adds/drops `users.role` in place rather than recreating the parent users
+  table, preventing ON DELETE cascades into sessions, API keys and OAuth data;
+- copied-production upgrade -> downgrade -> re-upgrade testing proves exact
+  logical row/sequence restoration and preservation of all existing integrations;
+- backup/restore contracts now target Alembic `0017_user_roles`, with the 0016
+  schema retained as an explicitly unsupported historical backup contract;
+- role, auth/profile/session, 44-route API-key/OpenAPI, MCP OAuth/settings/tool
+  permissions, live-sync, backup, restore validation/commit/bootstrap and complete
+  copied-production regressions pass on isolated database copies.
+
+This patch intentionally exposes the enforceable user-management API foundation
+without adding a role-management Settings UI; that presentation layer can be
+added independently without weakening the backend boundary.

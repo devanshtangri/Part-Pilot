@@ -661,3 +661,16 @@ dialog and provides compact Quick actions for common inventory/project workflows
 Redundant backend-status and inline low-stock panels are removed. Routine Refresh
 buttons are also gone from the live-synced Dashboard, Stored Parts, Projects,
 Reservations and History views; request-failure Retry actions remain available.
+
+
+<!-- PARTPILOT:USER_ROLES_AUTHORIZATION_README:V733 -->
+### User roles and authorization
+
+Part Pilot now has an enforceable Owner / Administrator / Operator / Viewer
+authorization foundation. Existing installations migrate their current accounts
+to Owner without recreating the SQLite users table. Operational REST requests,
+REST API keys, workspace/MCP administration, backups and restore/reset actions
+are checked against role ceilings, and session-only user administration protects
+the last active Owner. The backend APIs support user lifecycle management; a
+future Settings UI can present those controls without changing the security
+boundary.

@@ -243,14 +243,19 @@ Chat 25 public-alpha hardening milestone - Patch 723
 
 
 
-PARTPILOT:DASHBOARD_OPERATIONAL_HOME_MEMORY:V731
-Chat 25 public-alpha hardening milestone - Patch 731
-- Stored Parts keeps the Patch 728 six-card whole-inventory metrics and 44-route
-  API-key/OpenAPI scope contract.
-- Dashboard Stock alerts now open a live-synced detail dialog; the redundant
-  Backend card and inline low-stock table are removed.
-- Quick actions cover Add part, New project, Stored parts, Reservations, Part
-  Manager and History; Add part/New project use consumed one-shot modal intents.
-- Routine Refresh controls are removed from live-synced Dashboard, Stored Parts,
-  Projects, Reservations and History; Retry/Try again remains for failures.
-- Next: roles, safeguarded MCP writes and final public-alpha regression.
+PARTPILOT:USER_ROLES_AUTHORIZATION_MEMORY:V733
+Chat 25 public-alpha hardening milestone - Patch 733
+- Patch 731 Dashboard operational-home/Stock-alert dialog and Patch 728 Stored
+  Parts metrics remain checkpointed; routine Refresh controls stay removed.
+- Alembic 0017 adds Owner/Administrator/Operator/Viewer without recreating the
+  SQLite users table; all pre-existing accounts are backfilled to Owner and
+  upgrade/downgrade/re-upgrade preserves every production row/sequence.
+- Viewer is operational read-only; Operator adds operational writes;
+  Administrator adds workspace/MCP/backup and lower-role user administration;
+  Owner additionally controls restore/reset and Owner lifecycle.
+- Session-only user APIs support create/list/access changes, disable/reactivate,
+  force-reset, session revoke and confirmed delete with last-Owner protection.
+- REST API keys are capped by both stored scopes and the owning user's current
+  role, preventing stale high-scope keys from surviving demotion as escalation.
+- Backup/restore contracts now target 0017. Role-management UI is deferred; next
+  are safeguarded MCP write tools and final public-alpha regression.

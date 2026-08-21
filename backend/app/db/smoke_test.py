@@ -5710,6 +5710,7 @@ def check_phase3_auth_foundation() -> None:
             "username",
             "display_name",
             "password_hash",
+            "role",
             "is_active",
             "last_login_at",
             "created_at",

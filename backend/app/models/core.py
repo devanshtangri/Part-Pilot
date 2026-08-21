@@ -61,6 +61,13 @@ class AppSetting(Base, TimestampMixin):
 
 class User(Base, TimestampMixin):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('owner','administrator','operator','viewer')",
+            name="ck_users_role",
+        ),
+        Index("ix_users_role", "role"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
@@ -74,6 +81,10 @@ class User(Base, TimestampMixin):
     avatar_image_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     avatar_image_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # PARTPILOT:USER_ROLE_MODEL:V732
+    role: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="viewer", server_default="viewer"
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

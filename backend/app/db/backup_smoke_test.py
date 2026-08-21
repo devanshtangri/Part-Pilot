@@ -252,7 +252,7 @@ def check_backup_artifact_core() -> None:
 
         expected_filename = (
             "part-pilot-backup-20260802T000000Z-"
-            "0016-mcp-tool-permissions.ppbackup"
+            "0017-user-roles.ppbackup"
         )
         if artifact.filename != expected_filename:
             fail(

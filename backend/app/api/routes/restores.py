@@ -15,7 +15,7 @@ from fastapi import (
 )
 from starlette.responses import JSONResponse
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import require_owner_user
 from app.core.config import get_settings
 from app.core.lifecycle import (
     LifecycleStateError,
@@ -100,7 +100,7 @@ ALLOWED_RESTORE_CONTENT_TYPES = {
 )
 def validate_restore_upload(
     backup: UploadFile = File(...),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_owner_user),
 ) -> RestoreValidationResponse:
     filename = backup.filename or ""
     content_type = (
@@ -208,7 +208,7 @@ def commit_validated_restore(
     validation_token: str = FastAPIPath(
         pattern=RESTORE_TOKEN_PATTERN,
     ),
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_owner_user),
 ):
     if not restore_supervisor_available():
         raise HTTPException(

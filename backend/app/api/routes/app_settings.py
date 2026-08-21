@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.routes.auth import get_current_user
+from app.api.routes.auth import get_current_user, require_administrator_user
 from app.db.session import get_db
 from app.schemas.app_settings import (
     AppearanceSettingsResponse,
@@ -144,7 +144,7 @@ def read_search_settings(
 @router.patch("/search", response_model=SearchSettingsResponse)
 def patch_search_settings(
     payload: SearchSettingsUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> SearchSettingsResponse:
     result = update_search_settings(
@@ -170,7 +170,7 @@ def read_currency_settings(
 @router.patch("/currency", response_model=CurrencySettingsResponse)
 def patch_currency_settings(
     payload: CurrencySettingsUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> CurrencySettingsResponse:
     result = update_currency_settings(
@@ -196,7 +196,7 @@ def read_timezone_settings(
 @router.patch("/timezone", response_model=TimezoneSettingsResponse)
 def patch_timezone_settings(
     payload: TimezoneSettingsUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> TimezoneSettingsResponse:
     result = update_timezone_settings(
@@ -222,7 +222,7 @@ def read_reservation_settings(
 @router.patch("/reservations", response_model=ReservationSettingsResponse)
 def patch_reservation_settings(
     payload: ReservationSettingsUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> ReservationSettingsResponse:
     result = update_reservation_settings(
@@ -254,7 +254,7 @@ def read_appearance_settings(
 )
 def patch_appearance_settings(
     payload: AppearanceSettingsUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> AppearanceSettingsResponse:
     try:
@@ -277,7 +277,7 @@ def patch_appearance_settings(
 @router.post("/preferences/reset", response_model=ReversiblePreferenceResetResponse)
 def reset_preference_to_default(
     payload: ReversiblePreferenceResetRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> ReversiblePreferenceResetResponse:
     result = reset_reversible_preference(
@@ -293,7 +293,7 @@ def reset_preference_to_default(
 # PARTPILOT:MCP_SETTINGS_ROUTE:V473
 @router.get("/mcp", response_model=McpSettingsResponse)
 def read_mcp_settings(
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpSettingsResponse:
     del current_user
@@ -303,7 +303,7 @@ def read_mcp_settings(
 @router.patch("/mcp", response_model=McpSettingsResponse)
 def patch_mcp_settings(
     payload: McpSettingsUpdateRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpSettingsResponse:
     try:
@@ -349,7 +349,7 @@ def _mcp_permission_error(exc: Exception) -> HTTPException:
 )
 def read_mcp_tool_permissions(
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpToolPermissionsResponse:
     del current_user
@@ -367,7 +367,7 @@ def read_mcp_tool_permissions(
 def patch_mcp_tool_permissions(
     payload: McpToolPermissionsUpdateRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpToolPermissionsResponse:
     _no_store(response)
@@ -392,7 +392,7 @@ def patch_mcp_oauth_client_permissions(
     client_database_id: int,
     payload: McpClientToolPermissionsUpdateRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpClientToolPermissionsResponse:
     _no_store(response)
@@ -422,7 +422,7 @@ def patch_mcp_direct_client_permissions(
     client_id: int,
     payload: McpClientToolPermissionsUpdateRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpClientToolPermissionsResponse:
     _no_store(response)
@@ -445,7 +445,7 @@ def patch_mcp_direct_client_permissions(
 
 # PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_API:V555
 @router.post("/mcp/oauth-clients", response_model=McpOAuthClientRegistrationResponse, status_code=status.HTTP_201_CREATED)
-def create_mcp_oauth_client(payload: McpOAuthClientRegistrationRequest, response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpOAuthClientRegistrationResponse:
+def create_mcp_oauth_client(payload: McpOAuthClientRegistrationRequest, response: Response, current_user=Depends(require_administrator_user), db: Session=Depends(get_db)) -> McpOAuthClientRegistrationResponse:
     _no_store(response)
     if payload.client_type == "public" and payload.token_endpoint_auth_method != "none":
         raise HTTPException(
@@ -475,7 +475,7 @@ def create_mcp_oauth_client(payload: McpOAuthClientRegistrationRequest, response
 )
 def read_mcp_oauth_clients(
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpOAuthClientsResponse:
     _no_store(response)
@@ -486,7 +486,7 @@ def read_mcp_oauth_clients(
 
 # PARTPILOT:MCP_OAUTH_MANAGEABLE_API:V559
 @router.get("/mcp/oauth-clients/manageable", response_model=McpOAuthManageableClientsResponse)
-def read_manageable_mcp_oauth_clients(response: Response, current_user=Depends(get_current_user), db: Session = Depends(get_db)) -> McpOAuthManageableClientsResponse:
+def read_manageable_mcp_oauth_clients(response: Response, current_user=Depends(require_administrator_user), db: Session = Depends(get_db)) -> McpOAuthManageableClientsResponse:
     _no_store(response)
     return list_manageable_oauth_clients(db, user_id=current_user.id)
 
@@ -499,7 +499,7 @@ def read_manageable_mcp_oauth_clients(response: Response, current_user=Depends(g
 def delete_mcp_oauth_client(
     client_database_id: int,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpOAuthClientsResponse:
     _no_store(response)
@@ -597,7 +597,7 @@ def _named_direct_error(exc: Exception) -> HTTPException:
 @router.get("/mcp/direct-clients", response_model=McpDirectClientsResponse)
 def read_mcp_direct_clients(
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectClientsResponse:
     del current_user
@@ -613,7 +613,7 @@ def read_mcp_direct_clients(
 def create_mcp_direct_client(
     payload: McpDirectClientCreateRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectClientCreateResponse:
     _no_store(response)
@@ -654,7 +654,7 @@ def patch_mcp_direct_client(
     client_id: int,
     payload: McpDirectClientUpdateRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectClientSummaryResponse:
     _no_store(response)
@@ -685,7 +685,7 @@ def rotate_mcp_named_direct_client(
     client_id: int,
     payload: McpDirectClientRotateRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectClientKeyResponse:
     _no_store(response)
@@ -717,7 +717,7 @@ def rotate_mcp_named_direct_client(
 def reveal_mcp_named_direct_client(
     client_id: int,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectClientKeyResponse:
     _no_store(response)
@@ -750,7 +750,7 @@ def put_mcp_named_direct_client_networks(
     client_id: int,
     payload: McpDirectAuthTrustedNetworkRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectClientSummaryResponse:
     _no_store(response)
@@ -779,7 +779,7 @@ def put_mcp_named_direct_client_networks(
 def delete_mcp_named_direct_client(
     client_id: int,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectClientsResponse:
     _no_store(response)
@@ -833,13 +833,13 @@ def _direct_auth_status(db: Session) -> McpDirectAuthStatusResponse:
     )
 
 @router.get("/mcp/direct-auth", response_model=McpDirectAuthStatusResponse)
-def read_mcp_direct_auth(response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpDirectAuthStatusResponse:
+def read_mcp_direct_auth(response: Response, current_user=Depends(require_administrator_user), db: Session=Depends(get_db)) -> McpDirectAuthStatusResponse:
     del current_user
     _no_store(response)
     return _direct_auth_status(db)
 
 @router.post("/mcp/direct-auth/bearer-key", response_model=McpDirectAuthKeyResponse)
-def rotate_mcp_direct_key(response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpDirectAuthKeyResponse:
+def rotate_mcp_direct_key(response: Response, current_user=Depends(require_administrator_user), db: Session=Depends(get_db)) -> McpDirectAuthKeyResponse:
     _no_store(response)
     try:
         issued=rotate_bearer_key(db,actor_user_id=current_user.id,commit=True)
@@ -865,7 +865,7 @@ def rotate_mcp_direct_key(response: Response, current_user=Depends(get_current_u
 def rotate_mcp_custom_header_key(
     payload: McpDirectAuthCustomHeaderRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectAuthKeyResponse:
     _no_store(response)
@@ -909,7 +909,7 @@ def rotate_mcp_custom_header_key(
 def configure_mcp_trusted_networks(
     payload: McpDirectAuthTrustedNetworkRequest,
     response: Response,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_administrator_user),
     db: Session = Depends(get_db),
 ) -> McpDirectAuthStatusResponse:
     _no_store(response)
@@ -936,7 +936,7 @@ def configure_mcp_trusted_networks(
     return _direct_auth_status(db)
 
 @router.post("/mcp/direct-auth/reveal", response_model=McpDirectAuthKeyResponse)
-def reveal_mcp_direct_key(response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpDirectAuthKeyResponse:
+def reveal_mcp_direct_key(response: Response, current_user=Depends(require_administrator_user), db: Session=Depends(get_db)) -> McpDirectAuthKeyResponse:
     _no_store(response)
     try:
         key=reveal_direct_key(db,actor_user_id=current_user.id,commit=True)
@@ -954,7 +954,7 @@ def reveal_mcp_direct_key(response: Response, current_user=Depends(get_current_u
     return McpDirectAuthKeyResponse(**current.model_dump(),key=key)
 
 @router.delete("/mcp/direct-auth", response_model=McpDirectAuthStatusResponse)
-def delete_mcp_direct_auth(response: Response, current_user=Depends(get_current_user), db: Session=Depends(get_db)) -> McpDirectAuthStatusResponse:
+def delete_mcp_direct_auth(response: Response, current_user=Depends(require_administrator_user), db: Session=Depends(get_db)) -> McpDirectAuthStatusResponse:
     _no_store(response)
     disable_direct_auth(db,actor_user_id=current_user.id,commit=True)
     _publish_mcp_mutation(current_user.id)

@@ -3495,3 +3495,32 @@ Next public-alpha work:
 - [ ] Add roles/authorization foundations.
 - [ ] Add safeguarded MCP write tools.
 - [ ] Run final public-alpha regression/hardening.
+
+
+<!-- PARTPILOT:USER_ROLES_AUTHORIZATION_ROADMAP:V733 -->
+### Patch 733 - User roles and authorization foundation
+
+Completed:
+- [x] Add `0017_user_roles` with safe in-place SQLite migration and exact
+  pre-existing-account Owner backfill.
+- [x] Define canonical Owner / Administrator / Operator / Viewer role levels.
+- [x] Enforce Viewer read-only and Operator operational-write ceilings centrally
+  across scoped REST session/API-key access.
+- [x] Prevent REST API-key scopes from elevating above the current owning role.
+- [x] Restrict workspace preference writes, MCP administration and backups to
+  Administrator-or-higher; restrict restore/debug-reset to Owner.
+- [x] Add session-only user administration for create/list, role/active changes,
+  force-reset, session revocation and confirmed deletion.
+- [x] Protect the last active Owner and prevent self-disable/self-delete.
+- [x] Align backup/restore schema contracts and copied-production regressions to
+  Alembic 0017.
+- [x] Prove migration downgrade/re-upgrade preserves sessions, API keys, OAuth,
+  audits and every other production row/sequence exactly.
+
+Deferred presentation:
+- [ ] Add a dedicated Settings role/user-management UI when that workflow is
+  prioritized; the backend authorization boundary is already enforceable.
+
+Next public-alpha work:
+- [ ] Add safeguarded MCP write tools on the Operator-or-higher role foundation.
+- [ ] Run final public-alpha regression/hardening.

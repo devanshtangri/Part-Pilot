@@ -27,6 +27,7 @@ from app.services.api_keys import (
     update_api_key,
 )
 from app.services.live_sync import publish_live_invalidation
+from app.services.authorization import allowed_rest_scopes_for_role
 
 
 # PARTPILOT:API_KEY_LIVE_SYNC_PUBLICATION:V708
@@ -69,6 +70,23 @@ def _secret_response(issued) -> ApiKeySecretResponse:
     )
 
 
+def _allowed_scopes(current_user) -> list[str]:
+    return allowed_rest_scopes_for_role(current_user.role, AVAILABLE_API_KEY_SCOPES)
+
+
+def _require_allowed_scopes(current_user, scopes: list[str]) -> None:
+    allowed = set(_allowed_scopes(current_user))
+    denied = [scope for scope in scopes if scope not in allowed]
+    if denied:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"The {current_user.role} role cannot grant API key scope(s): "
+                + ", ".join(denied)
+            ),
+        )
+
+
 def _raise_service_error(exc: Exception) -> None:
     if isinstance(exc, ApiKeyNotFoundError):
         raise HTTPException(
@@ -99,7 +117,7 @@ def read_api_keys(
     return ApiKeyListResponse(
         keys=[_summary(record) for record in records],
         total=len(records),
-        available_scopes=list(AVAILABLE_API_KEY_SCOPES),
+        available_scopes=_allowed_scopes(current_user),
     )
 
 
@@ -115,6 +133,7 @@ def create_api_key_route(
     db: Session = Depends(get_db),
 ) -> ApiKeySecretResponse:
     _no_store(response)
+    _require_allowed_scopes(current_user, payload.scopes)
     try:
         issued = create_api_key(
             db,
@@ -139,6 +158,7 @@ def update_api_key_route(
     db: Session = Depends(get_db),
 ) -> ApiKeySummaryResponse:
     _no_store(response)
+    _require_allowed_scopes(current_user, payload.scopes)
     try:
         record = update_api_key(
             db,
