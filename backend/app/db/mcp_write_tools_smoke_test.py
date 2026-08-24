@@ -41,7 +41,7 @@ READ_TOOLS = {
     "search_parts", "get_part_details", "list_projects", "get_project_details",
     "list_reservations", "get_reservation_details",
 }
-WRITE_TOOLS = {"reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity"}
+WRITE_TOOLS = {"reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity", "create_part"}
 ALL_TOOLS = READ_TOOLS | WRITE_TOOLS
 
 
@@ -171,8 +171,8 @@ def main() -> None:
         db = SessionLocal()
         try:
             revision = db.connection().exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
-            if revision != "0019_mcp_inventory_stock_write":
-                fail(f"Expected 0019_mcp_inventory_stock_write, got {revision}")
+            if revision != "0020_mcp_inventory_part_create":
+                fail(f"Expected 0020_mcp_inventory_part_create, got {revision}")
             stored_policy = get_app_setting(db, MCP_TOOL_PERMISSIONS_KEY, None)
             if (
                 not isinstance(stored_policy, dict)
@@ -180,8 +180,8 @@ def main() -> None:
                 or any(type(stored_policy[name]) is not bool for name in DEFAULT_MCP_TOOL_PERMISSIONS)
             ):
                 fail(f"Malformed copied MCP tool policy: {stored_policy}")
-            if db.query(McpWriteIntent).count() != 0:
-                fail("Copied production DB unexpectedly contains MCP write intents")
+            # Production may legitimately contain completed/pending MCP write intents from
+            # real clients. This smoke isolates only the named fixture principal below.
 
             owner = db.execute(
                 select(User).where(User.is_active.is_(True), User.role == "owner").order_by(User.id)
@@ -240,7 +240,7 @@ def main() -> None:
         from app.mcp.runtime import mcp_registered_tool_names
         import asyncio
         if set(asyncio.run(mcp_registered_tool_names())) != ALL_TOOLS:
-            fail("FastMCP registry does not contain six read plus four write tools")
+            fail("FastMCP registry does not contain six read plus five write tools")
 
         with TestClient(app, base_url="https://partpilot.example") as client:
             if listed_names(client, client_key, 1) != READ_TOOLS:
@@ -415,7 +415,12 @@ def main() -> None:
             verify = SessionLocal()
             try:
                 # Confirmation material is digest-only; business movements and audits identify MCP + backing user.
-                intents = verify.execute(select(McpWriteIntent)).scalars().all()
+                intents = verify.execute(
+                    select(McpWriteIntent).where(
+                        McpWriteIntent.principal_key
+                        == f"direct:{fixture_ids['direct']}"
+                    )
+                ).scalars().all()
                 if len(intents) < 6:
                     fail("Expected safeguarded write intent evidence was not persisted")
                 serialized = json.dumps([
@@ -437,9 +442,18 @@ def main() -> None:
                     fail("MCP consume movement attribution is missing")
                 if not any(m.reservation_id == fixture_ids["cancel_reservation"] and m.movement_type == "release" for m in mcp_movements):
                     fail("MCP cancel movement attribution is missing")
-                business_audits = verify.execute(
-                    select(AuditLog).where(AuditLog.actor_type == "mcp", AuditLog.actor_user_id == owner_id)
-                ).scalars().all()
+                business_audits = [
+                    audit
+                    for audit in verify.execute(
+                        select(AuditLog).where(
+                            AuditLog.actor_type == "mcp",
+                            AuditLog.actor_user_id == owner_id,
+                        )
+                    ).scalars()
+                    if isinstance(audit.metadata_json, dict)
+                    and audit.metadata_json.get("mcp_client_name")
+                    == "Patch 734 write smoke"
+                ]
                 if not any(a.event_type == "project.reserved" for a in business_audits):
                     fail("MCP Project business audit attribution is missing")
                 if not any(a.event_type == "reservation.consumed" for a in business_audits):

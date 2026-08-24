@@ -674,18 +674,25 @@ the last active Owner. The backend APIs support user lifecycle management; a
 future Settings UI can present those controls without changing the security
 boundary.
 
-<!-- PARTPILOT:SAFEGUARDED_MCP_WRITES_README:V754 -->
+<!-- PARTPILOT:SAFEGUARDED_MCP_WRITES_README:V759 -->
 ### Safeguarded MCP writes
 
-Part Pilot exposes six read tools plus four explicitly gated writes: reserve a
-Project, consume a Reservation, cancel a Reservation, and adjust inventory stock.
-Each write is bounded by server/write/global/client/scope/role ceilings and uses
-a preview, short-lived one-time confirmation token, idempotency, completed-write
-replay, and state-drift rejection. `adjust_part_quantity` reuses the canonical
-stock service, including nonnegative/reserved-stock floors and correction-reason
-requirements, and records MCP movement/audit attribution with post-commit
-inventory/history invalidation. No-auth remains permanently read-only. Existing
-OAuth sessions do not silently acquire `mcp:write`; clients must be newly
-authorized for that scope when write access is enabled. Live MCP tool policy is
-mutable administrator configuration; copied-production smokes own and restore
-their fixture policy.
+Part Pilot exposes six read tools plus five explicitly gated writes: reserve a
+Project, consume a Reservation, cancel a Reservation, adjust inventory stock,
+and create an inventory part. Every write remains bounded by server/write/global/
+client/scope/role ceilings and uses a preview, short-lived one-time confirmation
+token, idempotency, completed-write replay, and state-drift rejection.
+
+`adjust_part_quantity` reuses the canonical stock service. `create_part` reuses
+canonical part validation and freezes normalized metadata plus selected catalogue
+and template-field dependencies into its preview before confirmation. New write
+permissions default off while existing administrator policy values are preserved.
+No-auth remains permanently read-only.
+
+OAuth discovery now challenges clients for the MCP scopes currently enabled by
+the workspace instead of hard-coding `mcp:read`. Existing tokens never silently
+gain `mcp:write`; clients such as Claude must be reauthorized before write tools
+become available. History shows the MCP client name for MCP actions while retaining
+the backing Part Pilot user ID as the human authorization authority. Older MCP
+business history can resolve the client from its associated tool-call evidence,
+and MCP stock movements remain visibly attributed to MCP rather than the user.

@@ -198,3 +198,44 @@ bytes and corrected durable docs. Continue Chat 26
 with only narrow inventory create/edit/delete/restore slices that preserve current
 service/recycle-bin/dependency invariants, then final public-alpha hardening and
 regression before the planned Patch 767 boundary.
+
+<!-- PARTPILOT:CHAT26_PROGRESS_PATCH759 -->
+## Chat 26 progress through Patch 759
+
+Patch 759 checkpoints the browser-approved guarded inventory part-creation and MCP
+client-attribution sequence from Patches 756-758. Patch 755 was consumed only by a
+wrapper command quoting error; application bytes/database/runtime were restored
+before Patch 756 deployed the same rehearsed candidate.
+
+Current application contract after Patch 759:
+- Alembic: `0020_mcp_inventory_part_create`.
+- Approved runtime image:
+  `sha256:e545a8ee3234d8441ed1e3ab3f9a63e45595c5a36117f9eb719e3249ce42f815`.
+- MCP catalogue: six read + five safeguarded write tools. `create_part` joins the
+  four prior writes and defaults disabled on migration while prior policy values
+  are preserved.
+- `create_part` uses canonical creation validation and the existing preview /
+  five-minute confirmation / idempotency / replay / state-drift safeguards,
+  including catalogue/template dependency drift protection.
+- The OAuth challenge now advertises the MCP categories currently enabled by the
+  workspace. Existing OAuth grants do not escalate; Claude browser testing
+  required a fresh authorization carrying both `mcp:read` and `mcp:write` before
+  its enabled write tools appeared.
+- History displays the authenticated MCP OAuth/direct-client name for MCP actions
+  while retaining the backing `actor_user_id` for human authorization authority.
+  MCP stock movements remain typed as MCP. Existing matching unstamped business
+  audits can be hydrated from their associated OAuth tool-call evidence without a
+  production data migration or historical rewrite.
+- Real browser-tested MCP write-intent/audit rows are legitimate mutable data.
+  Copied-production tests isolate their own fixtures and must not require those
+  tables to be empty.
+
+Do not freeze current tool toggles, OAuth tokens/consents/client rows, browser-test
+inventory records, or audit/write-intent counts in future patches. Validate shape,
+integrity and exact source contracts instead.
+
+Next sequential patch after this checkpoint is 760. Preferred next implementation
+slice is guarded inventory metadata editing/correction using the existing service
+contract. Delete/restore remains separate and conditional on exact recycle-bin,
+dependency and reservation safety. Chat 26 still plans to close at Patch 767 after
+remaining public-alpha work and final regression.

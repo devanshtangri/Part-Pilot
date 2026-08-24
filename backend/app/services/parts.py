@@ -283,52 +283,53 @@ def _serialize_part(db: Session, part: Part) -> PartResponse:
     )
 
 
-def create_part(
+@dataclass(frozen=True)
+class PartCreationPlan:
+    part_type: PartType
+    manufacturer: Manufacturer | None
+    location: Location | None
+    fields: tuple[PartTypeField, ...]
+    pending_values: tuple[PartFieldValue, ...]
+    part_number_available: bool
+
+
+def _plan_part_creation(
     db: Session,
     payload: PartCreateRequest,
     *,
-    actor_user_id: int | None = None,
-    commit: bool = True,
-) -> PartResponse:
+    require_part_number_available: bool = True,
+) -> PartCreationPlan:
     part_type = db.get(PartType, payload.part_type_id)
     if part_type is None or not part_type.is_active:
         raise PartValidationError("Select an active part type.")
 
     manufacturer: Manufacturer | None = None
     if payload.manufacturer_id is not None:
-        manufacturer = db.get(
-            Manufacturer,
-            payload.manufacturer_id,
-        )
+        manufacturer = db.get(Manufacturer, payload.manufacturer_id)
         if manufacturer is None or not manufacturer.is_active:
-            raise PartValidationError(
-                "Select an active manufacturer."
-            )
+            raise PartValidationError("Select an active manufacturer.")
 
     location: Location | None = None
     if payload.location_id is not None:
         location = db.get(Location, payload.location_id)
         if location is None:
-            raise PartValidationError(
-                "Select an existing location."
-            )
+            raise PartValidationError("Select an existing location.")
+
+    part_number_available = True
     if payload.part_number:
         existing_id = db.execute(
-            select(Part.id).where(
-                Part.part_number == payload.part_number
-            )
+            select(Part.id).where(Part.part_number == payload.part_number)
         ).scalar_one_or_none()
-        if existing_id is not None:
+        part_number_available = existing_id is None
+        if require_part_number_available and not part_number_available:
             raise PartConflictError(
                 "A part with this part number already exists."
             )
 
-    fields = list(
+    fields = tuple(
         db.execute(
             select(PartTypeField)
-            .where(
-                PartTypeField.part_type_id == payload.part_type_id
-            )
+            .where(PartTypeField.part_type_id == payload.part_type_id)
             .order_by(
                 PartTypeField.sort_order.asc(),
                 PartTypeField.id.asc(),
@@ -352,9 +353,7 @@ def create_part(
         submitted = submitted_map.get(field.id)
         if submitted is None:
             if field.is_required:
-                raise PartValidationError(
-                    f"{field.label} is required."
-                )
+                raise PartValidationError(f"{field.label} is required.")
             continue
 
         value = _validate_and_build_field_value(
@@ -363,6 +362,103 @@ def create_part(
         )
         if value is not None:
             pending_values.append(value)
+
+    return PartCreationPlan(
+        part_type=part_type,
+        manufacturer=manufacturer,
+        location=location,
+        fields=fields,
+        pending_values=tuple(pending_values),
+        part_number_available=part_number_available,
+    )
+
+
+def preview_part_creation(
+    db: Session,
+    payload: PartCreateRequest,
+    *,
+    require_part_number_available: bool = True,
+) -> dict[str, object]:
+    plan = _plan_part_creation(
+        db,
+        payload,
+        require_part_number_available=require_part_number_available,
+    )
+    return {
+        "action": "create_part",
+        "target_type": "part",
+        "target_label": payload.name or payload.part_number or "New part",
+        "normalized_payload": payload.model_dump(mode="json"),
+        "part_type": {
+            "id": plan.part_type.id,
+            "name": plan.part_type.name,
+            "slug": plan.part_type.slug,
+            "template_version": plan.part_type.template_version,
+            "is_active": plan.part_type.is_active,
+        },
+        "manufacturer": (
+            {
+                "id": plan.manufacturer.id,
+                "name": plan.manufacturer.name,
+                "is_active": plan.manufacturer.is_active,
+            }
+            if plan.manufacturer is not None
+            else None
+        ),
+        "location": (
+            {"id": plan.location.id, "name": plan.location.name}
+            if plan.location is not None
+            else None
+        ),
+        "template_fields": [
+            {
+                "id": field.id,
+                "field_key": field.field_key,
+                "label": field.label,
+                "field_type": field.field_type,
+                "is_required": field.is_required,
+                "sort_order": field.sort_order,
+                "options": field.options_json,
+                "default_unit": field.default_unit,
+            }
+            for field in plan.fields
+        ],
+        "validated_field_values": [
+            {
+                "field_id": value.field_id,
+                "value_text": value.value_text,
+                "value_number": (
+                    str(value.value_number)
+                    if value.value_number is not None
+                    else None
+                ),
+                "value_bool": value.value_bool,
+                "unit": value.unit,
+            }
+            for value in plan.pending_values
+        ],
+        "part_number_available": plan.part_number_available,
+    }
+
+
+def create_part(
+    db: Session,
+    payload: PartCreateRequest,
+    *,
+    actor_user_id: int | None = None,
+    actor_type: str | None = None,
+    commit: bool = True,
+) -> PartResponse:
+    plan = _plan_part_creation(db, payload)
+    part_type = plan.part_type
+    manufacturer = plan.manufacturer
+    location = plan.location
+    pending_values = list(plan.pending_values)
+    resolved_actor_type = actor_type or (
+        "user" if actor_user_id is not None else "system"
+    )
+    if resolved_actor_type not in {"system", "manual", "user", "mcp", "ai"}:
+        raise PartValidationError("Unsupported audit actor type.")
 
     part = Part(
         part_type_id=payload.part_type_id,
@@ -402,11 +498,7 @@ def create_part(
                 event_type="part.created",
                 entity_type="part",
                 entity_id=part.id,
-                actor_type=(
-                    "user"
-                    if actor_user_id is not None
-                    else "system"
-                ),
+                actor_type=resolved_actor_type,
                 actor_user_id=actor_user_id,
                 summary=(
                     f"Created inventory part "
@@ -462,7 +554,6 @@ def create_part(
         raise
 
     return _serialize_part(db, part)
-
 
 def get_part(db: Session, part_id: int) -> PartResponse:
     part = db.get(Part, part_id)

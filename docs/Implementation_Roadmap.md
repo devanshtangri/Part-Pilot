@@ -3593,3 +3593,35 @@ Next Chat 26 work:
 2. Add the dedicated Settings user/role-management UI when prioritized.
 3. Run final public-alpha accessibility, security, responsive, backup/restore,
    REST/OpenAPI and MCP regression/hardening and checkpoint the release candidate.
+
+<!-- PARTPILOT:PATCH759_MCP_PART_CREATE_ROADMAP -->
+### Patch 759 — guarded inventory part creation and MCP client attribution complete
+
+Completed in Chat 26:
+- [x] Add data-only `0020_mcp_inventory_part_create`, preserving the prior ten
+  mutable tool-policy values and defaulting only `create_part` off.
+- [x] Expand the MCP catalogue to six read + five safeguarded write tools.
+- [x] Add guarded `create_part` on canonical inventory validation with normalized
+  preview, catalogue/template dependency drift checks, confirmation, idempotency,
+  replay protection, MCP attribution and post-commit inventory/history refresh.
+- [x] Fix the OAuth MCP challenge so enabled read/write categories are requested;
+  existing tokens still require explicit reauthorization for `mcp:write`.
+- [x] Browser-prove Claude sees and executes enabled writes after reauthorization.
+- [x] Show OAuth/direct MCP client names in History while retaining the backing
+  user ID for authority/filtering; classify MCP stock movements as MCP and hydrate
+  older matching MCP business audits without rewriting stored history.
+- [x] Make copied-production write-intent regressions fixture-owned rather than
+  assuming production has no legitimate MCP write evidence.
+- [x] Browser approve and checkpoint the combined Patch 756-758 source.
+
+Next Chat 26 work:
+1. Add a separately safeguarded inventory metadata edit/correction tool only by
+   reusing the existing canonical edit service and exact state-drift semantics.
+2. Add delete/restore MCP operations only if recycle-bin, dependency, reservation
+   and typed/exact-confirmation safeguards can remain at least as strict as the UI.
+3. Add the dedicated Settings user/role-management UI when prioritized.
+4. Run final public-alpha accessibility, security, responsive, backup/restore,
+   REST/OpenAPI and MCP regression/hardening and checkpoint the release candidate.
+
+Notifications & Messaging remain post-v1. Planned Chat 26 boundary remains Patch
+767.

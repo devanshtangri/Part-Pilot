@@ -44,6 +44,7 @@ REGISTERED_TOOLS = EXPECTED_TOOLS | {
     "consume_reservation",
     "cancel_reservation",
     "adjust_part_quantity",
+    "create_part",
 }
 
 

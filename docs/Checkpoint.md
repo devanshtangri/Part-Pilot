@@ -4326,3 +4326,44 @@ Current contract:
 Browser approval is complete. Remaining Chat 26 work is narrower MCP mutation
 and final public-alpha hardening/regression; inventory create/edit/delete/restore
 should be added only where existing service and recycle-bin invariants remain exact.
+
+<!-- PARTPILOT:MCP_PART_CREATE_HISTORY_CHECKPOINT:V759 -->
+## MCP guarded part creation, OAuth write-scope discovery and client-attributed History — Patch 759
+
+Patch 759 checkpoints the browser-approved Chat 26 work delivered through Patches
+756-758. Patch 755 was consumed only by a wrapper `python -c` newline-escaping
+error and restored the Patch 754 source/database state before Patch 756 deployed
+the unchanged rehearsed application candidate.
+
+Approved contract:
+- Alembic `0020_mcp_inventory_part_create` is data-only over 0019. It preserves
+  the existing ten live tool-policy booleans and adds `create_part` disabled by
+  default; the canonical catalogue is now six read + five safeguarded write tools.
+- `create_part` reuses canonical part creation validation, previews normalized
+  metadata/initial quantity/catalogue choices/template definitions and values,
+  requires the same idempotency/short-lived confirmation contract as other MCP
+  writes, rejects dependency or argument drift, and publishes inventory/history
+  invalidation only after commit.
+- OAuth protected-resource challenges advertise the currently enabled MCP scope
+  categories (`mcp:read`, `mcp:write`, or both). Existing grants/tokens are never
+  upgraded automatically; browser testing proved Claude gained write tools only
+  after a new authorization carrying `mcp:write`.
+- MCP History presentation uses the connected OAuth/direct-client identity (for
+  example `Claude`) instead of displaying the backing human username. The
+  `actor_user_id` remains stored for authorization/accountability and user
+  filtering. MCP stock movements are classified as MCP, and older unstamped MCP
+  business audits can resolve their client from matching tool-call evidence.
+- Copied-production write smokes no longer assume an empty live write-intent
+  table; they isolate fixture-owned intents so legitimate browser-tested MCP
+  evidence remains untouched.
+
+The exact browser-approved runtime image is
+`sha256:e545a8ee3234d8441ed1e3ab3f9a63e45595c5a36117f9eb719e3249ce42f815`
+and production remains at Alembic `0020_mcp_inventory_part_create`. Browser proof
+covered Claude tool discovery/authorization, guarded part creation, replay safety,
+and the resulting History actor label.
+
+Next Chat 26 work remains narrow: metadata edit/correction first; delete/restore
+only after preserving recycle-bin, dependency, reservation and exact-confirmation
+semantics; then optional user-management presentation and final public-alpha
+hardening/regression before the planned Patch 767 boundary.

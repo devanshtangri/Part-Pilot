@@ -103,6 +103,7 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
             "token_id": int,
             "client_database_id": int,
             "client_id": str,
+            "client_name": str,
         }
         for key, expected_type in expected.items():
             value = oauth.get(key)
@@ -112,6 +113,8 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
                 valid = isinstance(value, expected_type)
             if not valid:
                 raise RuntimeError("Authenticated MCP OAuth principal is invalid.")
+        if not oauth["client_name"].strip():
+            raise RuntimeError("Authenticated MCP OAuth principal is invalid.")
     else:
         if principal.get("actor_user_id") is not None:
             raise RuntimeError("Authenticated MCP direct principal is invalid.")
@@ -137,6 +140,20 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
         elif type(direct_auth_id) is not int or direct_auth_id < 1:
             raise RuntimeError("Authenticated MCP named-client principal is invalid.")
     return principal
+
+
+def _mcp_client_display_name(principal: dict[str, Any]) -> str:
+    auth_method = principal.get("auth_method")
+    if auth_method == "oauth":
+        oauth = principal.get("oauth")
+        if not isinstance(oauth, dict):
+            raise RuntimeError("Authenticated MCP OAuth principal is invalid.")
+        value = oauth.get("client_name")
+    else:
+        value = principal.get("direct_client_name")
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError("Authenticated MCP client name is unavailable.")
+    return value.strip()
 
 
 def _bounded_request_id(ctx: Context) -> str:
@@ -195,6 +212,7 @@ def _append_tool_audit(
     if auth_method == "oauth":
         oauth = principal["oauth"]
         metadata["client_id"] = oauth["client_id"]
+        metadata["client_name"] = oauth["client_name"]
         metadata["token_id"] = oauth["token_id"]
     elif auth_method in {
         "direct_bearer",

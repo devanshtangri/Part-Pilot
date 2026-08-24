@@ -121,6 +121,7 @@ class AccessTokenPrincipal:
     user_id: int
     client_database_id: int
     client_id: str
+    client_name: str
     scopes: frozenset[str]
     resource_uri: str
 
@@ -978,6 +979,7 @@ def validate_access_token(
         user_id=token.user_id,
         client_database_id=client.id,
         client_id=client.client_id,
+        client_name=client.client_name,
         scopes=token_scopes,
         resource_uri=resource,
     )

@@ -161,8 +161,8 @@ def main() -> None:
             revision = db.connection().exec_driver_sql(
                 "SELECT version_num FROM alembic_version"
             ).scalar_one()
-            if revision != "0019_mcp_inventory_stock_write":
-                fail(f"Expected 0019_mcp_inventory_stock_write, got {revision}")
+            if revision != "0020_mcp_inventory_part_create":
+                fail(f"Expected 0020_mcp_inventory_part_create, got {revision}")
             stored_policy = get_app_setting(db, MCP_TOOL_PERMISSIONS_KEY, None)
             if (
                 not isinstance(stored_policy, dict)
@@ -243,7 +243,8 @@ def main() -> None:
 
         registered = set(asyncio.run(mcp_registered_tool_names()))
         if registered != READ_TOOLS | {
-            "reserve_project", "consume_reservation", "cancel_reservation", STOCK_TOOL
+            "reserve_project", "consume_reservation", "cancel_reservation",
+            STOCK_TOOL, "create_part",
         }:
             fail(f"Unexpected FastMCP registry: {sorted(registered)}")
 
@@ -358,8 +359,29 @@ def main() -> None:
                     or audit.actor_user_id != owner_id
                     or not isinstance(audit.metadata_json, dict)
                     or audit.metadata_json.get("source") != SOURCE_MCP
+                    or audit.metadata_json.get("mcp_client_name")
+                    != "Patch 747 inventory stock smoke"
                 ):
                     fail("Confirmed add business audit MCP attribution is wrong")
+                from app.services.history import list_history
+                movement_history = list_history(
+                    verify,
+                    kind="stock_movement",
+                    actor_type="mcp",
+                    limit=100,
+                )
+                movement_entry = next(
+                    (item for item in movement_history.entries if item.key == f"movement:{movement.id}"),
+                    None,
+                )
+                if (
+                    movement_entry is None
+                    or movement_entry.actor_type != "mcp"
+                    or movement_entry.actor_display_name
+                    != "Patch 747 inventory stock smoke"
+                    or movement_entry.actor_user_id != owner_id
+                ):
+                    fail("Confirmed add History MCP client attribution is wrong")
             finally:
                 verify.close()
 

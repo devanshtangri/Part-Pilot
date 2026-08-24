@@ -19,6 +19,7 @@ from app.services.mcp_oauth import (
     MCP_READ_ENABLED_KEY,
     MCP_SCOPE_READ,
     MCP_WRITE_ENABLED_KEY,
+    available_scopes,
     exchange_authorization_code,
     grant_consent,
     issue_authorization_code,
@@ -166,8 +167,21 @@ def assert_unauthorized(client: TestClient) -> None:
     if response.status_code != 401:
         fail(f"Expected unauthenticated /mcp to return 401, got {response.status_code}")
     challenge = response.headers.get("www-authenticate", "")
-    if "oauth-protected-resource/mcp" not in challenge or "mcp:read" not in challenge:
-        fail(f"Missing protected-resource challenge: {challenge!r}")
+    db = SessionLocal()
+    try:
+        configured_scopes = sorted(available_scopes(db, require_enabled=False))
+    finally:
+        db.close()
+    expected_scope = " ".join(configured_scopes or [MCP_SCOPE_READ])
+    expected_scope_marker = f'scope="{expected_scope}"'
+    if (
+        "oauth-protected-resource/mcp" not in challenge
+        or expected_scope_marker not in challenge
+    ):
+        fail(
+            "Missing configured protected-resource scope challenge: "
+            f"expected {expected_scope_marker!r}, got {challenge!r}"
+        )
     if response.is_redirect:
         fail("/mcp redirected instead of serving the exact endpoint")
 
@@ -181,6 +195,7 @@ def check_only() -> None:
         "adjust_part_quantity",
         "cancel_reservation",
         "consume_reservation",
+        "create_part",
         "get_part_details",
         "get_project_details",
         "get_reservation_details",
@@ -203,7 +218,7 @@ def check_only() -> None:
             fail(f"Unexpected /mcp/ response: {slash.status_code}")
     print(
         "[PASS] MCP Streamable HTTP route is exact, protected by OAuth discovery, "
-        "safely rejects /mcp/, and registers six read and four safeguarded write tools"
+        "safely rejects /mcp/, and registers six read and five safeguarded write tools"
     )
 
 

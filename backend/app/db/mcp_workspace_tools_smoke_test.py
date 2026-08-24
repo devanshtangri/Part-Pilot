@@ -44,7 +44,7 @@ EXPECTED_TOOL_NAMES = (
 )
 REGISTERED_TOOL_NAMES = tuple(sorted((*EXPECTED_TOOL_NAMES,
     "reserve_project", "consume_reservation", "cancel_reservation",
-    "adjust_part_quantity")))
+    "adjust_part_quantity", "create_part")))
 
 
 class SmokeFailure(RuntimeError):

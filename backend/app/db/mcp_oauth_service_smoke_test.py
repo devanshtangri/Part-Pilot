@@ -341,6 +341,7 @@ def run_service_lifecycle() -> None:
         if (
             principal.user_id != user.id
             or principal.client_id != public.client_id
+            or principal.client_name != public.client.client_name
             or principal.scopes != frozenset({MCP_SCOPE_READ})
         ):
             fail("Access-token principal is incorrect")

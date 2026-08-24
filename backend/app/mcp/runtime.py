@@ -152,6 +152,15 @@ def _configured_custom_header_names() -> list[str]:
         db.close()
 
 
+def _configured_oauth_challenge_scopes() -> tuple[str, ...]:
+    db = SessionLocal()
+    try:
+        scopes = tuple(sorted(available_scopes(db, require_enabled=False)))
+        return scopes or (MCP_SCOPE_READ,)
+    finally:
+        db.close()
+
+
 def _custom_header_credentials(
     scope: dict[str, Any],
     header_names: list[str],
@@ -253,6 +262,7 @@ def _oauth_principal(token: str, resource_uri: str) -> dict[str, Any]:
                 "token_id": principal.token_id,
                 "client_database_id": principal.client_database_id,
                 "client_id": principal.client_id,
+                "client_name": principal.client_name,
             },
         }
     except Exception:
@@ -558,11 +568,14 @@ class PartPilotMcpGateway:
         metadata_url = (
             f"{public_origin}/.well-known/oauth-protected-resource/mcp"
         )
+        challenge_scopes = await asyncio.to_thread(
+            _configured_oauth_challenge_scopes
+        )
         challenge = (
             'Bearer resource_metadata="'
             + metadata_url
             + '", scope="'
-            + MCP_SCOPE_READ
+            + " ".join(challenge_scopes)
             + '"'
         )
         try:

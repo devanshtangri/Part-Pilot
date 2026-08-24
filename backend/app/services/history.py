@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
-from sqlalchemy import Text, cast, false, func, or_, select
+from sqlalchemy import Text, and_, cast, false, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -12,6 +12,7 @@ from app.models import (
     AuditLog,
     Location,
     Manufacturer,
+    McpOAuthClient,
     PackageOption,
     Part,
     PartType,
@@ -97,6 +98,97 @@ def _related_id(audit: AuditLog, key: str) -> int | None:
         after.get(key),
         before.get(key),
     )
+
+
+def _clean_mcp_client_name(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = " ".join(value.split())
+    return cleaned or None
+
+
+def _mcp_client_name_from_audit(
+    audit: AuditLog,
+    oauth_client_names: dict[str, str],
+) -> str | None:
+    if audit.actor_type != "mcp":
+        return None
+    metadata = _json_mapping(audit.metadata_json)
+    for key in ("mcp_client_name", "client_name", "direct_client_name"):
+        cleaned = _clean_mcp_client_name(metadata.get(key))
+        if cleaned is not None:
+            return cleaned
+    client_id = metadata.get("client_id")
+    if isinstance(client_id, str):
+        return oauth_client_names.get(client_id)
+    return None
+
+
+def _mcp_tool_target(audit: AuditLog) -> tuple[str, int] | None:
+    if audit.event_type != "mcp.tool_called" or audit.actor_type != "mcp":
+        return None
+    metadata = _json_mapping(audit.metadata_json)
+    tool = metadata.get("tool")
+    arguments = _json_mapping(metadata.get("arguments"))
+    result = _json_mapping(metadata.get("result"))
+    if result.get("phase") not in {None, "completed"}:
+        return None
+    if tool == "create_part":
+        target_id = _json_int(result.get("part_id"))
+    elif tool == "adjust_part_quantity":
+        target_id = _json_int(arguments.get("part_id"))
+    elif tool in {"reserve_project", "consume_reservation", "cancel_reservation"}:
+        target_id = _json_int(arguments.get("target_id"))
+    else:
+        return None
+    return (tool, target_id) if target_id is not None else None
+
+
+def _mcp_business_target(audit: AuditLog) -> tuple[str, int] | None:
+    if audit.actor_type != "mcp":
+        return None
+    if audit.event_type == "part.created" and audit.entity_id is not None:
+        return ("create_part", audit.entity_id)
+    if audit.event_type == "part.quantity_adjusted" and audit.entity_id is not None:
+        return ("adjust_part_quantity", audit.entity_id)
+    if audit.event_type == "project.reserved" and audit.entity_id is not None:
+        return ("reserve_project", audit.entity_id)
+    if audit.event_type == "reservation.created":
+        project_id = _related_id(audit, "project_id")
+        return ("reserve_project", project_id) if project_id is not None else None
+    if audit.event_type == "reservation.consumed" and audit.entity_id is not None:
+        return ("consume_reservation", audit.entity_id)
+    if audit.event_type == "project.consumed":
+        reservation_id = _related_id(audit, "reservation_id")
+        return ("consume_reservation", reservation_id) if reservation_id is not None else None
+    if audit.event_type == "reservation.cancelled" and audit.entity_id is not None:
+        return ("cancel_reservation", audit.entity_id)
+    if audit.event_type == "project.cancelled":
+        reservation_id = _related_id(audit, "reservation_id")
+        return ("cancel_reservation", reservation_id) if reservation_id is not None else None
+    return None
+
+
+def _movement_ids_from_payload(value: object) -> set[int]:
+    ids: set[int] = set()
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in {"stock_movement_id", "movement_id"}:
+                movement_id = _json_int(item)
+                if movement_id is not None:
+                    ids.add(movement_id)
+                continue
+            if key in {"stock_movement_ids", "movement_ids"} and isinstance(item, list):
+                for candidate in item:
+                    movement_id = _json_int(candidate)
+                    if movement_id is not None:
+                        ids.add(movement_id)
+                continue
+            ids.update(_movement_ids_from_payload(item))
+    elif isinstance(value, list):
+        for item in value:
+            ids.update(_movement_ids_from_payload(item))
+    return ids
 
 
 def _facet_rows(rows: Iterable[tuple[object, object]]) -> list[
@@ -209,9 +301,14 @@ def _movement_query(
         else:
             conditions.append(false())
     if actor_type is not None:
-        if actor_type == "user":
-            conditions.append(
-                StockMovement.actor_user_id.is_not(None)
+        if actor_type == "mcp":
+            conditions.append(StockMovement.source == "mcp")
+        elif actor_type == "user":
+            conditions.extend(
+                (
+                    StockMovement.actor_user_id.is_not(None),
+                    StockMovement.source != "mcp",
+                )
             )
         else:
             conditions.extend(
@@ -326,6 +423,8 @@ def _load_page_context(
     movements: list[StockMovement],
 ) -> tuple[
     dict[int, str],
+    dict[int, str],
+    dict[int, str],
     dict[int, Part],
     dict[int, Reservation],
     dict[int, Project],
@@ -355,6 +454,133 @@ def _load_page_context(
         user.id: (user.display_name.strip() or user.username)
         for user in users
     }
+
+    identity_audits = list(audits)
+    mcp_part_ids = {
+        movement.part_id
+        for movement in movements
+        if movement.source == "mcp" and movement.part_id is not None
+    }
+    mcp_reservation_ids = {
+        movement.reservation_id
+        for movement in movements
+        if movement.source == "mcp" and movement.reservation_id is not None
+    }
+    support_conditions = []
+    if mcp_part_ids:
+        support_conditions.append(
+            and_(
+                AuditLog.event_type == "part.quantity_adjusted",
+                AuditLog.entity_type == "part",
+                AuditLog.entity_id.in_(mcp_part_ids),
+            )
+        )
+    if mcp_reservation_ids:
+        support_conditions.append(
+            and_(
+                AuditLog.event_type.in_(
+                    ("reservation.created", "reservation.consumed", "reservation.cancelled")
+                ),
+                AuditLog.entity_type == "reservation",
+                AuditLog.entity_id.in_(mcp_reservation_ids),
+            )
+        )
+    if support_conditions:
+        known_audit_ids = {audit.id for audit in identity_audits}
+        for support_audit in db.execute(
+            select(AuditLog).where(
+                AuditLog.actor_type == "mcp",
+                or_(*support_conditions),
+            )
+        ).scalars():
+            if support_audit.id not in known_audit_ids:
+                identity_audits.append(support_audit)
+                known_audit_ids.add(support_audit.id)
+
+    # Older MCP business audits predate persisted client labels. When a filtered
+    # History view omits the adjacent mcp.tool_called row, load only the tiny
+    # post-mutation window for that backing OAuth user and resolve the exact
+    # tool/target below. New writes use mcp_client_name directly.
+    legacy_windows = []
+    for audit in identity_audits:
+        if (
+            audit.actor_type != "mcp"
+            or audit.event_type == "mcp.tool_called"
+            or audit.actor_user_id is None
+            or _clean_mcp_client_name(
+                _json_mapping(audit.metadata_json).get("mcp_client_name")
+            )
+            is not None
+        ):
+            continue
+        legacy_windows.append(
+            and_(
+                AuditLog.actor_user_id == audit.actor_user_id,
+                AuditLog.created_at >= audit.created_at,
+                AuditLog.created_at <= audit.created_at + timedelta(seconds=2),
+            )
+        )
+    if legacy_windows:
+        known_audit_ids = {audit.id for audit in identity_audits}
+        for tool_audit in db.execute(
+            select(AuditLog).where(
+                AuditLog.actor_type == "mcp",
+                AuditLog.event_type == "mcp.tool_called",
+                or_(*legacy_windows),
+            )
+        ).scalars():
+            if tool_audit.id not in known_audit_ids:
+                identity_audits.append(tool_audit)
+                known_audit_ids.add(tool_audit.id)
+
+    oauth_client_ids = {
+        client_id
+        for audit in identity_audits
+        for client_id in [_json_mapping(audit.metadata_json).get("client_id")]
+        if audit.actor_type == "mcp" and isinstance(client_id, str)
+    }
+    oauth_clients = (
+        list(
+            db.execute(
+                select(McpOAuthClient).where(McpOAuthClient.client_id.in_(oauth_client_ids))
+            ).scalars()
+        )
+        if oauth_client_ids
+        else []
+    )
+    oauth_client_names = {
+        client.client_id: client.client_name.strip()
+        for client in oauth_clients
+        if client.client_name.strip()
+    }
+    mcp_audit_names: dict[int, str] = {}
+    tool_target_names: dict[tuple[str, int], str] = {}
+    for audit in identity_audits:
+        name = _mcp_client_name_from_audit(audit, oauth_client_names)
+        if name is not None:
+            mcp_audit_names[audit.id] = name
+            target = _mcp_tool_target(audit)
+            if target is not None:
+                tool_target_names.setdefault(target, name)
+    for audit in identity_audits:
+        if audit.actor_type != "mcp" or audit.id in mcp_audit_names:
+            continue
+        target = _mcp_business_target(audit)
+        name = tool_target_names.get(target) if target is not None else None
+        if name is not None:
+            mcp_audit_names[audit.id] = name
+
+    mcp_movement_names: dict[int, str] = {}
+    for audit in identity_audits:
+        name = mcp_audit_names.get(audit.id)
+        if name is None:
+            continue
+        movement_ids = (
+            _movement_ids_from_payload(audit.after_json)
+            | _movement_ids_from_payload(audit.metadata_json)
+        )
+        for movement_id in movement_ids:
+            mcp_movement_names.setdefault(movement_id, name)
 
     part_ids = {
         movement.part_id
@@ -434,6 +660,8 @@ def _load_page_context(
 
     return (
         actor_names,
+        mcp_audit_names,
+        mcp_movement_names,
         part_map,
         reservation_map,
         project_map,
@@ -445,6 +673,7 @@ def _audit_entry(
     audit: AuditLog,
     *,
     actor_names: dict[int, str],
+    mcp_audit_names: dict[int, str],
     reservation_map: dict[int, Reservation],
     project_map: dict[int, Project],
     entity_labels: dict[tuple[str, int], str],
@@ -503,8 +732,10 @@ def _audit_entry(
         ),
         actor_type=audit.actor_type,
         actor_user_id=audit.actor_user_id,
-        actor_display_name=actor_names.get(
-            audit.actor_user_id
+        actor_display_name=(
+            mcp_audit_names.get(audit.id, "MCP")
+            if audit.actor_type == "mcp"
+            else actor_names.get(audit.actor_user_id)
         ),
         part_id=part_id,
         reservation_id=reservation_id,
@@ -544,6 +775,7 @@ def _movement_entry(
     movement: StockMovement,
     *,
     actor_names: dict[int, str],
+    mcp_movement_names: dict[int, str],
     part_map: dict[int, Part],
     reservation_map: dict[int, Reservation],
     project_map: dict[int, Project],
@@ -567,9 +799,9 @@ def _movement_entry(
         else None
     )
     actor_type = (
-        "user"
-        if movement.actor_user_id is not None
-        else movement.source
+        "mcp"
+        if movement.source == "mcp"
+        else ("user" if movement.actor_user_id is not None else movement.source)
     )
     return HistoryEntryResponse(
         key=f"movement:{movement.id}",
@@ -586,8 +818,10 @@ def _movement_entry(
         entity_label=_display_part(part, movement.part_id),
         actor_type=actor_type,
         actor_user_id=movement.actor_user_id,
-        actor_display_name=actor_names.get(
-            movement.actor_user_id
+        actor_display_name=(
+            mcp_movement_names.get(movement.id, "MCP")
+            if actor_type == "mcp"
+            else actor_names.get(movement.actor_user_id)
         ),
         part_id=movement.part_id,
         part_number=(
@@ -790,6 +1024,8 @@ def list_history(
     ]
     (
         actor_names,
+        mcp_audit_names,
+        mcp_movement_names,
         part_map,
         reservation_map,
         project_map,
@@ -807,6 +1043,7 @@ def list_history(
                 _audit_entry(
                     record,
                     actor_names=actor_names,
+                    mcp_audit_names=mcp_audit_names,
                     reservation_map=reservation_map,
                     project_map=project_map,
                     entity_labels=entity_labels,
@@ -817,6 +1054,7 @@ def list_history(
                 _movement_entry(
                     record,
                     actor_names=actor_names,
+                    mcp_movement_names=mcp_movement_names,
                     part_map=part_map,
                     reservation_map=reservation_map,
                     project_map=project_map,
@@ -890,7 +1128,8 @@ def list_history_filter_options(
     movement_user_count = int(
         db.execute(
             select(func.count(StockMovement.id)).where(
-                StockMovement.actor_user_id.is_not(None)
+                StockMovement.actor_user_id.is_not(None),
+                StockMovement.source != "mcp",
             )
         ).scalar_one()
     )
@@ -904,7 +1143,12 @@ def list_history_filter_options(
             StockMovement.source,
             func.count(StockMovement.id),
         )
-        .where(StockMovement.actor_user_id.is_(None))
+        .where(
+            or_(
+                StockMovement.actor_user_id.is_(None),
+                StockMovement.source == "mcp",
+            )
+        )
         .group_by(StockMovement.source)
     ).all():
         actor_counts[str(value)] = (

@@ -1,18 +1,31 @@
 from __future__ import annotations
 
 from datetime import timezone
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from app.db.constants import SOURCE_MCP
 from app.db.session import SessionLocal
-from app.mcp.part_tools import _append_tool_audit, _bounded_request_id, _principal_from_context
-from app.models import Part, Project, Reservation
-from app.schemas.parts import PartQuantityAdjustmentRequest, PartQuantityAdjustmentResponse
+from app.mcp.part_tools import (
+    _append_tool_audit,
+    _bounded_request_id,
+    _mcp_client_display_name,
+    _principal_from_context,
+)
+from app.models import AuditLog, Part, Project, Reservation
+from app.schemas.parts import (
+    PartCreateRequest,
+    PartFieldValueCreateRequest,
+    PartQuantityAdjustmentRequest,
+    PartQuantityAdjustmentResponse,
+    PartResponse,
+)
 from app.schemas.projects import ProjectResponse
 from app.schemas.reservations import ReservationResponse
 from app.services.live_sync import publish_live_invalidation
@@ -27,6 +40,8 @@ from app.services.mcp_write_safeguards import (
 )
 from app.services.parts import (
     adjust_part_quantity as adjust_part_quantity_service,
+    create_part as create_part_service,
+    preview_part_creation,
     preview_part_quantity_adjustment,
 )
 from app.services.projects import (
@@ -46,7 +61,44 @@ from app.services.reservations import (
 )
 
 # PARTPILOT:SAFEGUARDED_MCP_WRITE_TOOLS:V734
-WRITE_TOOL_NAMES = ("reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity")
+WRITE_TOOL_NAMES = ("reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity", "create_part")
+
+
+def _audit_high_watermark(db: Session) -> int:
+    value = db.execute(select(func.max(AuditLog.id))).scalar_one()
+    return int(value or 0)
+
+
+def _stamp_mcp_business_audits(
+    db: Session,
+    *,
+    after_id: int,
+    principal: dict[str, Any],
+    authorization_user_id: int,
+) -> None:
+    rows = list(
+        db.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.id > after_id,
+                AuditLog.actor_type == "mcp",
+                AuditLog.actor_user_id == authorization_user_id,
+                AuditLog.event_type != "mcp.tool_called",
+            )
+            .order_by(AuditLog.id.asc())
+        ).scalars()
+    )
+    if not rows:
+        raise RuntimeError("Confirmed MCP mutation did not produce a business audit.")
+    client_name = _mcp_client_display_name(principal)
+    auth_method = str(principal["auth_method"])
+    for row in rows:
+        metadata = dict(row.metadata_json) if isinstance(row.metadata_json, dict) else {}
+        metadata["mcp_client_name"] = client_name
+        metadata["mcp_auth_method"] = auth_method
+        row.metadata_json = metadata
+    db.flush()
+
 
 class WriteStockDelta(BaseModel):
     part_id: int
@@ -117,6 +169,31 @@ class SafeguardedPartQuantityWriteResult(BaseModel):
     adjustment: PartQuantityAdjustmentResponse | None = None
     replayed: bool = False
 
+
+
+class PartCreationPreview(BaseModel):
+    action: Literal["create_part"]
+    target_type: Literal["part"]
+    target_label: str
+    normalized_payload: dict[str, Any]
+    part_type: dict[str, Any]
+    manufacturer: dict[str, Any] | None = None
+    location: dict[str, Any] | None = None
+    template_fields: list[dict[str, Any]]
+    validated_field_values: list[dict[str, Any]]
+    part_number_available: bool
+
+
+class SafeguardedPartCreateResult(BaseModel):
+    summary: str
+    phase: Literal["preview", "completed"]
+    idempotency_key: str
+    confirmation_required: bool
+    confirmation_token: str | None = None
+    expires_at: str | None = None
+    preview: PartCreationPreview
+    part: PartResponse | None = None
+    replayed: bool = False
 
 def _serialize_result(result: SafeguardedWriteResult) -> dict[str, Any]:
     return result.model_dump(mode="json")
@@ -299,6 +376,7 @@ def _run_guarded_write(
             replay = SafeguardedWriteResult.model_validate(validated.replay_result)
             return replay.model_copy(update={"replayed": True})
 
+        audit_high_watermark = _audit_high_watermark(db)
         if tool_name == "reserve_project":
             project = reserve_project_service(
                 db, target_id, actor_user_id=authorization_user_id,
@@ -333,6 +411,12 @@ def _run_guarded_write(
             )
             project_id = reservation.project_id
 
+        _stamp_mcp_business_audits(
+            db,
+            after_id=audit_high_watermark,
+            principal=principal,
+            authorization_user_id=authorization_user_id,
+        )
         complete_write_intent(db, validated.intent, _serialize_result(final))
         _append_tool_audit(
             db, principal=principal, request_id=request_id, tool_name=tool_name,
@@ -487,6 +571,7 @@ def _run_guarded_part_quantity_write(
             )
             return replay.model_copy(update={"replayed": True})
 
+        audit_high_watermark = _audit_high_watermark(db)
         adjustment = adjust_part_quantity_service(
             db,
             part_id,
@@ -503,6 +588,12 @@ def _run_guarded_part_quantity_write(
             confirmation_required=False,
             preview=preview,
             adjustment=adjustment,
+        )
+        _stamp_mcp_business_audits(
+            db,
+            after_id=audit_high_watermark,
+            principal=principal,
+            authorization_user_id=authorization_user_id,
         )
         complete_write_intent(
             db, validated.intent, final.model_dump(mode="json")
@@ -548,6 +639,180 @@ def _run_guarded_part_quantity_write(
     finally:
         db.close()
 
+
+
+def _run_guarded_part_create(
+    *,
+    ctx: Context,
+    payload: PartCreateRequest,
+    idempotency_key: str,
+    confirmation_token: str | None,
+) -> SafeguardedPartCreateResult:
+    principal = _principal_from_context(ctx)
+    request_id = _bounded_request_id(ctx)
+    arguments = payload.model_dump(mode="json")
+    tool_name = "create_part"
+    db = SessionLocal()
+    try:
+        authorization_user_id = authorize_mcp_tool(db, principal, tool_name)
+        if type(authorization_user_id) is not int:
+            raise RuntimeError("MCP write authorization did not resolve a user authority.")
+
+        replay_json = completed_write_replay(
+            db,
+            principal=principal,
+            tool_name=tool_name,
+            idempotency_key=idempotency_key,
+            arguments=arguments,
+        )
+        if replay_json is not None:
+            replay = SafeguardedPartCreateResult.model_validate(replay_json)
+            return replay.model_copy(update={"replayed": True})
+
+        preview = PartCreationPreview.model_validate(
+            preview_part_creation(
+                db,
+                payload,
+                require_part_number_available=confirmation_token is None,
+            )
+        )
+        preview_json = preview.model_dump(mode="json")
+
+        if confirmation_token is None:
+            prepared = prepare_write_intent(
+                db,
+                principal=principal,
+                authorization_user_id=authorization_user_id,
+                tool_name=tool_name,
+                idempotency_key=idempotency_key,
+                arguments=arguments,
+                preview=preview_json,
+            )
+            if prepared.replay_result is not None:
+                replay = SafeguardedPartCreateResult.model_validate(
+                    prepared.replay_result
+                )
+                return replay.model_copy(update={"replayed": True})
+            assert prepared.confirmation_token is not None
+            result = SafeguardedPartCreateResult(
+                summary=(
+                    "Preview ready for create_part. Review the normalized part metadata, "
+                    "initial quantity, selected catalogues and template-field values, then "
+                    "call the same tool with this idempotency_key and confirmation_token "
+                    "within five minutes."
+                ),
+                phase="preview",
+                idempotency_key=idempotency_key,
+                confirmation_required=True,
+                confirmation_token=prepared.confirmation_token,
+                expires_at=prepared.intent.expires_at.replace(
+                    tzinfo=timezone.utc
+                ).isoformat(),
+                preview=preview,
+            )
+            _append_tool_audit(
+                db,
+                principal=principal,
+                request_id=request_id,
+                tool_name=tool_name,
+                success=True,
+                arguments={
+                    **arguments,
+                    "idempotency_key": idempotency_key,
+                    "phase": "preview",
+                },
+                result={
+                    "phase": "preview",
+                    "intent_id": prepared.intent.id,
+                    "confirmation_required": True,
+                },
+            )
+            db.commit()
+            return result
+
+        validated = validate_confirmation(
+            db,
+            principal=principal,
+            tool_name=tool_name,
+            idempotency_key=idempotency_key,
+            confirmation_token=confirmation_token,
+            arguments=arguments,
+            current_preview=preview_json,
+        )
+        if validated.replay_result is not None:
+            replay = SafeguardedPartCreateResult.model_validate(
+                validated.replay_result
+            )
+            return replay.model_copy(update={"replayed": True})
+
+        audit_high_watermark = _audit_high_watermark(db)
+        part = create_part_service(
+            db,
+            payload,
+            actor_user_id=authorization_user_id,
+            actor_type="mcp",
+            commit=False,
+        )
+        final = SafeguardedPartCreateResult(
+            summary=f"Confirmed MCP part creation for Part {part.id} exactly once.",
+            phase="completed",
+            idempotency_key=idempotency_key,
+            confirmation_required=False,
+            preview=preview,
+            part=part,
+        )
+        _stamp_mcp_business_audits(
+            db,
+            after_id=audit_high_watermark,
+            principal=principal,
+            authorization_user_id=authorization_user_id,
+        )
+        complete_write_intent(
+            db,
+            validated.intent,
+            final.model_dump(mode="json"),
+        )
+        _append_tool_audit(
+            db,
+            principal=principal,
+            request_id=request_id,
+            tool_name=tool_name,
+            success=True,
+            arguments={
+                **arguments,
+                "idempotency_key": idempotency_key,
+                "phase": "confirm",
+            },
+            result={
+                "phase": "completed",
+                "intent_id": validated.intent.id,
+                "part_id": part.id,
+                "replayed": False,
+            },
+        )
+        db.commit()
+        publish_live_invalidation(
+            ("inventory", "history"),
+            resource={"type": "part", "id": part.id},
+        )
+        return final
+    except Exception as exc:
+        db.rollback()
+        if confirmation_token is not None:
+            try:
+                fail_write_intent(
+                    db,
+                    principal=principal if "principal" in locals() else {},
+                    tool_name=tool_name,
+                    idempotency_key=idempotency_key,
+                    error_type=type(exc).__name__,
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
+        raise
+    finally:
+        db.close()
 
 def register_write_tools(server: FastMCP) -> None:
     consequential = ToolAnnotations(
@@ -639,5 +904,63 @@ def register_write_tools(server: FastMCP) -> None:
             idempotency_key=idempotency_key,
             reason=reason,
             note=note,
+            confirmation_token=confirmation_token,
+        )
+
+    @server.tool(
+        name="create_part",
+        title="Create a Part Pilot Inventory Part",
+        description=(
+            "Safeguarded inventory part creation using Part Pilot's canonical part, "
+            "catalogue and template-field validation. The first call returns normalized "
+            "metadata, initial quantity and exact dependency snapshots plus a five-minute "
+            "confirmation token; no part is created until the same arguments and "
+            "idempotency_key are repeated with that token."
+        ),
+        annotations=consequential,
+        structured_output=True,
+    )
+    def create_part(
+        ctx: Context,
+        part_type_id: Annotated[int, Field(gt=0)],
+        idempotency_key: Annotated[str, Field(min_length=8, max_length=120)],
+        manufacturer_id: Annotated[int | None, Field(gt=0)] = None,
+        location_id: Annotated[int | None, Field(gt=0)] = None,
+        part_number: Annotated[str | None, Field(max_length=160)] = None,
+        name: Annotated[str | None, Field(max_length=220)] = None,
+        description: Annotated[str | None, Field(max_length=5000)] = None,
+        package: Annotated[str | None, Field(max_length=120)] = None,
+        notes: Annotated[str | None, Field(max_length=10000)] = None,
+        total_quantity: Annotated[int, Field(ge=0)] = 0,
+        unit_price: Annotated[Decimal | None, Field(ge=0)] = None,
+        purchase_link: Annotated[str | None, Field(max_length=2000)] = None,
+        low_stock_enabled: bool = False,
+        low_stock_threshold: Annotated[int | None, Field(ge=0)] = None,
+        field_values: Annotated[
+            list[PartFieldValueCreateRequest] | None,
+            Field(max_length=100),
+        ] = None,
+        confirmation_token: Annotated[str | None, Field(max_length=160)] = None,
+    ) -> SafeguardedPartCreateResult:
+        payload = PartCreateRequest(
+            part_type_id=part_type_id,
+            manufacturer_id=manufacturer_id,
+            location_id=location_id,
+            part_number=part_number,
+            name=name,
+            description=description,
+            package=package,
+            notes=notes,
+            total_quantity=total_quantity,
+            unit_price=unit_price,
+            purchase_link=purchase_link,
+            low_stock_enabled=low_stock_enabled,
+            low_stock_threshold=low_stock_threshold,
+            field_values=field_values or [],
+        )
+        return _run_guarded_part_create(
+            ctx=ctx,
+            payload=payload,
+            idempotency_key=idempotency_key,
             confirmation_token=confirmation_token,
         )

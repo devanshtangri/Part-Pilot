@@ -208,8 +208,8 @@ def main() -> None:
                     fail(f"MCP default permission is unsafe for {name}: {item}")
             if sum(item.get("capability") == "read" for item in loaded_tools.values()) != 6:
                 fail("Expected six MCP read permissions")
-            if sum(item.get("capability") == "write" for item in loaded_tools.values()) != 4:
-                fail("Expected four MCP write permissions")
+            if sum(item.get("capability") == "write" for item in loaded_tools.values()) != 5:
+                fail("Expected five MCP write permissions")
 
             invalid_global = client.patch(
                 "/api/settings/mcp/tool-permissions",

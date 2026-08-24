@@ -20,7 +20,7 @@ from app.services.authorization import (
 )
 
 # PARTPILOT:USER_ROLE_AUTHORIZATION_SMOKE:V732
-EXPECTED_HEAD = "0019_mcp_inventory_stock_write"
+EXPECTED_HEAD = "0020_mcp_inventory_part_create"
 
 
 class RoleSmokeFailure(RuntimeError):

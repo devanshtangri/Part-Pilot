@@ -3,7 +3,7 @@
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
 - Docker compose service partpilot, host port 7890. React/Vite/TypeScript + FastAPI/SQLAlchemy/Alembic.
-- Alembic head: 0019_mcp_inventory_stock_write.
+- Alembic head: 0020_mcp_inventory_part_create.
 
 Patch workflow
 - Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one sequential Python file under fixes/. Failed attempts consume numbers. Assistant runs a numbered patch only when the user explicitly asks to run that specific patch; otherwise the user runs it. On an explicit run request, execute exactly that requested run command once and return the full raw terminal output only; no conclusions, diagnosis, fixes, retries, inspections or extra commands unless separately asked.
@@ -35,11 +35,11 @@ REST API access
 - Browser-approved API Access Settings UI: create/edit/rotate/revoke, hidden revoked records, one-time secret, scope presets, API docs actions, modal security flows. `/docs`, `/redoc`, `/openapi.json` need deliberate public-alpha access policy.
 
 MCP/OAuth
-- OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata, stateless `/mcp`; six read Part/Project/Reservation tools plus four safeguarded writes. Real Claude/ChatGPT read flows verified.
+- OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata, stateless `/mcp`; six read Part/Project/Reservation tools plus five safeguarded writes. Real Claude/ChatGPT flows verified.
 - Manual OAuth admin: ownership, public/confidential auth, generated IDs, digest-only one-time secrets, status/revocation; revoked hidden from normal Settings.
 - Alembic 0015: named Bearer/custom-header/trusted-network direct clients with independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row retained for audit compatibility.
 - `Enable MCP server` master; `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
-- Browser-approved Alembic 0019 MCP catalogue: six reads plus safeguarded `reserve_project`, `consume_reservation`, `cancel_reservation`, `adjust_part_quantity`; global/client policy, `mcp:write`, active Operator+ user, preview/confirmation/idempotency/replay/state-drift defenses apply. Stock adjustment reuses canonical inventory floors/reasons and MCP attribution/live invalidation. No-auth is permanently read-only. Treat live per-tool booleans/OAuth scopes as mutable configuration.
+- Browser-approved Alembic 0020 MCP catalogue: six reads plus safeguarded `reserve_project`, `consume_reservation`, `cancel_reservation`, `adjust_part_quantity`, `create_part`; global/client policy, `mcp:write`, active Operator+ user, preview/confirmation/idempotency/replay/state-drift defenses apply. Stock/create paths reuse canonical services. OAuth challenges advertise enabled read/write categories; existing tokens require explicit reauthorization. History shows the MCP client name while retaining backing user authority. No-auth stays read-only; live policy/OAuth state is mutable.
 - Browser-approved Settings Direct MCP hierarchy: Allow direct clients + No authentication sit with Named direct clients; global Server/Read/Write stay separate. Dependency-disabled uses `not-allowed`; `wait` only while saving.
 
 Recovery lessons
@@ -47,25 +47,18 @@ Recovery lessons
 - Durable-log validation must use bytes explicitly written to logs, never terminal-only success/error output. Patches 676 and 678 repeated this mistake; Patch 679 diagnosed it. Prove failures from immutable source plus reproducible read-only facts. Do not freeze mutable live MCP/DB values.
 
 Remaining V1
-1. Narrow inventory-mutating MCP tools: add/edit/stock adjustment first; delete/restore only with existing recycle-bin/dependency/confirmation safeguards.
+1. Add guarded inventory metadata edit/correction; delete/restore only with existing recycle-bin/dependency/confirmation safeguards.
 2. Dedicated Settings role/user-management UI when prioritized; backend role enforcement already exists.
 3. Final public-alpha accessibility/security/responsive/backup-restore/REST-OpenAPI/MCP regression and release checkpoint.
 - Notifications & Messaging remain post-v1.
 
-Autosave/live-sync V1 task (Patch 656)
-- Reversible Settings preferences: no ordinary Save/Reset-changes buttons.
-  Toggles/selects persist on change; reservation days debounce 550 ms.
-  Patch 673 consolidates these under Preferences and adds independent targeted resets. Never autosave create/edit, credentials,
-  password, lifecycle, backup/restore, delete/revoke/rotate actions.
-- Replace routine manual Refresh with authenticated server-driven invalidation +
-  targeted refetch. Prefer SSE for current one-way change notifications,
-  reconnect/resync on interruption; polling fallback only; Retry remains on error.
-- Future real MCP write tools must appear from the canonical tool catalogue once
-  implemented; do not show fictitious write controls before runtime exists.
+Autosave/live-sync policy
+- Reversible Preferences autosave independently; consequential create/edit credentials, password, lifecycle, backup/restore, delete/revoke/rotate actions stay explicit.
+- Authenticated SSE invalidation + targeted refetch is the live-update default; reconnect/resync and degraded polling recover transport failures, while Retry remains for real errors.
+- MCP UI/runtime tool lists come only from the canonical implemented catalogue.
 
 Chat22 recovery
-- 657 pre-write: packaged workspace-smoke SHA 53305a21... differed by formatting from passed rehearsal 29cd1e22.... Patch 661 reproduced the exact passed bytes and succeeded.
-- 658 pre-write: three forbidden Roadmap trailing-space lines. Patch 659 diagnosed it; Patch 660 boundary recovery succeeded.
+- Patch 661 recovered a packaged-smoke byte mismatch; Patch 660 recovered Roadmap trailing whitespace. Keep packaged bytes identical to rehearsals and validate docs before writes.
 
 PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_MEMORY:V699
 Chat 24 live-sync milestone — Patch 699
@@ -253,15 +246,11 @@ Chat 25 boundary — Patch 742
   with existing safeguards), optional role-management UI, final public-alpha
   regression. Notifications & Messaging remain post-v1.
 
-PARTPILOT:PATCH754_MCP_INVENTORY_STOCK_CHECKPOINT_MEMORY
-Chat 26 Patch 754 checkpoint
-- Patch 753 failed only on generated-doc EOF whitespace and rolled docs back before staging/commit.
-- Browser-approved 0019 adds `adjust_part_quantity` default-off while preserving
-  the existing nine mutable policy values; catalogue = six reads + four guarded writes.
-- Stock writes use canonical nonnegative/reserved floors, correction reasons, MCP
-  audit/movement attribution, post-commit inventory/history invalidation, and the
-  same preview/confirm/idempotency/replay/state-drift ceilings as lifecycle writes.
-- Settings autosave success feedback is consistently 3.5s across Appearance,
-  Currency, Timezone, Inventory, Reservations, MCP access and MCP tool permissions.
-- Next: narrower inventory create/edit then delete/restore only with exact existing
-  invariants, optional role-management UI, and final public-alpha hardening/regression.
+PARTPILOT:PATCH759_MCP_PART_CREATE_CHECKPOINT_MEMORY
+Chat 26 Patch 759 checkpoint
+- Browser-approved Alembic 0020 adds `create_part` default-off while preserving prior mutable policy; catalogue = six reads + five guarded writes.
+- Creation reuses canonical validation and freezes normalized payload + catalogue/template dependencies into preview before confirmation; idempotency/replay/drift and post-commit inventory/history invalidation remain exact.
+- OAuth challenge now requests enabled MCP read/write categories; existing tokens never auto-escalate and Claude write access was browser-proved only after reauthorization.
+- History shows OAuth/direct MCP client identity (e.g. Claude) instead of the backing username while retaining `actor_user_id` authority; MCP stock movements stay typed MCP and older matching audits can be hydrated without DB rewrite.
+- Copied write smokes isolate fixture-owned intents; legitimate live browser-test OAuth/write-intent/audit/inventory rows remain mutable data.
+- Next: guarded metadata edit/correction, then delete/restore only with exact current safeguards; optional user-management UI and final public-alpha hardening before Patch 767.
