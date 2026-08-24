@@ -22,6 +22,7 @@ import type {
 
 // PARTPILOT:GLOBAL_APPEARANCE_RUNTIME:V412
 const APPEARANCE_RUNTIME_MARKER = "PARTPILOT:GLOBAL_APPEARANCE_RUNTIME:V412";
+const APPEARANCE_SAVED_VISIBLE_MS = 3500;
 export const APPEARANCE_STORAGE_KEY = "partpilot.appearance.theme";
 const SYSTEM_LIGHT_QUERY = "(prefers-color-scheme: light)";
 
@@ -132,6 +133,16 @@ export function AppearanceProvider({
     setReloadVersion((value) => value + 1);
   }, [isSaving]);
 
+  // PARTPILOT:CONSISTENT_APPEARANCE_FEEDBACK_DURATION:V751
+  useEffect(() => {
+    if (!saved) return;
+    const timeoutId = window.setTimeout(
+      () => setSaved(false),
+      APPEARANCE_SAVED_VISIBLE_MS
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [saved]);
+
   useEffect(() => {
     setResolvedTheme(applyTheme(theme));
 
@@ -165,7 +176,6 @@ export function AppearanceProvider({
     const hasCachedAppearance = loadedTokenRef.current === token;
     setIsLoading(!hasCachedAppearance);
     setError(null);
-    setSaved(false);
 
     getAppearanceSettings(token)
       .then((settings) => {

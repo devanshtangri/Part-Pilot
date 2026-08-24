@@ -174,3 +174,27 @@ failure and closes Chat 25. Chat 26 therefore starts at 743 and owns `743-767`.
    REST/OpenAPI and MCP regressions; checkpoint the release candidate.
 
 Notifications & Messaging remain post-v1.
+
+<!-- PARTPILOT:CHAT26_PROGRESS_PATCH754 -->
+## Chat 26 progress through Patch 754
+
+The first inventory MCP write slice is browser-approved. Alembic
+`0019_mcp_inventory_stock_write` adds `adjust_part_quantity` to the canonical
+ten-tool catalogue (six read + four safeguarded write) while preserving all prior
+live tool-policy booleans and defaulting only the new write permission off. The
+tool reuses canonical stock planning/floors/reason rules, MCP attribution and
+post-commit inventory/history invalidation, with the lifecycle write
+preview/confirmation/idempotency/replay/state-drift safeguards unchanged. No-auth
+remains permanently read-only.
+
+Browser feedback also exposed success-state flashing caused by expected live
+reloads. The approved Settings/Appearance source now gives all autosave success
+confirmations a consistent 3.5-second lifetime without background refetches
+clearing them early.
+
+Patch 753 was consumed by generated-doc EOF whitespace before staging/commit and
+rolled all five docs back exactly. Patch 754 checkpoints the unchanged approved
+bytes and corrected durable docs. Continue Chat 26
+with only narrow inventory create/edit/delete/restore slices that preserve current
+service/recycle-bin/dependency invariants, then final public-alpha hardening and
+regression before the planned Patch 767 boundary.

@@ -57,6 +57,7 @@ REGISTERED_TOOLS = EXPECTED_TOOLS | {
     "reserve_project",
     "consume_reservation",
     "cancel_reservation",
+    "adjust_part_quantity",
 }
 
 

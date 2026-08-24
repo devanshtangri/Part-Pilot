@@ -86,6 +86,7 @@ const RESET_CONFIRMATION = "RESET PART PILOT";
 const RESTORE_CONFIRMATION = "RESTORE";
 const MAX_RESTORE_FILE_BYTES = 256 * 1024 * 1024;
 const RESERVATION_AUTOSAVE_DELAY_MS = 550;
+const SETTINGS_AUTOSAVE_SAVED_VISIBLE_MS = 3500;
 const RESERVATION_AUTOSAVE_STARTER_DAYS = 30;
 const SETTINGS_SECTION_IDS = [
   "account",
@@ -703,6 +704,61 @@ export function Settings() {
     };
   }, []);
 
+  // PARTPILOT:CONSISTENT_AUTOSAVE_FEEDBACK_DURATION:V751
+  useEffect(() => {
+    if (!searchSettingsSaved) return;
+    const timeoutId = window.setTimeout(
+      () => setSearchSettingsSaved(false),
+      SETTINGS_AUTOSAVE_SAVED_VISIBLE_MS
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [searchSettingsSaved]);
+
+  useEffect(() => {
+    if (!currencySettingsSaved) return;
+    const timeoutId = window.setTimeout(
+      () => setCurrencySettingsSaved(false),
+      SETTINGS_AUTOSAVE_SAVED_VISIBLE_MS
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [currencySettingsSaved]);
+
+  useEffect(() => {
+    if (!timezoneSettingsSaved) return;
+    const timeoutId = window.setTimeout(
+      () => setTimezoneSettingsSaved(false),
+      SETTINGS_AUTOSAVE_SAVED_VISIBLE_MS
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [timezoneSettingsSaved]);
+
+  useEffect(() => {
+    if (!reservationSettingsSaved) return;
+    const timeoutId = window.setTimeout(
+      () => setReservationSettingsSaved(false),
+      SETTINGS_AUTOSAVE_SAVED_VISIBLE_MS
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [reservationSettingsSaved]);
+
+  useEffect(() => {
+    if (!mcpSettingsSaved) return;
+    const timeoutId = window.setTimeout(
+      () => setMcpSettingsSaved(false),
+      SETTINGS_AUTOSAVE_SAVED_VISIBLE_MS
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [mcpSettingsSaved]);
+
+  useEffect(() => {
+    if (!mcpToolPermissionsSaved) return;
+    const timeoutId = window.setTimeout(
+      () => setMcpToolPermissionsSaved(false),
+      SETTINGS_AUTOSAVE_SAVED_VISIBLE_MS
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [mcpToolPermissionsSaved]);
+
   useEffect(() => {
     return () => {
       if (accountAvatarPreviewUrl) {
@@ -831,7 +887,6 @@ export function Settings() {
     const hasCachedCurrency = currencySettingsLoadedTokenRef.current === token;
     setCurrencySettingsLoading(!hasCachedCurrency);
     setCurrencySettingsError(null);
-    setCurrencySettingsSaved(false);
 
     getCurrencySettings(token)
       .then((result) => {
@@ -870,7 +925,6 @@ export function Settings() {
     const hasCachedTimezone = timezoneSettingsLoadedTokenRef.current === token;
     setTimezoneSettingsLoading(!hasCachedTimezone);
     setTimezoneSettingsError(null);
-    setTimezoneSettingsSaved(false);
 
     getTimezoneSettings(token)
       .then((result) => {
@@ -912,7 +966,6 @@ export function Settings() {
       reservationSettingsLoadedTokenRef.current === token;
     setReservationSettingsLoading(!hasCachedReservationSettings);
     setReservationSettingsError(null);
-    setReservationSettingsSaved(false);
 
     getReservationSettings(token)
       .then((result) => {
@@ -968,7 +1021,6 @@ export function Settings() {
       mcpSettingsLoadedTokenRef.current === token && mcpDraft !== null;
     setMcpSettingsLoading(!hasCachedMcpSettings);
     setMcpSettingsError(null);
-    setMcpSettingsSaved(false);
 
     getMcpSettings(token)
       .then((result) => {
@@ -1019,7 +1071,6 @@ export function Settings() {
       mcpToolPermissionsLoadedTokenRef.current === token && mcpToolPermissionsDraft !== null;
     setMcpToolPermissionsLoading(!hasCachedMcpToolPermissions);
     setMcpToolPermissionsError(null);
-    setMcpToolPermissionsSaved(false);
     getMcpToolPermissions(token)
       .then((result) => {
         if (!cancelled) {
@@ -3061,7 +3112,7 @@ export function Settings() {
                   </div>
                 ) : null}
                 {mcpToolPermissionsSaving && !mcpToolPermissionsError ? <p className="settings-preference-state" role="status">Saving tool permission automatically...</p> : null}
-                {mcpToolPermissionsSaved && !mcpToolPermissionsError ? <p className="settings-preference-state is-success" role="status">MCP tool permission saved automatically.</p> : null}
+                {mcpToolPermissionsSaved && !mcpToolPermissionsError ? <p className="settings-preference-state is-success" role="status" data-feedback-version="consistent-autosave-feedback-v751">MCP tool permission saved automatically.</p> : null}
               </div>
 
               <div className="settings-mcp-endpoint">
@@ -3222,7 +3273,7 @@ export function Settings() {
                 </div>
                 <div>
                   <dt>Available tools</dt>
-                  <dd>6 read + 3 safeguarded write</dd>
+                  <dd>6 read + 4 safeguarded write</dd>
                 </div>
               </dl>
 

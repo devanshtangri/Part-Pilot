@@ -3,7 +3,7 @@
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
 - Docker compose service partpilot, host port 7890. React/Vite/TypeScript + FastAPI/SQLAlchemy/Alembic.
-- Alembic head: 0018_mcp_write_intents.
+- Alembic head: 0019_mcp_inventory_stock_write.
 
 Patch workflow
 - Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one sequential Python file under fixes/. Failed attempts consume numbers. Assistant runs a numbered patch only when the user explicitly asks to run that specific patch; otherwise the user runs it. On an explicit run request, execute exactly that requested run command once and return the full raw terminal output only; no conclusions, diagnosis, fixes, retries, inspections or extra commands unless separately asked.
@@ -35,11 +35,11 @@ REST API access
 - Browser-approved API Access Settings UI: create/edit/rotate/revoke, hidden revoked records, one-time secret, scope presets, API docs actions, modal security flows. `/docs`, `/redoc`, `/openapi.json` need deliberate public-alpha access policy.
 
 MCP/OAuth
-- OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata, stateless `/mcp`; six read-only Part/Project/Reservation tools. Real Claude/ChatGPT read flows verified.
+- OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata, stateless `/mcp`; six read Part/Project/Reservation tools plus four safeguarded writes. Real Claude/ChatGPT read flows verified.
 - Manual OAuth admin: ownership, public/confidential auth, generated IDs, digest-only one-time secrets, status/revocation; revoked hidden from normal Settings.
 - Alembic 0015: named Bearer/custom-header/trusted-network direct clients with independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row retained for audit compatibility.
 - `Enable MCP server` master; `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
-- Browser-approved Alembic 0018 MCP catalogue: six read tools plus safeguarded `reserve_project`, `consume_reservation`, `cancel_reservation`; global/client policy, `mcp:write`, active Operator+ user, preview/confirmation/idempotency/state-drift defenses apply. No-auth is permanently read-only. Treat live per-tool booleans/OAuth scopes as mutable configuration.
+- Browser-approved Alembic 0019 MCP catalogue: six reads plus safeguarded `reserve_project`, `consume_reservation`, `cancel_reservation`, `adjust_part_quantity`; global/client policy, `mcp:write`, active Operator+ user, preview/confirmation/idempotency/replay/state-drift defenses apply. Stock adjustment reuses canonical inventory floors/reasons and MCP attribution/live invalidation. No-auth is permanently read-only. Treat live per-tool booleans/OAuth scopes as mutable configuration.
 - Browser-approved Settings Direct MCP hierarchy: Allow direct clients + No authentication sit with Named direct clients; global Server/Read/Write stay separate. Dependency-disabled uses `not-allowed`; `wait` only while saving.
 
 Recovery lessons
@@ -252,3 +252,16 @@ Chat 25 boundary — Patch 742
 - Chat 26: narrow inventory MCP writes (add/edit/stock, then delete/restore only
   with existing safeguards), optional role-management UI, final public-alpha
   regression. Notifications & Messaging remain post-v1.
+
+PARTPILOT:PATCH754_MCP_INVENTORY_STOCK_CHECKPOINT_MEMORY
+Chat 26 Patch 754 checkpoint
+- Patch 753 failed only on generated-doc EOF whitespace and rolled docs back before staging/commit.
+- Browser-approved 0019 adds `adjust_part_quantity` default-off while preserving
+  the existing nine mutable policy values; catalogue = six reads + four guarded writes.
+- Stock writes use canonical nonnegative/reserved floors, correction reasons, MCP
+  audit/movement attribution, post-commit inventory/history invalidation, and the
+  same preview/confirm/idempotency/replay/state-drift ceilings as lifecycle writes.
+- Settings autosave success feedback is consistently 3.5s across Appearance,
+  Currency, Timezone, Inventory, Reservations, MCP access and MCP tool permissions.
+- Next: narrower inventory create/edit then delete/restore only with exact existing
+  invariants, optional role-management UI, and final public-alpha hardening/regression.

@@ -3570,3 +3570,26 @@ Chat 26 implementation order:
 
 Notifications & Messaging remain post-v1. Live database/settings/OAuth/tool
 policy are mutable state and must not be frozen as future patch prerequisites.
+
+<!-- PARTPILOT:PATCH754_MCP_INVENTORY_STOCK_ROADMAP -->
+### Patch 754 — guarded inventory stock adjustment complete
+
+Completed in Chat 26:
+- [x] Recover the consumed Patch 753 documentation EOF validation failure without
+  changing the 20 browser-approved application files or live data/deployment.
+- [x] Add data-only `0019_mcp_inventory_stock_write` while preserving mutable
+  existing tool-policy values and defaulting the new write permission off.
+- [x] Add guarded `adjust_part_quantity` using canonical inventory stock rules,
+  MCP attribution, post-commit live invalidation, and the existing two-step
+  confirmation/idempotency/state-drift contract.
+- [x] Expand the canonical MCP catalogue to six read + four safeguarded write tools.
+- [x] Standardize all Settings autosave success confirmations to 3.5 seconds and
+  prevent expected live-sync/refetches from flashing them away.
+- [x] Complete browser approval and checkpoint the combined source.
+
+Next Chat 26 work:
+1. Continue inventory create/edit and later delete/restore MCP slices only when
+   their existing transactional/recycle-bin/dependency invariants can be preserved.
+2. Add the dedicated Settings user/role-management UI when prioritized.
+3. Run final public-alpha accessibility, security, responsive, backup/restore,
+   REST/OpenAPI and MCP regression/hardening and checkpoint the release candidate.

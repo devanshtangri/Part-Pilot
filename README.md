@@ -58,11 +58,9 @@ assistants can understand and act on inventory safely.
 
 Major remaining areas include:
 
-- Static Bearer authentication in the MCP runtime.
-- Direct-key Settings controls and browser approval.
-- Custom-header and trusted-network MCP authentication modes.
-- Safeguarded MCP write tools.
-- Accessibility, security and public-alpha hardening.
+- Additional narrowly safeguarded inventory MCP mutation slices where existing service/recycle-bin invariants can be preserved.
+- The dedicated user/role-management Settings UI when prioritized.
+- Accessibility, security and final public-alpha regression/hardening.
 
 See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
 detailed build plan and [`docs/Checkpoint.md`](docs/Checkpoint.md) for durable
@@ -472,7 +470,7 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | Named direct MCP clients (Bearer/custom-header/trusted-network) | Available |
 | Direct-client master and typed-confirmed no-auth fallback | Available |
 | Individual-tool and per-client MCP permissions | Available |
-| Safeguarded MCP write tools | Project/Reservation lifecycle slice available; inventory mutation deferred |
+| Safeguarded MCP write tools | Four available: Project/Reservation lifecycle plus guarded inventory stock adjustment |
 
 MCP write authorization and individual write-tool permissions default off when
 the safeguarded-write schema is introduced, but live policy is administrator-
@@ -676,16 +674,18 @@ the last active Owner. The backend APIs support user lifecycle management; a
 future Settings UI can present those controls without changing the security
 boundary.
 
-<!-- PARTPILOT:SAFEGUARDED_MCP_WRITES_README:V742 -->
-### Safeguarded MCP lifecycle writes
+<!-- PARTPILOT:SAFEGUARDED_MCP_WRITES_README:V754 -->
+### Safeguarded MCP writes
 
-Part Pilot now exposes three explicitly gated MCP lifecycle writes alongside its
-six read tools: reserve a Project, consume a Reservation and cancel a
-Reservation. Each write requires the server/write/global/client/scope/role
-ceilings plus a preview, five-minute one-time confirmation token, idempotency and
-state-drift protection. No-auth remains read-only. Existing OAuth sessions do
-not silently acquire `mcp:write`; clients must be newly authorized for that
-scope when write access is enabled. General inventory creation/edit/delete and
-stock-adjustment MCP tools remain intentionally deferred to narrow later slices. Boundary
-validation treats live MCP tool policy as mutable configuration; copied-production
-write smokes establish and restore their own fixture policy.
+Part Pilot exposes six read tools plus four explicitly gated writes: reserve a
+Project, consume a Reservation, cancel a Reservation, and adjust inventory stock.
+Each write is bounded by server/write/global/client/scope/role ceilings and uses
+a preview, short-lived one-time confirmation token, idempotency, completed-write
+replay, and state-drift rejection. `adjust_part_quantity` reuses the canonical
+stock service, including nonnegative/reserved-stock floors and correction-reason
+requirements, and records MCP movement/audit attribution with post-commit
+inventory/history invalidation. No-auth remains permanently read-only. Existing
+OAuth sessions do not silently acquire `mcp:write`; clients must be newly
+authorized for that scope when write access is enabled. Live MCP tool policy is
+mutable administrator configuration; copied-production smokes own and restore
+their fixture policy.

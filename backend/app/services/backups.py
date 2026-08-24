@@ -44,11 +44,16 @@ ARCHIVE_ENTRY_NAMES = (
     MANIFEST_ENTRY_NAME,
     DATABASE_ENTRY_NAME,
 )
-EXPECTED_ALEMBIC_REVISION = "0018_mcp_write_intents"
+EXPECTED_ALEMBIC_REVISION = "0019_mcp_inventory_stock_write"
 EXPECTED_CRITICAL_SCHEMA_SHA256 = (
     "2b4bbbdebf042b980e018e209eda626983c8f85c467b9d74b33dffb9e0e278e0"
 )
 LEGACY_UNSUPPORTED_BACKUP_CONTRACTS = (
+    (
+        2,
+        "0018_mcp_write_intents",
+        "2b4bbbdebf042b980e018e209eda626983c8f85c467b9d74b33dffb9e0e278e0",
+    ),
     (
         2,
         "0017_user_roles",

@@ -12,6 +12,7 @@ from app.db.constants import SOURCE_MCP
 from app.db.session import SessionLocal
 from app.mcp.part_tools import _append_tool_audit, _bounded_request_id, _principal_from_context
 from app.models import Part, Project, Reservation
+from app.schemas.parts import PartQuantityAdjustmentRequest, PartQuantityAdjustmentResponse
 from app.schemas.projects import ProjectResponse
 from app.schemas.reservations import ReservationResponse
 from app.services.live_sync import publish_live_invalidation
@@ -23,6 +24,10 @@ from app.services.mcp_write_safeguards import (
     fail_write_intent,
     prepare_write_intent,
     validate_confirmation,
+)
+from app.services.parts import (
+    adjust_part_quantity as adjust_part_quantity_service,
+    preview_part_quantity_adjustment,
 )
 from app.services.projects import (
     ProjectConflictError,
@@ -41,7 +46,7 @@ from app.services.reservations import (
 )
 
 # PARTPILOT:SAFEGUARDED_MCP_WRITE_TOOLS:V734
-WRITE_TOOL_NAMES = ("reserve_project", "consume_reservation", "cancel_reservation")
+WRITE_TOOL_NAMES = ("reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity")
 
 class WriteStockDelta(BaseModel):
     part_id: int
@@ -78,6 +83,38 @@ class SafeguardedWriteResult(BaseModel):
     preview: WriteImpactPreview
     project: ProjectResponse | None = None
     reservation: ReservationResponse | None = None
+    replayed: bool = False
+
+
+class PartQuantityAdjustmentPreview(BaseModel):
+    action: Literal["adjust_part_quantity"]
+    target_type: Literal["part"]
+    target_id: int
+    target_label: str
+    part_number: str | None = None
+    part_name: str | None = None
+    operation: Literal["add", "remove", "consume", "correction"]
+    movement_type: str
+    quantity_delta: int
+    physical_before: int
+    physical_after: int
+    reserved_before: int
+    reserved_after: int
+    available_before: int
+    available_after: int
+    reason: str
+    note: str | None = None
+
+
+class SafeguardedPartQuantityWriteResult(BaseModel):
+    summary: str
+    phase: Literal["preview", "completed"]
+    idempotency_key: str
+    confirmation_required: bool
+    confirmation_token: str | None = None
+    expires_at: str | None = None
+    preview: PartQuantityAdjustmentPreview
+    adjustment: PartQuantityAdjustmentResponse | None = None
     replayed: bool = False
 
 
@@ -322,6 +359,196 @@ def _run_guarded_write(
         db.close()
 
 
+def _part_quantity_preview(db, part_id: int, payload: PartQuantityAdjustmentRequest) -> PartQuantityAdjustmentPreview:
+    plan = preview_part_quantity_adjustment(db, part_id, payload, source=SOURCE_MCP)
+    return PartQuantityAdjustmentPreview(
+        action="adjust_part_quantity",
+        target_type="part",
+        target_id=plan.part_id,
+        target_label=plan.part_label,
+        part_number=plan.part_number,
+        part_name=plan.part_name,
+        operation=payload.operation,
+        movement_type=plan.movement_type,
+        quantity_delta=plan.quantity_delta,
+        physical_before=plan.quantity_before,
+        physical_after=plan.quantity_after,
+        reserved_before=plan.reserved_quantity,
+        reserved_after=plan.reserved_quantity,
+        available_before=plan.available_before,
+        available_after=plan.available_after,
+        reason=plan.reason,
+        note=plan.note,
+    )
+
+
+def _run_guarded_part_quantity_write(
+    *,
+    ctx: Context,
+    part_id: int,
+    operation: Literal["add", "remove", "consume", "correction"],
+    quantity: int,
+    idempotency_key: str,
+    reason: str | None,
+    note: str | None,
+    confirmation_token: str | None,
+) -> SafeguardedPartQuantityWriteResult:
+    if part_id < 1:
+        raise ValueError("Part id must be greater than zero.")
+    payload = PartQuantityAdjustmentRequest(
+        operation=operation, quantity=quantity, reason=reason, note=note
+    )
+    principal = _principal_from_context(ctx)
+    request_id = _bounded_request_id(ctx)
+    arguments = {"part_id": part_id, **payload.model_dump(mode="json")}
+    tool_name = "adjust_part_quantity"
+    db = SessionLocal()
+    try:
+        authorization_user_id = authorize_mcp_tool(db, principal, tool_name)
+        if type(authorization_user_id) is not int:
+            raise RuntimeError("MCP write authorization did not resolve a user authority.")
+
+        replay_json = completed_write_replay(
+            db,
+            principal=principal,
+            tool_name=tool_name,
+            idempotency_key=idempotency_key,
+            arguments=arguments,
+        )
+        if replay_json is not None:
+            replay = SafeguardedPartQuantityWriteResult.model_validate(replay_json)
+            return replay.model_copy(update={"replayed": True})
+
+        preview = _part_quantity_preview(db, part_id, payload)
+        preview_json = preview.model_dump(mode="json")
+        if confirmation_token is None:
+            prepared = prepare_write_intent(
+                db,
+                principal=principal,
+                authorization_user_id=authorization_user_id,
+                tool_name=tool_name,
+                idempotency_key=idempotency_key,
+                arguments=arguments,
+                preview=preview_json,
+            )
+            if prepared.replay_result is not None:
+                replay = SafeguardedPartQuantityWriteResult.model_validate(
+                    prepared.replay_result
+                )
+                return replay.model_copy(update={"replayed": True})
+            assert prepared.confirmation_token is not None
+            result = SafeguardedPartQuantityWriteResult(
+                summary=(
+                    "Preview ready for adjust_part_quantity. Review the exact physical/"
+                    "reserved/available stock delta, then call the same tool with this "
+                    "idempotency_key and confirmation_token within five minutes."
+                ),
+                phase="preview",
+                idempotency_key=idempotency_key,
+                confirmation_required=True,
+                confirmation_token=prepared.confirmation_token,
+                expires_at=prepared.intent.expires_at.replace(
+                    tzinfo=timezone.utc
+                ).isoformat(),
+                preview=preview,
+            )
+            _append_tool_audit(
+                db,
+                principal=principal,
+                request_id=request_id,
+                tool_name=tool_name,
+                success=True,
+                arguments={
+                    **arguments,
+                    "idempotency_key": idempotency_key,
+                    "phase": "preview",
+                },
+                result={
+                    "phase": "preview",
+                    "intent_id": prepared.intent.id,
+                    "confirmation_required": True,
+                },
+            )
+            db.commit()
+            return result
+
+        validated = validate_confirmation(
+            db,
+            principal=principal,
+            tool_name=tool_name,
+            idempotency_key=idempotency_key,
+            confirmation_token=confirmation_token,
+            arguments=arguments,
+            current_preview=preview_json,
+        )
+        if validated.replay_result is not None:
+            replay = SafeguardedPartQuantityWriteResult.model_validate(
+                validated.replay_result
+            )
+            return replay.model_copy(update={"replayed": True})
+
+        adjustment = adjust_part_quantity_service(
+            db,
+            part_id,
+            payload,
+            actor_user_id=authorization_user_id,
+            actor_type="mcp",
+            source=SOURCE_MCP,
+            commit=False,
+        )
+        final = SafeguardedPartQuantityWriteResult(
+            summary=f"Confirmed MCP stock adjustment for Part {part_id} exactly once.",
+            phase="completed",
+            idempotency_key=idempotency_key,
+            confirmation_required=False,
+            preview=preview,
+            adjustment=adjustment,
+        )
+        complete_write_intent(
+            db, validated.intent, final.model_dump(mode="json")
+        )
+        _append_tool_audit(
+            db,
+            principal=principal,
+            request_id=request_id,
+            tool_name=tool_name,
+            success=True,
+            arguments={
+                **arguments,
+                "idempotency_key": idempotency_key,
+                "phase": "confirm",
+            },
+            result={
+                "phase": "completed",
+                "intent_id": validated.intent.id,
+                "replayed": False,
+            },
+        )
+        db.commit()
+        publish_live_invalidation(
+            ("inventory", "history"),
+            resource={"type": "part", "id": part_id},
+        )
+        return final
+    except Exception as exc:
+        db.rollback()
+        if confirmation_token is not None:
+            try:
+                fail_write_intent(
+                    db,
+                    principal=principal if "principal" in locals() else {},
+                    tool_name=tool_name,
+                    idempotency_key=idempotency_key,
+                    error_type=type(exc).__name__,
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def register_write_tools(server: FastMCP) -> None:
     consequential = ToolAnnotations(
         readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
@@ -379,4 +606,38 @@ def register_write_tools(server: FastMCP) -> None:
         return _run_guarded_write(
             ctx=ctx, tool_name="cancel_reservation", target_id=reservation_id,
             idempotency_key=idempotency_key, confirmation_token=confirmation_token,
+        )
+
+    @server.tool(
+        name="adjust_part_quantity",
+        title="Adjust Part Pilot Part Quantity",
+        description=(
+            "Safeguarded inventory quantity adjustment using Part Pilot's canonical add, "
+            "remove, consume, or correction semantics. The first call returns the exact "
+            "physical/reserved/available delta and a five-minute confirmation token; no "
+            "inventory mutation occurs until the same arguments and idempotency_key are "
+            "repeated with that token."
+        ),
+        annotations=destructive,
+        structured_output=True,
+    )
+    def adjust_part_quantity(
+        ctx: Context,
+        part_id: Annotated[int, Field(gt=0)],
+        operation: Literal["add", "remove", "consume", "correction"],
+        quantity: int,
+        idempotency_key: Annotated[str, Field(min_length=8, max_length=120)],
+        reason: Annotated[str | None, Field(max_length=180)] = None,
+        note: Annotated[str | None, Field(max_length=5000)] = None,
+        confirmation_token: Annotated[str | None, Field(max_length=160)] = None,
+    ) -> SafeguardedPartQuantityWriteResult:
+        return _run_guarded_part_quantity_write(
+            ctx=ctx,
+            part_id=part_id,
+            operation=operation,
+            quantity=quantity,
+            idempotency_key=idempotency_key,
+            reason=reason,
+            note=note,
+            confirmation_token=confirmation_token,
         )

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -17,6 +18,8 @@ from app.db.constants import (
     PROJECT_STATUS_RESERVED,
     RESERVATION_STATUS_ACTIVE,
     SOURCE_MANUAL,
+    SOURCE_MCP,
+    SOURCES,
 )
 from app.models import (
     AuditLog,
@@ -1311,6 +1314,32 @@ _DEFAULT_ADJUSTMENT_REASONS = {
     "correction": "Manual stock correction",
 }
 
+_MCP_ADJUSTMENT_REASONS = {
+    "add": "MCP stock addition",
+    "remove": "MCP stock removal",
+    "consume": "MCP stock consumption",
+    "correction": "MCP stock correction",
+}
+
+
+@dataclass(frozen=True)
+class PartQuantityAdjustmentPlan:
+    part_id: int
+    part_number: str | None
+    part_name: str | None
+    part_label: str
+    operation: str
+    movement_type: str
+    quantity_delta: int
+    quantity_before: int
+    quantity_after: int
+    reserved_quantity: int
+    available_before: int
+    available_after: int
+    reason: str
+    note: str | None
+    source: str
+
 
 def _adjustment_delta(payload: PartQuantityAdjustmentRequest) -> int:
     if payload.operation == "add":
@@ -1318,6 +1347,92 @@ def _adjustment_delta(payload: PartQuantityAdjustmentRequest) -> int:
     if payload.operation in {"remove", "consume"}:
         return -payload.quantity
     return payload.quantity
+
+
+def _adjustment_actor_type(
+    actor_user_id: int | None,
+    actor_type: str | None,
+) -> str:
+    if actor_type is not None:
+        if actor_type not in {"system", "manual", "user", "mcp", "ai"}:
+            raise PartValidationError("Unsupported quantity-adjustment audit actor type.")
+        return actor_type
+    return "user" if actor_user_id is not None else "system"
+
+
+def _adjustment_reason(
+    payload: PartQuantityAdjustmentRequest,
+    source: str,
+) -> str:
+    if payload.reason is not None:
+        return payload.reason
+    if source == SOURCE_MCP:
+        return _MCP_ADJUSTMENT_REASONS[payload.operation]
+    return _DEFAULT_ADJUSTMENT_REASONS[payload.operation]
+
+
+def _plan_part_quantity_adjustment(
+    part: Part,
+    payload: PartQuantityAdjustmentRequest,
+    *,
+    source: str,
+) -> PartQuantityAdjustmentPlan:
+    if source not in SOURCES:
+        raise PartValidationError("Unsupported quantity-adjustment source.")
+
+    quantity_before = int(part.total_quantity)
+    reserved_quantity = int(part.reserved_quantity)
+    quantity_delta = _adjustment_delta(payload)
+    quantity_after = quantity_before + quantity_delta
+
+    if quantity_after < 0:
+        raise PartValidationError(
+            "Quantity adjustment cannot reduce total stock below zero."
+        )
+    if quantity_after < reserved_quantity:
+        raise PartValidationError(
+            "Quantity adjustment cannot reduce total stock below the "
+            "reserved quantity."
+        )
+
+    available_before = quantity_before - reserved_quantity
+    available_after = quantity_after - reserved_quantity
+    label = part.name or part.part_number or f"Part {part.id}"
+    return PartQuantityAdjustmentPlan(
+        part_id=part.id,
+        part_number=part.part_number,
+        part_name=part.name,
+        part_label=label,
+        operation=payload.operation,
+        movement_type=_ADJUSTMENT_MOVEMENT_TYPES[payload.operation],
+        quantity_delta=quantity_delta,
+        quantity_before=quantity_before,
+        quantity_after=quantity_after,
+        reserved_quantity=reserved_quantity,
+        available_before=available_before,
+        available_after=available_after,
+        reason=_adjustment_reason(payload, source),
+        note=payload.note,
+        source=source,
+    )
+
+
+def preview_part_quantity_adjustment(
+    db: Session,
+    part_id: int,
+    payload: PartQuantityAdjustmentRequest,
+    *,
+    source: str = SOURCE_MANUAL,
+) -> PartQuantityAdjustmentPlan:
+    part = db.execute(
+        select(Part).where(
+            Part.id == part_id,
+            Part.is_deleted.is_(False),
+        )
+    ).scalar_one_or_none()
+    if part is None:
+        raise PartNotFoundError("Part not found.")
+    return _plan_part_quantity_adjustment(part, payload, source=source)
 
 
 def _serialize_stock_movement(
@@ -1350,6 +1465,8 @@ def adjust_part_quantity(
     payload: PartQuantityAdjustmentRequest,
     *,
     actor_user_id: int | None = None,
+    actor_type: str | None = None,
+    source: str = SOURCE_MANUAL,
     commit: bool = True,
 ) -> PartQuantityAdjustmentResponse:
     part = db.execute(
@@ -1363,46 +1480,29 @@ def adjust_part_quantity(
     if part is None:
         raise PartNotFoundError("Part not found.")
 
-    quantity_before = int(part.total_quantity)
-    quantity_delta = _adjustment_delta(payload)
-    quantity_after = quantity_before + quantity_delta
-
-    if quantity_after < 0:
-        raise PartValidationError(
-            "Quantity adjustment cannot reduce total stock below zero."
-        )
-    if quantity_after < part.reserved_quantity:
-        raise PartValidationError(
-            "Quantity adjustment cannot reduce total stock below the "
-            "reserved quantity."
-        )
-
-    movement_type = _ADJUSTMENT_MOVEMENT_TYPES[payload.operation]
-    reason = payload.reason or _DEFAULT_ADJUSTMENT_REASONS[payload.operation]
-    display_name = part.name or part.part_number or f"Part {part.id}"
-    available_before = quantity_before - part.reserved_quantity
-    available_after = quantity_after - part.reserved_quantity
+    plan = _plan_part_quantity_adjustment(part, payload, source=source)
+    resolved_actor_type = _adjustment_actor_type(actor_user_id, actor_type)
 
     movement = StockMovement(
         part_id=part.id,
-        movement_type=movement_type,
-        quantity_delta=quantity_delta,
-        quantity_before=quantity_before,
-        quantity_after=quantity_after,
-        reserved_quantity_before=part.reserved_quantity,
-        reserved_quantity_after=part.reserved_quantity,
-        available_quantity_before=available_before,
-        available_quantity_after=available_after,
+        movement_type=plan.movement_type,
+        quantity_delta=plan.quantity_delta,
+        quantity_before=plan.quantity_before,
+        quantity_after=plan.quantity_after,
+        reserved_quantity_before=plan.reserved_quantity,
+        reserved_quantity_after=plan.reserved_quantity,
+        available_quantity_before=plan.available_before,
+        available_quantity_after=plan.available_after,
         unit_price_snapshot=part.unit_price,
         currency_snapshot=None,
-        reason=reason,
-        note=payload.note,
-        source=SOURCE_MANUAL,
+        reason=plan.reason,
+        note=plan.note,
+        source=plan.source,
         actor_user_id=actor_user_id,
     )
 
     try:
-        part.total_quantity = quantity_after
+        part.total_quantity = plan.quantity_after
         db.add(movement)
         db.flush()
         db.add(
@@ -1410,31 +1510,29 @@ def adjust_part_quantity(
                 event_type="part.quantity_adjusted",
                 entity_type="part",
                 entity_id=part.id,
-                actor_type=(
-                    "user" if actor_user_id is not None else "system"
-                ),
+                actor_type=resolved_actor_type,
                 actor_user_id=actor_user_id,
                 summary=(
-                    f"{payload.operation.title()} stock for {display_name}: "
-                    f"{quantity_before} to {quantity_after}"
+                    f"{payload.operation.title()} stock for {plan.part_label}: "
+                    f"{plan.quantity_before} to {plan.quantity_after}"
                 ),
                 before_json={
-                    "total_quantity": quantity_before,
-                    "reserved_quantity": part.reserved_quantity,
-                    "available_quantity": available_before,
+                    "total_quantity": plan.quantity_before,
+                    "reserved_quantity": plan.reserved_quantity,
+                    "available_quantity": plan.available_before,
                 },
                 after_json={
-                    "total_quantity": quantity_after,
-                    "reserved_quantity": part.reserved_quantity,
-                    "available_quantity": available_after,
+                    "total_quantity": plan.quantity_after,
+                    "reserved_quantity": plan.reserved_quantity,
+                    "available_quantity": plan.available_after,
                 },
                 metadata_json={
                     "operation": payload.operation,
-                    "movement_type": movement_type,
-                    "quantity_delta": quantity_delta,
+                    "movement_type": plan.movement_type,
+                    "quantity_delta": plan.quantity_delta,
                     "stock_movement_id": movement.id,
-                    "source": SOURCE_MANUAL,
-                    "reason": reason,
+                    "source": plan.source,
+                    "reason": plan.reason,
                 },
             )
         )
@@ -1459,7 +1557,6 @@ def adjust_part_quantity(
         part=_serialize_part(db, part),
         movement=_serialize_stock_movement(movement),
     )
-
 
 def list_part_movements(
     db: Session,

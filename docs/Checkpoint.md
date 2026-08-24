@@ -4298,3 +4298,31 @@ Deferred deliberately to Chat 26:
 Chat 25 began with planned range `711-735`; recovery/diagnostic work after the
 planned boundary was limited to the failed MCP-write packaging sequence and this
 approved checkpoint. Patch 742 is the authoritative Chat 25 boundary.
+
+<!-- PARTPILOT:PATCH754_MCP_INVENTORY_STOCK_CHECKPOINT -->
+## Chat 26 MCP inventory stock-write checkpoint — Patch 754
+
+Patch 753 was consumed before staging/commit because four generated docs had an
+extra blank line at EOF; rollback restored all five docs exactly. Patch 754
+checkpoints the unchanged browser-approved guarded inventory stock-adjustment and
+Settings autosave-feedback work delivered through Patch 752.
+
+Current contract:
+- Alembic `0019_mcp_inventory_stock_write` is a data-only migration over 0018; it
+  preserves the live nine-tool boolean policy and adds `adjust_part_quantity`
+  disabled by default without freezing later administrator changes.
+- The MCP catalogue is ten tools: six reads plus `reserve_project`,
+  `consume_reservation`, `cancel_reservation`, and `adjust_part_quantity`.
+- Stock adjustment reuses the canonical inventory service and preserves
+  nonnegative stock, reserved-stock floors, correction-reason requirements, MCP
+  movement/audit attribution, and post-commit inventory/history invalidation.
+- All four writes retain server/write/global/client/scope/Operator+ ceilings,
+  preview/confirmation, idempotency/replay, and state-drift rejection; no-auth is
+  permanently read-only.
+- Settings autosave success feedback for Appearance, Currency, Timezone,
+  Inventory display, Reservation defaults, MCP access, and MCP tool permissions
+  now remains visible for a consistent 3.5 seconds through expected live reloads.
+
+Browser approval is complete. Remaining Chat 26 work is narrower MCP mutation
+and final public-alpha hardening/regression; inventory create/edit/delete/restore
+should be added only where existing service and recycle-bin invariants remain exact.
