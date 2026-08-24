@@ -4367,3 +4367,53 @@ Next Chat 26 work remains narrow: metadata edit/correction first; delete/restore
 only after preserving recycle-bin, dependency, reservation and exact-confirmation
 semantics; then optional user-management presentation and final public-alpha
 hardening/regression before the planned Patch 767 boundary.
+
+<!-- PARTPILOT:MCP_PART_METADATA_UPDATE_CHECKPOINT:V761 -->
+## Guarded MCP inventory metadata editing — Patch 761
+
+Patch 761 checkpoints the browser-approved Patch 760 metadata-edit slice.
+Production advances to Alembic `0021_mcp_inventory_part_metadata_update`, a
+data-only migration that preserves the existing eleven mutable MCP tool-policy
+booleans and adds only `update_part_metadata` disabled by default. The canonical
+catalogue is now six read plus six safeguarded write tools.
+
+Approved contract:
+- `update_part_metadata` reuses the existing typed/atomic inventory metadata
+  service and cannot change physical or reserved stock;
+- the MCP tool requires a complete desired replacement state, including explicit
+  nulls for fields intentionally cleared, so omitted optional arguments cannot
+  silently erase stored metadata;
+- part type remains immutable in the edit workflow; manufacturer/location,
+  part-number uniqueness and typed template fields use the existing catalogue and
+  validation rules;
+- preview freezes the exact current metadata, proposed metadata and relevant
+  catalogue/template dependencies; concurrent metadata/template/catalogue changes
+  reject confirmation, while an unrelated stock-only change does not create a
+  false metadata drift failure;
+- confirmation retains the five-minute token, stable idempotency key, completed
+  replay, global/client permission ceilings, `mcp:write`, active Operator-or-higher
+  authority and permanently read-only no-auth behavior;
+- confirmed edits create no stock movement, retain the backing authorizing user,
+  record the MCP client identity (browser-proved with Claude), and publish only
+  `inventory` + `history` after commit.
+
+Browser proof used the previously MCP-created Resistor. Claude first produced the
+exact old/new metadata preview, then confirmed the update. The resulting part kept
+physical quantity 12 and reserved quantity 0, had zero stock movements, and the
+business audit stored `actor_type=mcp` with `mcp_client_name=Claude`.
+
+Checkpoint rehearsal also corrected one test-only historical assumption: the package
+catalogue complete smoke had treated the one-time `0005_packages` migration backfill
+as a permanent invariant over mutable future `Part.package` values. Runtime package
+text remains compatibility-tolerant and the selector can display legacy/non-catalogued
+values, so the smoke no longer rejects legitimate post-migration inventory edits. No
+production package/part row is rewritten by this correction.
+
+The approved runtime image is
+`sha256:e3e8f6e08c44b61ddc7254eda76d7820f47e3d701652d4ca8b87f83ddc8401cb`
+and production Alembic is `0021_mcp_inventory_part_metadata_update`.
+
+Next Chat 26 work: inspect delete/restore semantics before exposing any MCP
+lifecycle for inventory deletion; preserve recycle-bin, dependency, reservation,
+restore and exact-confirmation safeguards. Then complete the remaining prioritized
+user-management presentation/final public-alpha regression before Patch 767.

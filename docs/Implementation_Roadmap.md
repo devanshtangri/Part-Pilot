@@ -3625,3 +3625,34 @@ Next Chat 26 work:
 
 Notifications & Messaging remain post-v1. Planned Chat 26 boundary remains Patch
 767.
+
+<!-- PARTPILOT:PATCH761_MCP_METADATA_UPDATE_ROADMAP -->
+### Patch 761 — guarded inventory metadata editing complete
+
+Completed in Chat 26:
+- [x] Add data-only `0021_mcp_inventory_part_metadata_update`, preserving all
+  existing mutable tool-policy values and defaulting only the new edit permission
+  off.
+- [x] Expand the MCP catalogue to six read + six safeguarded write tools.
+- [x] Add `update_part_metadata` on the canonical typed metadata service with a
+  complete explicit replacement contract and no stock quantity parameters.
+- [x] Preview exact before/after metadata plus catalogue/template dependencies;
+  reject metadata/dependency drift without coupling confirmation to unrelated
+  stock-only changes.
+- [x] Preserve confirmation/idempotency/replay, Operator+ role, `mcp:write`,
+  global/client ceilings, MCP client attribution and post-commit live invalidation.
+- [x] Browser-prove the Claude flow, zero stock movements, unchanged 12/0 stock,
+  exact metadata replacement and History attribution.
+- [x] Correct the complete-smoke package assertion so the one-time 0005 migration
+  backfill is not frozen against legitimate later free-text package values.
+- [x] Checkpoint the approved source without rewriting legitimate live MCP test
+  inventory, OAuth, audit or write-intent evidence.
+
+Next Chat 26 work:
+1. Inspect existing part soft-delete/restore/purge dependency and reservation
+   contracts before deciding the minimum honest MCP delete/restore catalogue.
+2. Add delete/restore only if the MCP preview/confirmation is at least as strict as
+   the existing UI/API safety model; keep permanent purge separately reviewed.
+3. Add the dedicated Settings user/role-management UI when prioritized.
+4. Run final public-alpha accessibility, security, responsive, backup/restore,
+   REST/OpenAPI and MCP regression/hardening before the planned Patch 767 boundary.

@@ -1194,14 +1194,26 @@ def _part_metadata_snapshot(response: PartResponse) -> dict[str, object]:
     }
 
 
-def update_part_metadata(
+@dataclass(frozen=True)
+class PartMetadataUpdatePlan:
+    part: Part
+    part_type: PartType
+    manufacturer: Manufacturer | None
+    location: Location | None
+    fields: tuple[PartTypeField, ...]
+    pending_values: tuple[PartFieldValue, ...]
+    before_response: PartResponse
+    before_snapshot: dict[str, object]
+    part_number_available: bool
+
+
+def _plan_part_metadata_update(
     db: Session,
     part_id: int,
     payload: PartUpdateRequest,
     *,
-    actor_user_id: int | None = None,
-    commit: bool = True,
-) -> PartResponse:
+    require_part_number_available: bool = True,
+) -> PartMetadataUpdatePlan:
     part = db.execute(
         select(Part)
         .where(
@@ -1232,9 +1244,9 @@ def update_part_metadata(
     if payload.location_id is not None:
         location = db.get(Location, payload.location_id)
         if location is None:
-            raise PartValidationError(
-                "Select an existing location."
-            )
+            raise PartValidationError("Select an existing location.")
+
+    part_number_available = True
     if payload.part_number:
         existing_id = db.execute(
             select(Part.id).where(
@@ -1242,12 +1254,13 @@ def update_part_metadata(
                 Part.id != part.id,
             )
         ).scalar_one_or_none()
-        if existing_id is not None:
+        part_number_available = existing_id is None
+        if require_part_number_available and not part_number_available:
             raise PartConflictError(
                 "A part with this part number already exists."
             )
 
-    fields = list(
+    fields = tuple(
         db.execute(
             select(PartTypeField)
             .where(PartTypeField.part_type_id == part.part_type_id)
@@ -1262,7 +1275,6 @@ def update_part_metadata(
         submitted.field_id: submitted
         for submitted in payload.field_values
     }
-
     if set(submitted_map) - set(field_map):
         raise PartValidationError(
             "One or more template fields do not belong to this part type."
@@ -1275,7 +1287,6 @@ def update_part_metadata(
             if field.is_required:
                 raise PartValidationError(f"{field.label} is required.")
             continue
-
         value = _validate_and_build_field_value(
             field=field,
             submitted=submitted,
@@ -1284,7 +1295,155 @@ def update_part_metadata(
             pending_values.append(value)
 
     before_response = _serialize_part(db, part)
-    before_snapshot = _part_metadata_snapshot(before_response)
+    return PartMetadataUpdatePlan(
+        part=part,
+        part_type=part_type,
+        manufacturer=manufacturer,
+        location=location,
+        fields=fields,
+        pending_values=tuple(pending_values),
+        before_response=before_response,
+        before_snapshot=_part_metadata_snapshot(before_response),
+        part_number_available=part_number_available,
+    )
+
+
+def _part_metadata_target_snapshot(
+    plan: PartMetadataUpdatePlan,
+    payload: PartUpdateRequest,
+) -> dict[str, object]:
+    field_map = {field.id: field for field in plan.fields}
+    return {
+        "part_type_id": plan.part_type.id,
+        "part_type_name": plan.part_type.name,
+        "manufacturer_id": payload.manufacturer_id,
+        "manufacturer_name": (
+            plan.manufacturer.name if plan.manufacturer is not None else None
+        ),
+        "location_id": payload.location_id,
+        "location_name": plan.location.name if plan.location is not None else None,
+        "part_number": payload.part_number,
+        "name": payload.name,
+        "description": payload.description,
+        "package": payload.package,
+        "notes": payload.notes,
+        "unit_price": str(payload.unit_price) if payload.unit_price is not None else None,
+        "purchase_link": payload.purchase_link,
+        "low_stock_enabled": payload.low_stock_enabled,
+        "low_stock_threshold": payload.low_stock_threshold,
+        "field_values": [
+            {
+                "field_id": value.field_id,
+                "field_key": field_map[value.field_id].field_key,
+                "label": field_map[value.field_id].label,
+                "field_type": field_map[value.field_id].field_type,
+                "is_required": field_map[value.field_id].is_required,
+                "value_text": value.value_text,
+                "value_number": (
+                    str(value.value_number)
+                    if value.value_number is not None
+                    else None
+                ),
+                "value_bool": value.value_bool,
+                "unit": value.unit,
+            }
+            for value in plan.pending_values
+        ],
+    }
+
+
+def preview_part_metadata_update(
+    db: Session,
+    part_id: int,
+    payload: PartUpdateRequest,
+    *,
+    require_part_number_available: bool = True,
+) -> dict[str, object]:
+    plan = _plan_part_metadata_update(
+        db,
+        part_id,
+        payload,
+        require_part_number_available=require_part_number_available,
+    )
+    proposed = _part_metadata_target_snapshot(plan, payload)
+    changed_fields = sorted(
+        key
+        for key in proposed
+        if plan.before_snapshot.get(key) != proposed.get(key)
+    )
+    return {
+        "action": "update_part_metadata",
+        "target_type": "part",
+        "target_id": part_id,
+        "target_label": (
+            plan.before_response.name
+            or plan.before_response.part_number
+            or f"Part {part_id}"
+        ),
+        "normalized_payload": payload.model_dump(mode="json"),
+        "before_metadata": plan.before_snapshot,
+        "proposed_metadata": proposed,
+        "part_type": {
+            "id": plan.part_type.id,
+            "name": plan.part_type.name,
+            "slug": plan.part_type.slug,
+            "template_version": plan.part_type.template_version,
+            "is_active": plan.part_type.is_active,
+        },
+        "manufacturer": (
+            {
+                "id": plan.manufacturer.id,
+                "name": plan.manufacturer.name,
+                "is_active": plan.manufacturer.is_active,
+            }
+            if plan.manufacturer is not None
+            else None
+        ),
+        "location": (
+            {"id": plan.location.id, "name": plan.location.name}
+            if plan.location is not None
+            else None
+        ),
+        "template_fields": [
+            {
+                "id": field.id,
+                "field_key": field.field_key,
+                "label": field.label,
+                "field_type": field.field_type,
+                "is_required": field.is_required,
+                "sort_order": field.sort_order,
+                "options": field.options_json,
+                "default_unit": field.default_unit,
+            }
+            for field in plan.fields
+        ],
+        "part_number_available": plan.part_number_available,
+        "changed_fields": changed_fields,
+    }
+
+
+def update_part_metadata(
+    db: Session,
+    part_id: int,
+    payload: PartUpdateRequest,
+    *,
+    actor_user_id: int | None = None,
+    actor_type: str | None = None,
+    commit: bool = True,
+) -> PartResponse:
+    plan = _plan_part_metadata_update(db, part_id, payload)
+    part = plan.part
+    part_type = plan.part_type
+    manufacturer = plan.manufacturer
+    location = plan.location
+    pending_values = list(plan.pending_values)
+    before_snapshot = plan.before_snapshot
+    resolved_actor_type = actor_type or (
+        "user" if actor_user_id is not None else "system"
+    )
+    if resolved_actor_type not in {"system", "manual", "user", "mcp", "ai"}:
+        raise PartValidationError("Unsupported audit actor type.")
+
     total_quantity_before = part.total_quantity
     reserved_quantity_before = part.reserved_quantity
     existing_values = list(
@@ -1311,7 +1470,6 @@ def update_part_metadata(
         for existing_value in existing_values:
             db.delete(existing_value)
         db.flush()
-
         for value in pending_values:
             value.part_id = part.id
             db.add(value)
@@ -1332,20 +1490,14 @@ def update_part_metadata(
             for key in after_snapshot
             if before_snapshot.get(key) != after_snapshot.get(key)
         )
-        display_name = (
-            part.name
-            or part.part_number
-            or f"Part {part.id}"
-        )
+        display_name = part.name or part.part_number or f"Part {part.id}"
 
         db.add(
             AuditLog(
                 event_type="part.metadata_updated",
                 entity_type="part",
                 entity_id=part.id,
-                actor_type=(
-                    "user" if actor_user_id is not None else "system"
-                ),
+                actor_type=resolved_actor_type,
                 actor_user_id=actor_user_id,
                 summary=f"Updated inventory metadata for {display_name}",
                 before_json=before_snapshot,
@@ -1355,15 +1507,11 @@ def update_part_metadata(
                     "part_type_name": part_type.name,
                     "manufacturer_id": payload.manufacturer_id,
                     "manufacturer_name": (
-                        manufacturer.name
-                        if manufacturer is not None
-                        else None
+                        manufacturer.name if manufacturer is not None else None
                     ),
                     "location_id": payload.location_id,
                     "location_name": (
-                        location.name
-                        if location is not None
-                        else None
+                        location.name if location is not None else None
                     ),
                     "changed_fields": changed_fields,
                     "field_value_count": len(pending_values),
@@ -1376,7 +1524,6 @@ def update_part_metadata(
             db.commit()
             db.refresh(part)
             after_response = _serialize_part(db, part)
-
     except IntegrityError as exc:
         db.rollback()
         raise PartConflictError(

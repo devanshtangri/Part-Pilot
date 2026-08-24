@@ -25,6 +25,7 @@ from app.schemas.parts import (
     PartQuantityAdjustmentRequest,
     PartQuantityAdjustmentResponse,
     PartResponse,
+    PartUpdateRequest,
 )
 from app.schemas.projects import ProjectResponse
 from app.schemas.reservations import ReservationResponse
@@ -42,7 +43,9 @@ from app.services.parts import (
     adjust_part_quantity as adjust_part_quantity_service,
     create_part as create_part_service,
     preview_part_creation,
+    preview_part_metadata_update,
     preview_part_quantity_adjustment,
+    update_part_metadata as update_part_metadata_service,
 )
 from app.services.projects import (
     ProjectConflictError,
@@ -61,7 +64,7 @@ from app.services.reservations import (
 )
 
 # PARTPILOT:SAFEGUARDED_MCP_WRITE_TOOLS:V734
-WRITE_TOOL_NAMES = ("reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity", "create_part")
+WRITE_TOOL_NAMES = ("reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity", "create_part", "update_part_metadata")
 
 
 def _audit_high_watermark(db: Session) -> int:
@@ -192,6 +195,34 @@ class SafeguardedPartCreateResult(BaseModel):
     confirmation_token: str | None = None
     expires_at: str | None = None
     preview: PartCreationPreview
+    part: PartResponse | None = None
+    replayed: bool = False
+
+
+class PartMetadataUpdatePreview(BaseModel):
+    action: Literal["update_part_metadata"]
+    target_type: Literal["part"]
+    target_id: int
+    target_label: str
+    normalized_payload: dict[str, Any]
+    before_metadata: dict[str, Any]
+    proposed_metadata: dict[str, Any]
+    part_type: dict[str, Any]
+    manufacturer: dict[str, Any] | None = None
+    location: dict[str, Any] | None = None
+    template_fields: list[dict[str, Any]]
+    part_number_available: bool
+    changed_fields: list[str]
+
+
+class SafeguardedPartMetadataUpdateResult(BaseModel):
+    summary: str
+    phase: Literal["preview", "completed"]
+    idempotency_key: str
+    confirmation_required: bool
+    confirmation_token: str | None = None
+    expires_at: str | None = None
+    preview: PartMetadataUpdatePreview
     part: PartResponse | None = None
     replayed: bool = False
 
@@ -814,6 +845,184 @@ def _run_guarded_part_create(
     finally:
         db.close()
 
+def _run_guarded_part_metadata_update(
+    *,
+    ctx: Context,
+    part_id: int,
+    payload: PartUpdateRequest,
+    idempotency_key: str,
+    confirmation_token: str | None,
+) -> SafeguardedPartMetadataUpdateResult:
+    if part_id < 1:
+        raise ValueError("Part id must be greater than zero.")
+    principal = _principal_from_context(ctx)
+    request_id = _bounded_request_id(ctx)
+    arguments = {"part_id": part_id, **payload.model_dump(mode="json")}
+    tool_name = "update_part_metadata"
+    db = SessionLocal()
+    try:
+        authorization_user_id = authorize_mcp_tool(db, principal, tool_name)
+        if type(authorization_user_id) is not int:
+            raise RuntimeError("MCP write authorization did not resolve a user authority.")
+
+        replay_json = completed_write_replay(
+            db,
+            principal=principal,
+            tool_name=tool_name,
+            idempotency_key=idempotency_key,
+            arguments=arguments,
+        )
+        if replay_json is not None:
+            replay = SafeguardedPartMetadataUpdateResult.model_validate(replay_json)
+            return replay.model_copy(update={"replayed": True})
+
+        preview = PartMetadataUpdatePreview.model_validate(
+            preview_part_metadata_update(
+                db,
+                part_id,
+                payload,
+                require_part_number_available=confirmation_token is None,
+            )
+        )
+        preview_json = preview.model_dump(mode="json")
+
+        if confirmation_token is None:
+            prepared = prepare_write_intent(
+                db,
+                principal=principal,
+                authorization_user_id=authorization_user_id,
+                tool_name=tool_name,
+                idempotency_key=idempotency_key,
+                arguments=arguments,
+                preview=preview_json,
+            )
+            if prepared.replay_result is not None:
+                replay = SafeguardedPartMetadataUpdateResult.model_validate(
+                    prepared.replay_result
+                )
+                return replay.model_copy(update={"replayed": True})
+            assert prepared.confirmation_token is not None
+            result = SafeguardedPartMetadataUpdateResult(
+                summary=(
+                    "Preview ready for update_part_metadata. Review the exact before/after "
+                    "metadata and template values, then call the same tool with this "
+                    "idempotency_key and confirmation_token within five minutes."
+                ),
+                phase="preview",
+                idempotency_key=idempotency_key,
+                confirmation_required=True,
+                confirmation_token=prepared.confirmation_token,
+                expires_at=prepared.intent.expires_at.replace(
+                    tzinfo=timezone.utc
+                ).isoformat(),
+                preview=preview,
+            )
+            _append_tool_audit(
+                db,
+                principal=principal,
+                request_id=request_id,
+                tool_name=tool_name,
+                success=True,
+                arguments={
+                    **arguments,
+                    "idempotency_key": idempotency_key,
+                    "phase": "preview",
+                },
+                result={
+                    "phase": "preview",
+                    "intent_id": prepared.intent.id,
+                    "confirmation_required": True,
+                },
+            )
+            db.commit()
+            return result
+
+        validated = validate_confirmation(
+            db,
+            principal=principal,
+            tool_name=tool_name,
+            idempotency_key=idempotency_key,
+            confirmation_token=confirmation_token,
+            arguments=arguments,
+            current_preview=preview_json,
+        )
+        if validated.replay_result is not None:
+            replay = SafeguardedPartMetadataUpdateResult.model_validate(
+                validated.replay_result
+            )
+            return replay.model_copy(update={"replayed": True})
+
+        audit_high_watermark = _audit_high_watermark(db)
+        part = update_part_metadata_service(
+            db,
+            part_id,
+            payload,
+            actor_user_id=authorization_user_id,
+            actor_type="mcp",
+            commit=False,
+        )
+        final = SafeguardedPartMetadataUpdateResult(
+            summary=f"Confirmed MCP metadata update for Part {part_id} exactly once.",
+            phase="completed",
+            idempotency_key=idempotency_key,
+            confirmation_required=False,
+            preview=preview,
+            part=part,
+        )
+        _stamp_mcp_business_audits(
+            db,
+            after_id=audit_high_watermark,
+            principal=principal,
+            authorization_user_id=authorization_user_id,
+        )
+        complete_write_intent(
+            db,
+            validated.intent,
+            final.model_dump(mode="json"),
+        )
+        _append_tool_audit(
+            db,
+            principal=principal,
+            request_id=request_id,
+            tool_name=tool_name,
+            success=True,
+            arguments={
+                **arguments,
+                "idempotency_key": idempotency_key,
+                "phase": "confirm",
+            },
+            result={
+                "phase": "completed",
+                "intent_id": validated.intent.id,
+                "part_id": part_id,
+                "replayed": False,
+            },
+        )
+        db.commit()
+        publish_live_invalidation(
+            ("inventory", "history"),
+            resource={"type": "part", "id": part_id},
+        )
+        return final
+    except Exception as exc:
+        db.rollback()
+        if confirmation_token is not None:
+            try:
+                fail_write_intent(
+                    db,
+                    principal=principal if "principal" in locals() else {},
+                    tool_name=tool_name,
+                    idempotency_key=idempotency_key,
+                    error_type=type(exc).__name__,
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def register_write_tools(server: FastMCP) -> None:
     consequential = ToolAnnotations(
         readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
@@ -960,6 +1169,65 @@ def register_write_tools(server: FastMCP) -> None:
         )
         return _run_guarded_part_create(
             ctx=ctx,
+            payload=payload,
+            idempotency_key=idempotency_key,
+            confirmation_token=confirmation_token,
+        )
+
+    @server.tool(
+        name="update_part_metadata",
+        title="Update Part Pilot Part Metadata",
+        description=(
+            "Safeguarded full metadata replacement for an existing active inventory part. "
+            "Call get_part_details first and submit every metadata field explicitly, using "
+            "null only when you intend to clear a value. This tool never changes physical "
+            "or reserved quantity. The first call returns exact before/after metadata and "
+            "template snapshots plus a five-minute confirmation token; no mutation occurs "
+            "until the same arguments and idempotency_key are repeated with that token."
+        ),
+        annotations=consequential,
+        structured_output=True,
+    )
+    def update_part_metadata(
+        ctx: Context,
+        part_id: Annotated[int, Field(gt=0)],
+        part_type_id: Annotated[int, Field(gt=0)],
+        manufacturer_id: Annotated[int | None, Field(gt=0)],
+        location_id: Annotated[int | None, Field(gt=0)],
+        part_number: Annotated[str | None, Field(max_length=160)],
+        name: Annotated[str | None, Field(max_length=220)],
+        description: Annotated[str | None, Field(max_length=5000)],
+        package: Annotated[str | None, Field(max_length=120)],
+        notes: Annotated[str | None, Field(max_length=10000)],
+        unit_price: Annotated[Decimal | None, Field(ge=0)],
+        purchase_link: Annotated[str | None, Field(max_length=2000)],
+        low_stock_enabled: bool,
+        low_stock_threshold: Annotated[int | None, Field(ge=0)],
+        field_values: Annotated[
+            list[PartFieldValueCreateRequest],
+            Field(max_length=100),
+        ],
+        idempotency_key: Annotated[str, Field(min_length=8, max_length=120)],
+        confirmation_token: Annotated[str | None, Field(max_length=160)] = None,
+    ) -> SafeguardedPartMetadataUpdateResult:
+        payload = PartUpdateRequest(
+            part_type_id=part_type_id,
+            manufacturer_id=manufacturer_id,
+            location_id=location_id,
+            part_number=part_number,
+            name=name,
+            description=description,
+            package=package,
+            notes=notes,
+            unit_price=unit_price,
+            purchase_link=purchase_link,
+            low_stock_enabled=low_stock_enabled,
+            low_stock_threshold=low_stock_threshold,
+            field_values=field_values,
+        )
+        return _run_guarded_part_metadata_update(
+            ctx=ctx,
+            part_id=part_id,
             payload=payload,
             idempotency_key=idempotency_key,
             confirmation_token=confirmation_token,

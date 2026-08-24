@@ -696,3 +696,20 @@ become available. History shows the MCP client name for MCP actions while retain
 the backing Part Pilot user ID as the human authorization authority. Older MCP
 business history can resolve the client from its associated tool-call evidence,
 and MCP stock movements remain visibly attributed to MCP rather than the user.
+
+<!-- PARTPILOT:MCP_METADATA_UPDATE_README:V761 -->
+### Safeguarded MCP inventory metadata editing
+
+Part Pilot now exposes six read tools plus six safeguarded write tools. The new
+`update_part_metadata` tool reuses the canonical inventory metadata service and
+requires a complete explicit replacement of the editable metadata state after the
+client reads the part. Nullable values must be supplied deliberately, stock
+quantities are not accepted by this tool, and template values are replaced through
+the existing typed validation contract.
+
+The first call returns exact before/after metadata, catalogue/template dependency
+snapshots and a short-lived confirmation token without mutating inventory. The
+confirmed call retains the existing MCP role/scope/global/client ceilings,
+idempotency/replay and state-drift safeguards, records the connected MCP client in
+History, and publishes inventory/history invalidation only after commit. Physical
+and reserved stock remain exclusively under the dedicated stock/lifecycle tools.

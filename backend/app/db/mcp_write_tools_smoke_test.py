@@ -41,7 +41,7 @@ READ_TOOLS = {
     "search_parts", "get_part_details", "list_projects", "get_project_details",
     "list_reservations", "get_reservation_details",
 }
-WRITE_TOOLS = {"reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity", "create_part"}
+WRITE_TOOLS = {"reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity", "create_part", "update_part_metadata"}
 ALL_TOOLS = READ_TOOLS | WRITE_TOOLS
 
 
@@ -171,8 +171,8 @@ def main() -> None:
         db = SessionLocal()
         try:
             revision = db.connection().exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
-            if revision != "0020_mcp_inventory_part_create":
-                fail(f"Expected 0020_mcp_inventory_part_create, got {revision}")
+            if revision != "0021_mcp_inventory_part_metadata_update":
+                fail(f"Expected 0021_mcp_inventory_part_metadata_update, got {revision}")
             stored_policy = get_app_setting(db, MCP_TOOL_PERMISSIONS_KEY, None)
             if (
                 not isinstance(stored_policy, dict)
@@ -240,7 +240,7 @@ def main() -> None:
         from app.mcp.runtime import mcp_registered_tool_names
         import asyncio
         if set(asyncio.run(mcp_registered_tool_names())) != ALL_TOOLS:
-            fail("FastMCP registry does not contain six read plus five write tools")
+            fail("FastMCP registry does not contain six read plus six write tools")
 
         with TestClient(app, base_url="https://partpilot.example") as client:
             if listed_names(client, client_key, 1) != READ_TOOLS:

@@ -252,7 +252,7 @@ def check_backup_artifact_core() -> None:
 
         expected_filename = (
             "part-pilot-backup-20260802T000000Z-"
-            "0020-mcp-inventory-part-create.ppbackup"
+            "0021-mcp-inventory-part-metadata-update.ppbackup"
         )
         if artifact.filename != expected_filename:
             fail(

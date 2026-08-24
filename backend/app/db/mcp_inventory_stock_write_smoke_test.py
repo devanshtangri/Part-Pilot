@@ -161,8 +161,8 @@ def main() -> None:
             revision = db.connection().exec_driver_sql(
                 "SELECT version_num FROM alembic_version"
             ).scalar_one()
-            if revision != "0020_mcp_inventory_part_create":
-                fail(f"Expected 0020_mcp_inventory_part_create, got {revision}")
+            if revision != "0021_mcp_inventory_part_metadata_update":
+                fail(f"Expected 0021_mcp_inventory_part_metadata_update, got {revision}")
             stored_policy = get_app_setting(db, MCP_TOOL_PERMISSIONS_KEY, None)
             if (
                 not isinstance(stored_policy, dict)
@@ -244,7 +244,7 @@ def main() -> None:
         registered = set(asyncio.run(mcp_registered_tool_names()))
         if registered != READ_TOOLS | {
             "reserve_project", "consume_reservation", "cancel_reservation",
-            STOCK_TOOL, "create_part",
+            STOCK_TOOL, "create_part", "update_part_metadata",
         }:
             fail(f"Unexpected FastMCP registry: {sorted(registered)}")
 

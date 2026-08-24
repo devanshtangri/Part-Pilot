@@ -239,3 +239,35 @@ slice is guarded inventory metadata editing/correction using the existing servic
 contract. Delete/restore remains separate and conditional on exact recycle-bin,
 dependency and reservation safety. Chat 26 still plans to close at Patch 767 after
 remaining public-alpha work and final regression.
+
+<!-- PARTPILOT:CHAT26_PROGRESS_PATCH761 -->
+## Chat 26 progress through Patch 761
+
+Patch 761 checkpoints the browser-approved guarded inventory metadata-edit slice
+from Patch 760. The exact approved runtime image is
+`sha256:e3e8f6e08c44b61ddc7254eda76d7820f47e3d701652d4ca8b87f83ddc8401cb`
+and Alembic is `0021_mcp_inventory_part_metadata_update`.
+
+Current MCP catalogue: six reads + six safeguarded writes. The new
+`update_part_metadata` permission is added disabled by default while all prior live
+policy values remain mutable/preserved. The tool requires a complete explicit
+metadata replacement, never accepts stock quantities, reuses canonical typed
+metadata validation and applies the existing preview/confirmation/idempotency/
+replay/role/scope/global/client ceilings. Metadata and dependency drift reject a
+confirmation; unrelated stock-only changes do not.
+
+Browser proof with Claude updated the existing MCP test Resistor while retaining
+physical/reserved stock at 12/0, creating no stock movement and writing a
+`part.metadata_updated` MCP audit attributed visibly to Claude while preserving the
+backing user authority.
+
+During checkpoint rehearsal, the complete package-catalogue smoke was corrected to
+stop treating the one-time `0005_packages` backfill as a permanent invariant over
+mutable later `Part.package` text. This is test-only; no live inventory/catalogue row
+is normalized or rewritten.
+
+Next sequential patch after this checkpoint is 762. Before exposing inventory
+soft-delete or restore to MCP, inspect the exact recycle-bin, dependency,
+reservation, restore and purge contracts. Do not fold permanent purge into a broad
+generic delete tool. Chat 26 still plans to close at Patch 767 after remaining
+prioritized UI/public-alpha regression work.

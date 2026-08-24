@@ -3084,7 +3084,7 @@ export function Settings() {
                     </section>
                     <section className="settings-mcp-tool-group is-write" data-partpilot-mcp-write-tool-catalogue="PARTPILOT:MCP_WRITE_TOOL_CATALOGUE:V734" aria-labelledby="settings-mcp-write-tools-title">
                       <div className="settings-mcp-tool-group-heading">
-                        <div><strong id="settings-mcp-write-tools-title">Safeguarded write tools</strong><span>Consequential lifecycle mutations. All three start globally off and require an exact preview, a five-minute one-time confirmation token, idempotency, active backing user authority, and existing transactional stock rules.</span></div>
+                        <div><strong id="settings-mcp-write-tools-title">Safeguarded write tools</strong><span>Consequential inventory and lifecycle mutations. Every write tool starts globally off and requires an exact preview, a five-minute one-time confirmation token, idempotency, active backing user authority, and its canonical transactional rules.</span></div>
                         <span className="settings-mcp-permission-count">
                           {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write" && tool.enabled).length}/{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write").length} enabled
                         </span>
@@ -3273,7 +3273,7 @@ export function Settings() {
                 </div>
                 <div>
                   <dt>Available tools</dt>
-                  <dd>6 read + 5 safeguarded write</dd>
+                  <dd>6 read + 6 safeguarded write</dd>
                 </div>
               </dl>
 

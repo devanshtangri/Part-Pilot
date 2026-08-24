@@ -7576,30 +7576,11 @@ def check_package_catalogue_api() -> None:
                 f"{sorted(expected - names)}"
             )
 
-        with db_session() as db:
-            existing_names = {
-                " ".join(str(row[0]).split()).casefold()
-                for row in db.execute(
-                    text(
-                        "select distinct package from parts "
-                        "where package is not null "
-                        "and length(trim(package)) > 0"
-                    )
-                ).all()
-            }
-            catalogue_names = {
-                str(row[0])
-                for row in db.execute(
-                    text("select normalized_name from packages")
-                ).all()
-            }
-
-        missing_backfill = existing_names - catalogue_names
-        if missing_backfill:
-            fail(
-                "Existing Part.package values were not backfilled: "
-                f"{sorted(missing_backfill)}"
-            )
+        # Migration 0005 backfilled the Part.package values that existed at
+        # migration time. Part.package intentionally remains a text field for
+        # compatibility, and later API/import edits can retain non-catalogued
+        # values that the selector displays as legacy selections. Do not freeze
+        # mutable post-migration inventory into the one-time backfill invariant.
 
         create_response = client.post(
             "/api/packages",
