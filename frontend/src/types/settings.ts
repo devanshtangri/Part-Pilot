@@ -95,7 +95,7 @@ export interface McpSettingsUpdatePayload {
 
 
 // PARTPILOT:MCP_TOOL_PERMISSIONS_TYPES:V654
-export type McpToolCapability = "read";
+export type McpToolCapability = "read" | "write";
 
 export interface McpToolPermission {
   name: string;

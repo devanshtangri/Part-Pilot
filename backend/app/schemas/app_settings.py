@@ -165,7 +165,7 @@ class McpSettingsUpdateRequest(BaseModel):
 
 
 # PARTPILOT:MCP_TOOL_PERMISSION_ADMIN_SCHEMA:V650
-McpToolCapability = Literal["read"]
+McpToolCapability = Literal["read", "write"]
 
 
 class McpToolPermissionItemResponse(BaseModel):
@@ -204,7 +204,7 @@ class McpClientToolPermissionsResponse(BaseModel):
 
 class McpClientToolPermissionsUpdateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    denied_tools: list[str] = Field(default_factory=list, max_length=6)
+    denied_tools: list[str] = Field(default_factory=list, max_length=9)
 
 
 # PARTPILOT:MCP_OAUTH_CLIENT_ADMIN_SCHEMA:V540

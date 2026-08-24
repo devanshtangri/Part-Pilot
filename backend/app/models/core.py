@@ -815,6 +815,46 @@ class McpOAuthToken(Base, TimestampMixin):
         nullable=True,
     )
 
+# PARTPILOT:MCP_WRITE_INTENT_MODEL:V734
+class McpWriteIntent(Base, TimestampMixin):
+    __tablename__ = "mcp_write_intents"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending','completed','failed','expired')",
+            name="ck_mcp_write_intents_status",
+        ),
+        UniqueConstraint(
+            "principal_key",
+            "tool_name",
+            "idempotency_key",
+            name="uq_mcp_write_intents_principal_tool_idempotency",
+        ),
+        Index("ix_mcp_write_intents_status_expires", "status", "expires_at"),
+        Index("ix_mcp_write_intents_authorization_user_id", "authorization_user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    principal_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    authorization_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+            name="fk_mcp_write_intents_authorization_user_id",
+        ),
+        nullable=True,
+    )
+    tool_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    argument_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    preview_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    confirmation_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    preview_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    result_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
 
 class McpOAuthConsent(Base, TimestampMixin):
     __tablename__ = "mcp_oauth_consents"

@@ -44,11 +44,16 @@ ARCHIVE_ENTRY_NAMES = (
     MANIFEST_ENTRY_NAME,
     DATABASE_ENTRY_NAME,
 )
-EXPECTED_ALEMBIC_REVISION = "0017_user_roles"
+EXPECTED_ALEMBIC_REVISION = "0018_mcp_write_intents"
 EXPECTED_CRITICAL_SCHEMA_SHA256 = (
-    "19f85d2d7cef281db58746bb1666feabd360de4987e05349191a4a7f0d9829af"
+    "2b4bbbdebf042b980e018e209eda626983c8f85c467b9d74b33dffb9e0e278e0"
 )
 LEGACY_UNSUPPORTED_BACKUP_CONTRACTS = (
+    (
+        2,
+        "0017_user_roles",
+        "19f85d2d7cef281db58746bb1666feabd360de4987e05349191a4a7f0d9829af",
+    ),
     (
         1,
         "0007_projects_contract",
@@ -106,6 +111,7 @@ REQUIRED_TABLES = (
     "mcp_oauth_clients",
     "mcp_oauth_consents",
     "mcp_oauth_tokens",
+    "mcp_write_intents",
     "packages",
     "part_field_values",
     "part_tags",
@@ -146,6 +152,7 @@ INCLUDED_SCOPE = (
     "api_keys",
     "mcp_direct_auth",
     "mcp_oauth",
+    "mcp_write_intents",
 )
 EXCLUDED_SCOPE = (
     "container_image",

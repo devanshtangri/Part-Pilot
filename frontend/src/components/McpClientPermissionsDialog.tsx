@@ -91,7 +91,7 @@ export function McpClientPermissionsDialog({
                 >
                   <div className="settings-mcp-client-permission-copy">
                     <strong>{tool.label}</strong>
-                    <span><code>{tool.name}</code> · Read tool</span>
+                    <span><code>{tool.name}</code> · {tool.capability === "write" ? "Write tool" : "Read tool"}</span>
                   </div>
                   <div className="settings-mcp-permission-badges" aria-label={`${tool.label} status`}>
                     <span className={tool.global_enabled ? "is-enabled" : "is-blocked"}>

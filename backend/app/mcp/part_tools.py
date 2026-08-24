@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.models import AuditLog
 from app.schemas.parts import PartResponse
-from app.services.mcp_oauth import MCP_SCOPE_READ
 from app.services.mcp_permissions import authorize_mcp_tool
 from app.services.parts import PartNotFoundError, get_part, list_parts
 
@@ -88,10 +87,10 @@ def _principal_from_context(ctx: Context) -> dict[str, Any]:
     scopes = principal.get("scopes")
     if (
         not isinstance(scopes, list)
-        or any(not isinstance(scope_name, str) for scope_name in scopes)
-        or MCP_SCOPE_READ not in scopes
+        or not scopes
+        or any(scope_name not in {"mcp:read", "mcp:write"} for scope_name in scopes)
     ):
-        raise RuntimeError("Authenticated MCP principal lacks read access.")
+        raise RuntimeError("Authenticated MCP principal has invalid scopes.")
     if not isinstance(principal.get("resource_uri"), str):
         raise RuntimeError("Authenticated MCP principal is invalid.")
 

@@ -2987,7 +2987,7 @@ export function Settings() {
                     <span className="settings-switch" aria-hidden="true" />
                   </label>
                   <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
-                    <span className="settings-toggle-copy"><strong>Write authorization</strong><span>Allow clients to request mcp:write. No write tools are exposed in this build.</span></span>
+                    <span className="settings-toggle-copy"><strong>Write authorization</strong><span>Allow eligible clients to request <code>mcp:write</code>. Every registered write tool still requires its own global/client permission plus an exact preview and short-lived confirmation.</span></span>
                     <input type="checkbox" role="switch" checked={mcpDraft.write_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("write_tools_enabled", event.target.checked)} />
                     <span className="settings-switch" aria-hidden="true" />
                   </label>
@@ -2995,55 +2995,65 @@ export function Settings() {
               </div>
 
               <div
-                className={
-                  !mcpDraft.enabled || !mcpDraft.read_tools_enabled
-                    ? "settings-mcp-tool-permissions is-disabled"
-                    : "settings-mcp-tool-permissions"
-                }
-                data-partpilot-mcp-tool-permissions="PARTPILOT:MCP_TOOL_PERMISSIONS_UI:V654"
-                aria-disabled={!mcpDraft.enabled || !mcpDraft.read_tools_enabled}
+                className={!mcpDraft.enabled ? "settings-mcp-tool-permissions is-disabled" : "settings-mcp-tool-permissions"}
+                data-partpilot-mcp-tool-permissions="PARTPILOT:MCP_WRITE_TOOL_PERMISSIONS_UI:V734"
+                aria-disabled={!mcpDraft.enabled}
               >
                 <div className="settings-mcp-permission-heading">
                   <div>
-                    <strong>Read tool permissions</strong>
-                    <span>Global hard ceiling for every MCP client, including no-auth access. Denied tools are removed from the next MCP tools/list response and remain blocked if called.</span>
+                    <strong>Tool permissions</strong>
+                    <span>Global hard ceiling for every MCP client. Client permissions can inherit or deny, never override a global block.</span>
                   </div>
-                  {mcpToolPermissionsDraft ? (
-                    <span className="settings-mcp-permission-count">
-                      {mcpToolPermissionsDraft.tools.filter((tool) => tool.enabled).length}/{mcpToolPermissionsDraft.tools.length} enabled
-                    </span>
-                  ) : null}
                 </div>
                 {mcpToolPermissionsLoading && !mcpToolPermissionsDraft ? (
                   <p className="settings-mcp-permission-state" role="status">Loading tool permissions...</p>
                 ) : null}
                 {mcpToolPermissionsDraft ? (
-                  <div className="settings-mcp-tool-permission-list">
-                    {mcpToolPermissionsDraft.tools.map((tool) => {
-                      const disabled = !mcpDraft.enabled || !mcpDraft.read_tools_enabled || mcpToolPermissionsSaving;
-                      return (
-                        <label className={mcpToolPermissionsSaving ? "settings-toggle-row settings-mcp-tool-row is-disabled is-saving" : disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
-                          <span className="settings-toggle-copy">
-                            <strong>{tool.label}</strong>
-                            <span><code>{tool.name}</code> · Read tool</span>
-                          </span>
-                          <input type="checkbox" role="switch" checked={tool.enabled} disabled={disabled} onChange={(event) => updateMcpToolPermissionDraft(tool.name, event.target.checked)} />
-                          <span className="settings-switch" aria-hidden="true" />
-                        </label>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <section className="settings-mcp-tool-group" aria-labelledby="settings-mcp-read-tools-title">
+                      <div className="settings-mcp-tool-group-heading">
+                        <div><strong id="settings-mcp-read-tools-title">Read tools</strong><span>Inventory, Project, and Reservation inspection. No-auth access can only ever reach this capability.</span></div>
+                        <span className="settings-mcp-permission-count">
+                          {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read" && tool.enabled).length}/{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read").length} enabled
+                        </span>
+                      </div>
+                      <div className="settings-mcp-tool-permission-list">
+                        {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read").map((tool) => {
+                          const disabled = !mcpDraft.enabled || !mcpDraft.read_tools_enabled || mcpToolPermissionsSaving;
+                          return (
+                            <label className={mcpToolPermissionsSaving ? "settings-toggle-row settings-mcp-tool-row is-disabled is-saving" : disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
+                              <span className="settings-toggle-copy"><strong>{tool.label}</strong><span><code>{tool.name}</code> · Read tool</span></span>
+                              <input type="checkbox" role="switch" checked={tool.enabled} disabled={disabled} onChange={(event) => updateMcpToolPermissionDraft(tool.name, event.target.checked)} />
+                              <span className="settings-switch" aria-hidden="true" />
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {!mcpDraft.enabled || !mcpDraft.read_tools_enabled ? <p className="settings-mcp-permission-state">Enable the MCP server and Read tools to edit read-tool permissions.</p> : null}
+                    </section>
+                    <section className="settings-mcp-tool-group is-write" data-partpilot-mcp-write-tool-catalogue="PARTPILOT:MCP_WRITE_TOOL_CATALOGUE:V734" aria-labelledby="settings-mcp-write-tools-title">
+                      <div className="settings-mcp-tool-group-heading">
+                        <div><strong id="settings-mcp-write-tools-title">Safeguarded write tools</strong><span>Consequential lifecycle mutations. All three start globally off and require an exact preview, a five-minute one-time confirmation token, idempotency, active backing user authority, and existing transactional stock rules.</span></div>
+                        <span className="settings-mcp-permission-count">
+                          {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write" && tool.enabled).length}/{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write").length} enabled
+                        </span>
+                      </div>
+                      <div className="settings-mcp-tool-permission-list">
+                        {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write").map((tool) => {
+                          const disabled = !mcpDraft.enabled || !mcpDraft.write_tools_enabled || mcpToolPermissionsSaving;
+                          return (
+                            <label className={mcpToolPermissionsSaving ? "settings-toggle-row settings-mcp-tool-row is-disabled is-saving" : disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
+                              <span className="settings-toggle-copy"><strong>{tool.label}</strong><span><code>{tool.name}</code> · Safeguarded write tool</span></span>
+                              <input type="checkbox" role="switch" checked={tool.enabled} disabled={disabled} onChange={(event) => updateMcpToolPermissionDraft(tool.name, event.target.checked)} />
+                              <span className="settings-switch" aria-hidden="true" />
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {!mcpDraft.enabled || !mcpDraft.write_tools_enabled ? <p className="settings-mcp-permission-state is-caution">Enable the MCP server and Write authorization before any write-tool permission can be enabled. No-auth clients remain read-only.</p> : null}
+                    </section>
+                  </>
                 ) : null}
-                {!mcpDraft.enabled || !mcpDraft.read_tools_enabled ? (
-                  <p className="settings-mcp-permission-state">Enable the MCP server and Read tools to edit global tool permissions.</p>
-                ) : null}
-                <div className="settings-mcp-write-tool-empty" data-partpilot-mcp-write-tool-catalogue="PARTPILOT:MCP_WRITE_TOOL_CATALOGUE_EMPTY:V657">
-                  <div>
-                    <strong>Write tools</strong>
-                    <span>0 available</span>
-                  </div>
-                  <p>No safeguarded write tools are registered yet. Write authorization only permits the <code>mcp:write</code> scope; it does not create tools. Future write tools will appear here from the canonical MCP catalogue when their runtime contracts are implemented.</p>
-                </div>
                 {mcpToolPermissionsError ? (
                   <div className="settings-preference-state is-error" role="alert">
                     <span>{mcpToolPermissionsError}</span>
@@ -3130,7 +3140,7 @@ export function Settings() {
                         <header><div><strong>{client.client_name}</strong><span>{client.client_type === "confidential" ? "Confidential OAuth client" : "Public OAuth client"}</span></div><span className={`settings-mcp-oauth-status is-${client.status}`}>{client.status === "connected" ? "Connected" : client.status === "registered" ? "Registered" : "Revoked"}</span></header>
                         <dl><div><dt>Origin</dt><dd>{client.redirect_origins.length > 0 ? client.redirect_origins.join(", ") : "No web origin"}</dd></div><div><dt>Auth</dt><dd>{client.token_endpoint_auth_method === "none" ? "None" : client.token_endpoint_auth_method === "client_secret_basic" ? "Client secret Basic" : "Client secret POST"}</dd></div><div><dt>Created</dt><dd>{formatUtc(client.created_at, timezone)}</dd></div><div><dt>Connected</dt><dd>{client.connected_at ? formatUtc(client.connected_at, timezone) : "Not yet"}</dd></div></dl>
                         <footer>
-                          <span>{client.status === "connected" ? `${client.active_token_count} active session${client.active_token_count === 1 ? "" : "s"}` : client.status === "registered" ? "Awaiting first authorization" : "Registration disabled"} · {client.tool_permissions.filter((tool) => tool.effective_enabled).length}/{client.tool_permissions.length} tools effective</span>
+                          <span>{client.status === "connected" ? `${client.active_token_count} active session${client.active_token_count === 1 ? "" : "s"}` : client.status === "registered" ? "Awaiting first authorization" : "Registration disabled"} · {client.tool_permissions.filter((tool) => tool.effective_enabled).length}/{client.tool_permissions.length} allowed by policy{client.status === "connected" ? " · OAuth scopes can further limit active tools" : ""}</span>
                           {client.status !== "revoked" ? (
                             <div className="settings-mcp-oauth-actions">
                               <button className="settings-action settings-action-secondary" type="button" disabled={mcpOAuthRevokingId !== null || mcpOAuthPermissionSaving} onClick={() => openMcpOAuthPermissions(client)}>Permissions</button>
@@ -3212,7 +3222,7 @@ export function Settings() {
                 </div>
                 <div>
                   <dt>Available tools</dt>
-                  <dd>6 read-only tools</dd>
+                  <dd>6 read + 3 safeguarded write</dd>
                 </div>
               </dl>
 

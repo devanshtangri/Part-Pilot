@@ -42,6 +42,8 @@ EXPECTED_TOOL_NAMES = (
     "list_reservations",
     "search_parts",
 )
+REGISTERED_TOOL_NAMES = tuple(sorted((*EXPECTED_TOOL_NAMES,
+    "reserve_project", "consume_reservation", "cancel_reservation")))
 
 
 class SmokeFailure(RuntimeError):
@@ -195,7 +197,7 @@ def check_only() -> None:
     from app.mcp.runtime import mcp_registered_tool_names
 
     names = asyncio.run(mcp_registered_tool_names())
-    if names != EXPECTED_TOOL_NAMES:
+    if names != REGISTERED_TOOL_NAMES:
         fail(f"Unexpected registered MCP tools: {names!r}")
     print(
         "[PASS] MCP workspace registry exposes Project and Reservation "

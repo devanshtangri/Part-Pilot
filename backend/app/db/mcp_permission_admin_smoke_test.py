@@ -199,10 +199,17 @@ def main() -> None:
             if loaded.status_code != 200:
                 fail(f"Global permission GET failed: {loaded.status_code} {loaded.text[:500]}")
             loaded_tools = _tool_map(loaded.json())
-            if any(item.get("enabled") is not True for item in loaded_tools.values()):
-                fail("0016 compatibility global permissions are not all enabled")
-            if any(item.get("capability") != "read" for item in loaded_tools.values()):
-                fail("Current MCP permission catalogue exposed a non-read capability")
+            for name, item in loaded_tools.items():
+                capability = item.get("capability")
+                if capability not in {"read", "write"}:
+                    fail(f"Unexpected MCP tool capability for {name}: {capability}")
+                expected_enabled = capability == "read"
+                if item.get("enabled") is not expected_enabled:
+                    fail(f"MCP default permission is unsafe for {name}: {item}")
+            if sum(item.get("capability") == "read" for item in loaded_tools.values()) != 6:
+                fail("Expected six MCP read permissions")
+            if sum(item.get("capability") == "write" for item in loaded_tools.values()) != 3:
+                fail("Expected three MCP write permissions")
 
             invalid_global = client.patch(
                 "/api/settings/mcp/tool-permissions",

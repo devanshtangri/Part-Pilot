@@ -53,6 +53,11 @@ EXPECTED_TOOLS = {
     "list_reservations",
     "get_reservation_details",
 }
+REGISTERED_TOOLS = EXPECTED_TOOLS | {
+    "reserve_project",
+    "consume_reservation",
+    "cancel_reservation",
+}
 
 
 class SmokeFailure(RuntimeError):
@@ -286,7 +291,7 @@ def check_only() -> None:
     from app.mcp.runtime import mcp_registered_tool_names
 
     names = set(asyncio.run(mcp_registered_tool_names()))
-    if names != EXPECTED_TOOLS:
+    if names != REGISTERED_TOOLS:
         fail(f"Unexpected registered tools: {sorted(names)}")
     with TestClient(app, base_url="https://partpilot.example") as client:
         oauth_invalid = client.post(

@@ -53,6 +53,15 @@ class ReservationValidationError(ValueError):
     pass
 
 
+# PARTPILOT:MCP_LIFECYCLE_ACTOR_ATTRIBUTION:V734
+def _lifecycle_actor_type(actor_user_id: int | None, actor_type: str | None) -> str:
+    if actor_type is not None:
+        if actor_type not in {"system", "manual", "user", "mcp", "ai"}:
+            raise ReservationValidationError("Unsupported lifecycle audit actor type.")
+        return actor_type
+    return "user" if actor_user_id is not None else "system"
+
+
 # PARTPILOT:PROJECT_LINKED_RESERVATION_TERMINAL_SYNC:V399
 def _sync_linked_project_terminal_status(
     db: Session,
@@ -61,6 +70,7 @@ def _sync_linked_project_terminal_status(
     reservation_status: str,
     project_status: str,
     actor_user_id: int | None,
+    actor_type: str | None = None,
     movement_type: str,
     source: str,
     units_key: str,
@@ -153,9 +163,7 @@ def _sync_linked_project_terminal_status(
             event_type=event_type,
             entity_type="project",
             entity_id=project.id,
-            actor_type=(
-                "user" if actor_user_id is not None else "system"
-            ),
+            actor_type=_lifecycle_actor_type(actor_user_id, actor_type),
             actor_user_id=actor_user_id,
             summary=summary,
             before_json={
@@ -1318,6 +1326,8 @@ def cancel_reservation(
     reservation_id: int,
     *,
     actor_user_id: int | None = None,
+    actor_type: str | None = None,
+    source: str = SOURCE_MANUAL,
     commit: bool = True,
     sync_linked_project: bool = True,
 ) -> ReservationResponse:
@@ -1422,7 +1432,7 @@ def cancel_reservation(
                 currency_snapshot=item.currency_snapshot,
                 reason=(f"Released from {reservation.label}")[:180],
                 note=item.note,
-                source=SOURCE_MANUAL,
+                source=source,
                 actor_user_id=actor_user_id,
             )
             db.add(movement)
@@ -1474,9 +1484,7 @@ def cancel_reservation(
                 event_type="reservation.cancelled",
                 entity_type="reservation",
                 entity_id=reservation.id,
-                actor_type=(
-                    "user" if actor_user_id is not None else "system"
-                ),
+                actor_type=_lifecycle_actor_type(actor_user_id, actor_type),
                 actor_user_id=actor_user_id,
                 summary=f"Cancelled reservation {reservation.label}",
                 before_json={
@@ -1506,7 +1514,7 @@ def cancel_reservation(
                     "items": release_records,
                 },
                 metadata_json={
-                    "source": SOURCE_MANUAL,
+                    "source": source,
                     "movement_type": MOVEMENT_TYPE_RELEASE,
                     "project_id": reservation.project_id,
                 },
@@ -1521,8 +1529,9 @@ def cancel_reservation(
                 reservation_status=RESERVATION_STATUS_CANCELLED,
                 project_status=PROJECT_STATUS_CANCELLED,
                 actor_user_id=actor_user_id,
+                actor_type=_lifecycle_actor_type(actor_user_id, actor_type),
                 movement_type=MOVEMENT_TYPE_RELEASE,
-                source=SOURCE_MANUAL,
+                source=source,
                 units_key="released_units",
                 units=sum(
                     record["quantity"] for record in release_records
@@ -1556,6 +1565,8 @@ def consume_reservation(
     reservation_id: int,
     *,
     actor_user_id: int | None = None,
+    actor_type: str | None = None,
+    source: str = SOURCE_MANUAL,
     commit: bool = True,
     sync_linked_project: bool = True,
 ) -> ReservationResponse:
@@ -1679,7 +1690,7 @@ def consume_reservation(
                 currency_snapshot=item.currency_snapshot,
                 reason=(f"Consumed from {reservation.label}")[:180],
                 note=item.note,
-                source=SOURCE_MANUAL,
+                source=source,
                 actor_user_id=actor_user_id,
             )
             db.add(movement)
@@ -1735,9 +1746,7 @@ def consume_reservation(
                 event_type="reservation.consumed",
                 entity_type="reservation",
                 entity_id=reservation.id,
-                actor_type=(
-                    "user" if actor_user_id is not None else "system"
-                ),
+                actor_type=_lifecycle_actor_type(actor_user_id, actor_type),
                 actor_user_id=actor_user_id,
                 summary=f"Consumed reservation {reservation.label}",
                 before_json={
@@ -1769,7 +1778,7 @@ def consume_reservation(
                     "items": consume_records,
                 },
                 metadata_json={
-                    "source": SOURCE_MANUAL,
+                    "source": source,
                     "movement_type": MOVEMENT_TYPE_CONSUME,
                     "project_id": reservation.project_id,
                 },
@@ -1784,8 +1793,9 @@ def consume_reservation(
                 reservation_status=RESERVATION_STATUS_CONSUMED,
                 project_status=PROJECT_STATUS_CONSUMED,
                 actor_user_id=actor_user_id,
+                actor_type=_lifecycle_actor_type(actor_user_id, actor_type),
                 movement_type=MOVEMENT_TYPE_CONSUME,
-                source=SOURCE_MANUAL,
+                source=source,
                 units_key="consumed_units",
                 units=sum(
                     record["quantity"] for record in consume_records

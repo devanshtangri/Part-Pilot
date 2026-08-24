@@ -902,6 +902,8 @@ def reserve_project(
     project_id: int,
     *,
     actor_user_id: int | None = None,
+    actor_type: str | None = None,
+    source: str = SOURCE_MANUAL,
     commit: bool = True,
 ) -> ProjectResponse:
     project = db.execute(
@@ -946,7 +948,7 @@ def reserve_project(
         label=project.name,
         status=RESERVATION_STATUS_ACTIVE,
         notes=project.notes,
-        created_by=SOURCE_MANUAL,
+        created_by=source,
         expiry_at=None,
         estimated_reserved_value=project.estimated_total_value,
         currency_snapshot=project.currency_snapshot,
@@ -1016,7 +1018,7 @@ def reserve_project(
                 currency_snapshot=project_item.currency_snapshot,
                 reason=(f"Reserved for Project {project.name}")[:180],
                 note=project_item.note,
-                source=SOURCE_MANUAL,
+                source=source,
                 actor_user_id=actor_user_id,
             )
             db.add(reservation_item)
@@ -1045,13 +1047,15 @@ def reserve_project(
             movement in zip(rows, item_parts, movements, strict=True)
         ]
 
-        actor_type = "user" if actor_user_id is not None else "system"
+        resolved_actor_type = actor_type or (
+            "user" if actor_user_id is not None else "system"
+        )
         db.add(
             AuditLog(
                 event_type="reservation.created",
                 entity_type="reservation",
                 entity_id=reservation.id,
-                actor_type=actor_type,
+                actor_type=resolved_actor_type,
                 actor_user_id=actor_user_id,
                 summary=(
                     f"Created Project reservation {reservation.label} "
@@ -1076,7 +1080,7 @@ def reserve_project(
                     "items": audit_items,
                 },
                 metadata_json={
-                    "source": SOURCE_MANUAL,
+                    "source": source,
                     "movement_type": MOVEMENT_TYPE_RESERVE,
                     "project_id": project.id,
                 },
@@ -1087,7 +1091,7 @@ def reserve_project(
                 event_type="project.reserved",
                 entity_type="project",
                 entity_id=project.id,
-                actor_type=actor_type,
+                actor_type=resolved_actor_type,
                 actor_user_id=actor_user_id,
                 summary=(
                     f"Reserved Project {project.name} with "
@@ -1109,7 +1113,7 @@ def reserve_project(
                     ],
                 },
                 metadata_json={
-                    "source": SOURCE_MANUAL,
+                    "source": source,
                     "movement_type": MOVEMENT_TYPE_RESERVE,
                     "reservation_id": reservation.id,
                 },

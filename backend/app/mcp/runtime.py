@@ -20,6 +20,7 @@ from app.db.session import SessionLocal
 from app.db.settings import get_bool_setting, set_app_setting
 from app.mcp.part_tools import register_part_tools
 from app.mcp.workspace_tools import register_workspace_tools
+from app.mcp.write_tools import register_write_tools
 from app.services.mcp_direct_auth import (
     DIRECT_KEY_PREFIX,
     McpDirectAuthConfigurationError,
@@ -51,7 +52,8 @@ _PARTPILOT_MCP = FastMCP(
     name="Part Pilot",
     instructions=(
         "Access the authenticated Part Pilot workspace. "
-        "Use the read-only tools to inspect inventory, Projects, and Reservations."
+        "Read tools inspect inventory, Projects, and Reservations. "
+        "Safeguarded write tools require an explicit preview and short-lived confirmation before mutation."
     ),
     stateless_http=True,
     json_response=True,
@@ -64,6 +66,7 @@ _PARTPILOT_MCP = FastMCP(
 )
 register_part_tools(_PARTPILOT_MCP)
 register_workspace_tools(_PARTPILOT_MCP)
+register_write_tools(_PARTPILOT_MCP)
 _SDK_APP = _PARTPILOT_MCP.streamable_http_app()
 
 def _header_values(scope: dict[str, Any], header_name: str) -> list[str]:
@@ -236,7 +239,7 @@ def _oauth_principal(token: str, resource_uri: str) -> dict[str, Any]:
             db,
             access_token=token,
             resource_uri=resource_uri,
-            required_scopes=(MCP_SCOPE_READ,),
+            required_scopes=(),
             touch=True,
             commit=True,
         )
@@ -280,16 +283,16 @@ def _direct_bearer_principal(
         if record is None:
             raise McpOAuthInvalidTokenError("Invalid MCP direct Bearer key.")
         scopes = available_scopes(db, require_enabled=True)
-        if MCP_SCOPE_READ not in scopes:
+        if not scopes:
             raise McpOAuthInsufficientScopeError(
-                "MCP read tools are disabled in Part Pilot settings."
+                "All MCP tool categories are disabled in Part Pilot settings."
             )
         db.commit()
         return {
             "auth_method": "direct_bearer",
             "actor_type": "mcp",
             "actor_user_id": None,
-            "scopes": [MCP_SCOPE_READ],
+            "scopes": sorted(scopes),
             "resource_uri": resource_uri,
             "direct_auth_id": record.id,
             "direct_client_name": record.name,
@@ -325,16 +328,16 @@ def _direct_custom_header_principal(
         if record is None:
             raise McpOAuthInvalidTokenError("Invalid MCP custom-header key.")
         scopes = available_scopes(db, require_enabled=True)
-        if MCP_SCOPE_READ not in scopes:
+        if not scopes:
             raise McpOAuthInsufficientScopeError(
-                "MCP read tools are disabled in Part Pilot settings."
+                "All MCP tool categories are disabled in Part Pilot settings."
             )
         db.commit()
         return {
             "auth_method": "direct_custom_header",
             "actor_type": "mcp",
             "actor_user_id": None,
-            "scopes": [MCP_SCOPE_READ],
+            "scopes": sorted(scopes),
             "resource_uri": resource_uri,
             "direct_auth_id": record.id,
             "direct_client_name": record.name,
@@ -367,16 +370,16 @@ def _direct_trusted_network_principal(
             db.rollback()
             return None
         scopes = available_scopes(db, require_enabled=True)
-        if MCP_SCOPE_READ not in scopes:
+        if not scopes:
             raise McpOAuthInsufficientScopeError(
-                "MCP read tools are disabled in Part Pilot settings."
+                "All MCP tool categories are disabled in Part Pilot settings."
             )
         db.commit()
         return {
             "auth_method": "direct_trusted_network",
             "actor_type": "mcp",
             "actor_user_id": None,
-            "scopes": [MCP_SCOPE_READ],
+            "scopes": sorted(scopes),
             "resource_uri": resource_uri,
             "direct_auth_id": record.id,
             "direct_client_name": record.name,
@@ -701,13 +704,8 @@ class PartPilotMcpGateway:
                     "error": "insufficient_scope",
                     "error_description": (
                         "MCP read tools are disabled in Part Pilot settings."
-                        if auth_method in {
-                            "direct_bearer",
-                            "direct_custom_header",
-                            "direct_trusted_network",
-                            "direct_no_auth",
-                        }
-                        else "The OAuth token lacks MCP read access."
+                        if auth_method == "direct_no_auth"
+                        else "The authenticated MCP client has no currently enabled tool scope."
                     ),
                 },
                 headers=[

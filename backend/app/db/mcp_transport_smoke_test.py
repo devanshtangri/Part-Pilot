@@ -178,11 +178,14 @@ def check_only() -> None:
 
     names = asyncio.run(mcp_registered_tool_names())
     if names != (
+        "cancel_reservation",
+        "consume_reservation",
         "get_part_details",
         "get_project_details",
         "get_reservation_details",
         "list_projects",
         "list_reservations",
+        "reserve_project",
         "search_parts",
     ):
         fail(f"Unexpected registered MCP tools: {names!r}")
@@ -199,7 +202,7 @@ def check_only() -> None:
             fail(f"Unexpected /mcp/ response: {slash.status_code}")
     print(
         "[PASS] MCP Streamable HTTP route is exact, protected by OAuth discovery, "
-        "safely rejects /mcp/, and registers all six read-only workspace tools"
+        "safely rejects /mcp/, and registers six read and three safeguarded write tools"
     )
 
 

@@ -39,6 +39,11 @@ EXPECTED_TOOLS = {
     "list_reservations",
     "get_reservation_details",
 }
+REGISTERED_TOOLS = EXPECTED_TOOLS | {
+    "reserve_project",
+    "consume_reservation",
+    "cancel_reservation",
+}
 
 
 class SmokeFailure(RuntimeError):
@@ -228,7 +233,7 @@ def check_only() -> None:
     from app.main import app
     from app.mcp.runtime import mcp_registered_tool_names
 
-    if set(asyncio.run(mcp_registered_tool_names())) != EXPECTED_TOOLS:
+    if set(asyncio.run(mcp_registered_tool_names())) != REGISTERED_TOOLS:
         fail("Registered MCP tool set changed")
     with TestClient(app, base_url="https://partpilot.example") as client:
         response = client.post(
@@ -327,7 +332,7 @@ def main() -> None:
         from app.main import app
         from app.mcp.runtime import mcp_registered_tool_names
 
-        if set(asyncio.run(mcp_registered_tool_names())) != EXPECTED_TOOLS:
+        if set(asyncio.run(mcp_registered_tool_names())) != REGISTERED_TOOLS:
             fail("Registered MCP tool set changed")
 
         with TestClient(app, base_url="https://partpilot.example") as client:

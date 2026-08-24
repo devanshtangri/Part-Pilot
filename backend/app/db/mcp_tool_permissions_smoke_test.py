@@ -13,6 +13,7 @@ from app.services.mcp_direct_auth import DIRECT_AUTH_TRUSTED_NETWORK, create_nam
 from app.services.mcp_oauth import MCP_ENABLED_KEY, MCP_READ_ENABLED_KEY, MCP_SCOPE_READ, MCP_WRITE_ENABLED_KEY, register_client
 from app.services.mcp_permissions import (
     DEFAULT_MCP_TOOL_PERMISSIONS,
+    MCP_TOOL_CATALOGUE,
     MCP_TOOL_NAMES,
     MCP_TOOL_PERMISSIONS_KEY,
     McpToolPermissionConfigurationError,
@@ -23,6 +24,9 @@ from app.services.mcp_permissions import (
 )
 
 # PARTPILOT:MCP_TOOL_PERMISSIONS_SMOKE:V644
+READ_TOOL_NAMES = tuple(item.name for item in MCP_TOOL_CATALOGUE if item.capability == "read")
+WRITE_TOOL_NAMES = tuple(item.name for item in MCP_TOOL_CATALOGUE if item.capability == "write")
+
 
 class SmokeFailure(RuntimeError):
     pass
@@ -130,13 +134,17 @@ def main() -> None:
             "client_ip": "203.0.113.250",
         }
 
-        for name in MCP_TOOL_NAMES:
+        for name in READ_TOOL_NAMES:
             authorize_mcp_tool(db, oauth_principal, name)
             authorize_mcp_tool(db, direct_principal, name)
             authorize_mcp_tool(db, noauth_principal, name)
+        for name in WRITE_TOOL_NAMES:
+            _expect_denied(db, oauth_principal, name)
+            _expect_denied(db, direct_principal, name)
+            _expect_denied(db, noauth_principal, name)
         for principal in (oauth_principal, direct_principal, noauth_principal):
-            if visible_mcp_tool_names(db, principal) != MCP_TOOL_NAMES:
-                fail("Default visible MCP catalogue does not expose all six tools")
+            if visible_mcp_tool_names(db, principal) != READ_TOOL_NAMES:
+                fail("Default visible MCP catalogue must expose only the six read tools")
 
         global_policy = dict(DEFAULT_MCP_TOOL_PERMISSIONS)
         global_policy["search_parts"] = False
@@ -162,8 +170,8 @@ def main() -> None:
             fail("OAuth client-denied list_projects remained in visible catalogue")
         if "search_parts" in visible_mcp_tool_names(db, direct_principal):
             fail("Direct client-denied search_parts remained in visible catalogue")
-        if visible_mcp_tool_names(db, noauth_principal) != MCP_TOOL_NAMES:
-            fail("No-auth catalogue incorrectly inherited named-client denies")
+        if visible_mcp_tool_names(db, noauth_principal) != READ_TOOL_NAMES:
+            fail("No-auth catalogue incorrectly inherited named-client denies or exposed writes")
 
         set_app_setting(db, MCP_TOOL_PERMISSIONS_KEY, {"search_parts": True}, commit=False)
         try:

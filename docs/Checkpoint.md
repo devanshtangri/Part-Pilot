@@ -4253,3 +4253,48 @@ Migration/backup safety:
 This patch intentionally exposes the enforceable user-management API foundation
 without adding a role-management Settings UI; that presentation layer can be
 added independently without weakening the backend boundary.
+
+<!-- PARTPILOT:SAFEGUARDED_MCP_WRITES_CHAT25_BOUNDARY:V742 -->
+## Safeguarded MCP lifecycle writes browser-approved — Patch 742
+
+Patch 742 checkpoints the browser-approved Patch 739 safeguarded MCP write-tool
+candidate plus the Patch 740 permission-dialog UX correction and closes Chat 25.
+
+Patch 741 was consumed during boundary validation because the MCP write smoke
+incorrectly required mutable live tool policy to equal migration defaults. Patch
+742 makes that copied-production smoke policy-agnostic, forces its own isolated
+write-off fixture baseline, and restores the copied DB byte-for-byte.
+
+Browser-approved/runtime contract:
+- Alembic `0018_mcp_write_intents` adds persistent short-lived write intents;
+- the canonical MCP catalogue now contains six read tools plus three lifecycle
+  write tools: `reserve_project`, `consume_reservation`, and
+  `cancel_reservation`;
+- write exposure requires the MCP server, Write authorization, the individual
+  global tool permission, any client-level allow/deny ceiling, an authenticated
+  principal with `mcp:write`, and an active backing user at Operator-or-higher;
+- no-auth access remains permanently read-only;
+- consequential calls use the same tool for preview and confirmation, with a
+  five-minute one-time confirmation token, client idempotency key, state-drift
+  rejection, completed-write replay and existing transactional stock invariants;
+- successful MCP lifecycle mutations carry MCP stock/audit attribution and
+  publish live invalidation only after commit;
+- migration defaults all three write permissions off. Live MCP settings and
+  client policies remain mutable configuration and are not frozen by this
+  checkpoint;
+- OAuth tokens do not silently gain `mcp:write`. During browser testing the
+  existing Claude token still had only `mcp:read`, correctly exposing six tools
+  until a new authorization is granted after Write authorization is enabled;
+- the client Permissions dialog now scrolls within the viewport at desktop and
+  narrow sizes, and OAuth client summaries say `allowed by policy` rather than
+  implying the policy count equals the active OAuth-scoped tool set.
+
+Deferred deliberately to Chat 26:
+- inventory-mutating MCP tools for adding/editing/deleting/restoring parts and
+  adjusting stock;
+- the dedicated role/user-management Settings UI;
+- final public-alpha accessibility/security/responsive/API-MCP regression.
+
+Chat 25 began with planned range `711-735`; recovery/diagnostic work after the
+planned boundary was limited to the failed MCP-write packaging sequence and this
+approved checkpoint. Patch 742 is the authoritative Chat 25 boundary.

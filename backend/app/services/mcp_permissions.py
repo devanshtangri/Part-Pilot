@@ -14,6 +14,7 @@ from app.models import (
     McpOAuthClient,
     McpOAuthConsent,
     McpOAuthToken,
+    User,
 )
 from app.schemas.app_settings import (
     McpClientToolPermissionItemResponse,
@@ -27,8 +28,11 @@ from app.schemas.app_settings import (
 MCP_TOOL_PERMISSIONS_KEY = "mcp.tool_permissions"
 MCP_ENABLED_KEY = "mcp.enabled"
 MCP_READ_ENABLED_KEY = "mcp.read_tools_enabled"
+MCP_WRITE_ENABLED_KEY = "mcp.write_tools_enabled"
 MCP_SCOPE_READ = "mcp:read"
+MCP_SCOPE_WRITE = "mcp:write"
 MCP_TOOL_CAPABILITY_READ = "read"
+MCP_TOOL_CAPABILITY_WRITE = "write"
 
 
 @dataclass(frozen=True)
@@ -38,6 +42,7 @@ class McpToolPermissionDefinition:
     capability: str
 
 
+# PARTPILOT:MCP_WRITE_TOOL_CATALOGUE:V734
 MCP_TOOL_CATALOGUE = (
     McpToolPermissionDefinition("search_parts", "Search parts", MCP_TOOL_CAPABILITY_READ),
     McpToolPermissionDefinition("get_part_details", "Get part details", MCP_TOOL_CAPABILITY_READ),
@@ -45,10 +50,16 @@ MCP_TOOL_CATALOGUE = (
     McpToolPermissionDefinition("get_project_details", "Get Project details", MCP_TOOL_CAPABILITY_READ),
     McpToolPermissionDefinition("list_reservations", "List Reservations", MCP_TOOL_CAPABILITY_READ),
     McpToolPermissionDefinition("get_reservation_details", "Get Reservation details", MCP_TOOL_CAPABILITY_READ),
+    McpToolPermissionDefinition("reserve_project", "Reserve Project", MCP_TOOL_CAPABILITY_WRITE),
+    McpToolPermissionDefinition("consume_reservation", "Consume Reservation", MCP_TOOL_CAPABILITY_WRITE),
+    McpToolPermissionDefinition("cancel_reservation", "Cancel Reservation", MCP_TOOL_CAPABILITY_WRITE),
 )
 MCP_TOOL_NAMES = tuple(item.name for item in MCP_TOOL_CATALOGUE)
 MCP_TOOL_DEFINITIONS = {item.name: item for item in MCP_TOOL_CATALOGUE}
-DEFAULT_MCP_TOOL_PERMISSIONS = {name: True for name in MCP_TOOL_NAMES}
+DEFAULT_MCP_TOOL_PERMISSIONS = {
+    item.name: item.capability == MCP_TOOL_CAPABILITY_READ
+    for item in MCP_TOOL_CATALOGUE
+}
 
 
 class McpToolPermissionError(RuntimeError):
@@ -391,28 +402,89 @@ def _client_denied_tools(db: Session, principal: dict[str, Any]) -> list[str]:
     raise McpToolPermissionConfigurationError("Unsupported MCP principal type.")
 
 
+def _write_authorization_user_id(
+    db: Session,
+    principal: dict[str, Any],
+) -> int:
+    auth_method = principal.get("auth_method")
+    if auth_method == "direct_no_auth":
+        raise McpToolPermissionDeniedError(
+            "No-auth MCP access is read-only and cannot receive write access."
+        )
+
+    user_id: int | None = None
+    if auth_method == "oauth":
+        candidate = principal.get("actor_user_id")
+        if type(candidate) is int:
+            user_id = candidate
+    elif auth_method in {
+        "direct_bearer",
+        "direct_custom_header",
+        "direct_trusted_network",
+    }:
+        client_id = principal.get("direct_auth_id")
+        if type(client_id) is not int:
+            raise McpToolPermissionConfigurationError(
+                "Authenticated MCP direct principal has no client identity."
+            )
+        client = db.get(McpDirectAuth, client_id)
+        if client is None or client.revoked_at is not None or not client.enabled:
+            raise McpToolPermissionDeniedError("MCP direct client is no longer active.")
+        user_id = client.created_by_user_id
+    else:
+        raise McpToolPermissionConfigurationError("Unsupported MCP principal type.")
+
+    if type(user_id) is not int:
+        raise McpToolPermissionDeniedError(
+            "This MCP client has no active user authority for write operations."
+        )
+    user = db.get(User, user_id)
+    if user is None or not user.is_active:
+        raise McpToolPermissionDeniedError(
+            "The user authority behind this MCP client is inactive."
+        )
+    from app.services.authorization import ROLE_OPERATOR, role_at_least
+    if not role_at_least(user.role, ROLE_OPERATOR):
+        raise McpToolPermissionDeniedError(
+            "MCP write tools require an Operator, Administrator, or Owner authority."
+        )
+    return user.id
+
+
 def authorize_mcp_tool(
     db: Session,
     principal: dict[str, Any],
     tool_name: str,
-) -> None:
+) -> int | None:
     canonical = _canonical_tool_name(tool_name)
     definition = MCP_TOOL_DEFINITIONS[canonical]
-    if definition.capability != MCP_TOOL_CAPABILITY_READ:
+    principal_scopes = principal.get("scopes")
+
+    if not get_bool_setting(db, MCP_ENABLED_KEY, False):
+        raise McpToolPermissionDeniedError("MCP is disabled in Part Pilot settings.")
+
+    authorization_user_id: int | None = None
+    if definition.capability == MCP_TOOL_CAPABILITY_READ:
+        if not get_bool_setting(db, MCP_READ_ENABLED_KEY, True):
+            raise McpToolPermissionDeniedError(
+                "MCP read tools are disabled in Part Pilot settings."
+            )
+        required_scope = MCP_SCOPE_READ
+    elif definition.capability == MCP_TOOL_CAPABILITY_WRITE:
+        if not get_bool_setting(db, MCP_WRITE_ENABLED_KEY, False):
+            raise McpToolPermissionDeniedError(
+                "MCP write tools are disabled in Part Pilot settings."
+            )
+        required_scope = MCP_SCOPE_WRITE
+        authorization_user_id = _write_authorization_user_id(db, principal)
+    else:
         raise McpToolPermissionConfigurationError(
             "MCP tool capability has no implemented authorization policy."
         )
 
-    principal_scopes = principal.get("scopes")
-    if not get_bool_setting(db, MCP_ENABLED_KEY, False) or not get_bool_setting(
-        db, MCP_READ_ENABLED_KEY, True
-    ):
+    if not isinstance(principal_scopes, list) or required_scope not in principal_scopes:
         raise McpToolPermissionDeniedError(
-            "MCP read tools are disabled in Part Pilot settings."
-        )
-    if not isinstance(principal_scopes, list) or MCP_SCOPE_READ not in principal_scopes:
-        raise McpToolPermissionDeniedError(
-            "Authenticated MCP client does not have read scope."
+            f"Authenticated MCP client does not have {required_scope} scope."
         )
 
     global_policy = get_global_tool_permissions(db)
@@ -420,11 +492,11 @@ def authorize_mcp_tool(
         raise McpToolPermissionDeniedError(
             f"MCP tool {canonical} is disabled by the global permission policy."
         )
-
     if canonical in _client_denied_tools(db, principal):
         raise McpToolPermissionDeniedError(
             f"MCP tool {canonical} is blocked for this client."
         )
+    return authorization_user_id
 
 
 # PARTPILOT:MCP_VISIBLE_TOOL_CATALOGUE:V657

@@ -3524,3 +3524,49 @@ Deferred presentation:
 Next public-alpha work:
 - [ ] Add safeguarded MCP write tools on the Operator-or-higher role foundation.
 - [ ] Run final public-alpha regression/hardening.
+
+<!-- PARTPILOT:CHAT26_PLAN:V742 -->
+### Patch 742 — safeguarded lifecycle MCP writes complete; Chat 26 next
+
+Patch 741 was consumed by a copied-production smoke that froze mutable MCP
+policy to migration defaults. Patch 742 recovers the boundary with a fixture-owned
+policy baseline and exact copied-DB restoration.
+
+Completed in the Chat 25 closeout:
+- [x] `0018_mcp_write_intents` migration and backup/restore schema alignment.
+- [x] Six-read + three-write canonical MCP catalogue.
+- [x] Operator-or-higher write-role ceiling and `mcp:write` OAuth scope ceiling.
+- [x] Global Write authorization, individual write-tool policy and client deny
+  overrides with no-auth permanently read-only.
+- [x] Preview -> five-minute one-time confirmation, idempotency and state-drift
+  safeguards for `reserve_project`, `consume_reservation`, and
+  `cancel_reservation`.
+- [x] MCP movement/audit attribution plus post-commit live invalidation.
+- [x] Browser-approved client permission dialog scrolling and policy-vs-OAuth
+  scope wording.
+- [x] Browser approval and checkpoint of the complete lifecycle-write slice.
+
+**Chat 26 title:** `Chat 26: MCP Inventory Writes and Public Alpha Finalization`
+**Patch range:** `743-767`
+**First patch:** `743`
+**Planned boundary:** `767`
+
+Chat 26 implementation order:
+1. Add inventory-mutating MCP writes only in narrow, separately safeguarded
+   slices. Start by inspecting existing inventory create/edit/quantity/delete
+   transactional services and define the minimum honest tool catalogue. Do not
+   bypass current REST/service invariants.
+2. Cover add-part, metadata correction/editing and stock adjustment before any
+   delete/restore semantics; keep confirmation/idempotency/state-drift and role/
+   global/client/scope ceilings identical to the lifecycle-write foundation.
+3. Add delete/restore MCP operations only if their recycle-bin/dependency and
+   exact-confirmation contracts can be preserved without weakening the UI/API
+   safety model.
+4. Add the dedicated Settings user/role-management UI on the already-enforced
+   Patch 733 backend boundary when prioritized.
+5. Run the final public-alpha accessibility, security, responsive, backup/
+   restore, REST/OpenAPI and MCP regression sweep and checkpoint the release
+   candidate.
+
+Notifications & Messaging remain post-v1. Live database/settings/OAuth/tool
+policy are mutable state and must not be frozen as future patch prerequisites.

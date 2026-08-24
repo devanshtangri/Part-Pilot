@@ -3,7 +3,7 @@
 Project
 - Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
 - Docker compose service partpilot, host port 7890. React/Vite/TypeScript + FastAPI/SQLAlchemy/Alembic.
-- Alembic head: 0016_mcp_tool_permissions.
+- Alembic head: 0018_mcp_write_intents.
 
 Patch workflow
 - Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one sequential Python file under fixes/. Failed attempts consume numbers. Assistant runs a numbered patch only when the user explicitly asks to run that specific patch; otherwise the user runs it. On an explicit run request, execute exactly that requested run command once and return the full raw terminal output only; no conclusions, diagnosis, fixes, retries, inspections or extra commands unless separately asked.
@@ -15,9 +15,8 @@ Patch workflow
 - Repo durable memory is separate from ChatGPT Project Memory. ChatGPT Project Memory holds stable global rules and stays within its separate 8K product limit; this file may hold richer durable state. Keep this repo file <=20000 characters to control startup context. User prefers patch-generation turns <=10 minutes.
 
 Chat boundary
-- Chat 22 closes through Patch 660 boundary recovery with 22 MCP-permission application files still pending browser approval.
-- Chat 23 `MCP Permission Finalization and Settings Modernization`: range 661-685, boundary 685. Patch 684 checkpointed/pushed Regional display/currency/timezone; Patch 685 closes the chat with a clean application tree/index and durable handoff.
-
+- Chat 25 `Integration Live Sync Recovery and Public Alpha Hardening` began at 711 with planned boundary 735; a narrow MCP-write recovery sequence overran the boundary. Patch 742 is the first safe approved checkpoint after Patch 741 boundary-validation recovery and closes Chat 25.
+- Chat 26 `MCP Inventory Writes and Public Alpha Finalization`: range 743-767, first 743, boundary 767.
 Data safety
 - Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs; never broad OAuth cleanup. SQLite integrity/FKs must pass.
 - 5V Relay remains recoverable in Deleted items. ESP01 was permanently purged and Development Board Part Type deleted during approved recycle-bin testing.
@@ -40,7 +39,7 @@ MCP/OAuth
 - Manual OAuth admin: ownership, public/confidential auth, generated IDs, digest-only one-time secrets, status/revocation; revoked hidden from normal Settings.
 - Alembic 0015: named Bearer/custom-header/trusted-network direct clients with independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row retained for audit compatibility.
 - `Enable MCP server` master; `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
-- Browser-approved Alembic 0016 MCP permissions: global exact-tool booleans, OAuth/direct deny-only overrides, principal-aware authenticated `tools/list`, no-auth global-only semantics and call-time defense in depth. Six current tools are read-only; Write tools show 0 available. Treat live per-tool booleans as mutable configuration, not frozen test fixtures.
+- Browser-approved Alembic 0018 MCP catalogue: six read tools plus safeguarded `reserve_project`, `consume_reservation`, `cancel_reservation`; global/client policy, `mcp:write`, active Operator+ user, preview/confirmation/idempotency/state-drift defenses apply. No-auth is permanently read-only. Treat live per-tool booleans/OAuth scopes as mutable configuration.
 - Browser-approved Settings Direct MCP hierarchy: Allow direct clients + No authentication sit with Named direct clients; global Server/Read/Write stay separate. Dependency-disabled uses `not-allowed`; `wait` only while saving.
 
 Recovery lessons
@@ -48,12 +47,10 @@ Recovery lessons
 - Durable-log validation must use bytes explicitly written to logs, never terminal-only success/error output. Patches 676 and 678 repeated this mistake; Patch 679 diagnosed it. Prove failures from immutable source plus reproducible read-only facts. Do not freeze mutable live MCP/DB values.
 
 Remaining V1
-1. Authenticated SSE-compatible invalidation/targeted refetch with reconnect/resync and polling fallback; preserve stale guards and remove routine Refresh only after each path is proven.
-2. SSE invalidation/targeted refetch replaces routine Refresh; polling fallback only.
-3. API docs/schema hardening; Stored Parts/dashboard metrics. Dashboard Stock alert card later opens an all-alert-parts dialog instead of an inline low-stock table.
-4. Expand per-card preference defaults as new Preferences land; roles; safeguarded MCP writes; final alpha regression.
+1. Narrow inventory-mutating MCP tools: add/edit/stock adjustment first; delete/restore only with existing recycle-bin/dependency/confirmation safeguards.
+2. Dedicated Settings role/user-management UI when prioritized; backend role enforcement already exists.
+3. Final public-alpha accessibility/security/responsive/backup-restore/REST-OpenAPI/MCP regression and release checkpoint.
 - Notifications & Messaging remain post-v1.
-
 
 Autosave/live-sync V1 task (Patch 656)
 - Reversible Settings preferences: no ordinary Save/Reset-changes buttons.
@@ -69,33 +66,6 @@ Autosave/live-sync V1 task (Patch 656)
 Chat22 recovery
 - 657 pre-write: packaged workspace-smoke SHA 53305a21... differed by formatting from passed rehearsal 29cd1e22.... Patch 661 reproduced the exact passed bytes and succeeded.
 - 658 pre-write: three forbidden Roadmap trailing-space lines. Patch 659 diagnosed it; Patch 660 boundary recovery succeeded.
-
-<!-- PARTPILOT:PROJECT_MEMORY:V684 -->
-
-Regional display checkpoint
-- Patch 683 browser approved the combined Patch 675 currency + Regional display/timezone source. Patch 684 is the checkpoint/commit/push milestone; Chat 23 boundary remains Patch 685.
-- Preferences has a themed Regional display / Currency & timezone card. Currency is persisted uppercase three-letter ISO display formatting only: no FX conversion and no historical Project/Reservation currency rewrite.
-- Workspace display timezone is persisted as an IANA zone and affects passive timestamp display only. Stored timestamps and datetime-local entry semantics are never rewritten.
-- Passive timezone formatting covers History, Projects, Reservations, Stored Parts/lifecycle and Settings/API/MCP timestamp surfaces. Currency/timezone save independently with rollback/stale protection and protected APIs.
-- Browser-approved runtime image is sha256:7a285a3ebb7eccf9eddb7c375a2b5616773e5aa40283ce270e41aff445ad23b9; Alembic remains 0016_mcp_tool_permissions.
-- Recovery lesson: source comments are not valid compiled Vite runtime markers because minification may strip them. Verify rendered/runtime semantics or intentionally preserved data markers instead.
-
-Remaining V1 after Chat 23 boundary
-1. Authenticated SSE invalidation/targeted refetch; polling fallback only.
-2. API docs/OpenAPI hardening.
-3. Whole-inventory Stored Parts metrics + Dashboard Stock alert dialog; remove inline Low stock table.
-4. Owner/Admin/Operator/Viewer roles, safeguarded MCP writes, final alpha regression.
-- Notifications & Messaging remain post-v1.
-
-<!-- PARTPILOT:PROJECT_MEMORY:V685 -->
-
-Chat 23 boundary
-- Chat 23 is complete at Patch 685. Patch 684 committed/pushed the browser-approved Regional display/currency/timezone slice; the application tree/index are clean and no browser-test source carries forward.
-- Next title: `Chat 24: Authenticated Live Sync and Public Alpha Hardening`; range `686-710`; first patch `686`; boundary `710`.
-- Start Chat 24 with authenticated SSE-compatible invalidation + targeted refetch. One authenticated stream, reconnect/resync, polling fallback, Retry on errors; preserve stale guards/filters/pagination/selection and remove routine Refresh only after each path is proven.
-- Then harden API docs/OpenAPI, add whole-inventory Stored Parts metrics + Dashboard Stock alert dialog, roles, safeguarded MCP writes and final alpha regression.
-- Runtime at boundary: sha256:7a285a3ebb7eccf9eddb7c375a2b5616773e5aa40283ce270e41aff445ad23b9, healthy, restart 0; Alembic 0016_mcp_tool_permissions. Live DB/settings/MCP policy remain mutable and must not be frozen as future prerequisites.
-
 
 PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_MEMORY:V699
 Chat 24 live-sync milestone — Patch 699
@@ -259,3 +229,26 @@ Chat 25 public-alpha hardening milestone - Patch 733
   role, preventing stale high-scope keys from surviving demotion as escalation.
 - Backup/restore contracts now target 0017. Role-management UI is deferred; next
   are safeguarded MCP write tools and final public-alpha regression.
+
+PARTPILOT:SAFEGUARDED_MCP_WRITES_CHAT25_BOUNDARY_MEMORY:V742
+Chat 25 boundary — Patch 742
+- Browser-approved lifecycle MCP writes are checkpointed on Alembic 0018: six
+  read tools + `reserve_project`, `consume_reservation`, `cancel_reservation`.
+- Writes require server + Write authorization + global tool + client ceiling +
+  `mcp:write` + active Operator-or-higher user. No-auth is permanently read-only.
+- Same-tool preview/confirm uses a five-minute one-time token, idempotency and
+  state-drift rejection; committed mutations use MCP audit/movement attribution
+  and publish live invalidation. Migration defaults write tools off; live policy
+  remains mutable.
+- OAuth policy count is not active tool exposure: existing tokens do not gain
+  `mcp:write` silently. Reauthorize clients after enabling write scope.
+- Client Permissions dialog is viewport-scrollable and labels counts `allowed by
+  policy`; OAuth scopes may further reduce active tools.
+- Patch 741 boundary validation was consumed because the write smoke froze mutable
+  MCP policy to migration defaults; Patch 742 fixes only that copied-test contract.
+- Chat 25 nominal range 711-735 overran only for narrow MCP-write recovery. Patch
+  742 is the boundary. Next: `Chat 26: MCP Inventory Writes and Public Alpha
+  Finalization`, range 743-767, first 743, boundary 767.
+- Chat 26: narrow inventory MCP writes (add/edit/stock, then delete/restore only
+  with existing safeguards), optional role-management UI, final public-alpha
+  regression. Notifications & Messaging remain post-v1.

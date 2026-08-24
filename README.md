@@ -472,12 +472,13 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | Named direct MCP clients (Bearer/custom-header/trusted-network) | Available |
 | Direct-client master and typed-confirmed no-auth fallback | Available |
 | Individual-tool and per-client MCP permissions | Available |
-| Safeguarded MCP write tools | Not yet implemented |
+| Safeguarded MCP write tools | Project/Reservation lifecycle slice available; inventory mutation deferred |
 
-The live installation keeps MCP and read tools enabled while write
-authorization, named direct clients, and no-auth fallback remain disabled.
-Named direct clients can be enabled independently of OAuth; the no-auth fallback
-is read-only and requires exact typed confirmation. OAuth registration supports explicit
+MCP write authorization and individual write-tool permissions default off when
+the safeguarded-write schema is introduced, but live policy is administrator-
+controlled mutable configuration. Named direct clients can be enabled
+independently of OAuth; the no-auth fallback is permanently read-only and
+requires exact typed confirmation. OAuth registration supports explicit
 current-user ownership for manually created clients, safe manageable-client
 status, exact revocation, and one-time confidential secret display. Revoked
 clients remain available to backend audit/history semantics but are hidden from
@@ -674,3 +675,17 @@ are checked against role ceilings, and session-only user administration protects
 the last active Owner. The backend APIs support user lifecycle management; a
 future Settings UI can present those controls without changing the security
 boundary.
+
+<!-- PARTPILOT:SAFEGUARDED_MCP_WRITES_README:V742 -->
+### Safeguarded MCP lifecycle writes
+
+Part Pilot now exposes three explicitly gated MCP lifecycle writes alongside its
+six read tools: reserve a Project, consume a Reservation and cancel a
+Reservation. Each write requires the server/write/global/client/scope/role
+ceilings plus a preview, five-minute one-time confirmation token, idempotency and
+state-drift protection. No-auth remains read-only. Existing OAuth sessions do
+not silently acquire `mcp:write`; clients must be newly authorized for that
+scope when write access is enabled. General inventory creation/edit/delete and
+stock-adjustment MCP tools remain intentionally deferred to narrow later slices. Boundary
+validation treats live MCP tool policy as mutable configuration; copied-production
+write smokes establish and restore their own fixture policy.
