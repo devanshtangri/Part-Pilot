@@ -27,7 +27,7 @@ READ_TOOLS = {
     "get_reservation_details",
 }
 EDIT_TOOL = "update_part_metadata"
-EXPECTED_HEAD = "0021_mcp_inventory_part_metadata_update"
+EXPECTED_HEAD = "0022_mcp_inventory_part_lifecycle"
 CLIENT_NAME = "Patch 760 metadata edit smoke"
 
 
@@ -123,10 +123,10 @@ def main() -> None:
             if (
                 not isinstance(policy, dict)
                 or set(policy) != set(DEFAULT_MCP_TOOL_PERMISSIONS)
-                or len(policy) != 12
+                or len(policy) != 14
                 or any(type(value) is not bool for value in policy.values())
             ):
-                fail(f"Malformed twelve-tool copied MCP policy: {policy}")
+                fail(f"Malformed fourteen-tool copied MCP policy: {policy}")
 
             owner = db.execute(
                 select(User)

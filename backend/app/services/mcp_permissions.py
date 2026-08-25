@@ -56,6 +56,8 @@ MCP_TOOL_CATALOGUE = (
     McpToolPermissionDefinition("adjust_part_quantity", "Adjust part quantity", MCP_TOOL_CAPABILITY_WRITE),
     McpToolPermissionDefinition("create_part", "Create inventory part", MCP_TOOL_CAPABILITY_WRITE),
     McpToolPermissionDefinition("update_part_metadata", "Update part metadata", MCP_TOOL_CAPABILITY_WRITE),
+    McpToolPermissionDefinition("soft_delete_part", "Move part to Deleted items", MCP_TOOL_CAPABILITY_WRITE),
+    McpToolPermissionDefinition("restore_part", "Restore inventory part", MCP_TOOL_CAPABILITY_WRITE),
 )
 MCP_TOOL_NAMES = tuple(item.name for item in MCP_TOOL_CATALOGUE)
 MCP_TOOL_DEFINITIONS = {item.name: item for item in MCP_TOOL_CATALOGUE}

@@ -202,7 +202,9 @@ def check_only() -> None:
         "list_projects",
         "list_reservations",
         "reserve_project",
+        "restore_part",
         "search_parts",
+        "soft_delete_part",
         "update_part_metadata",
     ):
         fail(f"Unexpected registered MCP tools: {names!r}")
@@ -219,7 +221,7 @@ def check_only() -> None:
             fail(f"Unexpected /mcp/ response: {slash.status_code}")
     print(
         "[PASS] MCP Streamable HTTP route is exact, protected by OAuth discovery, "
-        "safely rejects /mcp/, and registers six read and six safeguarded write tools"
+        "safely rejects /mcp/, and registers six read and eight safeguarded write tools"
     )
 
 

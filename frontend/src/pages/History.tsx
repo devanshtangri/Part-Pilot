@@ -512,6 +512,7 @@ export function History() {
       data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
       data-partpilot-history-mobile="PARTPILOT:HISTORY_MOBILE_REGISTER_FIRST:V408"
       data-partpilot-history-entity-acronyms="PARTPILOT:HISTORY_ENTITY_ACRONYM_NORMALIZATION:V543"
+      data-partpilot-history-register-scroll="PARTPILOT:HISTORY_REGISTER_HORIZONTAL_SCROLL:V766"
     >
       <header className="history-header">
         <div className="page-header">
@@ -760,15 +761,19 @@ export function History() {
             <span>{collection.entries.length} shown</span>
           </div>
 
-          <div className="history-list-columns" aria-hidden="true">
-            <span>Event</span>
-            <span>Kind</span>
-            <span>Entity</span>
-            <span>Actor</span>
-            <span>Occurred</span>
-          </div>
+          <div
+            className="history-list-scroll"
+            aria-label="Scrollable history register"
+          >
+            <div className="history-list-columns" aria-hidden="true">
+              <span>Event</span>
+              <span>Kind</span>
+              <span>Entity</span>
+              <span>Actor</span>
+              <span>Occurred</span>
+            </div>
 
-          <div className="history-list" aria-live="polite">
+            <div className="history-list" aria-live="polite">
             {listLoading ? (
               <div className="history-list-state">
                 Loading system history…
@@ -820,6 +825,7 @@ export function History() {
                 </button>
               ))
             )}
+            </div>
           </div>
 
           <footer className="history-pagination">

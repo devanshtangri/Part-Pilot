@@ -44,6 +44,8 @@ REGISTERED_TOOLS = EXPECTED_TOOLS | {
     "adjust_part_quantity",
     "create_part",
     "update_part_metadata",
+    "soft_delete_part",
+    "restore_part",
 }
 
 

@@ -20,6 +20,7 @@ from app.mcp.part_tools import (
 )
 from app.models import AuditLog, Part, Project, Reservation
 from app.schemas.parts import (
+    DeletedPartResponse,
     PartCreateRequest,
     PartFieldValueCreateRequest,
     PartQuantityAdjustmentRequest,
@@ -43,8 +44,11 @@ from app.services.parts import (
     adjust_part_quantity as adjust_part_quantity_service,
     create_part as create_part_service,
     preview_part_creation,
+    preview_part_lifecycle_action,
     preview_part_metadata_update,
     preview_part_quantity_adjustment,
+    restore_part as restore_part_service,
+    soft_delete_part as soft_delete_part_service,
     update_part_metadata as update_part_metadata_service,
 )
 from app.services.projects import (
@@ -64,7 +68,7 @@ from app.services.reservations import (
 )
 
 # PARTPILOT:SAFEGUARDED_MCP_WRITE_TOOLS:V734
-WRITE_TOOL_NAMES = ("reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity", "create_part", "update_part_metadata")
+WRITE_TOOL_NAMES = ("reserve_project", "consume_reservation", "cancel_reservation", "adjust_part_quantity", "create_part", "update_part_metadata", "soft_delete_part", "restore_part")
 
 
 def _audit_high_watermark(db: Session) -> int:
@@ -224,6 +228,31 @@ class SafeguardedPartMetadataUpdateResult(BaseModel):
     expires_at: str | None = None
     preview: PartMetadataUpdatePreview
     part: PartResponse | None = None
+    replayed: bool = False
+
+
+class PartLifecyclePreview(BaseModel):
+    action: Literal["soft_delete_part", "restore_part"]
+    target_type: Literal["part"]
+    target_id: int
+    target_label: str
+    before_state: dict[str, Any]
+    proposed_state: dict[str, Any]
+    part_number_available: bool
+    reversible: Literal[True]
+    permanent_purge: Literal[False]
+
+
+class SafeguardedPartLifecycleResult(BaseModel):
+    summary: str
+    phase: Literal["preview", "completed"]
+    idempotency_key: str
+    confirmation_required: bool
+    confirmation_token: str | None = None
+    expires_at: str | None = None
+    preview: PartLifecyclePreview
+    part: PartResponse | None = None
+    deleted_part: DeletedPartResponse | None = None
     replayed: bool = False
 
 def _serialize_result(result: SafeguardedWriteResult) -> dict[str, Any]:
@@ -1023,6 +1052,123 @@ def _run_guarded_part_metadata_update(
         db.close()
 
 
+def _run_guarded_part_lifecycle(
+    *,
+    ctx: Context,
+    tool_name: Literal["soft_delete_part", "restore_part"],
+    part_id: int,
+    idempotency_key: str,
+    confirmation_token: str | None,
+) -> SafeguardedPartLifecycleResult:
+    if part_id < 1:
+        raise ValueError("Part id must be greater than zero.")
+    principal = _principal_from_context(ctx)
+    request_id = _bounded_request_id(ctx)
+    arguments = {"part_id": part_id}
+    db = SessionLocal()
+    try:
+        authorization_user_id = authorize_mcp_tool(db, principal, tool_name)
+        if type(authorization_user_id) is not int:
+            raise RuntimeError("MCP write authorization did not resolve a user authority.")
+        replay_json = completed_write_replay(
+            db, principal=principal, tool_name=tool_name,
+            idempotency_key=idempotency_key, arguments=arguments,
+        )
+        if replay_json is not None:
+            replay = SafeguardedPartLifecycleResult.model_validate(replay_json)
+            return replay.model_copy(update={"replayed": True})
+
+        preview = PartLifecyclePreview.model_validate(
+            preview_part_lifecycle_action(db, part_id, tool_name)
+        )
+        preview_json = preview.model_dump(mode="json")
+        if confirmation_token is None:
+            prepared = prepare_write_intent(
+                db, principal=principal, authorization_user_id=authorization_user_id,
+                tool_name=tool_name, idempotency_key=idempotency_key,
+                arguments=arguments, preview=preview_json,
+            )
+            if prepared.replay_result is not None:
+                replay = SafeguardedPartLifecycleResult.model_validate(prepared.replay_result)
+                return replay.model_copy(update={"replayed": True})
+            assert prepared.confirmation_token is not None
+            result = SafeguardedPartLifecycleResult(
+                summary=(
+                    f"Preview ready for {tool_name}. Review the exact reversible lifecycle "
+                    "state and preserved quantities/history counts, then call the same tool "
+                    "with this idempotency_key and confirmation_token within five minutes."
+                ),
+                phase="preview", idempotency_key=idempotency_key,
+                confirmation_required=True, confirmation_token=prepared.confirmation_token,
+                expires_at=prepared.intent.expires_at.replace(tzinfo=timezone.utc).isoformat(),
+                preview=preview,
+            )
+            _append_tool_audit(
+                db, principal=principal, request_id=request_id, tool_name=tool_name,
+                success=True, arguments={**arguments, "idempotency_key": idempotency_key, "phase": "preview"},
+                result={"phase": "preview", "intent_id": prepared.intent.id, "confirmation_required": True},
+            )
+            db.commit()
+            return result
+
+        validated = validate_confirmation(
+            db, principal=principal, tool_name=tool_name,
+            idempotency_key=idempotency_key, confirmation_token=confirmation_token,
+            arguments=arguments, current_preview=preview_json,
+        )
+        if validated.replay_result is not None:
+            replay = SafeguardedPartLifecycleResult.model_validate(validated.replay_result)
+            return replay.model_copy(update={"replayed": True})
+
+        audit_high_watermark = _audit_high_watermark(db)
+        if tool_name == "soft_delete_part":
+            deleted = soft_delete_part_service(
+                db, part_id, actor_user_id=authorization_user_id, actor_type="mcp", commit=False
+            )
+            final = SafeguardedPartLifecycleResult(
+                summary=f"Confirmed MCP soft deletion for Part {part_id} exactly once.",
+                phase="completed", idempotency_key=idempotency_key,
+                confirmation_required=False, preview=preview, deleted_part=deleted,
+            )
+        else:
+            part = restore_part_service(
+                db, part_id, actor_user_id=authorization_user_id, actor_type="mcp", commit=False
+            )
+            final = SafeguardedPartLifecycleResult(
+                summary=f"Confirmed MCP restore for Part {part_id} exactly once.",
+                phase="completed", idempotency_key=idempotency_key,
+                confirmation_required=False, preview=preview, part=part,
+            )
+        _stamp_mcp_business_audits(
+            db, after_id=audit_high_watermark, principal=principal,
+            authorization_user_id=authorization_user_id,
+        )
+        complete_write_intent(db, validated.intent, final.model_dump(mode="json"))
+        _append_tool_audit(
+            db, principal=principal, request_id=request_id, tool_name=tool_name, success=True,
+            arguments={**arguments, "idempotency_key": idempotency_key, "phase": "confirm"},
+            result={"phase": "completed", "intent_id": validated.intent.id, "part_id": part_id, "replayed": False},
+        )
+        db.commit()
+        publish_live_invalidation(("inventory", "history"), resource={"type": "part", "id": part_id})
+        return final
+    except Exception as exc:
+        db.rollback()
+        if confirmation_token is not None:
+            try:
+                fail_write_intent(
+                    db, principal=principal if "principal" in locals() else {},
+                    tool_name=tool_name, idempotency_key=idempotency_key,
+                    error_type=type(exc).__name__,
+                )
+                db.commit()
+            except Exception:
+                db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 def register_write_tools(server: FastMCP) -> None:
     consequential = ToolAnnotations(
         readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False
@@ -1231,4 +1377,48 @@ def register_write_tools(server: FastMCP) -> None:
             payload=payload,
             idempotency_key=idempotency_key,
             confirmation_token=confirmation_token,
+        )
+
+    @server.tool(
+        name="soft_delete_part",
+        title="Move a Part Pilot Inventory Part to Deleted Items",
+        description=(
+            "Safeguarded reversible soft deletion. The first call previews the exact part "
+            "state, quantities, template-value count and movement-history count that will be "
+            "preserved. No permanent purge occurs. The second call must repeat the same "
+            "part_id and idempotency_key with the five-minute confirmation token."
+        ),
+        annotations=destructive, structured_output=True,
+    )
+    def soft_delete_part(
+        ctx: Context,
+        part_id: Annotated[int, Field(gt=0)],
+        idempotency_key: Annotated[str, Field(min_length=8, max_length=120)],
+        confirmation_token: Annotated[str | None, Field(max_length=160)] = None,
+    ) -> SafeguardedPartLifecycleResult:
+        return _run_guarded_part_lifecycle(
+            ctx=ctx, tool_name="soft_delete_part", part_id=part_id,
+            idempotency_key=idempotency_key, confirmation_token=confirmation_token,
+        )
+
+    @server.tool(
+        name="restore_part",
+        title="Restore a Part Pilot Inventory Part",
+        description=(
+            "Safeguarded restoration from Deleted items. The first call previews the exact "
+            "deleted state, preserved quantities/history counts and part-number conflict check; "
+            "no mutation occurs until the same part_id and idempotency_key are repeated with "
+            "the five-minute confirmation token."
+        ),
+        annotations=consequential, structured_output=True,
+    )
+    def restore_part(
+        ctx: Context,
+        part_id: Annotated[int, Field(gt=0)],
+        idempotency_key: Annotated[str, Field(min_length=8, max_length=120)],
+        confirmation_token: Annotated[str | None, Field(max_length=160)] = None,
+    ) -> SafeguardedPartLifecycleResult:
+        return _run_guarded_part_lifecycle(
+            ctx=ctx, tool_name="restore_part", part_id=part_id,
+            idempotency_key=idempotency_key, confirmation_token=confirmation_token,
         )

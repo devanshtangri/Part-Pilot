@@ -4,6 +4,10 @@
   --partpilot-history-workspace-v408: 1;
 }
 
+.history-page[data-partpilot-history-register-scroll="PARTPILOT:HISTORY_REGISTER_HORIZONTAL_SCROLL:V766"] {
+  --partpilot-history-register-scroll-v766: 1;
+}
+
 .history-page {
   max-width: 1500px;
   gap: 16px;
@@ -292,6 +296,19 @@
   background: var(--panel);
   font-size: 0.7rem;
   font-weight: 750;
+}
+
+.history-list-scroll {
+  --partpilot-history-register-min-width: 740px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+}
+
+.history-list-scroll > .history-list-columns,
+.history-list-scroll > .history-list {
+  min-width: var(--partpilot-history-register-min-width);
 }
 
 .history-list-columns,
@@ -753,6 +770,10 @@
 }
 
 @media (max-width: 1280px) {
+  .history-list-scroll {
+    --partpilot-history-register-min-width: 580px;
+  }
+
   .history-filter-grid {
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   }
@@ -777,6 +798,10 @@
 }
 
 @media (max-width: 1050px) {
+  .history-list-scroll {
+    --partpilot-history-register-min-width: 430px;
+  }
+
   .history-filter-grid {
     grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   }
@@ -859,6 +884,12 @@
 }
 
 @media (max-width: 680px) {
+  .history-list-scroll {
+    --partpilot-history-register-min-width: 0px;
+    overflow-x: visible;
+    overflow-y: visible;
+  }
+
   .history-header {
     align-items: stretch;
     flex-direction: column;

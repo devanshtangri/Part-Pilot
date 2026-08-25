@@ -13,7 +13,7 @@ from app.services.history import list_history, list_history_filter_options
 
 
 # PARTPILOT:MCP_HISTORY_ACTOR_SMOKE:V758
-EXPECTED_HEAD = "0021_mcp_inventory_part_metadata_update"
+EXPECTED_HEAD = "0022_mcp_inventory_part_lifecycle"
 CLIENT_NAME = "Claude History Smoke"
 
 

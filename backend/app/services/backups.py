@@ -44,11 +44,16 @@ ARCHIVE_ENTRY_NAMES = (
     MANIFEST_ENTRY_NAME,
     DATABASE_ENTRY_NAME,
 )
-EXPECTED_ALEMBIC_REVISION = "0021_mcp_inventory_part_metadata_update"
+EXPECTED_ALEMBIC_REVISION = "0022_mcp_inventory_part_lifecycle"
 EXPECTED_CRITICAL_SCHEMA_SHA256 = (
     "2b4bbbdebf042b980e018e209eda626983c8f85c467b9d74b33dffb9e0e278e0"
 )
 LEGACY_UNSUPPORTED_BACKUP_CONTRACTS = (
+    (
+        2,
+        "0021_mcp_inventory_part_metadata_update",
+        "2b4bbbdebf042b980e018e209eda626983c8f85c467b9d74b33dffb9e0e278e0",
+    ),
     (
         2,
         "0020_mcp_inventory_part_create",

@@ -3656,3 +3656,55 @@ Next Chat 26 work:
 3. Add the dedicated Settings user/role-management UI when prioritized.
 4. Run final public-alpha accessibility, security, responsive, backup/restore,
    REST/OpenAPI and MCP regression/hardening before the planned Patch 767 boundary.
+
+<!-- PARTPILOT:CHAT26_BOUNDARY_ROADMAP:V768 -->
+### Patch 768 — recovered Chat 26 lifecycle/History checkpoint and boundary
+
+Recovery note:
+- [x] Patch 767 was consumed pre-write because its origin check expected GitHub HTTPS
+  syntax while the verified repository uses the equivalent SSH origin. No source,
+  index, documentation, database or deployment write occurred. Patch 768 corrects
+  only that boundary prerequisite and records the immutable failure evidence.
+
+Completed in Chat 26:
+- [x] Guard stock adjustment with canonical stock invariants, confirmation,
+  idempotency/replay, drift rejection and MCP attribution.
+- [x] Guard canonical part creation with normalized catalogue/template dependency
+  snapshots and post-commit live refresh.
+- [x] Guard complete typed metadata replacement without permitting stock changes.
+- [x] Add reversible `soft_delete_part` + `restore_part` on the existing recycle-
+  bin services while preserving stock, reservations, fields, movements and History.
+- [x] Keep permanent purge/hard delete outside the MCP catalogue.
+- [x] Advance the data-safe MCP permission migrations through
+  `0022_mcp_inventory_part_lifecycle`; current catalogue is six read + eight
+  safeguarded write tools (14 total).
+- [x] Preserve connected MCP client identity in History while retaining the backing
+  user as authorization authority.
+- [x] Browser-prove Claude lifecycle preview/confirm/replay and no-purge exposure.
+- [x] Fix History intermediate-width column clipping with an aligned horizontal
+  register scroller while preserving the <=680px card layout.
+- [x] Browser-approve the combined lifecycle + responsive History source and
+  checkpoint it at the Chat 26 boundary.
+
+Next chat:
+- **Title:** `Chat 27: User Management UI and Public Alpha Release Candidate`
+- **Patch range:** `769-793`
+- **First patch:** `769`
+- **Planned boundary:** `793`
+
+Chat 27 implementation order:
+1. Build the dedicated Settings user/role-management presentation on the already
+   enforced Patch 733 Owner/Administrator/Operator/Viewer backend boundary. Keep
+   create/access-change/disable/reactivate/force-reset/session-revoke/delete
+   actions explicit and preserve last-active-Owner/self-protection semantics.
+2. Browser-test user management across desktop/intermediate/mobile widths and
+   relevant role ceilings without broad cleanup of real users/sessions.
+3. Run the final public-alpha accessibility, security, responsive, backup/restore,
+   REST/OpenAPI, MCP OAuth/direct-auth/tool-permission/write and live-sync
+   regression sweep against copied production data.
+4. Resolve only release-blocking findings, then produce the public-alpha release
+   candidate checkpoint and durable handoff.
+
+Permanent inventory purge remains intentionally separate from MCP. Notifications
+& Messaging remain post-v1. Live database/settings/OAuth/client/tool-policy values
+remain mutable state and must not be frozen as patch prerequisites.

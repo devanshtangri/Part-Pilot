@@ -161,8 +161,8 @@ def main() -> None:
             revision = db.connection().exec_driver_sql(
                 "SELECT version_num FROM alembic_version"
             ).scalar_one()
-            if revision != "0021_mcp_inventory_part_metadata_update":
-                fail(f"Expected 0021_mcp_inventory_part_metadata_update, got {revision}")
+            if revision != "0022_mcp_inventory_part_lifecycle":
+                fail(f"Expected 0022_mcp_inventory_part_lifecycle, got {revision}")
             stored_policy = get_app_setting(db, MCP_TOOL_PERMISSIONS_KEY, None)
             if (
                 not isinstance(stored_policy, dict)
@@ -245,6 +245,7 @@ def main() -> None:
         if registered != READ_TOOLS | {
             "reserve_project", "consume_reservation", "cancel_reservation",
             STOCK_TOOL, "create_part", "update_part_metadata",
+            "soft_delete_part", "restore_part",
         }:
             fail(f"Unexpected FastMCP registry: {sorted(registered)}")
 

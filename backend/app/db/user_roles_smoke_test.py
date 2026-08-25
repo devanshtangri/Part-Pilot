@@ -20,7 +20,7 @@ from app.services.authorization import (
 )
 
 # PARTPILOT:USER_ROLE_AUTHORIZATION_SMOKE:V732
-EXPECTED_HEAD = "0021_mcp_inventory_part_metadata_update"
+EXPECTED_HEAD = "0022_mcp_inventory_part_lifecycle"
 
 
 class RoleSmokeFailure(RuntimeError):

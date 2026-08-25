@@ -4417,3 +4417,65 @@ Next Chat 26 work: inspect delete/restore semantics before exposing any MCP
 lifecycle for inventory deletion; preserve recycle-bin, dependency, reservation,
 restore and exact-confirmation safeguards. Then complete the remaining prioritized
 user-management presentation/final public-alpha regression before Patch 767.
+
+<!-- PARTPILOT:CHAT26_BOUNDARY_CHECKPOINT:V768 -->
+## Chat 26 MCP inventory lifecycle + History responsive register — Patch 768
+
+Patch 768 recovers and checkpoints the browser-approved Patch 765 reversible MCP
+inventory lifecycle slice together with the Patch 766 History intermediate-width
+register correction, then closes Chat 26. Patch 767 was consumed before any writes:
+its preflight required the HTTPS spelling of the GitHub origin while the verified
+repository uses the equivalent SSH origin. The failed run reached only the origin
+read, left the index clean, and preserved all 24 approved pending source files.
+
+Current approved contract:
+- Production Alembic head is `0022_mcp_inventory_part_lifecycle`, a data-only
+  migration over 0021 that preserves all existing mutable MCP permission values
+  and introduces `soft_delete_part` and `restore_part` disabled by default.
+- The canonical MCP catalogue contains 14 tools: six reads plus eight safeguarded
+  writes. Inventory writes include `adjust_part_quantity`, `create_part`,
+  `update_part_metadata`, `soft_delete_part`, and `restore_part`; Project/
+  Reservation lifecycle writes remain unchanged.
+- Reversible inventory lifecycle calls reuse the canonical soft-delete/restore
+  services and the existing MCP Operator+, `mcp:write`, server/write/global/client
+  permission ceilings, short-lived confirmation, idempotency/completed replay and
+  state-drift protection.
+- Soft delete preserves physical/reserved quantity, typed fields, movements and
+  History. Restore operates on the same deleted record, checks the frozen deleted
+  state and part-number availability, and returns the same part ID. Neither action
+  creates stock movement solely for lifecycle transition.
+- Permanent purge/hard delete/recycle-bin emptying is intentionally absent from
+  the MCP tool catalogue and remains a separately reviewed consequential UI/API
+  operation.
+- MCP business History continues to show the connected client identity while the
+  backing Part Pilot user remains the authorization/accountability authority.
+- History's chronological register now horizontally scrolls as one aligned
+  header/row region at intermediate widths instead of clipping inaccessible
+  columns. The heading and pagination stay stationary; <=680px keeps the existing
+  mobile card layout.
+
+Browser proof:
+- Claude previewed, confirmed and idempotently replayed `soft_delete_part` on the
+  existing MCP test Resistor (part ID 16), preserving physical quantity 12,
+  reserved quantity 0 and three typed field values with zero stock movements.
+- History showed the lifecycle action as actor `Claude`.
+- Claude previewed, confirmed and replayed `restore_part`; the same part ID, part
+  number, quantities and fields returned with no duplicate audit or movement.
+- Claude's available lifecycle catalogue contained only reversible soft delete +
+  restore and no permanent purge tool.
+- The Patch 766 History register was manually resized through desktop,
+  intermediate and mobile widths and browser-approved after columns remained
+  reachable by horizontal scrolling instead of being clipped.
+
+The exact browser-approved source/runtime image before this documentation-only
+checkpoint is
+`sha256:44a9a7a36907587aecf8d6dae34ff4e0837c24a3b6bce6bcb86c853dda8c17fb`.
+Live MCP permission booleans are legitimate mutable administrator state and must
+not be normalized to migration defaults by checkpoint/regression work.
+
+Chat 26 is complete. Continue in `Chat 27: User Management UI and Public Alpha
+Release Candidate`, patch range `769-793`, first patch `769`, planned boundary
+`793`. Primary remaining V1 work is the dedicated Settings user/role-management
+UI followed by the final accessibility/security/responsive/backup-restore/REST-
+OpenAPI/MCP regression sweep and public-alpha release-candidate checkpoint.
+Notifications & Messaging remain post-v1.

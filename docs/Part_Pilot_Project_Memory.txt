@@ -1,256 +1,60 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V680 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V768 -->
 
 Project
-- Repo https://github.com/devanshtangri/Part-Pilot.git; root /projects/Part Pilot; branch main.
-- Docker compose service partpilot, host port 7890. React/Vite/TypeScript + FastAPI/SQLAlchemy/Alembic.
-- Alembic head: 0021_mcp_inventory_part_metadata_update.
+- Repo: https://github.com/devanshtangri/Part-Pilot.git; root `/projects/Part Pilot`; branch `main`.
+- Docker Compose service/container `partpilot`, usual host port 7890. React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend; SQLite production DB `/projects/Part Pilot/data/partpilot.db` (`/data/partpilot.db` in container).
+- Current approved/checkpoint target: Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six read + eight safeguarded write tools.
 
 Patch workflow
-- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary is one sequential Python file under fixes/. Failed attempts consume numbers. Assistant runs a numbered patch only when the user explicitly asks to run that specific patch; otherwise the user runs it. On an explicit run request, execute exactly that requested run command once and return the full raw terminal output only; no conclusions, diagnosis, fixes, retries, inspections or extra commands unless separately asked.
-- Success final line exactly `Everything PASS`. Validate exact repo/branch/origin/HEAD, index/source hashes, prerequisites/transforms before writes. Backups fixes/backups/; logs fixes/logs/; diagnostics docs/diagonostic_*.md.
-- Browser-test source stays uncommitted until explicit approval; checkpoint/commit/push promptly after approval. Browser instructions stay outside scripts.
-- After two consecutive pre-write failures/repeated anchors/source uncertainty, diagnostic-only next. Compile final downloadable patch before delivery.
-- App changes: git diff --check, relevant Python compile, canonical Docker build, Alembic, copied-db complete smoke, protected APIs/SPA/runtime markers, live-data preservation/rollback.
-- Exact Docker image checks require .dockerignore + Git-canonical backend/frontend modes. Rehearsals must use isolated /tmp copies and must never mutate live source/deployment.
-- Repo durable memory is separate from ChatGPT Project Memory. ChatGPT Project Memory holds stable global rules and stays within its separate 8K product limit; this file may hold richer durable state. Keep this repo file <=20000 characters to control startup context. User prefers patch-generation turns <=10 minutes.
+- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary/handoff is one sequential Python file under `fixes/`; filename begins directly with patch number. Failed executed scripts consume numbers. Success final line exactly `Everything PASS`.
+- User normally runs numbered patches. Assistant may run one only when explicitly asked to execute that exact patch; then run the exact command once and return raw terminal output only, without diagnosis/retry/extra commands.
+- Before writes validate repo/root, branch, origin, committed HEAD, exact index/source bytes, prerequisites and transforms. Avoid brittle whitespace anchors. Backups `fixes/backups/`; logs `fixes/logs/`; diagnostics `docs/diagonostic_*.md`.
+- Browser-test app source remains uncommitted/unpushed until explicit user approval. Browser instructions stay outside patch scripts. After approval create a separate checkpoint/commit/push patch promptly.
+- App patches: `git diff --check`, relevant Python compile, canonical Docker build, Alembic validation, copied-production/relevant complete smokes, protected APIs, SPA/runtime markers and real-data preservation. Rehearsals stay isolated from live source/deployment.
+- Stage only intended allowlist; verify staged diff; push main, fetch and verify local HEAD == origin/main. Documentation-only checkpoints while app source is pending require exact allowlist/proof app bytes unchanged.
+- After two consecutive pre-write failures/repeated anchor mismatches/uncertain pending source, diagnostic-only next.
+- Origin validation must match the verified configured remote identity; Patch 767 proved that freezing an equivalent HTTPS spelling when local origin is SSH causes a false preflight failure. Durable failure evidence lives in the patch log, not terminal-only prose.
+- Repo memory target <=20,000 characters. Treat newest handoff + local repo state as authoritative for volatile hashes/runtime/pending state.
+- Patch delivery order: heading; file/path; SHA-256; concise scope/status; exact run command; expected final line `Everything PASS`. For AI/MCP browser tests always provide exact copy-paste prompts for the user to send.
 
 Chat boundary
-- Chat 25 `Integration Live Sync Recovery and Public Alpha Hardening` began at 711 with planned boundary 735; a narrow MCP-write recovery sequence overran the boundary. Patch 742 is the first safe approved checkpoint after Patch 741 boundary-validation recovery and closes Chat 25.
-- Chat 26 `MCP Inventory Writes and Public Alpha Finalization`: range 743-767, first 743, boundary 767.
+- Chat 26: `MCP Inventory Writes and Public Alpha Finalization`, planned range 743-767; Patch 767 was consumed pre-write by an HTTPS-vs-SSH origin-form assertion, so Patch 768 is the authoritative recovery boundary.
+- Chat 27: `User Management UI and Public Alpha Release Candidate`, range 769-793, first 769, planned boundary 793.
+
 Data safety
-- Preserve users/sessions/inventory/Projects/Reservations/movements/audits/settings/API keys/OAuth/direct credentials/backups/restore evidence. Cleanup only exact owned IDs; never broad OAuth cleanup. SQLite integrity/FKs must pass.
-- 5V Relay remains recoverable in Deleted items. ESP01 was permanently purged and Development Board Part Type deleted during approved recycle-bin testing.
-- Instance-secret SHA: 19c5c9519a188a8f969bb2bd67c65da1418a73605e8747450df8ddeb44d8b47b. Never reveal/rotate credentials automatically.
+- Preserve real inventory, users, sessions, Projects, Reservations, movements, audits, settings, API keys, OAuth/direct-client credentials, backups and restore evidence. Use unique fixtures and cleanup only test-owned IDs; never broad deletes.
+- Live DB/settings/OAuth/client/tool-permission changes from user activity are legitimate mutable state. Do not pin old DB hashes/boolean values or restore unrelated live values because they changed. Never reveal or rotate secrets automatically.
+- Existing MCP browser fixture: part ID 16, part number `MCP-P756-CREATE-TEST`, name `Patch 760 MCP Metadata Test`, Resistor, physical 12, reserved 0, three typed fields. It is legitimate live evidence; do not normalize/delete automatically.
 
-Completed application
-- Typed inventory/catalogues; universal search/filter/sort/pagination; quantity workflows; soft delete/restore; History; atomic Reservation/Project lifecycles.
-- Responsive dark/light/system Settings; current reversible defaults are consolidated under Preferences: Theme, Inventory display and Reservation defaults. Each autosaves independently and has its own targeted Reset-to-default action; reset preserves unrelated preferences/security/business data. Strict portable backup/restore retains staging/rollback/session invalidation.
-- Responsive regression: Projects lifecycle headers stay readable; navigation drawer covers 821-1080px while preserving <=820px compact behavior.
-- Recycle bin: recoverable delete default, typed-confirm atomic purge, active/reserved blockers, audit retention, custom Part Type dependency protection across active + deleted inventory.
-- Account/security: username/display/avatar incl custom DB image, password change, safe session revoke flows, current-session preservation, secret-free audit. Four older sessions remain Unknown; never infer/backfill.
+Product/UI rules
+- Flat dense enterprise UI; subtle borders/restrained radii/readable spacing/responsive behavior; no gradients/glow/glass/decorative imagery. Prefer themed controls. Disabled = not-allowed; wait/busy only during actual loading/saving.
+- Preserve search/filter/sort/pagination/stale-request guards/selection/history/edit/delete/restore behavior when changing layouts. Explicitly test intermediate and mobile widths.
+- Reversible low-risk Preferences may autosave with rollback/stale-request protection. Consequential credentials/password/delete/purge/revoke/rotate/backup-restore/lifecycle actions require explicit actions/confirmation.
+- Currency is display/formatting semantics only; timezone changes passive timestamp display only. Never rewrite historical numeric prices or stored timestamps for preference changes. Historical Project/Reservation currency snapshots remain authoritative.
 
-REST API access
-- Alembic 0014: scoped `pp_api_key_` one-time credentials, digest-only storage, scopes/expiry/rotate/revoke/last-used.
-- 43 exact eligible route method/path scope registrations across Inventory/Catalogue/Project/Reservation/History. Browser-session fallback; Auth/Settings/Backup/Restore session-only. Invalid/revoked/expired=401; missing scope=403.
-- Browser-approved API Access Settings UI: create/edit/rotate/revoke, hidden revoked records, one-time secret, scope presets, API docs actions, modal security flows. `/docs`, `/redoc`, `/openapi.json` need deliberate public-alpha access policy.
+Core application
+- Typed inventory/catalogues; universal search/filter/sort/pagination; stock movements; recycle-bin soft delete/restore and separate confirmed purge; system History; atomic Projects/Reservations.
+- Auth/profile/session management; Owner/Administrator/Operator/Viewer backend authorization; REST API keys with scope/role ceilings; backups/restores; responsive dark/light/system Settings.
+- Authenticated SSE + cross-tab relay powers targeted live refetch for Inventory/History, Projects/Reservations, Dashboard, Settings/account/backups and API/MCP integrations while preserving local drafts/search/filter/page/selection.
+- Dashboard has whole-inventory metrics, Stock alerts and Quick actions; routine Refresh buttons removed from live-synced workspaces while error Retry remains.
 
-MCP/OAuth
-- OAuth discovery, DCR, PKCE consent, access/refresh/revocation, protected-resource metadata, stateless `/mcp`; six read Part/Project/Reservation tools plus six safeguarded writes. Real Claude/ChatGPT flows verified.
-- Manual OAuth admin: ownership, public/confidential auth, generated IDs, digest-only one-time secrets, status/revocation; revoked hidden from normal Settings.
-- Alembic 0015: named Bearer/custom-header/trusted-network direct clients with independent identity, enable/disable, rotate/revoke and safe usage metadata. Legacy disabled row retained for audit compatibility.
-- `Enable MCP server` master; `Allow direct MCP clients` gates named direct access. Instance-wide no-auth is off by default, typed-confirmed `ALLOW NO AUTH`, read-only, and lower precedence than explicit credentials/trusted networks. OAuth remains independent.
-- Browser-approved Alembic 0021 MCP catalogue: six reads plus guarded Project/Reservation lifecycle, stock adjustment, part creation and full explicit metadata replacement. All reuse canonical services with global/client policy, `mcp:write`, active Operator+, preview/confirmation/idempotency/replay/drift defenses; metadata editing cannot alter stock. OAuth challenges advertise enabled scope categories; History shows MCP client identity while retaining backing user authority. No-auth stays read-only; live policy/OAuth state is mutable.
-- Browser-approved Settings Direct MCP hierarchy: Allow direct clients + No authentication sit with Named direct clients; global Server/Read/Write stay separate. Dependency-disabled uses `not-allowed`; `wait` only while saving.
+MCP/OAuth/direct access
+- OAuth discovery/DCR/PKCE/consent/token/refresh/revocation and stateless `/mcp`; real Claude/ChatGPT flows verified. OAuth scope challenges advertise enabled read/write categories; existing tokens never silently gain `mcp:write`.
+- Named direct clients support Bearer/custom-header/trusted-network authentication. No-auth is off by default, typed-confirmed, read-only and lower precedence than explicit credentials/trusted networks.
+- Global individual-tool permissions + per-client deny ceilings + server/read/write category gates are enforced at discovery and call time. Live permission booleans are mutable configuration.
+- Safeguarded writes reuse canonical services and require server/write/global/client/scope ceilings, active Operator-or-higher backing user, preview, short-lived one-time confirmation, idempotency/completed replay and state-drift rejection. No-auth stays read-only.
+- Current guarded writes: `reserve_project`, `consume_reservation`, `cancel_reservation`, `adjust_part_quantity`, `create_part`, `update_part_metadata`, `soft_delete_part`, `restore_part`.
+- `update_part_metadata` requires complete explicit editable metadata replacement, cannot change stock and freezes relevant catalogue/template dependencies without coupling confirmation to unrelated stock-only changes.
+- `soft_delete_part` and `restore_part` use canonical recycle-bin services. Soft delete preserves quantities/reservations/fields/movements/history; restore checks deleted-state snapshot and part-number availability and returns the same record. Neither creates stock movement solely for lifecycle change. Permanent purge/hard delete/recycle-bin emptying is deliberately NOT exposed to MCP.
+- History shows connected MCP client identity (e.g. Claude) while retaining backing Part Pilot user authority/accountability.
 
-Recovery lessons
-- Rehearsals stay isolated under /tmp; use runtime-safe markers/frozen bytes and canonical Docker modes.
-- Durable-log validation must use bytes explicitly written to logs, never terminal-only success/error output. Patches 676 and 678 repeated this mistake; Patch 679 diagnosed it. Prove failures from immutable source plus reproducible read-only facts. Do not freeze mutable live MCP/DB values.
+Chat 26 browser evidence
+- Guarded stock/create/metadata operations were browser-proved with Claude; metadata test preserved 12 physical / 0 reserved and produced no stock movement.
+- Reversible lifecycle test on part 16: Claude previewed/confirmed soft delete, preserved 12/0 + three fields, created no movement, and History showed Claude; exact replay returned `replayed:true` without duplicate audit/mutation. Restore preview/confirm returned same ID/part number/stock/fields with no movement; restore replay likewise produced no duplicate. Claude exposed only soft delete + restore for part lifecycle, with no permanent purge tool.
+- History responsive follow-up: chronological register header + rows horizontally scroll together at intermediate widths instead of clipping inaccessible columns; heading/pagination stay stationary and <=680px retains card layout. Browser approved.
 
-Remaining V1
-1. Inspect guarded inventory delete/restore only with existing recycle-bin/dependency/reservation/confirmation safeguards; keep permanent purge separately reviewed.
-2. Dedicated Settings role/user-management UI when prioritized; backend role enforcement already exists.
-3. Final public-alpha accessibility/security/responsive/backup-restore/REST-OpenAPI/MCP regression and release checkpoint.
-- Notifications & Messaging remain post-v1.
-
-Autosave/live-sync policy
-- Reversible Preferences autosave independently; consequential create/edit credentials, password, lifecycle, backup/restore, delete/revoke/rotate actions stay explicit.
-- Authenticated SSE invalidation + targeted refetch is the live-update default; reconnect/resync and degraded polling recover transport failures, while Retry remains for real errors.
-- MCP UI/runtime tool lists come only from the canonical implemented catalogue.
-
-Chat22 recovery
-- Patch 661 recovered a packaged-smoke byte mismatch; Patch 660 recovered Roadmap trailing whitespace. Keep packaged bytes identical to rehearsals and validate docs before writes.
-
-PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_MEMORY:V699
-Chat 24 live-sync milestone — Patch 699
-- Browser-approved first slice: Inventory/Part Manager + History.
-- Backend: protected `/api/live/events` + `/api/live/state`; process-local broker
-  with generation/sequence, replay/resync, topic revisions and lifecycle-aware
-  SSE termination. Current one-process topology is supported; multiworker later
-  requires shared pub/sub/outbox.
-- Frontend: authenticated fetch/ReadableStream SSE; Last-Event-ID reconnect;
-  backoff; polling only while degraded; same-origin BroadcastChannel relay with
-  event-ID deduplication.
-- Part mutations publish `inventory` + `history` only after committed service
-  success. Stored Parts keeps local filters/search/sort/page/selection and
-  refetches results; open selected-part drawers and movements refresh too.
-- History auto-refetch and intermediate-width filter/date layout are approved.
-- Manual Refresh/Retry remains during migration. Live sync is not globally
-  complete: Dashboard, Projects, Reservations, Settings/account and API/MCP
-  administration still require deliberate wiring/browser proof.
-- Next after broader live sync: public-alpha OpenAPI/docs hardening, inventory
-  metrics + Dashboard Stock alert dialog, roles, safeguarded MCP writes, final
-  alpha regression. Notifications remain post-v1.
-
-
-PARTPILOT:PROJECTS_RESERVATIONS_LIVE_SYNC_MEMORY:V702
-Chat 24 live-sync milestone — Patch 702
-- Browser-approved second slice: Projects + Reservations.
-- Project mutations publish post-commit topics according to whether they are
-  draft-only or stock/reservation affecting.
-- Reservation mutations publish Reservations/History, add Inventory for
-  quantity/lifecycle effects, and add Projects when a linked Project changes.
-- Projects refetch list + selected detail on `projects`; Reservations refetch
-  list + selected detail + Activity on `reservations`.
-- Local filters/search/page/selection remain tab-local; shared authenticated
-  SSE + BroadcastChannel delivery remains the transport.
-- Inventory/History and Projects/Reservations are approved. Dashboard,
-  Settings/account and API/MCP administration still need live-sync wiring.
-
-
-PARTPILOT:DASHBOARD_LIVE_SYNC_MEMORY:V704
-Chat 24 live-sync milestone — Patch 704
-- Browser-approved Dashboard inventory live sync.
-- Dashboard low-stock summary and an open universal search subscribe to the
-  existing `inventory` topic.
-- Universal-search text remains local; selected result is retained by ID when
-  it still matches after refetch; stale request sequence protection is kept.
-- No new backend publisher was needed: approved inventory mutation publication
-  remains the source of truth.
-- Approved live-sync surfaces now include Inventory/History,
-  Projects/Reservations and Dashboard.
-- Settings/account and API/MCP administration remain pending live-sync work.
-
-
-PARTPILOT:SETTINGS_ACCOUNT_LIVE_SYNC_MEMORY:V706
-Chat 24 live-sync milestone - Patch 706
-- Browser-approved Settings/account/preferences/manual-backup live sync.
-- Preferences publish `preferences` + `history`; account mutations publish
-  `account` + `history`; manual backup generation publishes `backups` +
-  `history`, all after successful committed operations.
-- Global appearance/currency/timezone/sidebar identity follow live revisions.
-- Dashboard + Part Manager follow the out-of-stock display preference.
-- Settings refreshes server-backed preference/account/session/backup state.
-- Unsaved Account and Reservation drafts are preserved; active mutation and
-  autosave/security/backup workflows defer live reload.
-- Approved live-sync surfaces now cover Inventory/History,
-  Projects/Reservations, Dashboard and non-credential Settings.
-- REST API keys and MCP administration remain the final isolated live-sync
-  slice before broader public-alpha hardening.
-
-
-PARTPILOT:CHAT24_DIAGNOSTIC_BOUNDARY_MEMORY:V710
-Chat 24 boundary - Patch 710
-- Chat 24 range 686-710 is closed with a diagnostic-only boundary.
-- Browser-approved/checkpointed live sync: Inventory/History (699),
-  Projects/Reservations (702), Dashboard (704), Settings/account/preferences
-  and manual-backup status (706).
-- API-key/MCP integration live sync remains pending after consumed 707-709.
-- 707 found stale manageable OAuth smoke fields; 708 incorrectly required
-  terminal-only failure prose from a durable log; 709 then exposed hard-coded
-  historical connected client IDs 9 and 13.
-- Clean app state remains Patch 706; no integration browser-test source carries
-  across the boundary.
-- Chat 25 title: `Chat 25: Integration Live Sync Recovery and Public Alpha
-  Hardening`; range 711-735; first patch 711; boundary 735.
-- Patch 711 must replace live-ID assumptions with test-owned OAuth connected
-  fixtures via register -> consent -> authorization code -> token exchange,
-  exact cleanup and copied-DB logical snapshot restoration.
-
-
-PARTPILOT:INTEGRATION_LIVE_SYNC_MEMORY:V714
-Chat 25 live-sync milestone - Patch 714
-- Browser-approved API-key/MCP integration live sync completes the current
-  authenticated live-sync migration.
-- API-key events carry invalidation only; plaintext secrets never cross tabs.
-- MCP settings/permissions/OAuth/direct-client state targeted-refetches across
-  tabs while unfinished MCP drafts and local credential dialogs are preserved.
-- Routine OAuth refresh avoids History noise; consequential lifecycle changes
-  invalidate MCP integration state and History as appropriate.
-- OAuth smokes are fixture-owned and copied-production-data-safe with exact
-  logical restoration.
-- MCP still uses explicit `Save changes`; changing that is a separate UX task.
-- Next: OpenAPI/docs hardening, inventory metrics, Dashboard Stock alerts,
-  roles, safeguarded MCP write tools and final public-alpha regression.
-
-
-
-PARTPILOT:MCP_AUTOSAVE_STABLE_REFRESH_MEMORY:V717
-Chat 25 UX hardening milestone - Patch 717
-- Browser-approved MCP access/tool-permission autosave; manual save/reset controls
-  are removed for reversible MCP settings.
-- Enabling no-auth still requires `ALLOW NO AUTH`; credential and client
-  lifecycle actions remain explicit.
-- MCP settings, global permissions, OAuth clients and named direct clients keep
-  cached content mounted during background/live refetches; initial loading is
-  distinct and cached data is auth-token scoped.
-- Cross-tab MCP live sync and local secret/dialog isolation remain intact.
-- Audit found the same loading/refetch flash pattern in Projects, Reservations,
-  History, Dashboard, Settings preferences/account/backups, API keys and selected
-  inventory detail/history. Stabilize those next before broader alpha features.
-
-
-
-PARTPILOT:STABLE_BACKGROUND_REFRESH_MEMORY:V719
-Chat 25 refresh-stability milestone - Patch 719
-- Browser-approved no-flash background refresh now covers Projects,
-  Reservations, History, Dashboard, Settings preferences/account/backups, REST
-  API keys and selected Stored Parts detail/history.
-- Initial loads/data-identity changes may block; same-token/query/selection live
-  refetches retain last-known-good content and update it in place.
-- Transient background failures keep the visible snapshot and surface errors.
-- Main Stored Parts register already used this cache-aware pattern and was not
-  changed. Next: OpenAPI/docs, metrics + Stock alert dialog, roles, safeguarded
-  MCP writes and final alpha regression.
-
-
-
-PARTPILOT:OPENAPI_RESTORE_MEMORY:V723
-Chat 25 public-alpha hardening milestone - Patch 723
-- Browser-approved Swagger/ReDoc documents Bearer auth, all 43 REST API-key
-  operations/scopes, session-only administration and separate MCP OAuth access.
-- Restore validation/staging schemas match Alembic 0016.
-- Restore logical hashing safely handles SQLite BLOBs; copied-production
-  validation/commit/bootstrap/rollback tests pass.
-- Next: Stored Parts metrics, Dashboard Stock alert dialog, roles, safeguarded MCP
-  write tools and final alpha regression.
-
-
-
-PARTPILOT:USER_ROLES_AUTHORIZATION_MEMORY:V733
-Chat 25 public-alpha hardening milestone - Patch 733
-- Patch 731 Dashboard operational-home/Stock-alert dialog and Patch 728 Stored
-  Parts metrics remain checkpointed; routine Refresh controls stay removed.
-- Alembic 0017 adds Owner/Administrator/Operator/Viewer without recreating the
-  SQLite users table; all pre-existing accounts are backfilled to Owner and
-  upgrade/downgrade/re-upgrade preserves every production row/sequence.
-- Viewer is operational read-only; Operator adds operational writes;
-  Administrator adds workspace/MCP/backup and lower-role user administration;
-  Owner additionally controls restore/reset and Owner lifecycle.
-- Session-only user APIs support create/list/access changes, disable/reactivate,
-  force-reset, session revoke and confirmed delete with last-Owner protection.
-- REST API keys are capped by both stored scopes and the owning user's current
-  role, preventing stale high-scope keys from surviving demotion as escalation.
-- Backup/restore contracts now target 0017. Role-management UI is deferred; next
-  are safeguarded MCP write tools and final public-alpha regression.
-
-PARTPILOT:SAFEGUARDED_MCP_WRITES_CHAT25_BOUNDARY_MEMORY:V742
-Chat 25 boundary — Patch 742
-- Browser-approved lifecycle MCP writes are checkpointed on Alembic 0018: six
-  read tools + `reserve_project`, `consume_reservation`, `cancel_reservation`.
-- Writes require server + Write authorization + global tool + client ceiling +
-  `mcp:write` + active Operator-or-higher user. No-auth is permanently read-only.
-- Same-tool preview/confirm uses a five-minute one-time token, idempotency and
-  state-drift rejection; committed mutations use MCP audit/movement attribution
-  and publish live invalidation. Migration defaults write tools off; live policy
-  remains mutable.
-- OAuth policy count is not active tool exposure: existing tokens do not gain
-  `mcp:write` silently. Reauthorize clients after enabling write scope.
-- Client Permissions dialog is viewport-scrollable and labels counts `allowed by
-  policy`; OAuth scopes may further reduce active tools.
-- Patch 741 boundary validation was consumed because the write smoke froze mutable
-  MCP policy to migration defaults; Patch 742 fixes only that copied-test contract.
-- Chat 25 nominal range 711-735 overran only for narrow MCP-write recovery. Patch
-  742 is the boundary. Next: `Chat 26: MCP Inventory Writes and Public Alpha
-  Finalization`, range 743-767, first 743, boundary 767.
-- Chat 26: narrow inventory MCP writes (add/edit/stock, then delete/restore only
-  with existing safeguards), optional role-management UI, final public-alpha
-  regression. Notifications & Messaging remain post-v1.
-
-PARTPILOT:PATCH761_MCP_INVENTORY_EDIT_CHECKPOINT_MEMORY
-Chat 26 Patch 761 checkpoint
-- Alembic 0021; catalogue = six reads + six guarded writes. `update_part_metadata` is default-off while prior mutable policy is preserved.
-- Creation and metadata editing reuse canonical typed services. Metadata edit requires a complete explicit replacement, accepts no stock quantities, previews exact before/after + catalogue/template dependencies, rejects relevant drift, and permits unrelated stock-only changes.
-- All writes retain `mcp:write`, Operator+, global/client ceilings, short confirmation, idempotency/replay and no-auth read-only. OAuth client identity remains visible in History while backing user authority is retained.
-- Claude browser proof updated the MCP test Resistor with 12 physical / 0 reserved unchanged, zero stock movements and an MCP-attributed metadata audit.
-- Checkpoint smoke fix: 0005 package backfill is migration-time evidence, not a permanent invariant over later compatible free-text `Part.package`; never normalize live inventory just to satisfy that old assertion.
-- Next: inspect soft-delete/restore/dependencies/reservations and keep permanent purge separately reviewed; optional user-management UI + final alpha regression before Patch 767.
+Remaining V1 / Chat 27
+1. Dedicated Settings user/role-management UI on the already-enforced backend boundary, preserving role ceilings, last-active-Owner and self-protection rules.
+2. Final public-alpha accessibility/security/responsive/backup-restore/REST-OpenAPI/MCP/live-sync regression; fix release blockers only.
+3. Public-alpha release-candidate checkpoint/handoff.
+- Permanent purge remains separate from MCP. Notifications & Messaging remain post-v1.

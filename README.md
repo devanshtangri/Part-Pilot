@@ -700,8 +700,8 @@ and MCP stock movements remain visibly attributed to MCP rather than the user.
 <!-- PARTPILOT:MCP_METADATA_UPDATE_README:V761 -->
 ### Safeguarded MCP inventory metadata editing
 
-Part Pilot now exposes six read tools plus six safeguarded write tools. The new
-`update_part_metadata` tool reuses the canonical inventory metadata service and
+At the Patch 761 checkpoint, Part Pilot exposed six read tools plus six
+safeguarded write tools. The `update_part_metadata` tool reuses the canonical inventory metadata service and
 requires a complete explicit replacement of the editable metadata state after the
 client reads the part. Nullable values must be supplied deliberately, stock
 quantities are not accepted by this tool, and template values are replaced through
@@ -713,3 +713,37 @@ confirmed call retains the existing MCP role/scope/global/client ceilings,
 idempotency/replay and state-drift safeguards, records the connected MCP client in
 History, and publishes inventory/history invalidation only after commit. Physical
 and reserved stock remain exclusively under the dedicated stock/lifecycle tools.
+
+<!-- PARTPILOT:CHAT26_BOUNDARY_README:V768 -->
+### Reversible MCP inventory lifecycle and responsive History register
+
+Patch 768 is the authoritative Chat 26 boundary recovery. Patch 767 was consumed
+before any writes because its preflight froze the GitHub HTTPS origin spelling
+while this repository legitimately uses the equivalent SSH origin. No approved
+application, database, deployment or documentation state changed in that failure.
+
+The Chat 26 checkpoint advances Part Pilot to Alembic
+`0022_mcp_inventory_part_lifecycle` and a 14-tool MCP catalogue: six read tools
+plus eight safeguarded writes. Inventory writes now cover stock adjustment, part
+creation, complete metadata replacement, reversible `soft_delete_part`, and
+`restore_part`, alongside the existing Project/Reservation lifecycle tools.
+
+`soft_delete_part` and `restore_part` reuse the canonical recycle-bin services,
+remain individually permissioned and default off when introduced, and retain the
+standard Operator+, `mcp:write`, global/client ceilings, preview, five-minute
+confirmation, idempotency/replay and state-drift defenses. Soft deletion preserves
+physical/reserved quantities, typed field values, movements and History. Restore
+returns the same record after checking deleted-state drift and part-number
+availability. Neither operation creates a stock movement merely for changing
+lifecycle state. MCP deliberately exposes no permanent purge, hard-delete or
+recycle-bin-emptying tool.
+
+Claude browser testing proved preview/confirm/replay for both lifecycle actions on
+the existing MCP test part, preserved 12 physical / 0 reserved units and three
+typed fields, created no stock movement, retained the same part ID on restore, and
+showed `Claude` as the History actor.
+
+History also keeps its chronological register usable at intermediate widths: the
+column header and rows share a horizontal-scroll region when their minimum width
+no longer fits, while the register heading/pagination stay fixed and the existing
+mobile card layout remains unchanged at 680px and below.

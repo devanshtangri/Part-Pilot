@@ -1925,11 +1925,64 @@ def list_deleted_parts(
     )
 
 
+def preview_part_lifecycle_action(
+    db: Session,
+    part_id: int,
+    action: str,
+) -> dict[str, object]:
+    if action not in {"soft_delete_part", "restore_part"}:
+        raise PartValidationError("Unsupported part lifecycle preview action.")
+    part = db.execute(
+        select(Part).where(Part.id == part_id)
+    ).scalar_one_or_none()
+    if part is None:
+        raise PartNotFoundError("Part not found.")
+    if action == "soft_delete_part" and part.is_deleted:
+        raise PartConflictError("Part is already deleted.")
+    if action == "restore_part" and not part.is_deleted:
+        raise PartConflictError("Part is already active.")
+
+    part_number_available = True
+    if action == "restore_part" and part.part_number:
+        conflicting_id = db.execute(
+            select(Part.id).where(
+                Part.part_number == part.part_number,
+                Part.id != part.id,
+            )
+        ).scalar_one_or_none()
+        part_number_available = conflicting_id is None
+        if not part_number_available:
+            raise PartConflictError(
+                "This part cannot be restored because its part number is already in use."
+            )
+
+    before = _part_lifecycle_snapshot(db, part)
+    proposed = dict(before)
+    if action == "soft_delete_part":
+        proposed["is_deleted"] = True
+        proposed["deleted_at"] = "set_on_confirmation"
+    else:
+        proposed["is_deleted"] = False
+        proposed["deleted_at"] = None
+    return {
+        "action": action,
+        "target_type": "part",
+        "target_id": part.id,
+        "target_label": part.name or part.part_number or f"Part {part.id}",
+        "before_state": before,
+        "proposed_state": proposed,
+        "part_number_available": part_number_available,
+        "reversible": True,
+        "permanent_purge": False,
+    }
+
+
 def soft_delete_part(
     db: Session,
     part_id: int,
     *,
     actor_user_id: int | None = None,
+    actor_type: str | None = None,
     commit: bool = True,
 ) -> DeletedPartResponse:
     part = db.execute(
@@ -1941,6 +1994,12 @@ def soft_delete_part(
         raise PartNotFoundError("Part not found.")
     if part.is_deleted:
         raise PartConflictError("Part is already deleted.")
+
+    resolved_actor_type = actor_type or (
+        "user" if actor_user_id is not None else "system"
+    )
+    if resolved_actor_type not in {"system", "manual", "user", "mcp", "ai"}:
+        raise PartValidationError("Unsupported audit actor type.")
 
     before_snapshot = _part_lifecycle_snapshot(db, part)
     display_name = (
@@ -1960,11 +2019,7 @@ def soft_delete_part(
                 event_type="part.deleted",
                 entity_type="part",
                 entity_id=part.id,
-                actor_type=(
-                    "user"
-                    if actor_user_id is not None
-                    else "system"
-                ),
+                actor_type=resolved_actor_type,
                 actor_user_id=actor_user_id,
                 summary=f"Soft-deleted inventory part {display_name}",
                 before_json=before_snapshot,
@@ -2172,6 +2227,7 @@ def restore_part(
     part_id: int,
     *,
     actor_user_id: int | None = None,
+    actor_type: str | None = None,
     commit: bool = True,
 ) -> PartResponse:
     part = db.execute(
@@ -2197,6 +2253,12 @@ def restore_part(
                 "is already in use."
             )
 
+    resolved_actor_type = actor_type or (
+        "user" if actor_user_id is not None else "system"
+    )
+    if resolved_actor_type not in {"system", "manual", "user", "mcp", "ai"}:
+        raise PartValidationError("Unsupported audit actor type.")
+
     before_snapshot = _part_lifecycle_snapshot(db, part)
     display_name = (
         part.name
@@ -2215,11 +2277,7 @@ def restore_part(
                 event_type="part.restored",
                 entity_type="part",
                 entity_id=part.id,
-                actor_type=(
-                    "user"
-                    if actor_user_id is not None
-                    else "system"
-                ),
+                actor_type=resolved_actor_type,
                 actor_user_id=actor_user_id,
                 summary=f"Restored inventory part {display_name}",
                 before_json=before_snapshot,

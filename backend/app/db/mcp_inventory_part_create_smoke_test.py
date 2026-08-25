@@ -28,7 +28,7 @@ READ_TOOLS = {
     "get_reservation_details",
 }
 CREATE_TOOL = "create_part"
-EXPECTED_HEAD = "0021_mcp_inventory_part_metadata_update"
+EXPECTED_HEAD = "0022_mcp_inventory_part_lifecycle"
 
 
 class SmokeFailure(RuntimeError):
@@ -161,7 +161,7 @@ def main() -> None:
                 )
             ):
                 fail(f"Malformed copied MCP tool policy: {stored_policy}")
-            if len(DEFAULT_MCP_TOOL_PERMISSIONS) != 12 or CREATE_TOOL not in DEFAULT_MCP_TOOL_PERMISSIONS:
+            if len(DEFAULT_MCP_TOOL_PERMISSIONS) != 14 or CREATE_TOOL not in DEFAULT_MCP_TOOL_PERMISSIONS:
                 fail("Expected canonical six-read plus six-write tool policy")
 
             owner = db.execute(

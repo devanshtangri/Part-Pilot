@@ -3273,7 +3273,7 @@ export function Settings() {
                 </div>
                 <div>
                   <dt>Available tools</dt>
-                  <dd>6 read + 6 safeguarded write</dd>
+                  <dd>6 read + 8 safeguarded write</dd>
                 </div>
               </dl>
 
