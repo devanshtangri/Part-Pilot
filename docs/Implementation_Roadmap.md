@@ -3747,3 +3747,32 @@ Final V1/public-alpha work:
 Permanent inventory purge remains outside MCP. Notifications & Messaging remain
 post-v1. Live DB/settings/OAuth/client/tool-policy values remain mutable state and
 must not be frozen as checkpoint prerequisites.
+
+
+<!-- PARTPILOT:PUBLIC_ALPHA_AUTOMATED_REGRESSION_ROADMAP:V777 -->
+### Patch 777 — automated public-alpha regression gate
+
+Completed in Chat 27:
+- [x] Rebuild the clean Patch 776 source canonically and reproduce the exact
+  browser-approved runtime image `sha256:a6b6cfa6933c4d98a7b936e5f8cf9257cec7309956cea0828a941fdcf8530e38`.
+- [x] Run all 44 current release smoke invocations on separate copied-production
+  databases, preserving live data and mutable MCP permission values; use a copied
+  avatar fixture for the full custom-avatar flow and OAuth-admin `--check-only`
+  where the historical full-flow fixture freezes old external-client rows.
+- [x] Exclude only the superseded `mcp_direct_auth_smoke_test` migration fixture,
+  which freezes Alembic 0015; current direct-auth API/named/transport smokes pass.
+- [x] Re-run backup/validation/commit/bootstrap restore coverage with the canonical
+  `PARTPILOT_RESTORE_SUPERVISOR_CONTRACT=compose-restart-v1` environment.
+- [x] Confirm the earlier restore-commit readiness/drain failure was an invocation
+  error in the rehearsal harness rather than a product regression; no source fix is
+  required.
+- [x] Verify health, protected routes, SPA routes, OpenAPI role boundaries, Primary
+  Owner integrity, runtime markers, Alembic and SQLite integrity without redeploying.
+
+Remaining public-alpha gate:
+1. Browser-level accessibility/responsive sweep across the major workspaces and
+   role-hidden Settings surfaces.
+2. Real external-client OAuth/direct-MCP verification, including tool discovery,
+   permission ceilings and at least one safeguarded write preview/confirmation.
+3. Fix only genuine release blockers, then checkpoint the public-alpha release
+   candidate and complete the Chat 27 durable handoff.

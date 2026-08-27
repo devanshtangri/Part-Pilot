@@ -55,7 +55,9 @@ Chat 26 browser evidence
 
 Remaining V1 / Chat 27
 - Browser-approved user management is complete: Primary Owner is exclusive/immutable, Administrator manages only Operator/Viewer, lower roles do not see unauthorized Settings workspaces, and restore validation rejects multi-Owner databases.
-1. Final public-alpha accessibility/security/responsive/backup-restore/REST-OpenAPI/MCP/live-sync regression; fix release blockers only.
-2. Investigate the pre-existing `restore_commit_smoke_test` readiness/drain failure that reproduces on the Patch 773 baseline.
-3. Public-alpha release-candidate checkpoint/handoff.
+- Patch 777 automated public-alpha regression passed 44 current release smoke invocations on fresh copied-production databases plus canonical build/runtime/OpenAPI/SPA checks. Full custom-avatar coverage uses only a copied avatar-free fixture; OAuth-admin uses its production-safe check-only mode; the obsolete direct-auth migration smoke frozen to Alembic 0015 is superseded by current API/named/transport smokes. The earlier restore-commit failure was harness invocation drift: the smoke requires `PARTPILOT_RESTORE_SUPERVISOR_CONTRACT=compose-restart-v1`, and passes with that canonical contract.
+1. Final browser accessibility/responsive and real external-client OAuth/direct-MCP release verification; fix release blockers only.
+2. Public-alpha release-candidate checkpoint/handoff.
 - Permanent purge remains separate from MCP. Notifications & Messaging remain post-v1.
+
+<!-- PARTPILOT:PUBLIC_ALPHA_AUTOMATED_REGRESSION_MEMORY:V777 -->

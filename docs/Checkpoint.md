@@ -4532,3 +4532,43 @@ backup/restore, REST/OpenAPI, MCP OAuth/direct-auth/tool-permission/write and
 live-sync regression sweep; resolve only release-blocking findings; then produce
 the public-alpha release-candidate checkpoint/handoff. Notifications & Messaging
 remain post-v1.
+
+
+<!-- PARTPILOT:PUBLIC_ALPHA_AUTOMATED_REGRESSION:V777 -->
+## Public-alpha automated regression gate — Patch 777
+
+Patch 777 runs the complete automated public-alpha release matrix from the clean
+Patch 776 checkpoint without changing application source, production data or the
+running deployment. The canonical Docker build reproduced the browser-approved
+runtime image `sha256:a6b6cfa6933c4d98a7b936e5f8cf9257cec7309956cea0828a941fdcf8530e38` and production remained at Alembic `0022_mcp_inventory_part_lifecycle`.
+
+Automated gate evidence:
+- all 44 current release smoke invocations passed on fresh copied-production
+  databases. `custom_avatar_smoke_test` runs its full flow after clearing only the
+  copied fixture's existing avatar blob, while `mcp_oauth_admin_smoke_test` uses
+  its supported `--check-only` mode because its full-flow fixture hardcodes old
+  Claude/ChatGPT rows;
+- legacy `mcp_direct_auth_smoke_test` is intentionally excluded because it freezes
+  the historical `0015_mcp_direct_clients` migration head and legacy-row count;
+  current direct-auth behavior is covered by the API, named-client, Bearer, custom-
+  header, trusted-network and transport smokes;
+- copied databases retained their exact pre-test 14-key MCP permission values,
+  remained at Alembic `0022_mcp_inventory_part_lifecycle`, and passed SQLite quick/foreign-key checks;
+- the live deployment stayed healthy with restart count 0 and the same approved
+  image while health, protected API, SPA route and OpenAPI checks passed;
+- the managed-user OpenAPI request boundary still excludes `owner`, while current
+  user responses retain the complete Owner/Administrator/Operator/Viewer enum;
+- the browser-approved Users runtime markers, `Primary Owner` presentation and
+  removal of the redundant `Initial account` badge survived the canonical build.
+
+The restore-commit concern recorded at Patch 776 was harness invocation drift, not
+a restore defect: `restore_commit_smoke_test` deliberately clears the supervisor
+contract for one negative check, so its baseline invocation must provide
+`PARTPILOT_RESTORE_SUPERVISOR_CONTRACT=compose-restart-v1`. With that canonical
+contract the smoke passes its 401/422/503/409/202 sequence, drain recovery, pending
+job and pre-Uvicorn restore checks. No restore application source change was needed.
+
+Aggregate module execution time recorded by the patch was 209.5s.
+Remaining V1 work is browser-level accessibility/responsive verification and real
+external-client OAuth/direct-MCP release verification, followed only by fixes for
+actual release blockers and the public-alpha release-candidate checkpoint/handoff.

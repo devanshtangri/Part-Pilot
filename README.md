@@ -59,7 +59,7 @@ assistants can understand and act on inventory safely.
 
 Major remaining areas include:
 
-- Final accessibility, security, responsive, backup/restore, REST/OpenAPI, MCP and live-sync regression/hardening.
+- Final browser accessibility/responsive and real external-client release verification for OAuth/direct MCP behavior.
 - Resolve release-blocking findings only, then checkpoint the public-alpha release candidate and handoff.
 
 See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
@@ -749,3 +749,15 @@ History also keeps its chronological register usable at intermediate widths: the
 column header and rows share a horizontal-scroll region when their minimum width
 no longer fits, while the register heading/pagination stay fixed and the existing
 mobile card layout remains unchanged at 680px and below.
+
+
+<!-- PARTPILOT:PUBLIC_ALPHA_AUTOMATED_REGRESSION_README:V777 -->
+### Automated public-alpha regression
+
+Patch 777 validates the clean user-management checkpoint with 44 current
+release smoke invocations on fresh copied-production databases,
+a canonical Docker/Vite build, protected API/OpenAPI/SPA checks and the existing
+MCP OAuth/direct-auth/permission/write coverage. The approved runtime and Alembic
+`0022_mcp_inventory_part_lifecycle` remain unchanged. Restore commit also passes when invoked with the canonical
+container supervisor contract; the earlier rehearsal failure was test-harness
+environment drift rather than a restore defect.
