@@ -199,9 +199,16 @@
   margin-top: 3px;
 }
 
+.projects-register-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
 .projects-list-columns,
 .project-row {
   display: grid;
+  min-width: 570px;
   grid-template-columns: minmax(220px, 1fr) 92px 68px 130px;
   gap: 10px;
   align-items: center;
@@ -827,12 +834,7 @@
 
   .projects-list-columns,
   .project-row {
-    grid-template-columns: minmax(190px, 1fr) 86px 60px;
-  }
-
-  .projects-list-columns span:last-child,
-  .project-row-date {
-    display: none;
+    grid-template-columns: minmax(190px, 1fr) 86px 60px 130px;
   }
 
   .project-draft-items article {
@@ -906,8 +908,16 @@
     background: var(--bg);
   }
 
+  .projects-register-scroll {
+    overflow: visible;
+  }
+
   .projects-list-columns {
     display: none;
+  }
+
+  .project-row {
+    min-width: 0;
   }
 
   .projects-list {

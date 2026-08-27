@@ -642,6 +642,23 @@ export function PartManager({
     setSearchParams(next, { replace: true });
   }, [inventoryOnly, searchParams, setSearchParams]);
 
+  // PARTPILOT:HISTORY_PART_DEEP_LINK:V778
+  useEffect(() => {
+    if (!inventoryOnly) return;
+    const rawPartId = searchParams.get("part");
+    if (!rawPartId) return;
+    const partId = Number(rawPartId);
+    if (!Number.isInteger(partId) || partId < 1) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("part");
+      setSearchParams(next, { replace: true });
+      return;
+    }
+    if (selectedInventoryPartId !== partId) {
+      openPartDetails(partId);
+    }
+  }, [inventoryOnly, searchParams, selectedInventoryPartId, setSearchParams]);
+
   // PARTPILOT:INVENTORY_LIVE_INVALIDATION:V692
   useEffect(() => {
     if (inventoryLiveRevision === lastInventoryLiveRevision.current) {
@@ -1352,6 +1369,11 @@ export function PartManager({
 
   function closePartDetails() {
     setPartBeingEdited(null);
+    if (inventoryOnly && searchParams.has("part")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("part");
+      setSearchParams(next, { replace: true });
+    }
     setSelectedInventoryPartId(null);
     setSelectedInventoryPart(null);
     setPartDetailsError(null);

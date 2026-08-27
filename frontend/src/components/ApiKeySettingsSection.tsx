@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAuth } from "../auth/AuthContext";
+import { SettingsStageIcon } from "./SettingsStageIcon";
 import { formatWorkspaceDateTime } from "../utils/dateTime";
 import {
   createApiKey,
@@ -319,6 +320,7 @@ export function ApiKeySettingsSection({
         data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
         hidden={hidden}
         data-partpilot-rest-api-keys="PARTPILOT:REST_API_KEY_SETTINGS_UI:V618"
+        data-partpilot-api-settings-hierarchy="PARTPILOT:API_SETTINGS_HIERARCHY:V781"
       >
         <div className="settings-section-heading settings-api-heading">
           <div>
@@ -349,7 +351,18 @@ export function ApiKeySettingsSection({
           </div>
         </div>
 
-        <div className="settings-api-summary" aria-label="API key summary">
+        <div className="settings-api-stage settings-unified-stage">
+          <div className="settings-unified-stage-heading">
+            <SettingsStageIcon name="api" />
+            <div>
+              <span className="card-label">Credentials</span>
+              <h3>REST API keys</h3>
+              <p>Issue scoped bearer credentials, review active keys, and manage rotation or revocation from one place.</p>
+            </div>
+            <span className="settings-unified-stage-status">{activeCount} active</span>
+          </div>
+
+          <div className="settings-api-summary" aria-label="API key summary">
           <div><span>Total keys</span><strong>{visibleKeys.length}</strong></div>
           <div><span>Active</span><strong>{activeCount}</strong></div>
           <div><span>Authentication</span><strong>Bearer token</strong></div>
@@ -562,9 +575,10 @@ export function ApiKeySettingsSection({
             ) : null}
           </div>
         ) : null}
-        {message && !error ? (
-          <p className="settings-preference-state is-success" role="status">{message}</p>
-        ) : null}
+          {message && !error ? (
+            <p className="settings-preference-state is-success" role="status">{message}</p>
+          ) : null}
+        </div>
       </section>
 
       {confirmation ? (
@@ -640,14 +654,17 @@ export function ApiKeySettingsSection({
               </div>
               <label>
                 <span>API key</span>
-                <input
-                  type="text"
-                  value={secret.key}
-                  readOnly
-                  spellCheck={false}
-                  autoComplete="off"
-                  onFocus={(event) => event.currentTarget.select()}
-                />
+                <div className="settings-copy-field">
+                  <input
+                    type="text"
+                    value={secret.key}
+                    readOnly
+                    spellCheck={false}
+                    autoComplete="off"
+                    onFocus={(event) => event.currentTarget.select()}
+                  />
+                  <span className="settings-copy-field-actions"><button type="button" onClick={() => void copySecret()}>{secretCopied ? "Copied" : "Copy"}</button></span>
+                </div>
               </label>
               <p>
                 Send it as <code>Authorization: Bearer &lt;API key&gt;</code>. Treat it
@@ -664,13 +681,6 @@ export function ApiKeySettingsSection({
               >
                 Open API docs ↗
               </a>
-              <button
-                className="settings-action settings-action-primary"
-                type="button"
-                onClick={() => void copySecret()}
-              >
-                {secretCopied ? "Copied" : "Copy API key"}
-              </button>
               <button
                 className="settings-action settings-action-secondary"
                 type="button"

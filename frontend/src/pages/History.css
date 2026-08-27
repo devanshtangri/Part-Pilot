@@ -1049,3 +1049,9 @@
     border-bottom: 0;
   }
 }
+
+
+/* PARTPILOT:HISTORY_RELATED_RECORD_LINK:V778 */
+.history-related-link { display:inline-flex; width:fit-content; margin-top:7px; align-items:center; min-height:28px; padding:4px 8px; border:1px solid var(--panel-border); border-radius:6px; background:var(--panel-soft); color:var(--accent); font-size:.68rem; font-weight:760; text-decoration:none; }
+.history-related-link:hover { background:var(--panel-raised); }
+.history-related-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }

@@ -514,12 +514,10 @@ export function McpDirectClientsSection({
           <section className="settings-security-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-mcp-direct-credential-title">
             <header><span className="card-label">MCP direct credential</span><h2 id="settings-mcp-direct-credential-title">{credential.title}</h2><p>Copy this credential into only the named client. Treat it like a password.</p></header>
             <div className="settings-security-dialog-content">
-              <label className="settings-security-credential-field"><span>{modeLabel(credential.client.mode)}</span><input type={keyVisible ? "text" : "password"} readOnly value={credential.key} onFocus={(event) => event.currentTarget.select()} /></label>
+              <label className="settings-security-credential-field"><span>{modeLabel(credential.client.mode)}</span><div className="settings-copy-field"><input type={keyVisible ? "text" : "password"} readOnly value={credential.key} onFocus={(event) => event.currentTarget.select()} /><span className="settings-copy-field-actions"><button type="button" onClick={() => setKeyVisible((value) => !value)}>{keyVisible ? "Hide" : "Show"}</button><button type="button" onClick={() => void copyCredential()}>{copied ? "Copied" : "Copy"}</button></span></div></label>
               {credential.client.mode === "custom_header" ? <p>Send the key in <code>{credential.client.custom_header_name}</code>.</p> : <p>Send it as <code>Authorization: Bearer &lt;key&gt;</code>.</p>}
             </div>
             <footer>
-              <button className="settings-action settings-action-secondary" type="button" onClick={() => setKeyVisible((value) => !value)}>{keyVisible ? "Hide" : "Show"}</button>
-              <button className="settings-action settings-action-primary" type="button" onClick={() => void copyCredential()}>{copied ? "Copied" : "Copy key"}</button>
               <button className="settings-action settings-action-secondary" type="button" onClick={() => { setCredential(null); setCopied(false); setKeyVisible(true); }}>Done</button>
             </footer>
           </section>

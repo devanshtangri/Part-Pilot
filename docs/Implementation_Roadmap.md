@@ -3776,3 +3776,35 @@ Remaining public-alpha gate:
    permission ceilings and at least one safeguarded write preview/confirmation.
 3. Fix only genuine release blockers, then checkpoint the public-alpha release
    candidate and complete the Chat 27 durable handoff.
+
+<!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_POLISH_ROADMAP:V786 -->
+### Patch 786 — browser-approved public-alpha release polish checkpoint
+
+Completed in Chat 27:
+- [x] Remove the redundant Dashboard Stock alerts launcher/dialog while preserving
+  the live-synced operational layout.
+- [x] Keep Projects and Reservations Updated timestamps reachable at intermediate
+  widths with aligned horizontal register scrolling and unchanged mobile cards.
+- [x] Deep-link History Part-related records directly into the matching Inventory
+  Part details drawer.
+- [x] Move generated API/MCP/OAuth Copy controls inside their fields and retain
+  integrated Show/Hide for secrets.
+- [x] Redesign MCP Settings into Server, Capabilities, Connections and Advanced
+  access without changing authorization, autosave, live-sync or credential
+  lifecycle semantics.
+- [x] Extend the same grouped hierarchy across Account, Users, Preferences, API and
+  Data while keeping specialized controls intact.
+- [x] Normalize built-in avatar selectors to fixed 46 x 46 px square choices.
+- [x] Remove misleading sequential Settings number badges and replace them with 16
+  restrained semantic SVG landmarks; optically center the Connections glyph only.
+- [x] Browser-approve the complete Patch 779-785 release-polish source.
+- [x] Verify real Claude OAuth tool discovery and guarded metadata write behavior;
+  classify the Hermes event-loop failure as client-side after the public Part Pilot
+  MCP endpoint succeeds from inside the Hermes container.
+
+Remaining Chat 27/public-alpha work:
+1. Create the final public-alpha release-candidate durable handoff/documentation and
+   close the planned Chat 27 boundary no later than Patch 793.
+2. Fix only genuinely new release blockers found before that boundary.
+3. Keep permanent inventory purge outside MCP and Notifications & Messaging
+   post-v1.

@@ -15,6 +15,7 @@ import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import { ApiKeySettingsSection } from "../components/ApiKeySettingsSection";
 import { McpClientPermissionsDialog } from "../components/McpClientPermissionsDialog";
 import { McpDirectClientsSection } from "../components/McpDirectClientsSection";
+import { SettingsStageIcon } from "../components/SettingsStageIcon";
 import { UserManagementSection } from "../components/UserManagementSection";
 import { UserAvatar } from "../components/UserAvatar";
 import {
@@ -2282,6 +2283,9 @@ export function Settings() {
       data-partpilot-integrations-live-sync="PARTPILOT:API_KEY_MCP_INTEGRATION_LIVE_SYNC:V708"
       data-partpilot-user-management="PARTPILOT:SETTINGS_USER_MANAGEMENT_UI:V774"
       data-partpilot-active-settings-section={activeSettingsSection}
+      data-partpilot-unified-settings-hierarchy="PARTPILOT:UNIFIED_SETTINGS_HIERARCHY:V781"
+      data-partpilot-settings-numberless-hierarchy="PARTPILOT:SETTINGS_NUMBERLESS_HIERARCHY:V783"
+      data-partpilot-settings-stage-icons="PARTPILOT:SETTINGS_SEMANTIC_STAGE_ICONS:V784"
     >
       <header className="page-header settings-page-header">
         <div>
@@ -2418,8 +2422,9 @@ export function Settings() {
         </div>
 
         <div className="settings-account-grid">
-          <div className="settings-account-panel settings-account-primary-panel">
-            <div className="settings-account-panel-heading">
+          <div className="settings-account-panel settings-account-primary-panel settings-unified-stage">
+            <div className="settings-account-panel-heading settings-unified-stage-heading">
+              <SettingsStageIcon name="profile" />
               <div>
                 <span className="card-label">Profile</span>
                 <h3>Identity &amp; avatar</h3>
@@ -2634,8 +2639,9 @@ export function Settings() {
             )}
           </div>
 
-          <div className="settings-account-panel settings-account-primary-panel">
-            <div className="settings-account-panel-heading">
+          <div className="settings-account-panel settings-account-primary-panel settings-unified-stage">
+            <div className="settings-account-panel-heading settings-unified-stage-heading">
+              <SettingsStageIcon name="password" />
               <div>
                 <span className="card-label">Password</span>
                 <h3>Change password</h3>
@@ -2739,9 +2745,10 @@ export function Settings() {
           </div>
 
           <div
-            className="settings-account-panel settings-account-sessions-panel"
+            className="settings-account-panel settings-account-sessions-panel settings-unified-stage"
           >
-            <div className="settings-account-sessions-heading">
+            <div className="settings-account-sessions-heading settings-unified-stage-heading">
+              <SettingsStageIcon name="sessions" />
               <div>
                 <span className="card-label">Security</span>
                 <h3>Active sessions</h3>
@@ -2888,8 +2895,9 @@ export function Settings() {
         </div>
 
         <div className="settings-preferences-grid">
-          <section className="settings-preference-card" aria-labelledby="settings-theme-title">
-            <div className="settings-preference-card-heading">
+          <section className="settings-preference-card settings-unified-stage" aria-labelledby="settings-theme-title">
+            <div className="settings-preference-card-heading settings-unified-stage-heading">
+              <SettingsStageIcon name="theme" />
               <div>
                 <span className="card-label">Interface</span>
                 <h3 id="settings-theme-title">Theme</h3>
@@ -2918,8 +2926,9 @@ export function Settings() {
             <p className="settings-preference-default-note">Default: Dark</p>
           </section>
 
-          <section className="settings-preference-card settings-regional-card" aria-labelledby="settings-regional-title" data-partpilot-regional-display="PARTPILOT:REGIONAL_DISPLAY_PREFERENCES:V676">
-            <div className="settings-preference-card-heading">
+          <section className="settings-preference-card settings-regional-card settings-unified-stage" aria-labelledby="settings-regional-title" data-partpilot-regional-display="PARTPILOT:REGIONAL_DISPLAY_PREFERENCES:V676">
+            <div className="settings-preference-card-heading settings-unified-stage-heading">
+              <SettingsStageIcon name="regional" />
               <div>
                 <span className="card-label">Regional display</span>
                 <h3 id="settings-regional-title">Currency &amp; timezone</h3>
@@ -2961,8 +2970,9 @@ export function Settings() {
             </div>
           </section>
 
-          <section className="settings-preference-card" aria-labelledby="settings-search-title" data-partpilot-compact-search="PARTPILOT:COMPACT_OUT_OF_STOCK_PREFERENCE:V418">
-            <div className="settings-preference-card-heading">
+          <section className="settings-preference-card settings-unified-stage" aria-labelledby="settings-search-title" data-partpilot-compact-search="PARTPILOT:COMPACT_OUT_OF_STOCK_PREFERENCE:V418">
+            <div className="settings-preference-card-heading settings-unified-stage-heading">
+              <SettingsStageIcon name="inventory" />
               <div>
                 <span className="card-label">Inventory display</span>
                 <h3 id="settings-search-title">Separate out-of-stock results</h3>
@@ -2986,8 +2996,9 @@ export function Settings() {
             <p className="settings-preference-default-note">Default: On</p>
           </section>
 
-          <section className="settings-preference-card" aria-labelledby="settings-reservation-title" data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362" data-partpilot-preference-autosave="PARTPILOT:REVERSIBLE_PREFERENCE_AUTOSAVE:V667">
-            <div className="settings-preference-card-heading">
+          <section className="settings-preference-card settings-unified-stage" aria-labelledby="settings-reservation-title" data-partpilot-marker="PARTPILOT:RESERVATION_EXPIRY_SETTINGS_UI:V362" data-partpilot-preference-autosave="PARTPILOT:REVERSIBLE_PREFERENCE_AUTOSAVE:V667">
+            <div className="settings-preference-card-heading settings-unified-stage-heading">
+              <SettingsStageIcon name="reservation" />
               <div>
                 <span className="card-label">Reservation workflow</span>
                 <h3 id="settings-reservation-title">Reservation defaults</h3>
@@ -3073,265 +3084,232 @@ export function Settings() {
           {mcpDraft ? (
             <>
               <div
-                className="settings-mcp-access-control"
-                data-partpilot-mcp-direct-policy="PARTPILOT:MCP_DIRECT_POLICY_UI:V627"
+                className="settings-mcp-architecture"
+                data-partpilot-mcp-settings-hierarchy="PARTPILOT:MCP_SETTINGS_HIERARCHY:V780"
               >
-                <div className="settings-mcp-access-heading">
-                  <div>
-                    <strong>MCP access</strong>
-                    <span>The server switch is the master control. All subordinate access settings are inactive while it is off.</span>
+                <section className="settings-mcp-stage settings-mcp-stage-server" aria-labelledby="settings-mcp-server-stage-title">
+                  <div className="settings-mcp-stage-heading">
+                    <SettingsStageIcon name="server" />
+                    <div>
+                      <span className="settings-mcp-stage-kicker">Server</span>
+                      <h3 id="settings-mcp-server-stage-title">MCP endpoint</h3>
+                      <p>Start with the server itself. This master switch controls every MCP connection and capability below.</p>
+                    </div>
+                    <span className={mcpDraft.enabled ? "settings-mcp-stage-status is-enabled" : "settings-mcp-stage-status"}>{mcpDraft.enabled ? "Enabled" : "Disabled"}</span>
                   </div>
-                </div>
-                <div className="settings-mcp-toggle-list">
-                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : "settings-toggle-row"}>
-                    <span className="settings-toggle-copy"><strong>Enable MCP server</strong><span>Allow MCP clients to connect to the exact /mcp endpoint.</span></span>
+
+                  <label className={mcpSettingsSaving ? "settings-toggle-row settings-mcp-primary-toggle is-disabled is-saving" : "settings-toggle-row settings-mcp-primary-toggle"}>
+                    <span className="settings-toggle-copy"><strong>Enable MCP server</strong><span>Allow MCP clients to connect to the exact <code>/mcp</code> endpoint.</span></span>
                     <input type="checkbox" role="switch" checked={mcpDraft.enabled} disabled={mcpSettingsSaving} onChange={(event) => updateMcpDraft("enabled", event.target.checked)} />
                     <span className="settings-switch" aria-hidden="true" />
                   </label>
-                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
-                    <span className="settings-toggle-copy"><strong>Read tools</strong><span>Permit inventory, Project, and Reservation read tools.</span></span>
-                    <input type="checkbox" role="switch" checked={mcpDraft.read_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("read_tools_enabled", event.target.checked)} />
-                    <span className="settings-switch" aria-hidden="true" />
-                  </label>
-                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
-                    <span className="settings-toggle-copy"><strong>Write authorization</strong><span>Allow eligible clients to request <code>mcp:write</code>. Every registered write tool still requires its own global/client permission plus an exact preview and short-lived confirmation.</span></span>
-                    <input type="checkbox" role="switch" checked={mcpDraft.write_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("write_tools_enabled", event.target.checked)} />
-                    <span className="settings-switch" aria-hidden="true" />
-                  </label>
-                </div>
-              </div>
 
-              <div
-                className={!mcpDraft.enabled ? "settings-mcp-tool-permissions is-disabled" : "settings-mcp-tool-permissions"}
-                data-partpilot-mcp-tool-permissions="PARTPILOT:MCP_WRITE_TOOL_PERMISSIONS_UI:V734"
-                aria-disabled={!mcpDraft.enabled}
-              >
-                <div className="settings-mcp-permission-heading">
-                  <div>
-                    <strong>Tool permissions</strong>
-                    <span>Global hard ceiling for every MCP client. Client permissions can inherit or deny, never override a global block.</span>
-                  </div>
-                </div>
-                {mcpToolPermissionsLoading && !mcpToolPermissionsDraft ? (
-                  <p className="settings-mcp-permission-state" role="status">Loading tool permissions...</p>
-                ) : null}
-                {mcpToolPermissionsDraft ? (
-                  <>
-                    <section className="settings-mcp-tool-group" aria-labelledby="settings-mcp-read-tools-title">
-                      <div className="settings-mcp-tool-group-heading">
-                        <div><strong id="settings-mcp-read-tools-title">Read tools</strong><span>Inventory, Project, and Reservation inspection. No-auth access can only ever reach this capability.</span></div>
-                        <span className="settings-mcp-permission-count">
-                          {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read" && tool.enabled).length}/{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read").length} enabled
-                        </span>
-                      </div>
-                      <div className="settings-mcp-tool-permission-list">
-                        {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read").map((tool) => {
-                          const disabled = !mcpDraft.enabled || !mcpDraft.read_tools_enabled || mcpToolPermissionsSaving;
-                          return (
-                            <label className={mcpToolPermissionsSaving ? "settings-toggle-row settings-mcp-tool-row is-disabled is-saving" : disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
-                              <span className="settings-toggle-copy"><strong>{tool.label}</strong><span><code>{tool.name}</code> · Read tool</span></span>
-                              <input type="checkbox" role="switch" checked={tool.enabled} disabled={disabled} onChange={(event) => updateMcpToolPermissionDraft(tool.name, event.target.checked)} />
-                              <span className="settings-switch" aria-hidden="true" />
-                            </label>
-                          );
-                        })}
-                      </div>
-                      {!mcpDraft.enabled || !mcpDraft.read_tools_enabled ? <p className="settings-mcp-permission-state">Enable the MCP server and Read tools to edit read-tool permissions.</p> : null}
-                    </section>
-                    <section className="settings-mcp-tool-group is-write" data-partpilot-mcp-write-tool-catalogue="PARTPILOT:MCP_WRITE_TOOL_CATALOGUE:V734" aria-labelledby="settings-mcp-write-tools-title">
-                      <div className="settings-mcp-tool-group-heading">
-                        <div><strong id="settings-mcp-write-tools-title">Safeguarded write tools</strong><span>Consequential inventory and lifecycle mutations. Every write tool starts globally off and requires an exact preview, a five-minute one-time confirmation token, idempotency, active backing user authority, and its canonical transactional rules.</span></div>
-                        <span className="settings-mcp-permission-count">
-                          {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write" && tool.enabled).length}/{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write").length} enabled
-                        </span>
-                      </div>
-                      <div className="settings-mcp-tool-permission-list">
-                        {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write").map((tool) => {
-                          const disabled = !mcpDraft.enabled || !mcpDraft.write_tools_enabled || mcpToolPermissionsSaving;
-                          return (
-                            <label className={mcpToolPermissionsSaving ? "settings-toggle-row settings-mcp-tool-row is-disabled is-saving" : disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
-                              <span className="settings-toggle-copy"><strong>{tool.label}</strong><span><code>{tool.name}</code> · Safeguarded write tool</span></span>
-                              <input type="checkbox" role="switch" checked={tool.enabled} disabled={disabled} onChange={(event) => updateMcpToolPermissionDraft(tool.name, event.target.checked)} />
-                              <span className="settings-switch" aria-hidden="true" />
-                            </label>
-                          );
-                        })}
-                      </div>
-                      {!mcpDraft.enabled || !mcpDraft.write_tools_enabled ? <p className="settings-mcp-permission-state is-caution">Enable the MCP server and Write authorization before any write-tool permission can be enabled. No-auth clients remain read-only.</p> : null}
-                    </section>
-                  </>
-                ) : null}
-                {mcpToolPermissionsError ? (
-                  <div className="settings-preference-state is-error" role="alert">
-                    <span>{mcpToolPermissionsError}</span>
-                    {!mcpToolPermissionsDraft ? <button type="button" onClick={() => setMcpToolPermissionsReloadVersion((value) => value + 1)}>Retry</button> : null}
-                  </div>
-                ) : null}
-                {mcpToolPermissionsSaving && !mcpToolPermissionsError ? <p className="settings-preference-state" role="status">Saving tool permission automatically...</p> : null}
-                {mcpToolPermissionsSaved && !mcpToolPermissionsError ? <p className="settings-preference-state is-success" role="status" data-feedback-version="consistent-autosave-feedback-v751">MCP tool permission saved automatically.</p> : null}
-              </div>
-
-              <div className="settings-mcp-endpoint">
-                <div className="settings-mcp-endpoint-copy">
-                  <strong>MCP server URL</strong>
-                  <span>Use this exact URL when adding Part Pilot to a client.</span>
-                </div>
-                <div className="settings-mcp-url-row">
-                  <input
-                    type="text"
-                    value={mcpServerUrl}
-                    readOnly
-                    aria-label="MCP server URL"
-                    onFocus={(event) => event.currentTarget.select()}
-                  />
-                  <button
-                    className="settings-action settings-action-secondary"
-                    type="button"
-                    onClick={() => void copyMcpServerUrl()}
-                  >
-                    {mcpUrlCopied ? "Copied" : "Copy URL"}
-                  </button>
-                </div>
-                <p
-                  className={
-                    mcpUsesPublicHttps
-                      ? "settings-mcp-endpoint-note is-ready"
-                      : "settings-mcp-endpoint-note is-warning"
-                  }
-                >
-                  {mcpUsesPublicHttps
-                    ? "This page is using HTTPS, as required for remote MCP credentials."
-                    : "Remote MCP clients should use Part Pilot through its public HTTPS address."}
-                </p>
-                {mcpCopyError ? (
-                  <p className="settings-mcp-copy-error" role="alert">
-                    {mcpCopyError}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className={!mcpDraft.enabled ? "settings-mcp-subordinate is-disabled" : "settings-mcp-subordinate"} aria-disabled={!mcpDraft.enabled}>
-              <div
-                className="settings-mcp-oauth-clients"
-                data-partpilot-mcp-oauth-clients="PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569"
-              >
-                <div className="settings-mcp-oauth-heading">
-                  <div>
-                    <strong>OAuth clients</strong>
-                    <span>Register clients manually or review clients that have connected through OAuth. Confidential client secrets are shown only once when the client is created.</span>
-                  </div>
-                  <div className="settings-mcp-oauth-heading-actions">
-                    <button className="settings-action settings-action-primary" type="button" disabled={mcpOAuthRegistering} onClick={mcpOAuthRegisterOpen ? closeMcpOAuthRegistration : openMcpOAuthRegistration}>{mcpOAuthRegisterOpen ? "Close form" : "Register client"}</button>
-                  </div>
-                </div>
-
-                {mcpOAuthRegisterOpen ? (
-                  <div className="settings-mcp-oauth-register-form">
-                    <div className="settings-mcp-oauth-register-heading"><div><strong>Manual OAuth registration</strong><span>Add the redirect URI supplied by your MCP client. Part Pilot fixes the authorization-code and refresh-token grant types automatically.</span></div></div>
-                    <div className="settings-mcp-oauth-register-grid">
-                      <label><span>Client name</span><input type="text" value={mcpOAuthClientNameDraft} maxLength={200} autoComplete="off" disabled={mcpOAuthRegistering} aria-invalid={mcpOAuthRegisterAttempted && Boolean(mcpOAuthClientNameError)} placeholder="Claude Desktop" onChange={(event) => { setMcpOAuthClientNameDraft(event.target.value); setMcpOAuthRegisterError(null); }} /></label>
-                      <label><span>Client type</span><select value={mcpOAuthClientTypeDraft} disabled={mcpOAuthRegistering} onChange={(event) => chooseMcpOAuthClientType(event.target.value as McpOAuthClientType)}><option value="public">Public</option><option value="confidential">Confidential</option></select></label>
-                      <label className="settings-mcp-oauth-register-wide"><span>Redirect URIs</span><textarea value={mcpOAuthRedirectUrisDraft} rows={3} autoComplete="off" spellCheck={false} disabled={mcpOAuthRegistering} aria-invalid={mcpOAuthRegisterAttempted && Boolean(mcpOAuthRedirectUrisError)} placeholder={"https://client.example/oauth/callback\nhttp://127.0.0.1:8765/callback"} onChange={(event) => { setMcpOAuthRedirectUrisDraft(event.target.value); setMcpOAuthRegisterError(null); }} /><small>One URI per line, maximum 20.</small></label>
-                      <label><span>Token authentication</span><select value={mcpOAuthAuthMethodDraft} disabled={mcpOAuthRegistering || mcpOAuthClientTypeDraft === "public"} onChange={(event) => { setMcpOAuthAuthMethodDraft(event.target.value as McpOAuthTokenEndpointAuthMethod); setMcpOAuthRegisterError(null); }}>{mcpOAuthClientTypeDraft === "public" ? <option value="none">None</option> : <><option value="client_secret_post">Client secret POST</option><option value="client_secret_basic">Client secret Basic</option></>}</select></label>
+                  <div className="settings-mcp-endpoint">
+                    <div className="settings-mcp-endpoint-copy">
+                      <strong>MCP server URL</strong>
+                      <span>Use this exact URL when adding Part Pilot to a client.</span>
                     </div>
-                    {mcpOAuthDisplayedRegistrationError ? <p className="form-error" role="alert">{mcpOAuthDisplayedRegistrationError}</p> : null}
-                    <div className="settings-mcp-oauth-register-actions"><button className="settings-action settings-action-secondary" type="button" disabled={mcpOAuthRegistering} onClick={closeMcpOAuthRegistration}>Cancel</button><button className="settings-action settings-action-primary" type="button" disabled={mcpOAuthRegistering} onClick={() => void submitMcpOAuthRegistration()}>{mcpOAuthRegistering ? "Registering..." : "Register OAuth client"}</button></div>
+                    <div className="settings-copy-field settings-mcp-url-row">
+                      <input type="text" value={mcpServerUrl} readOnly aria-label="MCP server URL" onFocus={(event) => event.currentTarget.select()} />
+                      <span className="settings-copy-field-actions"><button type="button" onClick={() => void copyMcpServerUrl()}>{mcpUrlCopied ? "Copied" : "Copy"}</button></span>
+                    </div>
+                    <p className={mcpUsesPublicHttps ? "settings-mcp-endpoint-note is-ready" : "settings-mcp-endpoint-note is-warning"}>
+                      {mcpUsesPublicHttps ? "This page is using HTTPS, as required for remote MCP credentials." : "Remote MCP clients should use Part Pilot through its public HTTPS address."}
+                    </p>
+                    {mcpCopyError ? <p className="settings-mcp-copy-error" role="alert">{mcpCopyError}</p> : null}
                   </div>
-                ) : null}
+                </section>
 
-                {mcpOAuthClientsLoading && !mcpOAuthClients ? <p className="settings-mcp-oauth-state" role="status">Loading OAuth clients...</p> : null}
-                {mcpOAuthVisibleClients && mcpOAuthVisibleClients.length > 0 ? (
-                  <div className="settings-mcp-oauth-list">
-                    {mcpOAuthVisibleClients.map((client) => (
-                      <article className={`settings-mcp-oauth-client is-${client.status}`} key={client.database_id}>
-                        <header><div><strong>{client.client_name}</strong><span>{client.client_type === "confidential" ? "Confidential OAuth client" : "Public OAuth client"}</span></div><span className={`settings-mcp-oauth-status is-${client.status}`}>{client.status === "connected" ? "Connected" : client.status === "registered" ? "Registered" : "Revoked"}</span></header>
-                        <dl><div><dt>Origin</dt><dd>{client.redirect_origins.length > 0 ? client.redirect_origins.join(", ") : "No web origin"}</dd></div><div><dt>Auth</dt><dd>{client.token_endpoint_auth_method === "none" ? "None" : client.token_endpoint_auth_method === "client_secret_basic" ? "Client secret Basic" : "Client secret POST"}</dd></div><div><dt>Created</dt><dd>{formatUtc(client.created_at, timezone)}</dd></div><div><dt>Connected</dt><dd>{client.connected_at ? formatUtc(client.connected_at, timezone) : "Not yet"}</dd></div></dl>
-                        <footer>
-                          <span>{client.status === "connected" ? `${client.active_token_count} active session${client.active_token_count === 1 ? "" : "s"}` : client.status === "registered" ? "Awaiting first authorization" : "Registration disabled"} · {client.tool_permissions.filter((tool) => tool.effective_enabled).length}/{client.tool_permissions.length} allowed by policy{client.status === "connected" ? " · OAuth scopes can further limit active tools" : ""}</span>
-                          {client.status !== "revoked" ? (
-                            <div className="settings-mcp-oauth-actions">
-                              <button className="settings-action settings-action-secondary" type="button" disabled={mcpOAuthRevokingId !== null || mcpOAuthPermissionSaving} onClick={() => openMcpOAuthPermissions(client)}>Permissions</button>
-                              <button className="settings-action settings-action-danger" type="button" disabled={mcpOAuthRevokingId !== null || mcpOAuthPermissionSaving} onClick={() => openMcpOAuthRevokeDialog(client)}>{client.status === "connected" ? "Revoke access" : "Revoke client"}</button>
+                <section className={!mcpDraft.enabled ? "settings-mcp-stage settings-mcp-stage-capabilities is-disabled" : "settings-mcp-stage settings-mcp-stage-capabilities"} aria-labelledby="settings-mcp-capabilities-stage-title" aria-disabled={!mcpDraft.enabled}>
+                  <div className="settings-mcp-stage-heading">
+                    <SettingsStageIcon name="capabilities" />
+                    <div>
+                      <span className="settings-mcp-stage-kicker">Capabilities</span>
+                      <h3 id="settings-mcp-capabilities-stage-title">Tools clients can use</h3>
+                      <p>Set the broad read/write ceilings first. Expand a catalogue only when you need to change an individual tool.</p>
+                    </div>
+                    {mcpToolPermissionsDraft ? (
+                      <span className="settings-mcp-stage-status">{mcpToolPermissionsDraft.tools.filter((tool) => tool.enabled).length}/{mcpToolPermissionsDraft.tools.length} tools enabled</span>
+                    ) : null}
+                  </div>
+
+                  <div className="settings-mcp-capability-master-grid">
+                    <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                      <span className="settings-toggle-copy"><strong>Read tools</strong><span>Permit inventory, Project, and Reservation inspection tools.</span></span>
+                      <input type="checkbox" role="switch" checked={mcpDraft.read_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("read_tools_enabled", event.target.checked)} />
+                      <span className="settings-switch" aria-hidden="true" />
+                    </label>
+                    <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                      <span className="settings-toggle-copy"><strong>Safeguarded writes</strong><span>Allow eligible clients to request <code>mcp:write</code>. Every write still requires its own policy, preview and confirmation.</span></span>
+                      <input type="checkbox" role="switch" checked={mcpDraft.write_tools_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("write_tools_enabled", event.target.checked)} />
+                      <span className="settings-switch" aria-hidden="true" />
+                    </label>
+                  </div>
+
+                  <div
+                    className={!mcpDraft.enabled ? "settings-mcp-tool-permissions settings-mcp-tool-catalogues is-disabled" : "settings-mcp-tool-permissions settings-mcp-tool-catalogues"}
+                    data-partpilot-mcp-tool-permissions="PARTPILOT:MCP_WRITE_TOOL_PERMISSIONS_UI:V734"
+                    aria-disabled={!mcpDraft.enabled}
+                  >
+                    <div className="settings-mcp-permission-heading">
+                      <div>
+                        <strong>Per-tool policy</strong>
+                        <span>These are global ceilings for every MCP client. Client-specific permissions can inherit or deny, never override a global block.</span>
+                      </div>
+                    </div>
+                    {mcpToolPermissionsLoading && !mcpToolPermissionsDraft ? <p className="settings-mcp-permission-state" role="status">Loading tool permissions...</p> : null}
+                    {mcpToolPermissionsDraft ? (
+                      <div className="settings-mcp-disclosure-list">
+                        <details className="settings-mcp-tool-disclosure">
+                          <summary className="settings-mcp-tool-disclosure-summary">
+                            <span className="settings-mcp-disclosure-copy"><strong>Read tool catalogue</strong><span>6 inventory, Project, and Reservation inspection tools</span></span>
+                            <span className="settings-mcp-permission-count">{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read" && tool.enabled).length}/{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read").length} enabled</span>
+                            <span className="settings-mcp-disclosure-chevron" aria-hidden="true">⌄</span>
+                          </summary>
+                          <div className="settings-mcp-tool-disclosure-body">
+                            <div className="settings-mcp-tool-permission-list">
+                              {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "read").map((tool) => {
+                                const disabled = !mcpDraft.enabled || !mcpDraft.read_tools_enabled || mcpToolPermissionsSaving;
+                                return (
+                                  <label className={mcpToolPermissionsSaving ? "settings-toggle-row settings-mcp-tool-row is-disabled is-saving" : disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
+                                    <span className="settings-toggle-copy"><strong>{tool.label}</strong><span><code>{tool.name}</code> · Read tool</span></span>
+                                    <input type="checkbox" role="switch" checked={tool.enabled} disabled={disabled} onChange={(event) => updateMcpToolPermissionDraft(tool.name, event.target.checked)} />
+                                    <span className="settings-switch" aria-hidden="true" />
+                                  </label>
+                                );
+                              })}
                             </div>
-                          ) : null}
-                        </footer>
-                      </article>
-                    ))}
+                            {!mcpDraft.enabled || !mcpDraft.read_tools_enabled ? <p className="settings-mcp-permission-state">Enable the MCP server and Read tools to edit read-tool permissions.</p> : null}
+                          </div>
+                        </details>
+
+                        <details className="settings-mcp-tool-disclosure is-write" data-partpilot-mcp-write-tool-catalogue="PARTPILOT:MCP_WRITE_TOOL_CATALOGUE:V734">
+                          <summary className="settings-mcp-tool-disclosure-summary">
+                            <span className="settings-mcp-disclosure-copy"><strong>Safeguarded write catalogue</strong><span>8 confirmed inventory and lifecycle mutation tools</span></span>
+                            <span className="settings-mcp-permission-count">{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write" && tool.enabled).length}/{mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write").length} enabled</span>
+                            <span className="settings-mcp-disclosure-chevron" aria-hidden="true">⌄</span>
+                          </summary>
+                          <div className="settings-mcp-tool-disclosure-body">
+                            <p className="settings-mcp-write-safeguard-note">Every write uses an exact preview, five-minute one-time confirmation token, idempotency, active backing-user authority, and canonical transactional rules.</p>
+                            <div className="settings-mcp-tool-permission-list">
+                              {mcpToolPermissionsDraft.tools.filter((tool) => tool.capability === "write").map((tool) => {
+                                const disabled = !mcpDraft.enabled || !mcpDraft.write_tools_enabled || mcpToolPermissionsSaving;
+                                return (
+                                  <label className={mcpToolPermissionsSaving ? "settings-toggle-row settings-mcp-tool-row is-disabled is-saving" : disabled ? "settings-toggle-row settings-mcp-tool-row is-disabled" : "settings-toggle-row settings-mcp-tool-row"} key={tool.name}>
+                                    <span className="settings-toggle-copy"><strong>{tool.label}</strong><span><code>{tool.name}</code> · Safeguarded write tool</span></span>
+                                    <input type="checkbox" role="switch" checked={tool.enabled} disabled={disabled} onChange={(event) => updateMcpToolPermissionDraft(tool.name, event.target.checked)} />
+                                    <span className="settings-switch" aria-hidden="true" />
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {!mcpDraft.enabled || !mcpDraft.write_tools_enabled ? <p className="settings-mcp-permission-state is-caution">Enable the MCP server and Safeguarded writes before any write-tool permission can be enabled. No-auth clients remain read-only.</p> : null}
+                          </div>
+                        </details>
+                      </div>
+                    ) : null}
+                    {mcpToolPermissionsError ? <div className="settings-preference-state is-error" role="alert"><span>{mcpToolPermissionsError}</span>{!mcpToolPermissionsDraft ? <button type="button" onClick={() => setMcpToolPermissionsReloadVersion((value) => value + 1)}>Retry</button> : null}</div> : null}
+                    {mcpToolPermissionsSaving && !mcpToolPermissionsError ? <p className="settings-preference-state" role="status">Saving tool permission automatically...</p> : null}
+                    {mcpToolPermissionsSaved && !mcpToolPermissionsError ? <p className="settings-preference-state is-success" role="status" data-feedback-version="consistent-autosave-feedback-v751">MCP tool permission saved automatically.</p> : null}
                   </div>
-                ) : null}
-                {mcpOAuthVisibleClients?.length === 0 ? <p className="settings-mcp-oauth-state">No active OAuth clients are registered or connected.</p> : null}
-                {mcpOAuthClientsError ? <div className="settings-preference-state is-error" role="alert"><span>{mcpOAuthClientsError}</span>{!mcpOAuthClients ? <button type="button" onClick={() => setMcpOAuthReloadVersion((value) => value + 1)}>Retry</button> : null}</div> : null}
-                {mcpOAuthClientsMessage && !mcpOAuthClientsError ? <p className="settings-preference-state is-success" role="status">{mcpOAuthClientsMessage}</p> : null}
-              </div>
+                </section>
 
-              {mcpOAuthPermissionTarget ? (
-                <McpClientPermissionsDialog
-                  key={`oauth-${mcpOAuthPermissionTarget.database_id}`}
-                  clientName={mcpOAuthPermissionTarget.client_name}
-                  deniedTools={mcpOAuthPermissionTarget.denied_tools}
-                  tools={mcpOAuthPermissionTarget.tool_permissions}
-                  saving={mcpOAuthPermissionSaving}
-                  error={mcpOAuthPermissionError}
-                  onClose={() => {
-                    if (mcpOAuthPermissionSaving) return;
-                    setMcpOAuthPermissionTarget(null);
-                    setMcpOAuthPermissionError(null);
-                  }}
-                  onSave={(deniedTools) => void saveMcpOAuthPermissions(deniedTools)}
-                />
-              ) : null}
-
-              <div
-                className="settings-mcp-direct-access"
-                data-partpilot-mcp-direct-access-hierarchy="PARTPILOT:MCP_DIRECT_ACCESS_HIERARCHY:V663"
-              >
-                <div className="settings-mcp-direct-access-heading">
-                  <div>
-                    <strong>Direct MCP access</strong>
-                    <span>Control non-OAuth access here, then manage each named direct client below.</span>
+                <section className={!mcpDraft.enabled ? "settings-mcp-stage settings-mcp-stage-connections is-disabled" : "settings-mcp-stage settings-mcp-stage-connections"} aria-labelledby="settings-mcp-connections-stage-title" aria-disabled={!mcpDraft.enabled}>
+                  <div className="settings-mcp-stage-heading">
+                    <SettingsStageIcon name="connections" />
+                    <div>
+                      <span className="settings-mcp-stage-kicker">Connections</span>
+                      <h3 id="settings-mcp-connections-stage-title">How clients authenticate</h3>
+                      <p>OAuth applications and named direct clients share the same MCP server and global tool policy, but use separate credentials.</p>
+                    </div>
                   </div>
-                </div>
-                <div className="settings-mcp-toggle-list">
-                  <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
-                    <span className="settings-toggle-copy"><strong>Allow direct MCP clients</strong><span>Enable named Bearer, custom-header, and trusted-network clients alongside OAuth.</span></span>
-                    <input type="checkbox" role="switch" checked={mcpDraft.direct_clients_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("direct_clients_enabled", event.target.checked)} />
-                    <span className="settings-switch" aria-hidden="true" />
-                  </label>
-                  <label className={mcpSettingsSaving ? "settings-toggle-row settings-mcp-no-auth-row is-disabled is-saving" : !mcpDraft.enabled || !mcpDraft.direct_clients_enabled ? "settings-toggle-row settings-mcp-no-auth-row is-disabled" : "settings-toggle-row settings-mcp-no-auth-row"}>
-                    <span className="settings-toggle-copy"><strong>No authentication</strong><span>Dangerous read-only fallback. Any reachable client may use MCP read tools without credentials.</span></span>
-                    <input type="checkbox" role="switch" checked={mcpDraft.direct_no_auth_enabled} disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled || mcpSettingsSaving} onChange={(event) => requestMcpNoAuth(event.target.checked)} />
-                    <span className="settings-switch" aria-hidden="true" />
-                  </label>
-                </div>
-                {mcpDraft.direct_no_auth_enabled ? (
-                  <div className="settings-mcp-no-auth-warning" role="status">
-                    <strong>No authentication is enabled.</strong>
-                    <span>Access remains read-only and is still gated by the MCP server and Read tools switches. Last resolved source: {mcpDraft.direct_no_auth_last_client_ip ?? "Not used yet"}.</span>
+
+                  <div className={!mcpDraft.enabled ? "settings-mcp-subordinate settings-mcp-connection-stack is-disabled" : "settings-mcp-subordinate settings-mcp-connection-stack"} aria-disabled={!mcpDraft.enabled}>
+                    <div className="settings-mcp-connection-panel settings-mcp-oauth-clients" data-partpilot-mcp-oauth-clients="PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569">
+                      <div className="settings-mcp-connection-method-heading settings-mcp-oauth-heading">
+                        <div><span className="settings-mcp-connection-type">OAuth 2.1</span><strong>OAuth applications</strong><span>For clients that can complete browser authorization and refresh tokens. Confidential client secrets are shown only once when created.</span></div>
+                        <div className="settings-mcp-oauth-heading-actions"><button className="settings-action settings-action-primary" type="button" disabled={mcpOAuthRegistering} onClick={mcpOAuthRegisterOpen ? closeMcpOAuthRegistration : openMcpOAuthRegistration}>{mcpOAuthRegisterOpen ? "Close form" : "Register client"}</button></div>
+                      </div>
+
+                      {mcpOAuthRegisterOpen ? (
+                        <div className="settings-mcp-oauth-register-form">
+                          <div className="settings-mcp-oauth-register-heading"><div><strong>Manual OAuth registration</strong><span>Add the redirect URI supplied by your MCP client. Part Pilot fixes the authorization-code and refresh-token grant types automatically.</span></div></div>
+                          <div className="settings-mcp-oauth-register-grid">
+                            <label><span>Client name</span><input type="text" value={mcpOAuthClientNameDraft} maxLength={200} autoComplete="off" disabled={mcpOAuthRegistering} aria-invalid={mcpOAuthRegisterAttempted && Boolean(mcpOAuthClientNameError)} placeholder="Claude Desktop" onChange={(event) => { setMcpOAuthClientNameDraft(event.target.value); setMcpOAuthRegisterError(null); }} /></label>
+                            <label><span>Client type</span><select value={mcpOAuthClientTypeDraft} disabled={mcpOAuthRegistering} onChange={(event) => chooseMcpOAuthClientType(event.target.value as McpOAuthClientType)}><option value="public">Public</option><option value="confidential">Confidential</option></select></label>
+                            <label className="settings-mcp-oauth-register-wide"><span>Redirect URIs</span><textarea value={mcpOAuthRedirectUrisDraft} rows={3} autoComplete="off" spellCheck={false} disabled={mcpOAuthRegistering} aria-invalid={mcpOAuthRegisterAttempted && Boolean(mcpOAuthRedirectUrisError)} placeholder={"https://client.example/oauth/callback\nhttp://127.0.0.1:8765/callback"} onChange={(event) => { setMcpOAuthRedirectUrisDraft(event.target.value); setMcpOAuthRegisterError(null); }} /><small>One URI per line, maximum 20.</small></label>
+                            <label><span>Token authentication</span><select value={mcpOAuthAuthMethodDraft} disabled={mcpOAuthRegistering || mcpOAuthClientTypeDraft === "public"} onChange={(event) => { setMcpOAuthAuthMethodDraft(event.target.value as McpOAuthTokenEndpointAuthMethod); setMcpOAuthRegisterError(null); }}>{mcpOAuthClientTypeDraft === "public" ? <option value="none">None</option> : <><option value="client_secret_post">Client secret POST</option><option value="client_secret_basic">Client secret Basic</option></>}</select></label>
+                          </div>
+                          {mcpOAuthDisplayedRegistrationError ? <p className="form-error" role="alert">{mcpOAuthDisplayedRegistrationError}</p> : null}
+                          <div className="settings-mcp-oauth-register-actions"><button className="settings-action settings-action-secondary" type="button" disabled={mcpOAuthRegistering} onClick={closeMcpOAuthRegistration}>Cancel</button><button className="settings-action settings-action-primary" type="button" disabled={mcpOAuthRegistering} onClick={() => void submitMcpOAuthRegistration()}>{mcpOAuthRegistering ? "Registering..." : "Register OAuth client"}</button></div>
+                        </div>
+                      ) : null}
+
+                      {mcpOAuthClientsLoading && !mcpOAuthClients ? <p className="settings-mcp-oauth-state" role="status">Loading OAuth clients...</p> : null}
+                      {mcpOAuthVisibleClients && mcpOAuthVisibleClients.length > 0 ? (
+                        <div className="settings-mcp-oauth-list">
+                          {mcpOAuthVisibleClients.map((client) => (
+                            <article className={`settings-mcp-oauth-client is-${client.status}`} key={client.database_id}>
+                              <header><div><strong>{client.client_name}</strong><span>{client.client_type === "confidential" ? "Confidential OAuth client" : "Public OAuth client"}</span></div><span className={`settings-mcp-oauth-status is-${client.status}`}>{client.status === "connected" ? "Connected" : client.status === "registered" ? "Registered" : "Revoked"}</span></header>
+                              <dl><div><dt>Origin</dt><dd>{client.redirect_origins.length > 0 ? client.redirect_origins.join(", ") : "No web origin"}</dd></div><div><dt>Auth</dt><dd>{client.token_endpoint_auth_method === "none" ? "None" : client.token_endpoint_auth_method === "client_secret_basic" ? "Client secret Basic" : "Client secret POST"}</dd></div><div><dt>Created</dt><dd>{formatUtc(client.created_at, timezone)}</dd></div><div><dt>Connected</dt><dd>{client.connected_at ? formatUtc(client.connected_at, timezone) : "Not yet"}</dd></div></dl>
+                              <footer><span>{client.status === "connected" ? `${client.active_token_count} active session${client.active_token_count === 1 ? "" : "s"}` : client.status === "registered" ? "Awaiting first authorization" : "Registration disabled"} · {client.tool_permissions.filter((tool) => tool.effective_enabled).length}/{client.tool_permissions.length} allowed by policy{client.status === "connected" ? " · OAuth scopes can further limit active tools" : ""}</span>{client.status !== "revoked" ? <div className="settings-mcp-oauth-actions"><button className="settings-action settings-action-secondary" type="button" disabled={mcpOAuthRevokingId !== null || mcpOAuthPermissionSaving} onClick={() => openMcpOAuthPermissions(client)}>Permissions</button><button className="settings-action settings-action-danger" type="button" disabled={mcpOAuthRevokingId !== null || mcpOAuthPermissionSaving} onClick={() => openMcpOAuthRevokeDialog(client)}>{client.status === "connected" ? "Revoke access" : "Revoke client"}</button></div> : null}</footer>
+                            </article>
+                          ))}
+                        </div>
+                      ) : null}
+                      {mcpOAuthVisibleClients?.length === 0 ? <p className="settings-mcp-oauth-state">No active OAuth clients are registered or connected.</p> : null}
+                      {mcpOAuthClientsError ? <div className="settings-preference-state is-error" role="alert"><span>{mcpOAuthClientsError}</span>{!mcpOAuthClients ? <button type="button" onClick={() => setMcpOAuthReloadVersion((value) => value + 1)}>Retry</button> : null}</div> : null}
+                      {mcpOAuthClientsMessage && !mcpOAuthClientsError ? <p className="settings-preference-state is-success" role="status">{mcpOAuthClientsMessage}</p> : null}
+                    </div>
+
+                    {mcpOAuthPermissionTarget ? (
+                      <McpClientPermissionsDialog
+                        key={`oauth-${mcpOAuthPermissionTarget.database_id}`}
+                        clientName={mcpOAuthPermissionTarget.client_name}
+                        deniedTools={mcpOAuthPermissionTarget.denied_tools}
+                        tools={mcpOAuthPermissionTarget.tool_permissions}
+                        saving={mcpOAuthPermissionSaving}
+                        error={mcpOAuthPermissionError}
+                        onClose={() => { if (mcpOAuthPermissionSaving) return; setMcpOAuthPermissionTarget(null); setMcpOAuthPermissionError(null); }}
+                        onSave={(deniedTools) => void saveMcpOAuthPermissions(deniedTools)}
+                      />
+                    ) : null}
+
+                    <div className="settings-mcp-connection-panel settings-mcp-direct-access" data-partpilot-mcp-direct-access-hierarchy="PARTPILOT:MCP_DIRECT_ACCESS_HIERARCHY:V663">
+                      <div className="settings-mcp-connection-method-heading settings-mcp-direct-access-heading">
+                        <div><span className="settings-mcp-connection-type">Direct</span><strong>Named direct clients</strong><span>For Bearer, custom-header, or trusted-network clients that connect without an OAuth browser flow.</span></div>
+                      </div>
+                      <label className={mcpSettingsSaving ? "settings-toggle-row is-disabled is-saving" : !mcpDraft.enabled ? "settings-toggle-row is-disabled" : "settings-toggle-row"}>
+                        <span className="settings-toggle-copy"><strong>Allow direct MCP clients</strong><span>Enable credentialed named direct clients alongside OAuth.</span></span>
+                        <input type="checkbox" role="switch" checked={mcpDraft.direct_clients_enabled} disabled={!mcpDraft.enabled || mcpSettingsSaving} onChange={(event) => updateMcpDraft("direct_clients_enabled", event.target.checked)} />
+                        <span className="settings-switch" aria-hidden="true" />
+                      </label>
+                      <McpDirectClientsSection token={token ?? ""} disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled} permissionReloadVersion={mcpPermissionRefreshVersion} />
+                    </div>
                   </div>
-                ) : null}
-                <McpDirectClientsSection
-                  token={token ?? ""}
-                  disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled}
-                  permissionReloadVersion={mcpPermissionRefreshVersion}
-                />
-              </div>
+                </section>
 
+                <section className={!mcpDraft.enabled ? "settings-mcp-stage settings-mcp-stage-advanced is-disabled" : "settings-mcp-stage settings-mcp-stage-advanced"} aria-labelledby="settings-mcp-advanced-stage-title" aria-disabled={!mcpDraft.enabled}>
+                  <div className="settings-mcp-stage-heading">
+                    <SettingsStageIcon name="advanced" />
+                    <div>
+                      <span className="settings-mcp-stage-kicker">Advanced access</span>
+                      <h3 id="settings-mcp-advanced-stage-title">Anonymous fallback</h3>
+                      <p>This mode is intentionally separated from normal connection methods because it removes credential checks for reachable read clients.</p>
+                    </div>
+                    <span className={mcpDraft.direct_no_auth_enabled ? "settings-mcp-stage-status is-danger" : "settings-mcp-stage-status"}>{mcpDraft.direct_no_auth_enabled ? "Enabled" : "Off"}</span>
+                  </div>
+                  <div className="settings-mcp-risk-panel">
+                    <label className={mcpSettingsSaving ? "settings-toggle-row settings-mcp-no-auth-row is-disabled is-saving" : !mcpDraft.enabled || !mcpDraft.direct_clients_enabled ? "settings-toggle-row settings-mcp-no-auth-row is-disabled" : "settings-toggle-row settings-mcp-no-auth-row"}>
+                      <span className="settings-toggle-copy"><strong>No authentication</strong><span>Dangerous read-only fallback. Any reachable client may use allowed MCP read tools without credentials.</span></span>
+                      <input type="checkbox" role="switch" checked={mcpDraft.direct_no_auth_enabled} disabled={!mcpDraft.enabled || !mcpDraft.direct_clients_enabled || mcpSettingsSaving} onChange={(event) => requestMcpNoAuth(event.target.checked)} />
+                      <span className="settings-switch" aria-hidden="true" />
+                    </label>
+                    {!mcpDraft.direct_clients_enabled ? <p className="settings-mcp-risk-helper">Direct clients must be enabled before anonymous fallback can be changed.</p> : null}
+                    {mcpDraft.direct_no_auth_enabled ? <div className="settings-mcp-no-auth-warning" role="status"><strong>No authentication is enabled.</strong><span>Access remains read-only and is still gated by the MCP server, Read tools and individual read-tool permissions. Last resolved source: {mcpDraft.direct_no_auth_last_client_ip ?? "Not used yet"}.</span></div> : null}
+                  </div>
+                </section>
               </div>
-
-              <dl className="settings-mcp-summary">
-                <div>
-                  <dt>Authentication</dt>
-                  <dd>OAuth 2.1 + named direct clients</dd>
-                </div>
-                <div>
-                  <dt>Transport</dt>
-                  <dd>Streamable HTTP</dd>
-                </div>
-                <div>
-                  <dt>Available tools</dt>
-                  <dd>6 read + 8 safeguarded write</dd>
-                </div>
-              </dl>
 
               {mcpSettingsSaving && !mcpSettingsError ? (
                 <p className="settings-preference-state" role="status">
@@ -3394,12 +3372,18 @@ export function Settings() {
           </div>
 
           <div className="settings-data-actions">
-            <article className="settings-data-action">
-              <h3>Download backup</h3>
-              <p>
-                Creates a validated snapshot while Part Pilot remains
-                available. The download contains the database and manifest.
-              </p>
+            <article className="settings-data-action settings-unified-stage">
+              <div className="settings-data-stage-heading settings-unified-stage-heading">
+                <SettingsStageIcon name="backup" />
+                <div>
+                  <span className="card-label">Backup</span>
+                  <h3>Download backup</h3>
+                  <p>
+                    Creates a validated snapshot while Part Pilot remains
+                    available. The download contains the database and manifest.
+                  </p>
+                </div>
+              </div>
               <div
                 className="settings-backup-status"
                 data-partpilot-backup-status="PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454"
@@ -3523,12 +3507,18 @@ export function Settings() {
             </article>
 
             {isPrimaryOwner ? (
-            <article className="settings-data-action">
-              <h3>Restore backup</h3>
-              <p>
-                Validate a backup before review. Restoring restarts Part
-                Pilot, replaces local data, and signs out every session.
-              </p>
+            <article className="settings-data-action settings-unified-stage">
+              <div className="settings-data-stage-heading settings-unified-stage-heading">
+                <SettingsStageIcon name="restore" />
+                <div>
+                  <span className="card-label">Restore</span>
+                  <h3>Restore backup</h3>
+                  <p>
+                    Validate a backup before review. Restoring restarts Part
+                    Pilot, replaces local data, and signs out every session.
+                  </p>
+                </div>
+              </div>
               <input
                 ref={restoreFileInputRef}
                 type="file"
@@ -3589,17 +3579,18 @@ export function Settings() {
           </div>
 
           {isPrimaryOwner ? (<>
-          <hr className="settings-data-divider" />
-
-          <div className="settings-data-reset-heading">
-            <div>
-              <h3>Database reset</h3>
-              <p>Erase this installation and return to first-run setup.</p>
+          <div className="settings-data-reset-stage settings-unified-stage">
+            <div className="settings-data-reset-heading settings-unified-stage-heading">
+              <SettingsStageIcon name="reset" />
+              <div>
+                <span className="card-label">Danger zone</span>
+                <h3>Database reset</h3>
+                <p>Erase this installation and return to first-run setup.</p>
+              </div>
+              <span className="settings-danger-badge">Permanent action</span>
             </div>
-            <span className="settings-danger-badge">Permanent action</span>
-          </div>
 
-          <div className="settings-danger-summary">
+            <div className="settings-danger-summary">
             <p>
               This deletes the owner account, sessions, inventory,
               Projects, Reservations, History, and application settings.
@@ -3612,6 +3603,7 @@ export function Settings() {
             >
               Review database reset
             </button>
+            </div>
           </div>
           </>) : null}
         </section>
@@ -3637,8 +3629,8 @@ export function Settings() {
             <header><p className="eyebrow">OAuth client registered</p><h2 id="settings-mcp-oauth-credential-title">Save {mcpOAuthCredential.client_name} credentials</h2></header>
             <div className="settings-mcp-oauth-dialog-content">
               <p id="settings-mcp-oauth-credential-description">Copy these values into the client now.{mcpOAuthCredential.client_secret ? " The client secret is shown only in this result and cannot be retrieved later." : " This public client does not use a client secret."}</p>
-              <div className="settings-mcp-oauth-credential-field"><label htmlFor="settings-mcp-oauth-client-id">Client ID</label><div><input id="settings-mcp-oauth-client-id" type="text" value={mcpOAuthCredential.client_id} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /><button className="settings-action settings-action-secondary" type="button" onClick={() => void copyMcpOAuthCredential(mcpOAuthCredential.client_id, "client_id")}>{mcpOAuthCredentialCopied === "client_id" ? "Copied" : "Copy ID"}</button></div></div>
-              {mcpOAuthCredential.client_secret ? <div className="settings-mcp-oauth-credential-field is-secret"><label htmlFor="settings-mcp-oauth-client-secret">Client secret</label><div><input id="settings-mcp-oauth-client-secret" type={mcpOAuthSecretVisible ? "text" : "password"} value={mcpOAuthCredential.client_secret} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /><button className="settings-action settings-action-secondary" type="button" onClick={() => setMcpOAuthSecretVisible((value) => !value)}>{mcpOAuthSecretVisible ? "Hide" : "Show"}</button><button className="settings-action settings-action-secondary" type="button" onClick={() => void copyMcpOAuthCredential(mcpOAuthCredential.client_secret ?? "", "client_secret")}>{mcpOAuthCredentialCopied === "client_secret" ? "Copied" : "Copy secret"}</button></div></div> : null}
+              <div className="settings-mcp-oauth-credential-field"><label htmlFor="settings-mcp-oauth-client-id">Client ID</label><div className="settings-copy-field"><input id="settings-mcp-oauth-client-id" type="text" value={mcpOAuthCredential.client_id} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /><span className="settings-copy-field-actions"><button type="button" onClick={() => void copyMcpOAuthCredential(mcpOAuthCredential.client_id, "client_id")}>{mcpOAuthCredentialCopied === "client_id" ? "Copied" : "Copy"}</button></span></div></div>
+              {mcpOAuthCredential.client_secret ? <div className="settings-mcp-oauth-credential-field is-secret"><label htmlFor="settings-mcp-oauth-client-secret">Client secret</label><div className="settings-copy-field"><input id="settings-mcp-oauth-client-secret" type={mcpOAuthSecretVisible ? "text" : "password"} value={mcpOAuthCredential.client_secret} readOnly spellCheck={false} autoComplete="off" onFocus={(event) => event.currentTarget.select()} /><span className="settings-copy-field-actions"><button type="button" onClick={() => setMcpOAuthSecretVisible((value) => !value)}>{mcpOAuthSecretVisible ? "Hide" : "Show"}</button><button type="button" onClick={() => void copyMcpOAuthCredential(mcpOAuthCredential.client_secret ?? "", "client_secret")}>{mcpOAuthCredentialCopied === "client_secret" ? "Copied" : "Copy"}</button></span></div></div> : null}
               <dl><div><dt>Record</dt><dd>#{mcpOAuthCredential.database_id}</dd></div><div><dt>Client type</dt><dd>{mcpOAuthCredential.client_type === "public" ? "Public" : "Confidential"}</dd></div><div><dt>Token auth</dt><dd>{mcpOAuthCredential.token_endpoint_auth_method}</dd></div><div><dt>Redirect URI</dt><dd>{mcpOAuthCredential.redirect_uris.join(", ")}</dd></div><div><dt>Created</dt><dd>{formatUtc(mcpOAuthCredential.created_at, timezone)}</dd></div></dl>
               {mcpOAuthCredential.client_secret ? <p className="settings-mcp-oauth-secret-warning">Closing this result permanently removes the plaintext secret from this page. Part Pilot stores only its digest.</p> : null}
             </div>

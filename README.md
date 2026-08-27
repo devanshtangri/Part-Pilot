@@ -8,8 +8,9 @@ reusable catalogues, recoverable deletion, audit history, and a responsive
 dark interface. The long-term differentiator is MCP integration so approved AI
 assistants can understand and act on inventory safely.
 
-> **Project status:** active V1 development. The core inventory workflow is
-> usable, but the project is not yet a public-alpha release.
+> **Project status:** public-alpha release-candidate hardening. Core V1 workflows,
+> automated release regression, and browser release polish are complete; the final
+> durable release handoff/documentation remains.
 
 ## Current capabilities
 
@@ -59,8 +60,8 @@ assistants can understand and act on inventory safely.
 
 Major remaining areas include:
 
-- Final browser accessibility/responsive and real external-client release verification for OAuth/direct MCP behavior.
-- Resolve release-blocking findings only, then checkpoint the public-alpha release candidate and handoff.
+- Complete the final public-alpha release-candidate durable handoff/documentation.
+- Resolve only genuinely new release-blocking findings before the Chat 27 boundary.
 
 See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
 detailed build plan and [`docs/Checkpoint.md`](docs/Checkpoint.md) for durable
@@ -189,9 +190,8 @@ This keeps the repository recoverable while larger V1 workflows are built.
 <!-- PARTPILOT:DASHBOARD_LOW_STOCK_STATUS:START -->
 ## Current development status
 
-The current checkpoint includes authenticated dashboard stock alerts and a
-settings-driven Stored Parts workflow for separating zero-stock matches from
-available inventory.
+The current checkpoint includes whole-inventory stock metrics and a settings-driven
+Stored Parts workflow for separating zero-stock matches from available inventory.
 
 | Capability | Status |
 | --- | --- |
@@ -200,7 +200,7 @@ available inventory.
 | Stock quantity adjustments and movement history | Available |
 | Soft deletion and restoration | Available |
 | Stored Parts universal search, filters, pagination, and sorting | Available |
-| Dashboard low-stock alerts | Available |
+| Whole-inventory stock metrics | Available |
 | Unconfigured zero-stock detection | Available |
 | Settings-driven out-of-stock grouping | Available |
 | Explicit In stock, Low, and Out filters | Available |
@@ -655,11 +655,12 @@ responsive grid follows the available Stored Parts width symmetrically, while
 <!-- PARTPILOT:DASHBOARD_OPERATIONAL_HOME_README:V731 -->
 ### Dashboard operational home
 
-The Dashboard now uses Stock alerts as the single gateway to a live-synced alert
-dialog and provides compact Quick actions for common inventory/project workflows.
-Redundant backend-status and inline low-stock panels are removed. Routine Refresh
-buttons are also gone from the live-synced Dashboard, Stored Parts, Projects,
-Reservations and History views; request-failure Retry actions remain available.
+The Dashboard focuses on universal search, whole-inventory metrics, recent activity
+and compact Quick actions for common inventory/project workflows. The redundant
+Stock alerts launcher/dialog, backend-status card and inline low-stock panel are
+removed. Routine Refresh buttons are also gone from the live-synced Dashboard,
+Stored Parts, Projects, Reservations and History views; request-failure Retry
+actions remain available.
 
 
 <!-- PARTPILOT:USER_ROLES_AUTHORIZATION_README:V733 -->
@@ -761,3 +762,21 @@ MCP OAuth/direct-auth/permission/write coverage. The approved runtime and Alembi
 `0022_mcp_inventory_part_lifecycle` remain unchanged. Restore commit also passes when invoked with the canonical
 container supervisor contract; the earlier rehearsal failure was test-harness
 environment drift rather than a restore defect.
+
+<!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_POLISH_README:V786 -->
+### Public-alpha release polish
+
+The browser-approved release-candidate UI keeps Projects and Reservations complete
+at intermediate widths through aligned horizontal register scrolling, links Part-
+related History directly into the matching Inventory drawer, and places generated
+API/MCP/OAuth Copy actions inside their fields. Settings now shares one grouped
+information architecture across Account, Users, Preferences, API, MCP and Data.
+MCP is organized as Server, Capabilities, Connections and Advanced access; semantic
+SVG landmarks replace misleading step numbers without changing permission or
+credential behavior.
+
+Patch 777 already passed the complete automated release matrix. Real Claude OAuth
+verification also exposed the expected six read + eight safeguarded write tools, no
+permanent-delete tool, and successfully exercised guarded metadata preview/confirm.
+A Hermes event-loop error was isolated to the Hermes client/runtime wrapper after
+the same public Part Pilot MCP endpoint worked from inside that container.

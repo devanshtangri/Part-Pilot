@@ -4572,3 +4572,56 @@ Aggregate module execution time recorded by the patch was 209.5s.
 Remaining V1 work is browser-level accessibility/responsive verification and real
 external-client OAuth/direct-MCP release verification, followed only by fixes for
 actual release blockers and the public-alpha release-candidate checkpoint/handoff.
+
+<!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_POLISH_CHECKPOINT:V786 -->
+## Public-alpha release polish checkpoint — Patch 786
+
+Patch 786 checkpoints the cumulative browser-approved Patch 779-785 release-polish
+slice on top of the Patch 777 automated regression baseline. No schema migration is
+required; production remains at Alembic `0022_mcp_inventory_part_lifecycle` and the
+approved V785 runtime image is
+`sha256:fa265f69c32b784172f8fc46819ea484c0170dbd4df13b3c8fbd6bcd86711f37`.
+
+Approved release-polish contract:
+- Dashboard no longer exposes the redundant Stock alerts launcher/dialog; the
+  live-synced operational home remains focused on search, metrics, activity and
+  Quick actions without leaving a layout hole.
+- Projects and Reservations retain their Updated timestamp column at intermediate
+  widths inside aligned horizontal register scrollers instead of deleting/clipping
+  that data; their existing mobile card layouts remain unchanged.
+- History Part-related records expose `Open part`, which deep-links to
+  `/inventory?part=<id>` and opens the exact Part details drawer.
+- Generated REST API/MCP credential values, MCP URL and OAuth client ID/secret use
+  in-field Copy controls; secret Show/Hide remains integrated with the field.
+- MCP Settings is reorganized into Server, Capabilities, Connections and Advanced
+  access. Individual read/write tool permissions remain available inside focused
+  catalogues, OAuth and named direct clients live under Connections, and no-auth is
+  visually isolated as the advanced read-only fallback. Existing permission,
+  credential, autosave, live-sync and confirmation semantics are unchanged.
+- Account, Users, Preferences, API, MCP and Data now share one Settings information
+  architecture: semantic group kicker, title, description, status/action where
+  useful, and the existing specialized controls inside each grouped card.
+- Built-in avatar choices are fixed 46 x 46 px squares with consistent spacing and
+  natural wrapping instead of stretching across wide screens.
+- Sequential `01/02/03/04` Settings badges were removed because Settings groups are
+  not ordered steps. Sixteen restrained semantic SVG badges now provide visual
+  landmarks without a new icon dependency or category colors. The Connections
+  glyph receives a 1.5 SVG-unit optical Y correction while its badge box and all
+  other icons remain unchanged.
+
+Release evidence beyond the UI checkpoint:
+- Patch 777 already passed all 44 current release smoke invocations on fresh
+  copied-production databases plus canonical build, OpenAPI, protected-route, SPA,
+  restore and MCP regressions.
+- Real Claude OAuth verification exposed the canonical six read + eight safeguarded
+  write tools, exposed no hard-delete/purge tool, found the existing MCP test part,
+  and successfully exercised guarded metadata preview/confirmation.
+- The Hermes `MCP event loop is not running` failure was isolated to the Hermes
+  agent/runtime wrapper: Part Pilot initialized and executed `search_parts` both
+  locally and from inside the Hermes container against the public MCP URL. No Part
+  Pilot MCP compatibility workaround is warranted.
+
+All Patch 779-785 browser feedback is approved. Remaining Chat 27 work is the final
+public-alpha release-candidate documentation/handoff and fixes only for genuinely
+new release blockers. Permanent purge remains outside MCP; Notifications &
+Messaging remain post-v1.

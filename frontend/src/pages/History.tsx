@@ -7,6 +7,7 @@ import {
   useState
 } from "react";
 import type { ChangeEvent } from "react";
+import { Link } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthContext";
 import { useLiveSyncRevision } from "../live/LiveSyncContext";
@@ -973,6 +974,12 @@ export function History() {
                         selectedEntry.part_name ? (
                           <small>{selectedEntry.part_name}</small>
                         ) : null}
+                        <Link
+                          className="history-related-link"
+                          to={`/inventory?part=${selectedEntry.part_id}`}
+                        >
+                          Open part
+                        </Link>
                       </div>
                     ) : null}
                     {selectedEntry.reservation_id !== null ? (

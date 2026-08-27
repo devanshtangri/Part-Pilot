@@ -20,6 +20,7 @@ import type {
   ManagedUser,
   UserRole
 } from "../types/auth";
+import { SettingsStageIcon } from "./SettingsStageIcon";
 import { formatWorkspaceDateTime } from "../utils/dateTime";
 
 const OWNER_ASSIGNABLE_ROLES: AssignableUserRole[] = [
@@ -353,6 +354,7 @@ export function UserManagementSection({
         aria-labelledby="settings-users-title"
         hidden={hidden}
         data-partpilot-user-management="PARTPILOT:SETTINGS_USER_MANAGEMENT_UI:V774"
+        data-partpilot-users-settings-hierarchy="PARTPILOT:USERS_SETTINGS_HIERARCHY:V781"
       >
         <div className="settings-section-heading settings-users-heading">
           <div>
@@ -372,7 +374,18 @@ export function UserManagementSection({
           </button>
         </div>
 
-        <div className="settings-users-summary" aria-label="User summary">
+        <div className="settings-users-stage settings-unified-stage">
+          <div className="settings-unified-stage-heading">
+            <SettingsStageIcon name="users" />
+            <div>
+              <span className="card-label">Directory</span>
+              <h3>Workspace accounts</h3>
+              <p>Review role, account status and recent sign-in activity before opening focused management actions.</p>
+            </div>
+            <span className="settings-unified-stage-status">{activeCount} active</span>
+          </div>
+
+          <div className="settings-users-summary" aria-label="User summary">
           <div><span>Total</span><strong>{users.length}</strong></div>
           <div><span>Active</span><strong>{activeCount}</strong></div>
           <div><span>Disabled</span><strong>{disabledCount}</strong></div>
@@ -473,11 +486,12 @@ export function UserManagementSection({
             ) : null}
           </div>
         ) : null}
-        {message ? (
-          <p className="settings-account-state is-success" role="status">
-            {message}
-          </p>
-        ) : null}
+          {message ? (
+            <p className="settings-account-state is-success" role="status">
+              {message}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       {dialog ? (

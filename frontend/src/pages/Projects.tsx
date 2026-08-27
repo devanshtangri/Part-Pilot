@@ -904,6 +904,7 @@ async function submitProjectLifecycle() {
             </div>
             <span>{collection.total} records</span>
           </div>
+          <div className="projects-register-scroll" data-partpilot-project-register-scroll="PARTPILOT:PROJECT_REGISTER_SCROLL:V778">
           <div className="projects-list-columns" aria-hidden="true">
             <span>Project</span>
             <span>Status</span>
@@ -951,6 +952,7 @@ async function submitProjectLifecycle() {
                 </button>
               ))
             )}
+          </div>
           </div>
 
           <footer className="projects-pagination">

@@ -1169,6 +1169,7 @@ const runAction = async () => {
             </span>
           </div>
 
+          <div className="reservations-register-scroll" data-partpilot-reservation-register-scroll="PARTPILOT:RESERVATION_REGISTER_SCROLL:V778">
           <div className="reservations-list-columns" aria-hidden="true">
             <span>Reservation</span>
             <span>Status</span>
@@ -1227,6 +1228,7 @@ const runAction = async () => {
                 </button>
               ))
             )}
+          </div>
           </div>
 
           <footer className="reservations-pagination">

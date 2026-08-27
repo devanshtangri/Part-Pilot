@@ -1,63 +1,54 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V776 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V786 -->
 
 Project
-- Repo: https://github.com/devanshtangri/Part-Pilot.git; root `/projects/Part Pilot`; branch `main`.
-- Docker Compose service/container `partpilot`, usual host port 7890. React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend; SQLite production DB `/projects/Part Pilot/data/partpilot.db` (`/data/partpilot.db` in container).
-- Current approved/checkpoint target: Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six read + eight safeguarded write tools; browser-approved Users & Roles + permanent Primary Owner contract is checkpointed by Patch 776.
+- Repo: https://github.com/devanshtangri/Part-Pilot.git; root `/projects/Part Pilot`; branch `main`. Docker Compose service/container `partpilot`, usual host port 7890. React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend; SQLite production DB `/projects/Part Pilot/data/partpilot.db` (`/data/partpilot.db` in container).
+- Current release-candidate checkpoint: Patch 786 over Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six read + eight safeguarded writes. Patch 777 automated public-alpha regression and Patch 779-785 browser release polish are complete.
 
 Patch workflow
-- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary/handoff is one sequential Python file under `fixes/`; filename begins directly with patch number. Failed executed scripts consume numbers. Success final line exactly `Everything PASS`.
-- User normally runs numbered patches. Assistant may run one only when explicitly asked to execute that exact patch; then run the exact command once and return raw terminal output only, without diagnosis/retry/extra commands.
-- Before writes validate repo/root, branch, origin, committed HEAD, exact index/source bytes, prerequisites and transforms. Avoid brittle whitespace anchors. Backups `fixes/backups/`; logs `fixes/logs/`; diagnostics `docs/diagonostic_*.md`.
-- Browser-test app source remains uncommitted/unpushed until explicit user approval. Browser instructions stay outside patch scripts. After approval create a separate checkpoint/commit/push patch promptly.
-- App patches: `git diff --check`, relevant Python compile, canonical Docker build, Alembic validation, copied-production/relevant complete smokes, protected APIs, SPA/runtime markers and real-data preservation. Rehearsals stay isolated from live source/deployment.
-- Stage only intended allowlist; verify staged diff; push main, fetch and verify local HEAD == origin/main. Documentation-only checkpoints while app source is pending require exact allowlist/proof app bytes unchanged.
-- After two consecutive pre-write failures/repeated anchor mismatches/uncertain pending source, diagnostic-only next.
-- Origin validation must match the verified configured remote identity; Patch 767 proved that freezing an equivalent HTTPS spelling when local origin is SSH causes a false preflight failure. Durable failure evidence lives in the patch log, not terminal-only prose.
-- Repo memory target <=20,000 characters. Treat newest handoff + local repo state as authoritative for volatile hashes/runtime/pending state.
-- Patch delivery order: heading; file/path; SHA-256; concise scope/status; exact run command; expected final line `Everything PASS`. For AI/MCP browser tests always provide exact copy-paste prompts for the user to send.
+- Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary/handoff is one sequential Python file under `fixes/`; filename starts directly with the patch number. Failed executed scripts consume numbers. Successful final line exactly `Everything PASS`.
+- User normally runs numbered patches. Assistant may execute one only when explicitly asked to run that exact patch; then run the exact command once and return raw terminal output only, with no diagnosis/retry/extra commands.
+- Before writes validate repo/root, branch, verified origin identity, committed HEAD, exact index/source bytes, prerequisites and transforms. Backups `fixes/backups/`; logs `fixes/logs/`; diagnostics `docs/diagonostic_*.md`. Avoid brittle whitespace anchors.
+- Browser-test app source remains uncommitted/unpushed until explicit approval. Browser instructions stay outside patch scripts. After approval create a separate checkpoint/commit/push patch promptly.
+- App changes require `git diff --check`, relevant compile/build, canonical Docker build, Alembic validation, copied-production/relevant smokes, protected APIs, SPA/runtime markers and real-data preservation. Rehearsals stay isolated from live source/deployment.
+- Stage only an exact allowlist; verify staged diff/check; push `main`, fetch and verify local HEAD == `origin/main`. After two consecutive pre-write failures/repeated anchor mismatch/uncertain pending source, diagnostic-only next.
+- Origin spelling must match the verified configured remote; Patch 767 proved equivalent HTTPS-vs-SSH spelling can cause a false preflight failure. Repo memory target <=20,000 characters. Newest handoff + local repo state are authoritative for volatile hashes/runtime/pending state.
+- Patch delivery order: heading; file/path; SHA-256; scope/source-build-browser-commit status; exact run command; expected `Everything PASS`. For AI/MCP browser tests provide exact copy-paste prompts.
 
 Chat boundary
-- Chat 26: `MCP Inventory Writes and Public Alpha Finalization`, planned range 743-767; Patch 767 was consumed pre-write by an HTTPS-vs-SSH origin-form assertion, so Patch 768 is the authoritative recovery boundary.
-- Chat 27: `User Management UI and Public Alpha Release Candidate`, range 769-793, first 769, planned boundary 793.
+- Chat 26 authoritative boundary is Patch 768 after Patch 767's pre-write origin-form failure.
+- Chat 27: `User Management UI and Public Alpha Release Candidate`, patch range 769-793, planned boundary 793.
 
 Data safety
-- Preserve real inventory, users, sessions, Projects, Reservations, movements, audits, settings, API keys, OAuth/direct-client credentials, backups and restore evidence. Use unique fixtures and cleanup only test-owned IDs; never broad deletes.
-- Live DB/settings/OAuth/client/tool-permission changes from user activity are legitimate mutable state. Do not pin old DB hashes/boolean values or restore unrelated live values because they changed. Never reveal or rotate secrets automatically.
-- Existing MCP browser fixture: part ID 16, part number `MCP-P756-CREATE-TEST`, name `Patch 760 MCP Metadata Test`, Resistor, physical 12, reserved 0, three typed fields. It is legitimate live evidence; do not normalize/delete automatically.
+- Preserve real inventory, users, sessions, Projects, Reservations, movements, audits, settings, API keys, OAuth/direct-client credentials, backups and restore evidence. Test only unique/manifest-owned fixtures; never broad-delete.
+- Live DB/settings/OAuth/client/tool-permission changes from user activity are legitimate mutable state. Do not pin old DB hashes or permission booleans and never reveal/rotate credentials automatically.
+- Existing MCP browser fixture: part ID 16, `MCP-P756-CREATE-TEST`, name `Patch 760 MCP Metadata Test`, Resistor, physical 12, reserved 0, three typed fields. It is legitimate live evidence; do not normalize/delete automatically.
 
 Product/UI rules
-- Flat dense enterprise UI; subtle borders/restrained radii/readable spacing/responsive behavior; no gradients/glow/glass/decorative imagery. Prefer themed controls. Disabled = not-allowed; wait/busy only during actual loading/saving.
-- Preserve search/filter/sort/pagination/stale-request guards/selection/history/edit/delete/restore behavior when changing layouts. Explicitly test intermediate and mobile widths.
-- Reversible low-risk Preferences may autosave with rollback/stale-request protection. Consequential credentials/password/delete/purge/revoke/rotate/backup-restore/lifecycle actions require explicit actions/confirmation.
-- Currency is display/formatting semantics only; timezone changes passive timestamp display only. Never rewrite historical numeric prices or stored timestamps for preference changes. Historical Project/Reservation currency snapshots remain authoritative.
+- Flat dense enterprise UI; subtle borders, restrained radii, readable spacing and responsive behavior; no gradients/glow/glass/decorative imagery. Prefer themed controls. Disabled = not-allowed; wait/busy only during actual loading/saving.
+- Preserve search/filter/sort/pagination/stale-request guards/selection/history/edit/delete/restore behavior through layout changes; explicitly test intermediate/mobile widths.
+- Low-risk reversible Preferences may autosave with rollback/stale-request protection. Credentials/password/delete/purge/revoke/rotate/backup-restore/lifecycle transitions require explicit actions/confirmation.
+- Currency is formatting/display only and timezone is passive timestamp display only; neither rewrites historical prices/currency snapshots/stored timestamps.
 
 Core application
-- Typed inventory/catalogues; universal search/filter/sort/pagination; stock movements; recycle-bin soft delete/restore and separate confirmed purge; system History; atomic Projects/Reservations.
-- Auth/profile/session management; Owner/Administrator/Operator/Viewer authorization; first-init account is the permanent Primary Owner; responsive Users & Roles administration; role-hidden Settings workspaces; REST API keys with scope/role ceilings; backups/restores; responsive dark/light/system Settings.
-- Authenticated SSE + cross-tab relay powers targeted live refetch for Inventory/History, Projects/Reservations, Dashboard, Settings/account/backups and API/MCP integrations while preserving local drafts/search/filter/page/selection.
-- Dashboard has whole-inventory metrics, Stock alerts and Quick actions; routine Refresh buttons removed from live-synced workspaces while error Retry remains.
+- Typed inventory/catalogues; universal search/filter/sort/pagination; stock movements; recycle-bin soft delete/restore plus separate confirmed purge; system History; atomic Projects/Reservations.
+- Auth/profile/sessions; permanent first-init Primary Owner; Administrator/Operator/Viewer ceilings; responsive Users & Roles; unauthorized Settings workspaces hidden; REST API keys; backups/restores; responsive dark/light/system Settings.
+- Authenticated SSE + cross-tab relay drives targeted live refetch across Inventory/History, Projects/Reservations, Dashboard, Settings/account/backups and API/MCP integrations while preserving local drafts/search/filter/page/selection.
+- Dashboard focuses universal search, whole-inventory metrics, activity and Quick actions; the redundant Stock alerts launcher/dialog is removed. Routine Refresh buttons remain removed while error Retry remains.
+- Projects/Reservations use aligned horizontal register scrolling at intermediate widths so Updated timestamps remain reachable; <= mobile breakpoint retains cards. History Part-related records can open the exact Inventory Part drawer through `/inventory?part=<id>`.
+- Settings uses a shared grouped information architecture across Account, Users, Preferences, API, MCP and Data. Built-in avatars are fixed square choices. Sequential number tags are removed; 16 restrained semantic SVG badges provide landmarks. Generated API/MCP/OAuth values use in-field Copy controls.
 
 MCP/OAuth/direct access
-- OAuth discovery/DCR/PKCE/consent/token/refresh/revocation and stateless `/mcp`; real Claude/ChatGPT flows verified. OAuth scope challenges advertise enabled read/write categories; existing tokens never silently gain `mcp:write`.
-- Named direct clients support Bearer/custom-header/trusted-network authentication. No-auth is off by default, typed-confirmed, read-only and lower precedence than explicit credentials/trusted networks.
-- Global individual-tool permissions + per-client deny ceilings + server/read/write category gates are enforced at discovery and call time. Live permission booleans are mutable configuration.
-- Safeguarded writes reuse canonical services and require server/write/global/client/scope ceilings, active Operator-or-higher backing user, preview, short-lived one-time confirmation, idempotency/completed replay and state-drift rejection. No-auth stays read-only.
-- Current guarded writes: `reserve_project`, `consume_reservation`, `cancel_reservation`, `adjust_part_quantity`, `create_part`, `update_part_metadata`, `soft_delete_part`, `restore_part`.
-- `update_part_metadata` requires complete explicit editable metadata replacement, cannot change stock and freezes relevant catalogue/template dependencies without coupling confirmation to unrelated stock-only changes.
-- `soft_delete_part` and `restore_part` use canonical recycle-bin services. Soft delete preserves quantities/reservations/fields/movements/history; restore checks deleted-state snapshot and part-number availability and returns the same record. Neither creates stock movement solely for lifecycle change. Permanent purge/hard delete/recycle-bin emptying is deliberately NOT exposed to MCP.
-- History shows connected MCP client identity (e.g. Claude) while retaining backing Part Pilot user authority/accountability.
+- OAuth discovery/DCR/PKCE/consent/token/refresh/revocation and stateless `/mcp`; real Claude/ChatGPT flows verified. Scope challenges reflect enabled categories; existing tokens never silently gain `mcp:write`.
+- Named direct clients support Bearer/custom-header/trusted-network auth. No-auth is off by default, typed-confirmed, read-only and lower precedence than explicit credentials/trusted networks.
+- Global individual-tool permissions + per-client deny ceilings + server/read/write category gates apply at discovery and call time. Permission booleans remain mutable configuration.
+- Safeguarded writes reuse canonical services and require server/write/global/client/scope ceilings, active Operator-or-higher authority, preview, short-lived confirmation, idempotency/completed replay and state-drift rejection. No-auth stays read-only.
+- Writes: `reserve_project`, `consume_reservation`, `cancel_reservation`, `adjust_part_quantity`, `create_part`, `update_part_metadata`, `soft_delete_part`, `restore_part`. Permanent purge/hard delete/recycle-bin emptying is deliberately absent from MCP.
+- `update_part_metadata` is complete explicit metadata replacement and cannot change stock. `soft_delete_part`/`restore_part` reuse recycle-bin services, preserve quantities/reservations/fields/movements/history and create no stock movement solely for lifecycle change. History shows connected MCP client identity while retaining backing user accountability.
 
-Chat 26 browser evidence
-- Guarded stock/create/metadata operations were browser-proved with Claude; metadata test preserved 12 physical / 0 reserved and produced no stock movement.
-- Reversible lifecycle test on part 16: Claude previewed/confirmed soft delete, preserved 12/0 + three fields, created no movement, and History showed Claude; exact replay returned `replayed:true` without duplicate audit/mutation. Restore preview/confirm returned same ID/part number/stock/fields with no movement; restore replay likewise produced no duplicate. Claude exposed only soft delete + restore for part lifecycle, with no permanent purge tool.
-- History responsive follow-up: chronological register header + rows horizontally scroll together at intermediate widths instead of clipping inaccessible columns; heading/pagination stay stationary and <=680px retains card layout. Browser approved.
+Release evidence / remaining Chat 27
+- Primary Owner/User management is browser-approved and checkpointed. Patch 777 passed 44 current release smoke invocations on fresh copied-production DBs plus canonical build, restore, OpenAPI, SPA and MCP regression; restore-commit concern was harness env drift and passes with `PARTPILOT_RESTORE_SUPERVISOR_CONTRACT=compose-restart-v1`.
+- Real Claude OAuth verification exposed six reads + eight safeguarded writes, no hard-delete tool, and successfully exercised guarded metadata preview/confirmation. Hermes `MCP event loop is not running` is client/runtime-wrapper-side: the same public Part Pilot endpoint initialized and executed `search_parts` from inside the Hermes container, so Part Pilot should not add a workaround.
+- Patch 779-785 browser polish is approved: Dashboard cleanup, Projects/Reservations responsive registers, History Part deep-link, in-field credential Copy, MCP and all-Settings hierarchy, avatar tile sizing, semantic icons and Connections optical correction.
+- Remaining work: final public-alpha release-candidate durable handoff/documentation and only genuinely new release blockers before the planned Patch 793 boundary. Permanent purge stays separate from MCP; Notifications & Messaging remain post-v1.
 
-Remaining V1 / Chat 27
-- Browser-approved user management is complete: Primary Owner is exclusive/immutable, Administrator manages only Operator/Viewer, lower roles do not see unauthorized Settings workspaces, and restore validation rejects multi-Owner databases.
-- Patch 777 automated public-alpha regression passed 44 current release smoke invocations on fresh copied-production databases plus canonical build/runtime/OpenAPI/SPA checks. Full custom-avatar coverage uses only a copied avatar-free fixture; OAuth-admin uses its production-safe check-only mode; the obsolete direct-auth migration smoke frozen to Alembic 0015 is superseded by current API/named/transport smokes. The earlier restore-commit failure was harness invocation drift: the smoke requires `PARTPILOT_RESTORE_SUPERVISOR_CONTRACT=compose-restart-v1`, and passes with that canonical contract.
-1. Final browser accessibility/responsive and real external-client OAuth/direct-MCP release verification; fix release blockers only.
-2. Public-alpha release-candidate checkpoint/handoff.
-- Permanent purge remains separate from MCP. Notifications & Messaging remain post-v1.
-
-<!-- PARTPILOT:PUBLIC_ALPHA_AUTOMATED_REGRESSION_MEMORY:V777 -->
+<!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_POLISH_MEMORY:V786 -->
