@@ -58,6 +58,7 @@ function authUserFromTokenResponse(response: AuthTokenResponse): AuthUser {
     avatar_id: "initials",
     has_custom_avatar: false,
     avatar_image_sha256: null,
+    role: response.role,
     is_active: true
   };
 }

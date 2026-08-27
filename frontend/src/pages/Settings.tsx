@@ -15,6 +15,7 @@ import { useLiveSyncRevision } from "../live/LiveSyncContext";
 import { ApiKeySettingsSection } from "../components/ApiKeySettingsSection";
 import { McpClientPermissionsDialog } from "../components/McpClientPermissionsDialog";
 import { McpDirectClientsSection } from "../components/McpDirectClientsSection";
+import { UserManagementSection } from "../components/UserManagementSection";
 import { UserAvatar } from "../components/UserAvatar";
 import {
   AUTH_TOKEN_STORAGE_KEY,
@@ -90,6 +91,7 @@ const SETTINGS_AUTOSAVE_SAVED_VISIBLE_MS = 3500;
 const RESERVATION_AUTOSAVE_STARTER_DAYS = 30;
 const SETTINGS_SECTION_IDS = [
   "account",
+  "users",
   "preferences",
   "api",
   "mcp",
@@ -292,6 +294,24 @@ export function Settings() {
   const accountAvatarInputRef = useRef<HTMLInputElement | null>(null);
   const [activeSettingsSection, setActiveSettingsSection] =
     useState<SettingsSection>(settingsSectionFromHash);
+  const canAdministerWorkspace =
+    user?.role === "owner" || user?.role === "administrator";
+  const canAdministerUsers = canAdministerWorkspace;
+  const isPrimaryOwner = user?.role === "owner";
+  const visibleSettingsSections = useMemo<SettingsSection[]>(
+    () => canAdministerWorkspace
+      ? ["account", "users", "preferences", "api", "mcp", "data"]
+      : ["account", "api"],
+    [canAdministerWorkspace]
+  );
+
+  useEffect(() => {
+    if (user && !visibleSettingsSections.includes(activeSettingsSection)) {
+      setActiveSettingsSection("account");
+      window.history.replaceState(null, "", "#settings-account");
+    }
+  }, [activeSettingsSection, user, visibleSettingsSections]);
+
   const {
     theme,
     lightThemeAvailable,
@@ -830,7 +850,7 @@ export function Settings() {
   }, [accountReloadVersion, token]);
 
   useEffect(() => {
-    if (!token) {
+    if (!token || !canAdministerWorkspace) {
       searchSettingsLoadedTokenRef.current = null;
       setSearchSettings(null);
       setSearchSettingsLoading(false);
@@ -871,11 +891,11 @@ export function Settings() {
     return () => {
       cancelled = true;
     };
-  }, [preferenceReloadVersion, token]);
+  }, [canAdministerWorkspace, preferenceReloadVersion, token]);
 
   // PARTPILOT:CURRENCY_PREFERENCE_UI:V675
   useEffect(() => {
-    if (!token) {
+    if (!token || !canAdministerWorkspace) {
       currencySettingsLoadedTokenRef.current = null;
       setCurrencySettings(null);
       setCurrencySettingsLoading(false);
@@ -909,11 +929,11 @@ export function Settings() {
       });
 
     return () => { cancelled = true; };
-  }, [preferenceReloadVersion, syncDefaultCurrency, token]);
+  }, [canAdministerWorkspace, preferenceReloadVersion, syncDefaultCurrency, token]);
 
   // PARTPILOT:TIMEZONE_PREFERENCE_UI:V676
   useEffect(() => {
-    if (!token) {
+    if (!token || !canAdministerWorkspace) {
       timezoneSettingsLoadedTokenRef.current = null;
       setTimezoneSettings(null);
       setTimezoneSettingsLoading(false);
@@ -947,10 +967,10 @@ export function Settings() {
       });
 
     return () => { cancelled = true; };
-  }, [preferenceReloadVersion, syncTimezone, token]);
+  }, [canAdministerWorkspace, preferenceReloadVersion, syncTimezone, token]);
 
   useEffect(() => {
-    if (!token) {
+    if (!token || !canAdministerWorkspace) {
       reservationSettingsLoadedTokenRef.current = null;
       setReservationSettings(null);
       setReservationDraft(null);
@@ -1001,11 +1021,11 @@ export function Settings() {
     return () => {
       cancelled = true;
     };
-  }, [reservationReloadVersion, token]);
+  }, [canAdministerWorkspace, reservationReloadVersion, token]);
 
   // PARTPILOT:MCP_SETTINGS_UI:V473
   useEffect(() => {
-    if (!token) {
+    if (!token || !canAdministerWorkspace) {
       mcpSettingsLoadedTokenRef.current = null;
       setMcpSettings(null);
       setMcpDraft(null);
@@ -1054,11 +1074,11 @@ export function Settings() {
     return () => {
       cancelled = true;
     };
-  }, [mcpReloadVersion, token]);
+  }, [canAdministerWorkspace, mcpReloadVersion, token]);
 
   // PARTPILOT:MCP_TOOL_PERMISSIONS_UI:V654
   useEffect(() => {
-    if (!token) {
+    if (!token || !canAdministerWorkspace) {
       mcpToolPermissionsLoadedTokenRef.current = null;
       setMcpToolPermissions(null);
       setMcpToolPermissionsDraft(null);
@@ -1100,11 +1120,11 @@ export function Settings() {
         if (!cancelled) setMcpToolPermissionsLoading(false);
       });
     return () => { cancelled = true; };
-  }, [mcpToolPermissionsReloadVersion, token]);
+  }, [canAdministerWorkspace, mcpToolPermissionsReloadVersion, token]);
 
   // PARTPILOT:MCP_OAUTH_MANUAL_REGISTRATION_UI:V569
   useEffect(() => {
-    if (!token) {
+    if (!token || !canAdministerWorkspace) {
       mcpOAuthClientsLoadedTokenRef.current = null;
       setMcpOAuthClients(null);
       setMcpOAuthClientsLoading(false);
@@ -1132,13 +1152,13 @@ export function Settings() {
       })
       .finally(() => { if (!cancelled) setMcpOAuthClientsLoading(false); });
     return () => { cancelled = true; };
-  }, [mcpOAuthReloadVersion, token]);
+  }, [canAdministerWorkspace, mcpOAuthReloadVersion, token]);
 
   // PARTPILOT:MCP_TRUSTED_NETWORK_UI:V510
 
   // PARTPILOT:SETTINGS_MANUAL_BACKUP_STATUS_UI:V454
   useEffect(() => {
-    if (!token) {
+    if (!token || !canAdministerWorkspace) {
       backupStatusLoadedTokenRef.current = null;
       setBackupStatus(null);
       setBackupStatusLoading(false);
@@ -1179,7 +1199,7 @@ export function Settings() {
     return () => {
       cancelled = true;
     };
-  }, [backupStatusReloadVersion, token]);
+  }, [canAdministerWorkspace, backupStatusReloadVersion, token]);
 
   useEffect(() => {
     if (!preferenceResetTarget) return;
@@ -2260,6 +2280,7 @@ export function Settings() {
       data-partpilot-preferences-workspace="PARTPILOT:SETTINGS_PREFERENCES_WORKSPACE:V673"
       data-partpilot-live-sync="PARTPILOT:SETTINGS_ACCOUNT_PREFERENCES_LIVE_SYNC:V705"
       data-partpilot-integrations-live-sync="PARTPILOT:API_KEY_MCP_INTEGRATION_LIVE_SYNC:V708"
+      data-partpilot-user-management="PARTPILOT:SETTINGS_USER_MANAGEMENT_UI:V774"
       data-partpilot-active-settings-section={activeSettingsSection}
     >
       <header className="page-header settings-page-header">
@@ -2267,8 +2288,9 @@ export function Settings() {
           <p className="eyebrow">Application configuration</p>
           <h1>Settings</h1>
           <p>
-            Manage your account, workspace preferences, REST API access, MCP access,
-            and local data controls.
+            {canAdministerWorkspace
+              ? "Manage your account, users and roles, workspace preferences, REST API access, MCP access, and local data controls."
+              : "Manage your account and role-capped REST API access."}
           </p>
         </div>
       </header>
@@ -2290,6 +2312,18 @@ export function Settings() {
         >
           Account
         </button>
+        {canAdministerUsers ? (
+          <button
+            className={activeSettingsSection === "users" ? "is-active" : ""}
+            type="button"
+            aria-current={activeSettingsSection === "users" ? "page" : undefined}
+            aria-controls="settings-users"
+            onClick={() => chooseSettingsSection("users")}
+          >
+            Users
+          </button>
+        ) : null}
+        {canAdministerWorkspace ? (
         <button
           className={activeSettingsSection === "preferences" ? "is-active" : ""}
           type="button"
@@ -2299,6 +2333,7 @@ export function Settings() {
         >
           Preferences
         </button>
+        ) : null}
         <button
           className={
             activeSettingsSection === "api"
@@ -2316,6 +2351,7 @@ export function Settings() {
         >
           API Access
         </button>
+        {canAdministerWorkspace ? (
         <button
           className={
             activeSettingsSection === "mcp"
@@ -2333,6 +2369,8 @@ export function Settings() {
         >
           MCP
         </button>
+        ) : null}
+        {canAdministerWorkspace ? (
         <button
           className={
             activeSettingsSection === "data"
@@ -2350,6 +2388,7 @@ export function Settings() {
         >
           Data
         </button>
+        ) : null}
       </nav>
 
       <section
@@ -2362,7 +2401,11 @@ export function Settings() {
       >
         <div className="settings-section-heading">
           <div>
-            <span className="card-label">Owner account</span>
+            <span className="card-label">
+              {user?.role
+                ? `${user.role.charAt(0).toUpperCase()}${user.role.slice(1)} account`
+                : "Signed-in account"}
+            </span>
             <h2 id="settings-account-title">Account &amp; Security</h2>
             <p>
               Update your Part Pilot identity, change your password, and
@@ -2814,6 +2857,17 @@ export function Settings() {
         </div>
       </section>
 
+      {canAdministerUsers && token && user ? (
+        <UserManagementSection
+          token={token}
+          currentUser={user}
+          timezone={timezone}
+          liveRevision={accountLiveRevision}
+          hidden={activeSettingsSection !== "users"}
+        />
+      ) : null}
+
+      {canAdministerWorkspace ? (
       <section
         id="settings-preferences"
         data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
@@ -2966,6 +3020,7 @@ export function Settings() {
           </section>
         </div>
       </section>
+      ) : null}
 
       <div
         className="settings-content-grid"
@@ -2977,6 +3032,7 @@ export function Settings() {
           liveReloadVersion={apiKeyLiveReloadVersion}
         />
 
+        {canAdministerWorkspace ? (
         <section
           id="settings-mcp"
           className="card settings-section settings-mcp-section settings-grid-mcp"
@@ -3313,7 +3369,9 @@ export function Settings() {
             </p>
           ) : null}
         </section>
+        ) : null}
 
+        {canAdministerWorkspace ? (
         <section
           id="settings-data"
           data-partpilot-background-refresh="PARTPILOT:STABLE_BACKGROUND_REFRESH:V718"
@@ -3324,10 +3382,13 @@ export function Settings() {
           <div className="settings-section-heading">
             <div>
               <span className="card-label">Local data</span>
-              <h2 id="settings-data-title">Backup and restore</h2>
+              <h2 id="settings-data-title">
+                {isPrimaryOwner ? "Backup and restore" : "Backup"}
+              </h2>
               <p>
-                Download a complete portable backup or validate and
-                restore a previous Part Pilot backup.
+                {isPrimaryOwner
+                  ? "Download a complete portable backup or validate and restore a previous Part Pilot backup."
+                  : "Download a complete portable backup. Restore and database reset are reserved for the primary Owner."}
               </p>
             </div>
           </div>
@@ -3461,6 +3522,7 @@ export function Settings() {
               </p>
             </article>
 
+            {isPrimaryOwner ? (
             <article className="settings-data-action">
               <h3>Restore backup</h3>
               <p>
@@ -3523,8 +3585,10 @@ export function Settings() {
                 {restoreError ?? "Maximum upload size: 256 MiB"}
               </p>
             </article>
+            ) : null}
           </div>
 
+          {isPrimaryOwner ? (<>
           <hr className="settings-data-divider" />
 
           <div className="settings-data-reset-heading">
@@ -3549,10 +3613,12 @@ export function Settings() {
               Review database reset
             </button>
           </div>
+          </>) : null}
         </section>
+        ) : null}
       </div>
 
-      {mcpNoAuthDialogOpen ? (
+      {canAdministerWorkspace && mcpNoAuthDialogOpen ? (
         <div className="settings-security-dialog-backdrop" data-partpilot-mcp-no-auth-dialog="PARTPILOT:MCP_NO_AUTH_CONFIRMATION_DIALOG:V627">
           <section className="settings-security-dialog is-danger" role="dialog" aria-modal="true" aria-labelledby="settings-mcp-no-auth-title" aria-describedby="settings-mcp-no-auth-description">
             <header><span className="card-label">MCP security</span><h2 id="settings-mcp-no-auth-title">Enable MCP without authentication?</h2></header>
@@ -3565,7 +3631,7 @@ export function Settings() {
         </div>
       ) : null}
 
-      {mcpOAuthCredential ? (
+      {canAdministerWorkspace && mcpOAuthCredential ? (
         <div className="settings-mcp-oauth-backdrop" data-partpilot-mcp-oauth-credential-dialog="PARTPILOT:MCP_OAUTH_ONE_TIME_CREDENTIAL_DIALOG:V569">
           <section className="settings-mcp-oauth-dialog settings-mcp-oauth-credential-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-mcp-oauth-credential-title" aria-describedby="settings-mcp-oauth-credential-description">
             <header><p className="eyebrow">OAuth client registered</p><h2 id="settings-mcp-oauth-credential-title">Save {mcpOAuthCredential.client_name} credentials</h2></header>
@@ -3581,7 +3647,7 @@ export function Settings() {
         </div>
       ) : null}
 
-      {mcpOAuthRevokeTarget ? (
+      {canAdministerWorkspace && mcpOAuthRevokeTarget ? (
         <div className="settings-mcp-oauth-backdrop" data-partpilot-mcp-oauth-revoke-dialog="PARTPILOT:MCP_OAUTH_CLIENT_REVOKE_DIALOG:V569">
           <section className="settings-mcp-oauth-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-mcp-oauth-dialog-title" aria-describedby="settings-mcp-oauth-dialog-description">
             <header><p className="eyebrow">{mcpOAuthRevokeTarget.status === "connected" ? "Connected OAuth client" : "Registered OAuth client"}</p><h2 id="settings-mcp-oauth-dialog-title">Revoke {mcpOAuthRevokeTarget.client_name}?</h2></header>
@@ -3591,7 +3657,7 @@ export function Settings() {
         </div>
       ) : null}
 
-      {restoreDialogOpen && restoreValidation ? (
+      {isPrimaryOwner && restoreDialogOpen && restoreValidation ? (
         <div
           className="settings-restore-backdrop"
           data-partpilot-restore-dialog="PARTPILOT:SETTINGS_RESTORE_REVIEW_DIALOG:V442"
@@ -3721,7 +3787,7 @@ export function Settings() {
         </div>
       ) : null}
 
-      {preferenceResetTarget ? (
+      {canAdministerWorkspace && preferenceResetTarget ? (
         <div className="settings-reset-backdrop" data-partpilot-preference-reset-dialog="PARTPILOT:TARGETED_PREFERENCE_RESET_UI:V673">
           <section className="settings-reset-dialog is-preference-reset" role="dialog" aria-modal="true" aria-labelledby="settings-preference-reset-title" aria-describedby="settings-preference-reset-description">
             <header>

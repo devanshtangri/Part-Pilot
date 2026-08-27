@@ -19,7 +19,7 @@ from app.services.authorization import (
     ROLE_VIEWER,
 )
 
-# PARTPILOT:USER_ROLE_AUTHORIZATION_SMOKE:V732
+# PARTPILOT:USER_ROLE_AUTHORIZATION_SMOKE:V774
 EXPECTED_HEAD = "0022_mcp_inventory_part_lifecycle"
 
 
@@ -141,18 +141,13 @@ def main() -> None:
             if invalid is not None:
                 fail(f"invalid stored user role: {invalid}")
             preexisting = list(db.execute(select(User).order_by(User.id)).scalars())
-            if not preexisting or any(user.role != ROLE_OWNER for user in preexisting):
-                fail("pre-role accounts were not preserved as Owners")
-
-            owner = create_user(
-                db,
-                username="role_smoke_owner",
-                display_name="Role Smoke Owner",
-                password="RoleSmokeOwnerPassword!",
-                role=ROLE_OWNER,
-                commit=False,
-            )
-            db.flush()
+            if not preexisting:
+                fail("role smoke requires the bootstrap Owner account")
+            owner = preexisting[0]
+            if owner.role != ROLE_OWNER or not owner.is_active:
+                fail("first-init account is not the active Owner")
+            if any(user.role == ROLE_OWNER for user in preexisting[1:]):
+                fail("a non-bootstrap account is already Owner")
             owner_token = create_session(db, user=owner, commit=False).token
             db.commit()
             owner_id = owner.id
@@ -160,6 +155,19 @@ def main() -> None:
         response = client.get("/api/auth/me", headers=bearer(owner_token))
         if response.status_code != 200 or response.json().get("role") != ROLE_OWNER:
             fail(f"Owner /auth/me role response failed: {response.status_code} {response.text}")
+
+        response = client.post(
+            "/api/auth/users",
+            headers=bearer(owner_token),
+            json={
+                "username": "role_smoke_forbidden_owner",
+                "display_name": "Forbidden Owner",
+                "password": "RoleSmokeManagedPassword!",
+                "role": ROLE_OWNER,
+            },
+        )
+        if response.status_code not in {403, 422}:
+            fail(f"managed Owner creation was not blocked: {response.status_code} {response.text}")
 
         def create_managed(username: str, role: str, actor_token: str = owner_token):
             response = client.post(
@@ -346,22 +354,31 @@ def main() -> None:
             if db.get(User, delete_id) is not None:
                 fail("Deleted Viewer still exists")
 
-        with SessionLocal() as db:
-            db.execute(
-                text(
-                    "UPDATE users SET is_active=0 "
-                    "WHERE role='owner' AND id != :fixture_owner"
-                ),
-                {"fixture_owner": owner_id},
-            )
-            db.commit()
         response = client.patch(
             f"/api/auth/users/{owner_id}",
             headers=bearer(owner_token),
             json={"role": ROLE_VIEWER},
         )
-        if response.status_code != 409 or "last active Owner" not in response.text:
-            fail(f"Last Owner demotion was not blocked: {response.status_code} {response.text}")
+        if response.status_code not in {409, 422}:
+            fail(f"Primary Owner demotion was not blocked: {response.status_code} {response.text}")
+
+        response = client.patch(
+            f"/api/auth/users/{owner_id}",
+            headers=bearer(owner_token),
+            json={"is_active": False},
+        )
+        if response.status_code != 409:
+            fail(f"Primary Owner disable was not blocked: {response.status_code} {response.text}")
+
+        response = client.request(
+            "DELETE",
+            f"/api/auth/users/{owner_id}",
+            headers=bearer(owner_token),
+            json={"confirmation_username": owner.username},
+        )
+        if response.status_code != 409:
+            fail(f"Primary Owner deletion was not blocked: {response.status_code} {response.text}")
+
 
         document = client.get("/openapi.json").json()
         for path, method in (
@@ -375,7 +392,7 @@ def main() -> None:
             if method not in document.get("paths", {}).get(path, {}):
                 fail(f"OpenAPI missing {method.upper()} {path}")
 
-        print("[PASS] Owner/Administrator/Operator/Viewer schema, administration, last-Owner protection, REST role ceilings and API-key anti-escalation are valid")
+        print("[PASS] Primary Owner immutability, Administrator/Operator/Viewer administration, REST role ceilings and API-key anti-escalation are valid")
     finally:
         client.close()
         restore_database(backup)

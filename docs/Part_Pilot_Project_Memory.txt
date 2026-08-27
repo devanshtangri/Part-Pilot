@@ -1,9 +1,9 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V768 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V776 -->
 
 Project
 - Repo: https://github.com/devanshtangri/Part-Pilot.git; root `/projects/Part Pilot`; branch `main`.
 - Docker Compose service/container `partpilot`, usual host port 7890. React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend; SQLite production DB `/projects/Part Pilot/data/partpilot.db` (`/data/partpilot.db` in container).
-- Current approved/checkpoint target: Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six read + eight safeguarded write tools.
+- Current approved/checkpoint target: Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six read + eight safeguarded write tools; browser-approved Users & Roles + permanent Primary Owner contract is checkpointed by Patch 776.
 
 Patch workflow
 - Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary/handoff is one sequential Python file under `fixes/`; filename begins directly with patch number. Failed executed scripts consume numbers. Success final line exactly `Everything PASS`.
@@ -34,7 +34,7 @@ Product/UI rules
 
 Core application
 - Typed inventory/catalogues; universal search/filter/sort/pagination; stock movements; recycle-bin soft delete/restore and separate confirmed purge; system History; atomic Projects/Reservations.
-- Auth/profile/session management; Owner/Administrator/Operator/Viewer backend authorization; REST API keys with scope/role ceilings; backups/restores; responsive dark/light/system Settings.
+- Auth/profile/session management; Owner/Administrator/Operator/Viewer authorization; first-init account is the permanent Primary Owner; responsive Users & Roles administration; role-hidden Settings workspaces; REST API keys with scope/role ceilings; backups/restores; responsive dark/light/system Settings.
 - Authenticated SSE + cross-tab relay powers targeted live refetch for Inventory/History, Projects/Reservations, Dashboard, Settings/account/backups and API/MCP integrations while preserving local drafts/search/filter/page/selection.
 - Dashboard has whole-inventory metrics, Stock alerts and Quick actions; routine Refresh buttons removed from live-synced workspaces while error Retry remains.
 
@@ -54,7 +54,8 @@ Chat 26 browser evidence
 - History responsive follow-up: chronological register header + rows horizontally scroll together at intermediate widths instead of clipping inaccessible columns; heading/pagination stay stationary and <=680px retains card layout. Browser approved.
 
 Remaining V1 / Chat 27
-1. Dedicated Settings user/role-management UI on the already-enforced backend boundary, preserving role ceilings, last-active-Owner and self-protection rules.
-2. Final public-alpha accessibility/security/responsive/backup-restore/REST-OpenAPI/MCP/live-sync regression; fix release blockers only.
+- Browser-approved user management is complete: Primary Owner is exclusive/immutable, Administrator manages only Operator/Viewer, lower roles do not see unauthorized Settings workspaces, and restore validation rejects multi-Owner databases.
+1. Final public-alpha accessibility/security/responsive/backup-restore/REST-OpenAPI/MCP/live-sync regression; fix release blockers only.
+2. Investigate the pre-existing `restore_commit_smoke_test` readiness/drain failure that reproduces on the Patch 773 baseline.
 3. Public-alpha release-candidate checkpoint/handoff.
 - Permanent purge remains separate from MCP. Notifications & Messaging remain post-v1.

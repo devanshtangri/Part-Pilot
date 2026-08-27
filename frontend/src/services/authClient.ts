@@ -4,6 +4,11 @@ import type {
   AuthUser,
   DebugResetResponse,
   LoginRequest,
+  ManagedUser,
+  ManagedUserAccessUpdateRequest,
+  ManagedUserActionResponse,
+  ManagedUserCreateRequest,
+  ManagedUserListResponse,
   OtherSessionsRevokeResponse,
   PasswordChangeRequest,
   PasswordChangeResponse,
@@ -37,7 +42,8 @@ function mapTokenResponse(response: ApiAuthTokenResponse): AuthTokenResponse {
   return {
     token: response.token,
     username: response.username,
-    display_name: response.display_name
+    display_name: response.display_name,
+    role: response.role
   };
 }
 
@@ -331,6 +337,141 @@ export async function revokeAllOtherSessions(
       headers: bearerHeaders(token)
     }
   );
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+// PARTPILOT:USER_MANAGEMENT_FRONTEND_CLIENT:V773
+export async function listManagedUsers(
+  token: string
+): Promise<ManagedUserListResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/users`, {
+    headers: bearerHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function createManagedUser(
+  token: string,
+  payload: ManagedUserCreateRequest
+): Promise<ManagedUser> {
+  const response = await fetch(`${API_BASE_URL}/auth/users`, {
+    method: "POST",
+    headers: {
+      ...bearerHeaders(token),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      username: payload.username.trim().toLowerCase(),
+      display_name: payload.displayName.trim(),
+      password: payload.password,
+      role: payload.role
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function updateManagedUserAccess(
+  token: string,
+  userId: number,
+  payload: ManagedUserAccessUpdateRequest
+): Promise<ManagedUser> {
+  const body: Record<string, unknown> = {};
+  if (payload.role !== undefined) {
+    body.role = payload.role;
+  }
+  if (payload.isActive !== undefined) {
+    body.is_active = payload.isActive;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/users/${userId}`, {
+    method: "PATCH",
+    headers: {
+      ...bearerHeaders(token),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function forceManagedUserPassword(
+  token: string,
+  userId: number,
+  newPassword: string
+): Promise<ManagedUserActionResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/auth/users/${userId}/force-password`,
+    {
+      method: "POST",
+      headers: {
+        ...bearerHeaders(token),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ new_password: newPassword })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function revokeManagedUserSessions(
+  token: string,
+  userId: number
+): Promise<ManagedUserActionResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/auth/users/${userId}/revoke-sessions`,
+    {
+      method: "POST",
+      headers: bearerHeaders(token)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseAuthError(response));
+  }
+
+  return response.json();
+}
+
+export async function deleteManagedUser(
+  token: string,
+  userId: number,
+  confirmationUsername: string
+): Promise<ManagedUserActionResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/users/${userId}`, {
+    method: "DELETE",
+    headers: {
+      ...bearerHeaders(token),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      confirmation_username: confirmationUsername.trim().toLowerCase()
+    })
+  });
 
   if (!response.ok) {
     throw new Error(await parseAuthError(response));

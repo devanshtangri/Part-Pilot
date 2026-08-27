@@ -4479,3 +4479,56 @@ Release Candidate`, patch range `769-793`, first patch `769`, planned boundary
 UI followed by the final accessibility/security/responsive/backup-restore/REST-
 OpenAPI/MCP regression sweep and public-alpha release-candidate checkpoint.
 Notifications & Messaging remain post-v1.
+
+<!-- PARTPILOT:USER_MANAGEMENT_PRIMARY_OWNER_CHECKPOINT:V776 -->
+## Chat 27 user management + Primary Owner checkpoint — Patch 776
+
+Patch 776 checkpoints the browser-approved Patch 773-775 user-management slice.
+The approved implementation adds the dedicated Settings Users & Roles workspace,
+hydrates authenticated roles in the frontend, hardens the first-init account as
+the permanent Primary Owner, hides Settings workspaces outside each role's
+permission ceiling, and keeps consequential account actions explicit.
+
+Approved authorization/presentation contract:
+- The account created during initial setup is the only account that may hold
+  `owner`. Managed-user create/update request schemas expose only
+  `administrator`, `operator`, and `viewer`; service-layer checks independently
+  reject creation/promotion of another Owner.
+- The Primary Owner cannot be demoted, disabled, or permanently deleted. Restore
+  validation also rejects databases whose first user is not the active Owner or
+  that contain any additional Owner row, preventing older/malformed backups from
+  reintroducing multiple Owners.
+- Owner and Administrator can see Users. Administrator can manage/create only
+  Operator/Viewer accounts. Operator/Viewer never receive the Users workspace.
+- Settings navigation and restricted section rendering now follow the actual
+  authorization boundary: Operator/Viewer see only Account + their API access;
+  Administrator additionally sees Users, Preferences, MCP and Data, while
+  restore and database-reset controls remain Primary-Owner-only.
+- Restricted Settings workspaces also stop their background administrative
+  fetches instead of merely hiding tabs that would later return 403.
+- Users & Roles uses a compact roster with clear identity, role, status,
+  last-login and one Manage action. Account creation and consequential status,
+  password, session and permanent-delete actions live in focused dialogs.
+- The Primary Owner remains visibly identified by its `Primary Owner` role and
+  protected Manage state; the redundant `Initial account` badge was removed in
+  Patch 775 after browser approval.
+
+Browser approval covered desktop/intermediate/mobile presentation, Primary Owner
+protection, assignable-role ceilings, Administrator/Operator/Viewer Settings
+visibility, user lifecycle actions and the final badge cleanup. The exact
+approved runtime image before checkpoint is
+`sha256:a6b6cfa6933c4d98a7b936e5f8cf9257cec7309956cea0828a941fdcf8530e38`;
+production remains at Alembic `0022_mcp_inventory_part_lifecycle` with no schema
+migration for this slice.
+
+The Patch 774 rehearsal also exposed a pre-existing `restore_commit_smoke_test`
+readiness/drain assertion failure. The same failure reproduced against the
+already-approved Patch 773 image, so it was not attributed to user management or
+folded into this checkpoint. It remains an explicit item for the final
+public-alpha regression/hardening sweep.
+
+Next Chat 27 work: run the final public-alpha accessibility, security, responsive,
+backup/restore, REST/OpenAPI, MCP OAuth/direct-auth/tool-permission/write and
+live-sync regression sweep; resolve only release-blocking findings; then produce
+the public-alpha release-candidate checkpoint/handoff. Notifications & Messaging
+remain post-v1.

@@ -524,6 +524,14 @@ def _inspect_users(
                 "WHERE is_active=1"
             ).fetchone()[0]
         )
+        first_user = connection.execute(
+            "SELECT id, role, is_active FROM users ORDER BY id ASC LIMIT 1"
+        ).fetchone()
+        owner_count = int(
+            connection.execute(
+                "SELECT COUNT(*) FROM users WHERE role='owner'"
+            ).fetchone()[0]
+        )
     except sqlite3.Error as exc:
         raise RestoreValidationError(
             "Restore user records could not be inspected."
@@ -537,6 +545,15 @@ def _inspect_users(
     if active_user_count < 1:
         raise RestoreValidationError(
             "Restore database contains no active user."
+        )
+    if (
+        first_user is None
+        or str(first_user[1]) != "owner"
+        or int(first_user[2]) != 1
+        or owner_count != 1
+    ):
+        raise RestoreValidationError(
+            "Restore database must contain exactly one active primary Owner as its first user."
         )
     return user_count, active_user_count
 

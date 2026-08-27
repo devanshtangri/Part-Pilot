@@ -16,7 +16,7 @@ from uuid import uuid4
 import zipfile
 
 from fastapi.testclient import TestClient
-from sqlalchemy import text
+from sqlalchemy import select, text
 
 from app.api.routes import restores as restores_route
 from app.core.config import get_settings
@@ -25,10 +25,12 @@ from app.core.upload_limits import (
 )
 from app.db.session import SessionLocal
 from app.main import app as fastapi_app
+from app.models import User
 from app.services.auth import (
     create_session,
     create_user,
 )
+from app.services.authorization import ROLE_ADMINISTRATOR, ROLE_OWNER
 from app.schemas.restores import (
     RestoreStageState,
     RestoreValidationResponse,
@@ -344,33 +346,29 @@ def check_restore_validation_api() -> None:
     artifact_root.mkdir(mode=0o700)
     staging_root = root / "staging"
     suffix = uuid4().hex[:12]
-    username = (
-        f"smoke_restore_validate_{suffix}"
-    )
-    password = (
-        "restore-validation-smoke-password"
-    )
+    username = ""
     user_id: int | None = None
+    fixture_user_id: int | None = None
     artifact_operation: Path | None = None
 
     def cleanup_fixture() -> None:
-        if user_id is None:
-            return
         with SessionLocal() as db:
-            db.execute(
-                text(
-                    "DELETE FROM sessions "
-                    "WHERE user_id=:user_id"
-                ),
-                {"user_id": user_id},
-            )
-            db.execute(
-                text(
-                    "DELETE FROM users "
-                    "WHERE id=:user_id"
-                ),
-                {"user_id": user_id},
-            )
+            if user_id is not None:
+                db.execute(
+                    text(
+                        "DELETE FROM sessions "
+                        "WHERE user_id=:user_id "
+                        "AND user_agent='restore-validation-smoke'"
+                    ),
+                    {"user_id": user_id},
+                )
+            if fixture_user_id is not None:
+                db.execute(
+                    text(
+                        "DELETE FROM users WHERE id=:user_id"
+                    ),
+                    {"user_id": fixture_user_id},
+                )
             db.commit()
 
     client = TestClient(
@@ -451,27 +449,35 @@ def check_restore_validation_api() -> None:
         )
 
         with SessionLocal() as db:
-            user = create_user(
+            primary_owner = db.execute(
+                select(User).order_by(User.id.asc()).limit(1)
+            ).scalar_one_or_none()
+            if (
+                primary_owner is None
+                or primary_owner.role != ROLE_OWNER
+                or not primary_owner.is_active
+            ):
+                fail("Restore smoke requires an active primary Owner as the first user")
+            fixture_user = create_user(
                 db,
-                username=username,
-                password=password,
-                display_name=(
-                    "Restore Validation Smoke"
-                ),
+                username=f"smoke_restore_validate_{suffix}",
+                password="restore-validation-smoke-password",
+                display_name="Restore Validation Smoke",
+                role=ROLE_ADMINISTRATOR,
                 commit=False,
             )
+            db.flush()
             session = create_session(
                 db,
-                user=user,
-                user_agent=(
-                    "restore-validation-smoke"
-                ),
+                user=primary_owner,
+                user_agent="restore-validation-smoke",
                 ip_address="127.0.0.1",
                 commit=False,
             )
             db.commit()
-            db.refresh(user)
-            user_id = int(user.id)
+            user_id = int(primary_owner.id)
+            username = primary_owner.username
+            fixture_user_id = int(fixture_user.id)
             token = session.token
 
         headers = {
@@ -752,6 +758,52 @@ def check_restore_validation_api() -> None:
         finally:
             remove_backup_operation_directory(
                 inactive_artifact.operation_directory,
+                expected_parent=artifact_root,
+            )
+
+        multiple_owner_database = root / "multiple-owner.db"
+        copy_database(database_path, multiple_owner_database)
+        connection = sqlite3.connect(multiple_owner_database)
+        try:
+            connection.execute(
+                "UPDATE users SET role='owner' WHERE id=:user_id",
+                {"user_id": fixture_user_id},
+            )
+            connection.commit()
+        finally:
+            connection.close()
+        multiple_owner_artifact = create_backup_artifact(
+            multiple_owner_database,
+            artifact_root,
+            created_at_utc=datetime(
+                2026, 8, 2, 0, 46, 30, tzinfo=timezone.utc
+            ),
+        )
+        try:
+            with patch.object(
+                restores_route,
+                "RESTORE_STAGING_ROOT",
+                staging_root,
+            ):
+                multiple_owner = client.post(
+                    "/api/restores/validate",
+                    headers=headers,
+                    files={
+                        "backup": (
+                            multiple_owner_artifact.filename,
+                            multiple_owner_artifact.archive_path.read_bytes(),
+                            BACKUP_MEDIA_TYPE,
+                        ),
+                    },
+                )
+            expect_status(
+                multiple_owner,
+                422,
+                "Multiple-Owner restore",
+            )
+        finally:
+            remove_backup_operation_directory(
+                multiple_owner_artifact.operation_directory,
                 expected_parent=artifact_root,
             )
 

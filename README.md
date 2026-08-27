@@ -53,14 +53,14 @@ assistants can understand and act on inventory safely.
 - Automated database, API, migration, frontend-build, and route smoke checks.
 - Structured audit records for implemented inventory operations.
 - Protected system-wide History with unified audit and stock-movement search, filters, pagination and responsive detail inspection.
+- Owner / Administrator / Operator / Viewer authorization with a permanent first-init Primary Owner and responsive Users & Roles administration.
 
 ## Planned V1 work
 
 Major remaining areas include:
 
-- Additional narrowly safeguarded inventory MCP mutation slices where existing service/recycle-bin invariants can be preserved.
-- The dedicated user/role-management Settings UI when prioritized.
-- Accessibility, security and final public-alpha regression/hardening.
+- Final accessibility, security, responsive, backup/restore, REST/OpenAPI, MCP and live-sync regression/hardening.
+- Resolve release-blocking findings only, then checkpoint the public-alpha release candidate and handoff.
 
 See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
 detailed build plan and [`docs/Checkpoint.md`](docs/Checkpoint.md) for durable
@@ -470,7 +470,7 @@ Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
 | Named direct MCP clients (Bearer/custom-header/trusted-network) | Available |
 | Direct-client master and typed-confirmed no-auth fallback | Available |
 | Individual-tool and per-client MCP permissions | Available |
-| Safeguarded MCP write tools | Four available: Project/Reservation lifecycle plus guarded inventory stock adjustment |
+| Safeguarded MCP write tools | Eight available: Project/Reservation lifecycle plus guarded inventory stock/create/metadata/soft-delete/restore |
 
 MCP write authorization and individual write-tool permissions default off when
 the safeguarded-write schema is introduced, but live policy is administrator-
@@ -665,14 +665,16 @@ Reservations and History views; request-failure Retry actions remain available.
 <!-- PARTPILOT:USER_ROLES_AUTHORIZATION_README:V733 -->
 ### User roles and authorization
 
-Part Pilot now has an enforceable Owner / Administrator / Operator / Viewer
-authorization foundation. Existing installations migrate their current accounts
-to Owner without recreating the SQLite users table. Operational REST requests,
-REST API keys, workspace/MCP administration, backups and restore/reset actions
-are checked against role ceilings, and session-only user administration protects
-the last active Owner. The backend APIs support user lifecycle management; a
-future Settings UI can present those controls without changing the security
-boundary.
+Part Pilot has an enforceable Owner / Administrator / Operator / Viewer
+authorization boundary plus a dedicated responsive Users & Roles workspace. The
+account created during initial setup is the permanent Primary Owner: managed-user
+create/update APIs can assign only Administrator, Operator or Viewer; the Primary
+Owner cannot be demoted, disabled or permanently deleted; and restore validation
+rejects databases with another Owner. Administrator can manage Operator/Viewer
+accounts, while lower roles never see user administration. Settings workspaces
+outside a role's authorization ceiling are hidden entirely and their restricted
+background administrative fetches are suppressed; restore/reset stays
+Primary-Owner-only.
 
 <!-- PARTPILOT:SAFEGUARDED_MCP_WRITES_README:V759 -->
 ### Safeguarded MCP writes

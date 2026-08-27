@@ -3708,3 +3708,42 @@ Chat 27 implementation order:
 Permanent inventory purge remains intentionally separate from MCP. Notifications
 & Messaging remain post-v1. Live database/settings/OAuth/client/tool-policy values
 remain mutable state and must not be frozen as patch prerequisites.
+
+<!-- PARTPILOT:USER_MANAGEMENT_PRIMARY_OWNER_ROADMAP:V776 -->
+### Patch 776 — user management + Primary Owner checkpoint
+
+Completed in Chat 27:
+- [x] Add a dedicated responsive Settings Users & Roles workspace on the existing
+  backend authorization boundary.
+- [x] Hydrate the authenticated Owner/Administrator/Operator/Viewer role through
+  the frontend auth model and display the actual account role.
+- [x] Reserve `owner` permanently for the first-init account at request-schema,
+  service, frontend and restore-validation boundaries; no later account can be
+  created/promoted to Owner and the Primary Owner cannot be demoted/disabled/
+  permanently deleted.
+- [x] Hide Settings workspaces a role cannot use and suppress their restricted
+  background administrative fetches. Operator/Viewer retain Account + API access;
+  Administrator additionally sees Users/Preferences/MCP/Data, with restore/reset
+  remaining Primary-Owner-only.
+- [x] Redesign Users into a readable roster + focused Add/Manage dialogs while
+  keeping create, role change, disable/reactivate, password reset, session revoke
+  and permanent delete explicit.
+- [x] Browser-test desktop/intermediate/mobile layout and role ceilings, then
+  remove the redundant `Initial account` visual badge while preserving the
+  `Primary Owner` role/protected state.
+- [x] Keep the approved application source uncommitted until browser approval and
+  checkpoint it separately in Patch 776.
+
+Final V1/public-alpha work:
+1. Run the complete accessibility/security/responsive/backup-restore/REST-OpenAPI/
+   MCP OAuth/direct-auth/tool-permission/write/live-sync regression against copied
+   production data and the approved deployment.
+2. Investigate the pre-existing restore-commit readiness/drain smoke failure that
+   reproduces on the Patch 773 baseline; fix it only if it represents a real
+   release blocker rather than stale harness behavior.
+3. Resolve only release-blocking findings, then create the public-alpha release
+   candidate checkpoint and durable Chat 27 handoff.
+
+Permanent inventory purge remains outside MCP. Notifications & Messaging remain
+post-v1. Live DB/settings/OAuth/client/tool-policy values remain mutable state and
+must not be frozen as checkpoint prerequisites.

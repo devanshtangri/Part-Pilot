@@ -9,6 +9,7 @@ USERNAME_PATTERN = r"^[a-z0-9._]+$"
 CURRENCY_PATTERN = r"^[A-Z]{3}$"
 TIMEZONE_PATTERN = r"^[A-Za-z0-9._+-]+(?:/[A-Za-z0-9._+-]+)*$"
 UserRole = Literal["owner", "administrator", "operator", "viewer"]
+AssignableUserRole = Literal["administrator", "operator", "viewer"]
 
 BuiltInAvatarId = Literal[
     "initials", "chip", "circuit", "terminal", "storage", "rocket"
@@ -189,7 +190,7 @@ class ManagedUserCreateRequest(BaseModel):
     username: str = Field(min_length=1, max_length=80, pattern=USERNAME_PATTERN)
     display_name: str = Field(min_length=1, max_length=160)
     password: str = Field(min_length=8, max_length=256)
-    role: UserRole
+    role: AssignableUserRole
 
     @field_validator("username", mode="before")
     @classmethod
@@ -203,7 +204,7 @@ class ManagedUserCreateRequest(BaseModel):
 
 
 class ManagedUserAccessUpdateRequest(BaseModel):
-    role: UserRole | None = None
+    role: AssignableUserRole | None = None
     is_active: bool | None = None
 
     @field_validator("is_active")

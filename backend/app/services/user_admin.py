@@ -53,6 +53,17 @@ def _require_manageable(actor: User, target: User, requested_role: str | None = 
         )
 
 
+def _bootstrap_owner_id(db: Session) -> int:
+    owner_id = db.execute(select(User.id).order_by(User.id.asc()).limit(1)).scalar_one_or_none()
+    if owner_id is None:
+        raise UserAdministrationError("The bootstrap Owner account is missing.")
+    return int(owner_id)
+
+
+def _is_bootstrap_owner(db: Session, user: User) -> bool:
+    return user.id == _bootstrap_owner_id(db)
+
+
 def _active_owner_count(db: Session) -> int:
     return int(
         db.execute(
@@ -86,6 +97,10 @@ def list_managed_users(db: Session, *, actor: User) -> list[User]:
 def create_managed_user(db: Session, *, actor: User, username: str, display_name: str, password: str, role: str, commit: bool = True) -> User:
     _require_admin(actor)
     normalized_role = normalize_user_role(role)
+    if normalized_role == ROLE_OWNER:
+        raise UserAdministrationForbiddenError(
+            "Owner is reserved for the account created during initial setup."
+        )
     if not can_manage_user_role(actor.role, normalized_role):
         raise UserAdministrationForbiddenError(
             "Your role cannot create a user with the requested role."
@@ -125,6 +140,19 @@ def update_managed_user_access(db: Session, *, actor: User, user_id: int, role: 
     if role is None and is_active is None:
         raise UserAdministrationError("At least one access change is required.")
     _require_manageable(actor, target, normalized_role)
+    bootstrap_owner = _is_bootstrap_owner(db, target)
+    if normalized_role == ROLE_OWNER and not bootstrap_owner:
+        raise UserAdministrationForbiddenError(
+            "Owner is reserved for the account created during initial setup."
+        )
+    if bootstrap_owner and normalized_role != ROLE_OWNER:
+        raise UserAdministrationError(
+            "The primary Owner account cannot be demoted."
+        )
+    if bootstrap_owner and is_active is False:
+        raise UserAdministrationError(
+            "The primary Owner account cannot be disabled."
+        )
     if target.id == actor.id and is_active is False:
         raise UserAdministrationError("You cannot disable your current account.")
     _protect_last_owner(db, target, next_role=normalized_role, next_active=is_active)
@@ -228,6 +256,10 @@ def revoke_managed_user_sessions(db: Session, *, actor: User, user_id: int, comm
 def delete_managed_user(db: Session, *, actor: User, user_id: int, confirmation_username: str, commit: bool = True) -> None:
     target = _target(db, user_id)
     _require_manageable(actor, target)
+    if _is_bootstrap_owner(db, target):
+        raise UserAdministrationError(
+            "The primary Owner account cannot be deleted."
+        )
     if target.id == actor.id:
         raise UserAdministrationError("You cannot delete your current account.")
     if confirmation_username.strip().lower() != target.username:
