@@ -3875,3 +3875,33 @@ Next:
 3. Create the public GitHub release/publishing checkpoint as a separate consequential
    patch after those decisions; fix only genuine blockers.
 4. Keep Notifications & Messaging post-v1 unless explicitly reprioritized.
+<!-- PARTPILOT:APPROVED_USER_CHECKPOINT_CUSTOMER_README_ROADMAP:V801 -->
+### Patch 801 — recover approved Users checkpoint and publish customer-facing README
+
+Completed in Chat 28:
+- [x] Consume Patch 800 after its pre-write failure; prove no tracked documentation,
+  source, database, deployment or remote Git state was changed by that failure.
+- [x] Replace the stale P800 evidence assumptions with the actual immutable Patch 799
+  log fingerprint and approved `sha256:7fca90...` browser candidate.
+- [x] Checkpoint the exact browser-approved Manage User dialog source: `Cancel` + `OK`,
+  explicit `Apply role`, and aligned/non-wrapping role controls.
+- [x] Replace the internal development-history README with a customer-facing overview,
+  installation/configuration guide, MCP/AI explanation, backup/upgrade/security guidance,
+  troubleshooting and concise development instructions.
+- [x] Keep the current source-build Compose installation truthful; do not invent a public
+  container image before one is actually published.
+- [x] Preserve production data/credentials, Primary Owner semantics, fourteen MCP tools,
+  mutable client/settings state and Alembic `0022`.
+
+Required before public `v1.0.0` publication:
+1. Inspect distribution/dependency-license obligations and obtain explicit approval of
+   exact project licensing terms before adding `LICENSE`.
+2. Choose a container registry/repository name and implement a reproducible `v1.0.0`
+   multi-platform image publishing workflow.
+3. Add a distribution Compose file that references the published image, persistent
+   `/data`, healthcheck and documented environment variables so installation requires
+   `docker compose pull` / `docker compose up -d`, not a local build.
+4. Validate a clean-server pull/install/upgrade/backup/restore path using the published
+   artifact, then reconcile release notes/checklist and publish the tag/GitHub Release.
+5. Fix only genuine release blockers; keep Notifications & Messaging post-v1 unless
+   explicitly reprioritized.

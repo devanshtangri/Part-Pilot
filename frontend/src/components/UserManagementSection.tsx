@@ -652,7 +652,7 @@ export function UserManagementSection({
                       </select>
                       <button
                         type="button"
-                        className="settings-action settings-action-primary"
+                        className="settings-action settings-action-primary settings-user-role-apply"
                         disabled={dialogSaving || manageRoleDraft === manageTarget.role}
                         onClick={() => void applyRole(manageTarget)}
                       >
@@ -795,7 +795,7 @@ export function UserManagementSection({
               ) : null}
             </div>
 
-            <footer>
+            <footer data-partpilot-user-manage-actions="PARTPILOT:USER_MANAGE_DIALOG_ACTIONS:V799">
               <button
                 type="button"
                 className="settings-action settings-action-secondary"
@@ -804,6 +804,16 @@ export function UserManagementSection({
               >
                 Cancel
               </button>
+              {dialog.kind === "manage" ? (
+                <button
+                  type="button"
+                  className="settings-action settings-action-primary"
+                  onClick={closeDialog}
+                  disabled={dialogSaving}
+                >
+                  OK
+                </button>
+              ) : null}
               {dialog.kind === "create" ? (
                 <button
                   type="submit"

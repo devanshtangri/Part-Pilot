@@ -4575,6 +4575,11 @@
   min-width: min(310px, 100%);
 }
 .settings-user-role-control select { flex: 1 1 auto; }
+.settings-user-role-apply {
+  flex: 0 0 auto;
+  min-height: 39px;
+  white-space: nowrap;
+}
 .settings-user-manage-actions {
   display: flex;
   gap: 7px;

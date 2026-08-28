@@ -61,3 +61,5 @@ Release evidence / Chat 28 publishing
 
 <!-- PARTPILOT:PUBLIC_ALPHA_PUBLISHING_PACKAGE_MEMORY:V798 -->
 - Public-alpha publishing package is durable at Patch 798: `docs/Public_Alpha_Release_Notes.md` plus `docs/Public_Alpha_Publishing_Checklist.md`. Patch 797 is failed/consumed pre-write. Publishing docs are tag-neutral; release tag/title and license/no-license disposition require explicit owner choice before consequential release actions.
+<!-- PARTPILOT:APPROVED_USER_CHECKPOINT_CUSTOMER_README_MEMORY:V801 -->
+- P800 failed pre-write because it pinned stale P799 log/image evidence; no tracked state changed. P801 recovers using actual P799 log SHA `d929c22a...` and browser-approved image `sha256:7fca90c...`, checkpoints the exact two Users-dialog files, and replaces README with a public customer/install guide. `v1.0.0` remains intended first public release. Before publishing it: approve exact license terms, publish a prebuilt registry image, provide image-based Compose, validate clean pull/install/upgrade/backup/restore, then create tag/GitHub Release. No LICENSE/tag/release is created by P801.

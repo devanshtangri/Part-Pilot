@@ -4732,3 +4732,30 @@ No release tag, GitHub Release or software license is guessed by this checkpoint
 repository owner must explicitly choose the release tag/title and either choose exact
 licensing terms or intentionally keep the repository without a redistribution license.
 Until then, public documentation must not describe Part Pilot as open source.
+<!-- PARTPILOT:APPROVED_USER_CHECKPOINT_CUSTOMER_README:V801 -->
+## Approved user-dialog checkpoint recovery and customer README — Patch 801
+
+Patch 800 was consumed in preflight before any repository write. Its evidence contract
+pinned a stale Patch 799 command-log fingerprint and stale browser-candidate image. The
+actual immutable Patch 799 log is
+`fixes/logs/799_refine_user_manage_dialog_actions_20260828-101533.log` with SHA-256
+`d929c22a126dfcaba8bd4f62b1e128a1c01032d9adc823fd2edf16946b04dd0f`, and that log
+records the browser-candidate build/deployment image
+`sha256:7fca90c47ce7305089a7055083628776c9b2d16abf4567ee79c2c9b3dd3fce68`.
+The approved two-file source hashes remain unchanged after the failed P800 preflight.
+
+Patch 801 checkpoints those exact browser-approved source bytes and rewrites `README.md`
+from internal development/checkpoint history into a public-facing product/install guide.
+The new README covers product capabilities, source-build installation, first-run setup,
+configuration, reverse proxy/HTTPS, users/roles, MCP/AI safeguards, backups, upgrades,
+security, troubleshooting and development. It explicitly avoids inventing a registry
+image name that does not yet exist.
+
+`v1.0.0` remains the selected first public release identifier. Before that public release,
+Part Pilot should publish a prebuilt container-registry image and a ready-made Compose
+configuration that pulls the image instead of requiring users to build from source. That
+is a later consequential release-packaging step, not part of Patch 801.
+
+Patch 801 creates no software license, Git tag or GitHub Release. Production data,
+credentials, mutable MCP state, Primary Owner semantics, the fourteen-tool MCP catalogue
+and Alembic `0022_mcp_inventory_part_lifecycle` remain unchanged.

@@ -1,87 +1,53 @@
 # Part Pilot
 
-Part Pilot is a self-hosted electronics inventory manager for makers,
-hobbyists, repair benches, and small technical labs.
+Part Pilot is a self-hosted electronics inventory and project management application
+for makers, repair benches, engineering teams, classrooms, and small technical labs.
+It keeps parts, stock, projects, reservations, history, users, backups, and AI-assisted
+inventory workflows in one place while keeping the data under your control.
 
-It combines configurable component templates with practical stock workflows,
-reusable catalogues, recoverable deletion, audit history, and a responsive
-dark interface. A core differentiator is MCP integration: approved AI assistants
-such as Claude and ChatGPT can understand inventory and, when explicitly
-authorized, perform safeguarded writes through preview and confirmation.
+> **Release status:** `v1.0.0` release candidate. The current repository installs by
+> building the Docker image locally from source. A registry-published image and a
+> ready-made image-based Docker Compose deployment are planned before the public
+> `v1.0.0` release so a normal installation will not require building the application.
 
-> **Project status:** public-alpha release candidate complete. Core V1 workflows,
-> the final automated regression matrix, browser release polish, external Claude MCP
-> verification, release-hygiene hardening, and the Chat 27 release boundary are complete.
+## Highlights
 
-## Current capabilities
+- **Electronics inventory** — parts, manufacturers, packages, storage locations,
+  custom part types, typed fields, pricing, notes, aliases, tags, and purchase links.
+- **Stock control** — physical, reserved, and available quantities with low-stock
+  thresholds, stock corrections, consumption, movement history, and recoverable
+  deletion.
+- **Projects and reservations** — plan parts for a project, reserve available stock,
+  edit active reservations, consume or cancel them, and retain complete history.
+- **Fast search and filtering** — universal inventory search, stock/location/type
+  filters, server-backed sorting, pagination, and responsive desktop/mobile views.
+- **Multi-user access** — Primary Owner, Administrator, Operator, and Viewer roles
+  with protected account and administration boundaries.
+- **History and audit trail** — a unified activity register for inventory, projects,
+  reservations, users, settings, API access, and supported AI actions.
+- **Backups and restore** — portable `.ppbackup` backups with restore validation and
+  database safety checks.
+- **MCP / AI integration** — connect supported MCP clients such as Claude or ChatGPT
+  to read inventory and, when explicitly permitted, perform safeguarded writes.
+- **Self-hosted by default** — React/Vite frontend, FastAPI backend, SQLite storage,
+  Alembic migrations, and Docker deployment with persistent local data.
 
-### Inventory
+## Quick start
 
-- Create parts from built-in or custom part-type templates.
-- Store typed template values, part numbers, descriptions, pricing, purchase
-  links, notes, packages, manufacturers, and locations.
-- Search active inventory across part metadata, catalogues, locations,
-  aliases, tags and typed custom fields.
-- Use server-backed part-type, location and stock-status filters with
-  accurate totals and pagination.
-- Sort Available and Out of stock sections independently across the
-  complete filtered result set.
-- Filter by stock status and reusable location.
-- View responsive part details.
-- Edit existing part metadata and typed values.
-- Add, remove, consume, and correct quantities with safeguards.
-- Review recent stock movement history.
-- Move parts to Deleted items and restore them without losing metadata or history.
-- Permanently purge selected Deleted items with explicit confirmation; active
-  Reservations, Draft/Reserved Projects, and reserved quantities block purge.
+### Requirements
 
-### Reusable catalogues
+- Docker Engine
+- Docker Compose v2 (`docker compose`)
+- Git
 
-- Manufacturer catalogue with seeded electronics brands and inline creation.
-- Package/form-factor catalogue with seeded options and inline creation.
-- Location catalogue with create, rename, notes, usage counts, and safe
-  in-use deletion protection.
-- Custom part types with ordered dynamic fields.
-- Safe custom-type editing and deletion safeguards, including separate active
-  and Deleted-items dependency counts with direct filtered recycle-bin navigation.
-
-### Platform
-
-- First-run setup and authenticated sessions.
-- FastAPI, SQLAlchemy, SQLite, and Alembic backend.
-- React, TypeScript, and Vite frontend.
-- Responsive desktop and mobile application shell.
-- Docker Compose deployment with persistent `/data` storage.
-- Automated database, API, migration, frontend-build, and route smoke checks.
-- Structured audit records for implemented inventory operations.
-- Protected system-wide History with unified audit and stock-movement search, filters, pagination and responsive detail inspection.
-- Owner / Administrator / Operator / Viewer authorization with a permanent first-init Primary Owner and responsive Users & Roles administration.
-
-## Public-alpha release package
-
-The V1 public-alpha release candidate is complete and the publishing package is ready:
-
-- [`docs/Public_Alpha_Release_Notes.md`](docs/Public_Alpha_Release_Notes.md) — release-facing feature, validation, deployment and known-limitations summary.
-- [`docs/Public_Alpha_Publishing_Checklist.md`](docs/Public_Alpha_Publishing_Checklist.md) — exact pre-publication, GitHub Release and post-publication checklist.
-
-The release tag/name and repository licensing terms remain explicit repository-owner
-decisions. No `LICENSE` file or Git tag is created by the publishing-documentation
-checkpoint. Fix only genuine release blockers; Notifications & Messaging remain post-v1.
-
-See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
-detailed build plan and [`docs/Checkpoint.md`](docs/Checkpoint.md) for durable
-project decisions and completed checkpoints.
-
-## Quick start with Docker Compose
-
-### 1. Clone the repository
+### 1. Clone Part Pilot
 
 ```bash
 git clone https://github.com/devanshtangri/Part-Pilot.git
 cd Part-Pilot
 ```
 
-### 2. Create the environment file
+### 2. Create your environment file
 
 Linux/macOS:
 
@@ -95,10 +61,9 @@ Windows Command Prompt:
 copy .env.example .env
 ```
 
-The default host port is `7890`. Change `PARTPILOT_HOST_PORT` in `.env` when
-needed.
+The defaults expose Part Pilot on host port `7890`.
 
-### 3. Build and start Part Pilot
+### 3. Build and start
 
 ```bash
 docker compose up -d --build
@@ -110,81 +75,243 @@ Open:
 http://localhost:7890
 ```
 
-Persistent application data is stored under:
+On the first visit, Part Pilot starts the setup flow. The first account created during
+initial setup becomes the permanent **Primary Owner**.
 
-```text
-./data
-```
-
-### 4. Check container status
+### 4. Check the service
 
 ```bash
 docker compose ps
 docker compose logs --tail=100 partpilot
 ```
 
-### 5. Run the complete smoke suite
+A healthy deployment should show the `partpilot` container as healthy.
+
+## Day-to-day Docker commands
+
+Start or apply the current Compose configuration:
 
 ```bash
-docker compose exec -T partpilot python -m app.db.smoke_test
+docker compose up -d
 ```
 
-### 6. Stop the application
+View logs:
+
+```bash
+docker compose logs -f partpilot
+```
+
+Restart Part Pilot:
+
+```bash
+docker compose restart partpilot
+```
+
+Stop the application without deleting its data:
 
 ```bash
 docker compose down
 ```
 
-Do not delete `./data` unless the database and application state are no longer
-needed.
+## Persistent data
 
-## Deployment security
+The included Compose file mounts:
 
-Part Pilot is designed to hold credentials and operational inventory data, so an
-internet-facing deployment should be treated as an authenticated application, not
-as a static website.
+```text
+./data  ->  /data
+```
 
-- Put public deployments behind HTTPS. When MCP/OAuth is exposed through a reverse
-  proxy, set `PARTPILOT_PUBLIC_BASE_URL` to the canonical external HTTPS origin.
-- Trust only the immediate reverse-proxy networks in
-  `PARTPILOT_TRUSTED_PROXY_CIDRS`, and prevent untrusted clients from bypassing the
-  proxy directly to the published Part Pilot port.
-- Choose `PARTPILOT_BIND_ADDRESS` for the actual topology. `0.0.0.0` is useful for
-  LAN/container proxying but should not be treated as an internet-access control.
-- Keep MCP **No authentication** disabled unless intentionally providing read-only
-  inventory access to every device that can reach `/mcp`. It never grants write
-  tools, but it still exposes enabled read data.
-- Grant OAuth scopes, named direct-client permissions and MCP write tools using the
-  least privilege needed. MCP permanent purge/hard delete is intentionally absent.
-- Protect the entire `./data` directory. It contains the SQLite database and the
-  instance secret used to protect stored direct-client credentials. Never publish
-  either file or include them in source-control archives.
-- Database reset is a deliberate Primary-Owner-only destructive feature requiring
-  exact typed confirmation. Set `PARTPILOT_ENABLE_DEBUG_RESET=false` if the server-
-  side reset endpoint should be disabled entirely.
-- Download and test `.ppbackup` backups before major upgrades or restore work.
+That directory contains the SQLite database and instance-specific secret material.
+Treat the entire directory as private application data and include it in your normal
+server backup strategy.
 
-The example environment uses `PARTPILOT_ENV=production`; that value is currently an
-informational environment label exposed by health/readiness responses, not a switch
-that substitutes for the deployment controls above.
+Do **not** delete `./data` unless you intentionally want to remove the Part Pilot
+instance and its stored data.
 
-## Local development
+## Configuration
 
-### Backend
+Common settings in `.env`:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PARTPILOT_HOST_PORT` | `7890` | Host port used to open Part Pilot. |
+| `PARTPILOT_CONTAINER_PORT` | `8000` | Internal application port. Most installations should leave this unchanged. |
+| `PARTPILOT_BIND_ADDRESS` | `0.0.0.0` | Host interface used for the published port. |
+| `PARTPILOT_PUBLIC_BASE_URL` | empty | Canonical external HTTPS URL when using OAuth/MCP behind a reverse proxy. |
+| `PARTPILOT_TRUSTED_PROXY_CIDRS` | empty | Immediate trusted reverse-proxy networks allowed to supply forwarded client/origin data. |
+| `PARTPILOT_ENABLE_DEBUG_RESET` | `true` | Enables the server-side Primary-Owner database-reset endpoint. Set `false` to disable it. |
+
+After changing `.env`, recreate the service:
+
+```bash
+docker compose up -d --force-recreate
+```
+
+## Reverse proxy and HTTPS
+
+For an internet-facing deployment, place Part Pilot behind HTTPS using a reverse proxy
+such as Nginx, Nginx Proxy Manager, Caddy, or Traefik.
+
+Recommended deployment rules:
+
+- Set `PARTPILOT_PUBLIC_BASE_URL` to the exact public HTTPS origin, for example
+  `https://parts.example.com`, when OAuth/MCP discovery is exposed externally.
+- Set `PARTPILOT_TRUSTED_PROXY_CIDRS` only to the network(s) of the immediate trusted
+  reverse proxy.
+- Prevent untrusted clients from bypassing the reverse proxy and reaching the raw
+  Part Pilot port directly when forwarded-header trust is enabled.
+- Keep the `./data` directory private and outside any publicly served path.
+
+## Users and roles
+
+Part Pilot uses four user levels:
+
+| Role | Intended use |
+| --- | --- |
+| **Primary Owner** | The permanent first-init account. Full instance ownership and protected destructive/data-management actions. |
+| **Administrator** | User administration and broad application management below the Primary Owner boundary. |
+| **Operator** | Normal operational inventory/project work without administrative control. |
+| **Viewer** | Read-focused access. |
+
+Only the initial setup account can be the Primary Owner. Other accounts cannot be
+promoted to Owner, and the Primary Owner cannot be demoted, disabled, or permanently
+deleted through normal user management.
+
+## MCP and AI assistants
+
+Part Pilot includes Model Context Protocol (MCP) support so an authorized AI client can
+work with the same inventory that you use in the web interface.
+
+The current tool catalogue contains **14 tools**:
+
+- **6 read tools** for inventory, projects, and reservations;
+- **8 safeguarded write tools** for supported inventory and project/reservation actions.
+
+Write access is not granted merely because a client can connect. MCP writes remain
+bounded by server settings, client permissions, OAuth/direct-client scopes, and the
+role of the authorizing Part Pilot user.
+
+Safeguarded writes use a preview/confirmation flow with short-lived confirmation,
+idempotency/replay protection, and state-drift checks. Part Pilot deliberately does
+**not** expose permanent inventory purge/hard-delete as an MCP tool.
+
+MCP connection and permission management is available from **Settings → MCP**. Depending
+on the client and deployment, Part Pilot supports OAuth and controlled direct-client
+authentication options. Keep unauthenticated MCP access disabled unless you explicitly
+want reachable clients to receive the enabled read-only data.
+
+## Backups and restore
+
+Use Part Pilot's built-in backup tools before upgrades or major configuration changes.
+Backups are exported as `.ppbackup` files and are validated during restore.
+
+For additional infrastructure-level protection, back up the complete `./data` directory
+while following normal SQLite/container backup practices.
+
+Do not treat a copied database file as a replacement for testing the built-in restore
+flow. Keep at least one recent `.ppbackup` file that you have verified can be read by
+Part Pilot.
+
+## Upgrading from the source-build installation
+
+Until the published-image installation is released, update a source-based deployment
+with:
+
+```bash
+git pull --ff-only
+docker compose up -d --build
+```
+
+Before upgrading:
+
+1. create a fresh Part Pilot backup;
+2. keep a copy of the current `./data` directory or server backup;
+3. review the release notes for the version you are installing.
+
+Alembic migrations are part of the application startup/runtime workflow; do not manually
+edit the SQLite schema.
+
+## Published Docker image
+
+The release target for `v1.0.0` is a prebuilt image hosted in a container registry plus
+a ready-made Compose file that references that image directly. The intended customer
+installation will therefore be equivalent to:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+The exact registry/image name will be documented when that publishing step is completed.
+Until then, use the source-build Quick start above rather than assuming an image name.
+
+## Security notes
+
+- Use HTTPS for internet-facing deployments.
+- Use strong passwords and grant the lowest practical user role.
+- Grant MCP/API permissions per client rather than enabling broad access by default.
+- Protect `.env`, `./data`, backup files, API credentials, OAuth credentials, and MCP
+  direct-client credentials.
+- Keep unauthenticated MCP disabled unless its read-only exposure is intentional.
+- Set `PARTPILOT_ENABLE_DEBUG_RESET=false` if you do not want the database-reset endpoint
+  available on the server at all.
+- Keep Docker, the host OS, and the reverse proxy updated.
+
+## Troubleshooting
+
+### The page does not open
+
+Check the container and logs:
+
+```bash
+docker compose ps
+docker compose logs --tail=200 partpilot
+```
+
+Also confirm that `PARTPILOT_HOST_PORT` is not already used by another service.
+
+### The container is unhealthy
+
+Inspect the recent startup log:
+
+```bash
+docker compose logs --tail=300 partpilot
+```
+
+Do not delete `./data` as a troubleshooting shortcut. Preserve the database and diagnose
+the startup or migration error first.
+
+### OAuth/MCP works locally but not through a domain
+
+Verify:
+
+- the public URL is HTTPS;
+- `PARTPILOT_PUBLIC_BASE_URL` exactly matches that public origin;
+- the reverse proxy forwards the required traffic to Part Pilot;
+- `PARTPILOT_TRUSTED_PROXY_CIDRS` contains only the actual immediate proxy network;
+- direct access to the raw container-published port is not bypassing the intended proxy
+  trust boundary.
+
+## Development
+
+Part Pilot's main application stack is:
+
+- **Frontend:** React, TypeScript, Vite
+- **Backend:** FastAPI, SQLAlchemy, Alembic
+- **Database:** SQLite
+- **Deployment:** Docker / Docker Compose
+
+Backend development:
 
 ```bash
 cd backend
 python -m venv .venv
-```
-
-Activate the virtual environment, install dependencies, then run:
-
-```bash
+# activate the virtual environment
 pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-### Frontend
+Frontend development:
 
 ```bash
 cd frontend
@@ -192,632 +319,33 @@ npm install
 npm run dev
 ```
 
-The Vite development server defaults to:
+The Vite development server normally opens on:
 
 ```text
 http://localhost:5173
 ```
 
-## Repository structure
+## Repository layout
 
 ```text
-backend/     FastAPI application, models, services, routes, migrations
-frontend/    React and TypeScript application
-docs/        product specification, roadmap, checkpoints, and handoffs
-data/        persistent local runtime data; created during deployment
-fixes/       repository patch and diagnostic scripts used during development
+backend/     FastAPI application, database models, services, API routes and migrations
+frontend/    React/TypeScript web application
+docs/        release notes, deployment/project documentation and durable project records
+data/        local persistent runtime data; ignored by Git
+fixes/       development patch/diagnostic scripts; ignored by Git
 ```
 
-## Development discipline
+## Release notes
 
-Part Pilot is being developed in narrow, verifiable slices:
+The current pre-publication release material is available in:
 
-1. Inspect exact targets.
-2. Preflight transformations before writes.
-3. Back up changed files.
-4. Build and deploy.
-5. Run the complete smoke suite.
-6. Browser-test UI work.
-7. Commit implementation and documentation checkpoints separately.
+- [`docs/Public_Alpha_Release_Notes.md`](docs/Public_Alpha_Release_Notes.md)
+- [`docs/Public_Alpha_Publishing_Checklist.md`](docs/Public_Alpha_Publishing_Checklist.md)
 
-This keeps the repository recoverable while larger V1 workflows are built.
+These documents are being reconciled to the final `v1.0.0` release before publication.
 
-<!-- PARTPILOT:DASHBOARD_LOW_STOCK_STATUS:START -->
-## Current development status
+## License
 
-The current checkpoint includes whole-inventory stock metrics and a settings-driven
-Stored Parts workflow for separating zero-stock matches from available inventory.
-
-| Capability | Status |
-| --- | --- |
-| Inventory creation and metadata editing | Available |
-| Manufacturer, package, and location catalogues | Available |
-| Stock quantity adjustments and movement history | Available |
-| Soft deletion and restoration | Available |
-| Stored Parts universal search, filters, pagination, and sorting | Available |
-| Whole-inventory stock metrics | Available |
-| Unconfigured zero-stock detection | Available |
-| Settings-driven out-of-stock grouping | Available |
-| Explicit In stock, Low, and Out filters | Available |
-
-When grouping is enabled, matching zero-stock parts appear in a dedicated
-section below normal Stored Parts results while the All filter is active.
-Disabling that preference hides the separate section without removing access
-to those parts through the explicit Out filter.
-<!-- PARTPILOT:DASHBOARD_LOW_STOCK_STATUS:END -->
-
-<!-- PARTPILOT:INVENTORY_PAGE_MODE_STATUS:START -->
-## Focused Inventory workspace
-
-The `/inventory` route now provides the live Stored Parts experience rather
-than a placeholder. It reuses the same implementation that remains available
-inside Part Manager, avoiding duplicate inventory logic.
-
-The focused Inventory page supports:
-
-- adding and browsing parts;
-- search and location filters;
-- All, In stock, Low, and Out stock filters;
-- settings-driven separation of zero-stock matches;
-- part details and stock movement history;
-- quantity adjustments;
-- metadata editing;
-- recoverable deletion and restoration.
-
-Part-type templates and custom-field management remain under
-`/part-manager`.
-<!-- PARTPILOT:INVENTORY_PAGE_MODE_STATUS:END -->
-
-<!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_README:START -->
-## Universal inventory search
-
-Part Pilot now includes a responsive Dashboard search experience backed by the
-inventory API.
-
-**Search coverage**
-
-- part numbers and names;
-- descriptions, notes, and packages;
-- part types and manufacturers;
-- storage locations;
-- aliases and tags;
-- custom-field names and typed values.
-
-**Result experience**
-
-- live results after a short pause while typing;
-- available parts shown before out-of-stock parts;
-- separate **Available** and **Out of stock** result cards;
-- result sections appear only when they contain matches;
-- selected-part quantities, location, notes, package, and custom fields;
-- keyboard launch with `/`;
-- responsive desktop and mobile layouts;
-- out-of-stock visibility controlled by Search settings.
-
-Dashboard and Stored Parts search are complete and browser approved. Stored
-Parts now uses the backend universal-search contract with part-type, location
-and stock-status filters, accurate pagination, stale-response guards, and
-independent full-result sorting for Available and Out of stock sections.
-<!-- PARTPILOT:DASHBOARD_UNIVERSAL_SEARCH_README:END -->
-
-<!-- PARTPILOT:PROJECTS_AND_RESERVATIONS:START -->
-## Projects and reservations
-
-Part Pilot separates **planning** from **operational inventory commitments**.
-
-Users create a Draft Project for a build, repair, prototype or other planned
-work. A Project stores parts, quantities, notes and price snapshots without
-changing stock. Reserving the Project creates one linked active Reservation and
-atomically commits its planned quantities.
-
-```text
-Draft Project
-    ↓ Reserve
-Reserved Project + Active Reservation
-    ├─ Edit    → synchronized Project + Reservation commitment
-    ├─ Consume → Consumed Project + Consumed Reservation
-    └─ Cancel  → Cancelled Project + Cancelled Reservation
-```
-
-| Capability | Status |
-|---|---|
-| Project register, detail, creation and Draft/Reserved editing | Available |
-| Server-backed multi-result part search (up to 50 matches) | Available |
-| Price, currency and current-availability snapshots | Available |
-| Atomic Project reservation with linked Reservation | Available |
-| Atomic Project consumption API and UI | Available |
-| Atomic Project cancellation/release API and UI | Available |
-| Two-way linked editing from Projects or Reservations | Available |
-| Available/reserved/physical quantity accounting | Available |
-| Reserve/release/consume movements and paired audits | Available |
-| Physical, Reserved and Available history snapshots | Available |
-| Reservation activity and lifecycle actions | Available |
-| Accessible in-app confirmations and stale-state handling | Available |
-| Responsive desktop and mobile workflows | Available |
-
-Project consumption reuses the linked Reservation transaction: physical and
-reserved quantities decrease together, available quantity remains unchanged,
-both records become `consumed`, and paired movements and audits are written.
-
-Project cancellation also reuses the linked Reservation transaction: reserved
-quantity returns to available stock without changing physical totals, both
-records become `cancelled`, and paired release movements and audits are written.
-
-A Reserved commitment can be edited from either workspace. Projects preserves
-Project-specific description data, while shared names, notes, items, quantities,
-price/value snapshots and inventory deltas remain synchronized atomically.
-Quantity increases reserve only the additional units; decreases release only the
-removed units.
-
-The Reservations page is the operational queue for committed inventory. Manual
-Reservation creation is intentionally absent from the frontend so users have one
-clear entry path: plan work in Projects, then reserve it. The backend Reservation-
-create API remains available for authenticated REST clients, while MCP clients use
-the separately safeguarded Project/Reservation lifecycle tools described below.
-
-### MCP administration
-
-Settings → MCP controls the server, read/write categories, individual tool
-permissions, OAuth registrations, named direct clients, and the typed-confirmed
-no-auth fallback. No-auth access is permanently read-only; safeguarded writes
-require the normal role, scope, server, global and client permission ceilings plus
-preview and confirmation.
-<!-- PARTPILOT:PROJECTS_AND_RESERVATIONS:END -->
-
-<!-- PARTPILOT:SYSTEM_HISTORY_README:V410:START -->
-## System-wide History
-
-Part Pilot provides a protected chronological register across operational
-inventory and audit events.
-
-| Capability | Status |
-|---|---|
-| Unified audit and stock-movement register | Available |
-| Deterministic newest-first pagination | Available |
-| Literal text search | Available |
-| Kind, entity, event, actor, user and movement filters | Available |
-| From/to date filtering | Available |
-| Counted filter facets | Available |
-| Part, Reservation and Project context | Available |
-| Physical, Reserved and Available snapshots | Available |
-| Structured Before, After and metadata evidence | Available |
-| Desktop register/detail workspace | Available |
-| Register-first mobile detail workflow | Available |
-| Stale-response protection | Available |
-
-History remains newest-first by design. General sortable columns are omitted
-because the available filters support investigation without breaking the
-operational timeline. An Oldest-first option can be added later if a concrete
-investigation workflow requires it.
-<!-- PARTPILOT:SYSTEM_HISTORY_README:V410:END -->
-
-<!-- PARTPILOT:GLOBAL_APPEARANCE_README:V417:START -->
-## Global appearance and Settings
-
-Part Pilot provides authenticated installation-wide appearance preferences
-with Dark, Light and System modes.
-
-| Capability | Status |
-|---|---|
-| Persisted Dark, Light and System preferences | Available |
-| Pre-paint theme application | Available |
-| Live operating-system theme following | Available |
-| Server synchronization and audit evidence | Available |
-| Responsive Appearance settings | Available |
-| Inventory search preference | Available |
-| Reservation expiry defaults | Available |
-| Accessible database-reset review dialog | Available |
-| Light-theme coverage across all current workspaces | Available |
-| Explicit active, destructive and disabled states | Available |
-
-The stored preference is applied before the React application renders, so
-direct route loads do not flash the opposite theme. System mode follows
-`prefers-color-scheme` changes without a reload.
-
-Database reset remains intentionally guarded: Settings presents one review
-action, then requires the exact destructive phrase inside an accessible
-in-app dialog before the final erase action becomes available.
-<!-- PARTPILOT:GLOBAL_APPEARANCE_README:V417:END -->
-
-<!-- PARTPILOT:SETTINGS_COMPLETION_README:V426:START -->
-## Completed Settings workspace
-
-The Settings workspace now uses a compact, responsive composition:
-
-| Section | Desktop | Mobile |
-|---|---|---|
-| Appearance | Full width | Full width |
-| Inventory search | Full-width compact row | Full width |
-| Reservation defaults | Lower two-column row | Full width |
-| Database reset | Equal-height lower card | Full width |
-
-The Inventory preference preserves its server-backed boolean behavior and
-explicit Out filter while displaying a concise On/Off/Saving switch. The
-Reservation and Database reset cards align on desktop without enlarging
-their controls, and return to natural independent heights below the desktop
-breakpoint.
-
-Dark, Light and System modes remain installation-wide. The page-level
-runtime status and selected theme card identify the active appearance;
-duplicate resolved-theme text has been removed.
-
-Backup and restore is the next independent product area. The existing
-database-reset action remains a separate guarded permanent operation.
-<!-- PARTPILOT:SETTINGS_COMPLETION_README:V426:END -->
-
-<!-- PARTPILOT:BACKUP_RESTORE_README:V457:START -->
-## Backup and restore
-
-Part Pilot supports portable manual backups and guarded database restoration.
-
-| Capability | Status |
-|---|---|
-| Versioned `.ppbackup` artifact | Available |
-| SQLite online snapshot | Available |
-| Manifest, schema, hash and integrity evidence | Available |
-| Protected manual download | Available |
-| No-store response headers | Available |
-| Strict archive and database validation | Available |
-| Review-before-restore workflow | Available |
-| Rollback snapshot and atomic replacement | Available |
-| Session invalidation after restore | Available |
-| Responsive Settings controls | Available |
-| Manual-backup status API | Available |
-| Scheduled backups | Not implemented |
-| Retained server-side backup copies | Not implemented |
-
-A `.ppbackup` contains exactly `manifest.json` and `partpilot.db`. Restore
-validation completes before live data is touched. A successful restore uses a
-same-filesystem staged replacement, verifies the result, records an audit and
-requires every user to sign in again.
-
-Current backup behavior is manual download only. Part Pilot does not schedule
-backups and does not retain a server-side copy after the download operation.
-The compact manual-backup status display is implemented and available in Settings.
-<!-- PARTPILOT:BACKUP_RESTORE_README:V457:END -->
-
-
-<!-- PARTPILOT:MCP_AUTHENTICATION_README:V580:START -->
-## Model Context Protocol authentication and OAuth administration
-
-Part Pilot exposes an authenticated, stateless JSON Streamable HTTP endpoint at
-`/mcp`.
-
-| Capability | Status |
-|---|---|
-| OAuth protected-resource discovery | Available |
-| OAuth authorization code with PKCE | Available |
-| Access/refresh token rotation and revocation | Available |
-| Standalone OAuth consent and error experience | Available |
-| Claude and ChatGPT OAuth read-only flows | Verified end to end |
-| Connected/manageable OAuth client administration | Available |
-| Manual OAuth client registration in Settings | Available |
-| Public clients with PKCE and no client secret | Available |
-| Confidential clients with secret POST or Basic | Available |
-| One-time confidential secret display with digest-only storage | Available |
-| Explicit public-origin and Host/Origin validation | Available |
-| Global MCP and read/write authorization settings | Available |
-| Six read-only inventory, Project and Reservation tools | Available |
-| Official Python MCP SDK compatibility | Verified |
-| Public Nginx TLS Streamable HTTP path | Verified |
-| Static Bearer key authentication | Available |
-| Dedicated custom-header key authentication | Available |
-| Trusted-network authentication with IPv4/IPv6 CIDRs | Available |
-| Named direct MCP clients (Bearer/custom-header/trusted-network) | Available |
-| Direct-client master and typed-confirmed no-auth fallback | Available |
-| Individual-tool and per-client MCP permissions | Available |
-| Safeguarded MCP write tools | Eight available: Project/Reservation lifecycle plus guarded inventory stock/create/metadata/soft-delete/restore |
-
-MCP write authorization and individual write-tool permissions default off when
-the safeguarded-write schema is introduced, but live policy is administrator-
-controlled mutable configuration. Named direct clients can be enabled
-independently of OAuth; the no-auth fallback is permanently read-only and
-requires exact typed confirmation. OAuth registration supports explicit
-current-user ownership for manually created clients, safe manageable-client
-status, exact revocation, and one-time confidential secret display. Revoked
-clients remain available to backend audit/history semantics but are hidden from
-the normal active Settings list.
-
-Claude and ChatGPT OAuth connection flows have been verified end to end.
-During Chat 20, a manually registered Claude client also connected successfully
-using Claude's fixed callback and `client_secret_post`. Gemini/Google reached
-Part Pilot consent and authorization-code issuance during testing, but the
-Google callback did not complete a token exchange; Part Pilot's issued code was
-not redeemed.
-
-### Current-user account and session administration
-
-| Capability | Status |
-|---|---|
-| Protected profile read/update API | Available |
-| Username normalization and uniqueness | Available |
-| Display-name update | Available |
-| Built-in avatar persistence/catalogue | Available |
-| Database-backed custom avatar upload/crop/removal | Available |
-| Current-user avatar state in `/auth/me` | Available |
-| Password change requiring current password | Available |
-| Current-session-safe password rotation | Available |
-| Active-session list and targeted/revoke-all-other controls | Available |
-| New-session User-Agent/client-IP capture | Available |
-| Account/Security Settings UI | Available |
-
-Built-in avatar IDs are `initials`, `chip`, `circuit`, `terminal`, `storage`,
-and `rocket`. Uploaded avatars are normalized server-side and stored in SQLite
-so backup/restore preserves them. Sessions created before client-metadata capture
-remain honestly reported as Unknown rather than being backfilled or guessed.
-<!-- PARTPILOT:MCP_AUTHENTICATION_README:V580:END -->
-
-
-<!-- PARTPILOT:CHAT22_MCP_PERMISSION_BOUNDARY:V660 -->
-### MCP permission model
-
-The current MCP catalogue uses server-level read/write gates, individual tool
-permissions, OAuth/direct-client authorization ceilings, and per-client deny
-overrides. Effective permissions are enforced both when tools are discovered and
-when they are called, so disabled or unauthorized tools are not merely cosmetic UI
-states. The canonical public-alpha catalogue contains six read tools and eight
-safeguarded writes; no permanent inventory purge/hard-delete tool is exposed.
-
-<!-- PARTPILOT:REGIONAL_DISPLAY_README:V684 -->
-## Regional display preferences
-
-Part Pilot provides workspace-level Currency and Display timezone preferences under Settings → Preferences → Regional display.
-
-- Currency uses a persisted uppercase three-letter ISO code for display formatting only. Changing it does not perform foreign-exchange conversion or rewrite historical Project/Reservation currency snapshots.
-- Display timezone uses an IANA timezone and changes passive timestamp presentation across the workspace. Stored timestamps are not rewritten, and datetime-local entry semantics are unchanged.
-- Both preferences save independently and use the same themed Settings controls as the rest of Part Pilot.
-
-<!-- PARTPILOT:CHAT23_PUBLIC_MILESTONE:V685 -->
-## Chat 23 public milestone
-
-Chat 23 completes MCP permission finalization and Settings modernization. Part Pilot now has principal-aware individual MCP tool permissions, a clearer Direct MCP access hierarchy, reversible Preferences autosave with independent targeted resets, and workspace-level Currency + Display timezone controls. Currency is display formatting only; timezone changes passive presentation only. Historical currency snapshots and stored timestamps remain authoritative.
-
-Subsequent milestones completed authenticated server-driven live updates, public API documentation, whole-inventory metrics, role administration, safeguarded MCP writes, and the current public-alpha release-candidate hardening.
-
-
-<!-- PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_README:V699 -->
-### Authenticated live updates
-
-Part Pilot now has a browser-approved authenticated live-update foundation for
-Stored Parts/Part Manager and History. Successful inventory mutations emit
-server-side invalidations over an authenticated event stream; open tabs refetch
-the affected data without rewriting each tab's local search/filter/sort/page or
-selection state. Same-browser tabs also relay deduplicated invalidations for
-prompt multi-tab updates, while reconnect/replay and degraded polling provide
-recovery if the stream is interrupted.
-
-This is an incremental public-alpha hardening feature. Other workspaces are
-being migrated to the same invalidation model deliberately rather than relying
-on broad full-page refreshes.
-
-
-<!-- PARTPILOT:PROJECTS_RESERVATIONS_LIVE_SYNC_README:V702 -->
-### Projects and Reservations live updates
-
-Projects and Reservations now participate in the authenticated live-update
-system. Linked Project/Reservation edits and lifecycle changes invalidate the
-affected workspaces after successful commits, and open tabs refetch their
-current lists/details/activity without replacing local filters, search,
-pagination or selection.
-
-
-<!-- PARTPILOT:DASHBOARD_LIVE_SYNC_README:V704 -->
-### Dashboard live inventory updates
-
-The Dashboard now follows authenticated inventory invalidations too. Low-stock
-alerts and an already-open universal search refresh automatically after
-inventory changes, while each tab keeps its own query and current selected
-search result whenever that part still matches.
-
-
-<!-- PARTPILOT:SETTINGS_ACCOUNT_LIVE_SYNC_README:V706 -->
-### Live Settings and account updates
-
-Part Pilot now propagates workspace preferences, account identity/session
-changes and manual-backup status across authenticated open tabs. Theme,
-currency, timezone and inventory display preferences update their existing
-consumers automatically, while unfinished local Account or Reservation edits
-are protected from cross-tab refresh.
-
-
-<!-- PARTPILOT:CHAT24_DIAGNOSTIC_BOUNDARY_README:V710 -->
-### Chat 24 live-sync boundary
-
-Authenticated live sync is browser-approved for Inventory/History,
-Projects/Reservations, Dashboard and non-credential Settings. The remaining
-REST API-key/MCP integration slice moves to Chat 25 after a diagnostic found
-legacy OAuth smoke tests coupled to mutable historical client IDs.
-
-
-<!-- PARTPILOT:INTEGRATION_LIVE_SYNC_README:V714 -->
-### Live API-key and MCP integration updates
-
-REST API-key and MCP administration now participate in Part Pilot's
-authenticated live-update system. Open tabs refresh integration state after
-successful mutations without transporting plaintext credentials, while local
-unfinished MCP drafts and credential dialogs remain protected. Together with
-the earlier inventory, project, reservation, Dashboard and Settings slices,
-this completes the current public-alpha live-sync migration.
-
-
-<!-- PARTPILOT:MCP_AUTOSAVE_STABLE_REFRESH_README:V717 -->
-### Stable MCP autosave
-
-Reversible MCP access and global read-tool permissions now save automatically.
-The no-auth fallback still requires explicit confirmation before enabling, and
-credential/client lifecycle actions remain explicit. Already-loaded MCP state
-stays visible while authenticated live-sync refreshes happen in the background,
-so normal cross-tab updates no longer replace the section with a loading flash.
-
-
-<!-- PARTPILOT:STABLE_BACKGROUND_REFRESH_README:V719 -->
-### Stable live background refresh
-
-Already-loaded live-sync surfaces now stay mounted while matching authenticated
-background refetches run. Blocking loading states are reserved for first loads
-or genuine query/page/selection changes; cross-tab updates replace cached data
-in place. This behavior covers Projects, Reservations, History, Dashboard,
-Settings/account/data, REST API keys and selected Stored Parts details/history.
-
-
-<!-- PARTPILOT:OPENAPI_RESTORE_README:V723 -->
-### Public API documentation and restore safety
-
-Swagger and ReDoc now describe Part Pilot's Bearer authentication model, exact
-REST API-key scopes, session-only administration and MCP OAuth protocol boundary.
-The same hardening sweep aligned restore schemas to Alembic 0016 and made restore
-logical hashing safe for SQLite BLOB data such as custom avatars.
-
-
-<!-- PARTPILOT:INVENTORY_METRICS_README:V728 -->
-### Whole-inventory Stored Parts metrics
-
-Stored Parts now presents six live whole-inventory metrics for active records,
-physical/reserved/available units, Stock alerts and inventory value. The cards
-are independent of the current table filters/page, exclude deleted parts, keep
-pricing coverage visible, and use workspace currency for display only. Their
-responsive grid follows the available Stored Parts width symmetrically, while
-`GET /api/parts/metrics` is available to authenticated sessions and
-`inventory:read` REST API keys.
-
-
-<!-- PARTPILOT:DASHBOARD_OPERATIONAL_HOME_README:V731 -->
-### Dashboard operational home
-
-The Dashboard focuses on universal search, whole-inventory metrics, recent activity
-and compact Quick actions for common inventory/project workflows. The redundant
-Stock alerts launcher/dialog, backend-status card and inline low-stock panel are
-removed. Routine Refresh buttons are also gone from the live-synced Dashboard,
-Stored Parts, Projects, Reservations and History views; request-failure Retry
-actions remain available.
-
-
-<!-- PARTPILOT:USER_ROLES_AUTHORIZATION_README:V733 -->
-### User roles and authorization
-
-Part Pilot has an enforceable Owner / Administrator / Operator / Viewer
-authorization boundary plus a dedicated responsive Users & Roles workspace. The
-account created during initial setup is the permanent Primary Owner: managed-user
-create/update APIs can assign only Administrator, Operator or Viewer; the Primary
-Owner cannot be demoted, disabled or permanently deleted; and restore validation
-rejects databases with another Owner. Administrator can manage Operator/Viewer
-accounts, while lower roles never see user administration. Settings workspaces
-outside a role's authorization ceiling are hidden entirely and their restricted
-background administrative fetches are suppressed; restore/reset stays
-Primary-Owner-only.
-
-<!-- PARTPILOT:SAFEGUARDED_MCP_WRITES_README:V759 -->
-### Safeguarded MCP writes
-
-Part Pilot exposes six read tools plus five explicitly gated writes: reserve a
-Project, consume a Reservation, cancel a Reservation, adjust inventory stock,
-and create an inventory part. Every write remains bounded by server/write/global/
-client/scope/role ceilings and uses a preview, short-lived one-time confirmation
-token, idempotency, completed-write replay, and state-drift rejection.
-
-`adjust_part_quantity` reuses the canonical stock service. `create_part` reuses
-canonical part validation and freezes normalized metadata plus selected catalogue
-and template-field dependencies into its preview before confirmation. New write
-permissions default off while existing administrator policy values are preserved.
-No-auth remains permanently read-only.
-
-OAuth discovery now challenges clients for the MCP scopes currently enabled by
-the workspace instead of hard-coding `mcp:read`. Existing tokens never silently
-gain `mcp:write`; clients such as Claude must be reauthorized before write tools
-become available. History shows the MCP client name for MCP actions while retaining
-the backing Part Pilot user ID as the human authorization authority. Older MCP
-business history can resolve the client from its associated tool-call evidence,
-and MCP stock movements remain visibly attributed to MCP rather than the user.
-
-<!-- PARTPILOT:MCP_METADATA_UPDATE_README:V761 -->
-### Safeguarded MCP inventory metadata editing
-
-At the Patch 761 checkpoint, Part Pilot exposed six read tools plus six
-safeguarded write tools. The `update_part_metadata` tool reuses the canonical inventory metadata service and
-requires a complete explicit replacement of the editable metadata state after the
-client reads the part. Nullable values must be supplied deliberately, stock
-quantities are not accepted by this tool, and template values are replaced through
-the existing typed validation contract.
-
-The first call returns exact before/after metadata, catalogue/template dependency
-snapshots and a short-lived confirmation token without mutating inventory. The
-confirmed call retains the existing MCP role/scope/global/client ceilings,
-idempotency/replay and state-drift safeguards, records the connected MCP client in
-History, and publishes inventory/history invalidation only after commit. Physical
-and reserved stock remain exclusively under the dedicated stock/lifecycle tools.
-
-<!-- PARTPILOT:CHAT26_BOUNDARY_README:V768 -->
-### Reversible MCP inventory lifecycle and responsive History register
-
-Patch 768 is the authoritative Chat 26 boundary recovery. Patch 767 was consumed
-before any writes because its preflight froze the GitHub HTTPS origin spelling
-while this repository legitimately uses the equivalent SSH origin. No approved
-application, database, deployment or documentation state changed in that failure.
-
-The Chat 26 checkpoint advances Part Pilot to Alembic
-`0022_mcp_inventory_part_lifecycle` and a 14-tool MCP catalogue: six read tools
-plus eight safeguarded writes. Inventory writes now cover stock adjustment, part
-creation, complete metadata replacement, reversible `soft_delete_part`, and
-`restore_part`, alongside the existing Project/Reservation lifecycle tools.
-
-`soft_delete_part` and `restore_part` reuse the canonical recycle-bin services,
-remain individually permissioned and default off when introduced, and retain the
-standard Operator+, `mcp:write`, global/client ceilings, preview, five-minute
-confirmation, idempotency/replay and state-drift defenses. Soft deletion preserves
-physical/reserved quantities, typed field values, movements and History. Restore
-returns the same record after checking deleted-state drift and part-number
-availability. Neither operation creates a stock movement merely for changing
-lifecycle state. MCP deliberately exposes no permanent purge, hard-delete or
-recycle-bin-emptying tool.
-
-Claude browser testing proved preview/confirm/replay for both lifecycle actions on
-the existing MCP test part, preserved 12 physical / 0 reserved units and three
-typed fields, created no stock movement, retained the same part ID on restore, and
-showed `Claude` as the History actor.
-
-History also keeps its chronological register usable at intermediate widths: the
-column header and rows share a horizontal-scroll region when their minimum width
-no longer fits, while the register heading/pagination stay fixed and the existing
-mobile card layout remains unchanged at 680px and below.
-
-
-<!-- PARTPILOT:PUBLIC_ALPHA_AUTOMATED_REGRESSION_README:V777 -->
-### Automated public-alpha regression
-
-Patch 777 validates the clean user-management checkpoint with 44 current
-release smoke invocations on fresh copied-production databases,
-a canonical Docker/Vite build, protected API/OpenAPI/SPA checks and the existing
-MCP OAuth/direct-auth/permission/write coverage. The approved runtime and Alembic
-`0022_mcp_inventory_part_lifecycle` remain unchanged. Restore commit also passes when invoked with the canonical
-container supervisor contract; the earlier rehearsal failure was test-harness
-environment drift rather than a restore defect.
-
-<!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_POLISH_README:V786 -->
-### Public-alpha release polish
-
-The browser-approved release-candidate UI keeps Projects and Reservations complete
-at intermediate widths through aligned horizontal register scrolling, links Part-
-related History directly into the matching Inventory drawer, and places generated
-API/MCP/OAuth Copy actions inside their fields. Settings now shares one grouped
-information architecture across Account, Users, Preferences, API, MCP and Data.
-MCP is organized as Server, Capabilities, Connections and Advanced access; semantic
-SVG landmarks replace misleading step numbers without changing permission or
-credential behavior.
-
-Patch 777 already passed the complete automated release matrix. Real Claude OAuth
-verification also exposed the expected six read + eight safeguarded write tools, no
-permanent-delete tool, and successfully exercised guarded metadata preview/confirm.
-A Hermes event-loop error was isolated to the Hermes client/runtime wrapper after
-the same public Part Pilot MCP endpoint worked from inside that container.
-
-
-<!-- PARTPILOT:CHAT27_PUBLIC_ALPHA_BOUNDARY_README:V796 -->
-### Public-alpha release candidate
-
-Patch 796 completes the recovered Chat 27 release-candidate boundary after separately
-rehearsing the five historical/mutable MCP fixture adapters and rerunning all
-44 current copied-production release smokes. The canonical build
-reproduces the approved runtime image at Alembic `0022_mcp_inventory_part_lifecycle` while production data,
-credentials and mutable settings remain untouched. Browser release polish and real
-Claude MCP verification are already approved. Repository licensing remains an explicit
-owner decision.
+A project license has **not yet been selected**. Until a `LICENSE` file is added, do not
+assume that the repository grants general redistribution rights. The final licensing
+terms will be published separately after explicit review.
