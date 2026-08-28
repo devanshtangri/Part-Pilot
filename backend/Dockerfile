@@ -22,8 +22,9 @@ COPY --from=frontend-builder /frontend/dist /app/frontend_dist
 
 WORKDIR /app/backend
 
-# EXPOSE is documentation only. Runtime port is controlled by PARTPILOT_CONTAINER_PORT.
+# Part Pilot listens on fixed container port 8000; Docker chooses the host-side mapping.
 EXPOSE 8000
 
+# PARTPILOT:CONTAINER_STARTUP_BOOTSTRAP:V812
 # PARTPILOT:EXPLICIT_PROXY_BOUNDARY:V506
-CMD ["sh", "-c", "python -m app.restore_bootstrap && exec uvicorn app.main:app --host 0.0.0.0 --port ${PARTPILOT_CONTAINER_PORT:-8000} --no-proxy-headers"]
+CMD ["sh", "-c", "python -m app.restore_bootstrap && python -m app.db.startup_bootstrap && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-proxy-headers"]

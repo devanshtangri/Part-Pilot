@@ -61,7 +61,7 @@ Windows Command Prompt:
 copy .env.example .env
 ```
 
-The defaults expose Part Pilot on host port `7890`.
+The included Compose file maps host port `7890` to Part Pilot's fixed internal port `8000` (`7890:8000`). To use another host port, edit only the left side of the `ports:` mapping in `docker-compose.yml`, for example `9000:8000`. No Part Pilot port environment variable is required.
 
 ### 3. Build and start
 
@@ -85,33 +85,7 @@ docker compose ps
 docker compose logs --tail=100 partpilot
 ```
 
-A healthy deployment should show the `partpilot` container as healthy.
-
-## Day-to-day Docker commands
-
-Start or apply the current Compose configuration:
-
-```bash
-docker compose up -d
-```
-
-View logs:
-
-```bash
-docker compose logs -f partpilot
-```
-
-Restart Part Pilot:
-
-```bash
-docker compose restart partpilot
-```
-
-Stop the application without deleting its data:
-
-```bash
-docker compose down
-```
+A healthy deployment should show the `partpilot` container as healthy. On a fresh installation, container startup automatically migrates the database to the current schema and initializes the built-in catalogue and default settings before Part Pilot is served. Existing initialized databases are migrated without replaying the seed.
 
 ## Persistent data
 
@@ -134,8 +108,6 @@ Common settings in `.env`:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `PARTPILOT_HOST_PORT` | `7890` | Host port used to open Part Pilot. |
-| `PARTPILOT_CONTAINER_PORT` | `8000` | Internal application port. Most installations should leave this unchanged. |
 | `PARTPILOT_BIND_ADDRESS` | `0.0.0.0` | Host interface used for the published port. |
 | `PARTPILOT_PUBLIC_BASE_URL` | empty | Canonical external HTTPS URL when using OAuth/MCP behind a reverse proxy. |
 | `PARTPILOT_TRUSTED_PROXY_CIDRS` | empty | Immediate trusted reverse-proxy networks allowed to supply forwarded client/origin data. |
@@ -256,41 +228,6 @@ Until then, use the source-build Quick start above rather than assuming an image
 - Set `PARTPILOT_ENABLE_DEBUG_RESET=false` if you do not want the database-reset endpoint
   available on the server at all.
 - Keep Docker, the host OS, and the reverse proxy updated.
-
-## Troubleshooting
-
-### The page does not open
-
-Check the container and logs:
-
-```bash
-docker compose ps
-docker compose logs --tail=200 partpilot
-```
-
-Also confirm that `PARTPILOT_HOST_PORT` is not already used by another service.
-
-### The container is unhealthy
-
-Inspect the recent startup log:
-
-```bash
-docker compose logs --tail=300 partpilot
-```
-
-Do not delete `./data` as a troubleshooting shortcut. Preserve the database and diagnose
-the startup or migration error first.
-
-### OAuth/MCP works locally but not through a domain
-
-Verify:
-
-- the public URL is HTTPS;
-- `PARTPILOT_PUBLIC_BASE_URL` exactly matches that public origin;
-- the reverse proxy forwards the required traffic to Part Pilot;
-- `PARTPILOT_TRUSTED_PROXY_CIDRS` contains only the actual immediate proxy network;
-- direct access to the raw container-published port is not bypassing the intended proxy
-  trust boundary.
 
 ## Development
 

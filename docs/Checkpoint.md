@@ -4759,3 +4759,19 @@ is a later consequential release-packaging step, not part of Patch 801.
 Patch 801 creates no software license, Git tag or GitHub Release. Production data,
 credentials, mutable MCP state, Primary Owner semantics, the fourteen-tool MCP catalogue
 and Alembic `0022_mcp_inventory_part_lifecycle` remain unchanged.
+
+<!-- PARTPILOT:RELEASE_BOOTSTRAP_PORT_FAVICON_BROWSER_CANDIDATE:V812 -->
+## Patch 812 browser-test candidate — semantic image equivalence recovery
+
+Patch 811 passed isolated Compose, startup-bootstrap, fresh-database, copied-production, complete-smoke and favicon validation, then stopped after writing the exact candidate because it required the live-root Docker image ID to equal the isolated-snapshot image ID. Rollback restored the browser candidate before deployment. Read-only comparison of the retained P811 images proved the application bytes were identical: frontend path/bytes/modes matched, and backend file bytes matched exactly; the initial backend difference was file mode metadata from `git archive` extraction (`0664`) versus the live checkout (`0644`). After normalizing snapshot modes to Git index modes, backend and frontend path/bytes/mode manifests matched exactly while image IDs still differed because Docker COPY layers retain context/build timestamps.
+
+Patch 812 therefore preserves the exact approved bootstrap/port/README/favicon product scope but validates isolated-versus-live builds by deterministic semantic manifests rather than whole-image IDs. The manifest covers backend and frontend path/bytes/modes, installed Python package versions, Python version and Docker runtime configuration. The actual live-root build is deployed only after semantic equivalence is proven. Source remains unstaged, uncommitted and unpushed for explicit favicon browser approval. No LICENSE, `v1.0.0` tag, GHCR publication or GitHub Release is created.
+
+<!-- PARTPILOT:APPROVED_RELEASE_BOOTSTRAP_FAVICON_CHECKPOINT:V814 -->
+## Browser-approved release bootstrap and favicon checkpoint — Patch 814
+
+Patch 812 completed the guarded container-database bootstrap, fixed internal port `8000`, direct default `7890:8000` Compose mapping, customer README cleanup and favicon delivery. Patch 813 then changed only the favicon to mirror Part Pilot's existing in-app brand mark: a restrained dark rounded tile with a mint `P`. The replacement favicon was explicitly browser-approved.
+
+Patch 814 checkpoints those exact application/config/frontend bytes without further product changes. Fresh file-backed SQLite starts by migrating to Alembic head and idempotently initializing built-in/default data; initialized managed databases migrate without seed replay; ambiguous non-empty unversioned SQLite fails closed. Production remains Alembic `0022_mcp_inventory_part_lifecycle`, the fixed container port is `8000`, and the approved favicon is served as `/favicon.svg`.
+
+The checkpoint creates no LICENSE/COPYING file, `v1.0.0` tag, GHCR publication or GitHub Release. Those remain separate consequential release steps.

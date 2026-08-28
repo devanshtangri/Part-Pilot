@@ -3905,3 +3905,27 @@ Required before public `v1.0.0` publication:
    artifact, then reconcile release notes/checklist and publish the tag/GitHub Release.
 5. Fix only genuine release blockers; keep Notifications & Messaging post-v1 unless
    explicitly reprioritized.
+
+<!-- PARTPILOT:RELEASE_BOOTSTRAP_PORT_FAVICON_BROWSER_ROADMAP:V812 -->
+### Patch 812 — recover P811 image-identity false negative
+
+- [x] Preserve the Patch 810 diagnostic gate and exact P811 functional candidate scope.
+- [x] Diagnose P811 as a Docker packaging-metadata false negative: backend/frontend application content is identical while whole image IDs differ because snapshot/live COPY metadata is not reproducible.
+- [x] Normalize isolated snapshot file modes from the Git index before building.
+- [x] Compare isolated and live-root images using deterministic application/package/runtime-config manifests rather than whole-image IDs.
+- [x] Keep guarded fresh/existing DB bootstrap, fixed internal port `8000`, direct `7890:8000` Compose mapping, README cleanup and favicon unchanged in behavior.
+- [ ] Browser-approve the favicon while Patch 812 source remains unstaged, uncommitted and unpushed.
+- [ ] After approval, checkpoint/commit/push the exact Patch 812 candidate in the next sequential patch.
+- [ ] Resume GHCR and image-based release-Compose packaging after that checkpoint.
+
+<!-- PARTPILOT:APPROVED_RELEASE_BOOTSTRAP_FAVICON_ROADMAP:V814 -->
+### Patch 814 — checkpoint browser-approved bootstrap, fixed port and favicon
+
+- [x] Patch 812 automated bootstrap/port/README candidate passed.
+- [x] Patch 813 replaced only the favicon with the existing Part Pilot brand-mark treatment.
+- [x] Browser approval received for the Patch 813 favicon.
+- [x] Checkpoint the exact approved application/config/frontend bytes with a strict staged allowlist and synchronized `main` / `origin/main`.
+- [ ] Resume GHCR multi-platform image publishing and image-based release Compose packaging.
+- [ ] Audit dependency/license obligations before proposing exact project LICENSE text.
+- [ ] Add LICENSE only after explicit approval of its exact terms.
+- [ ] Validate public anonymous image pull plus clean remote-image install/upgrade/backup/restore before creating the `v1.0.0` tag and GitHub Release.

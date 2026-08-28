@@ -11,8 +11,9 @@ services:
       PARTPILOT_ENABLE_DEBUG_RESET: "${PARTPILOT_ENABLE_DEBUG_RESET:-true}"
       PARTPILOT_RESTORE_SUPERVISOR_CONTRACT: "compose-restart-v1"
     ports:
-      # PARTPILOT:CONFIGURABLE_HOST_BIND:V506
-      - "${PARTPILOT_BIND_ADDRESS:-0.0.0.0}:${PARTPILOT_HOST_PORT:-7890}:${PARTPILOT_CONTAINER_PORT:-8000}"
+      # PARTPILOT:FIXED_CONTAINER_PORT_MAPPING:V812
+      # Part Pilot listens on fixed container port 8000. Change only host-side 7890 if desired.
+      - "${PARTPILOT_BIND_ADDRESS:-0.0.0.0}:7890:8000"
     volumes:
       - ./data:/data
     healthcheck:
