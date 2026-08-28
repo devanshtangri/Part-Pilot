@@ -3808,3 +3808,23 @@ Remaining Chat 27/public-alpha work:
 2. Fix only genuinely new release blockers found before that boundary.
 3. Keep permanent inventory purge outside MCP and Notifications & Messaging
    post-v1.
+
+<!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_HYGIENE_ROADMAP:V790 -->
+### Patch 790 — recover public-alpha release-facing hygiene
+
+Completed in this recovery:
+- [x] Preserve the Patch 789 diagnostic as immutable evidence for the P787/P788
+  pre-write failures.
+- [x] Rebuild the five release-hygiene candidates from the exact post-P789 baseline.
+- [x] Correct stale MCP/public-alpha README claims and add deployment-security
+  guidance without changing runtime behavior.
+- [x] Update only `.env.example`'s informational environment label/comments; leave
+  the live `.env`, database, credentials and mutable MCP settings untouched.
+- [x] Validate exact allowlist, diff cleanliness, canonical image equivalence,
+  Alembic/SQLite, protected routes and the canonical fourteen-tool policy shape.
+
+Remaining before the Chat 27 boundary:
+1. Repository owner chooses an explicit software license, or intentionally keeps the
+   repository source-available without one; do not auto-select licensing terms.
+2. Complete final release-candidate handoff/boundary documentation by Patch 793.
+3. Fix only genuinely new release blockers discovered before that boundary.

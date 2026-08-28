@@ -1,8 +1,8 @@
-<!-- PARTPILOT:PROJECT_MEMORY:V786 -->
+<!-- PARTPILOT:PROJECT_MEMORY:V790 -->
 
 Project
 - Repo: https://github.com/devanshtangri/Part-Pilot.git; root `/projects/Part Pilot`; branch `main`. Docker Compose service/container `partpilot`, usual host port 7890. React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend; SQLite production DB `/projects/Part Pilot/data/partpilot.db` (`/data/partpilot.db` in container).
-- Current release-candidate checkpoint: Patch 786 over Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six read + eight safeguarded writes. Patch 777 automated public-alpha regression and Patch 779-785 browser release polish are complete.
+- Current release-candidate checkpoint: Patch 790 over Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six read + eight safeguarded writes. Patch 777 automated public-alpha regression and Patch 779-785 browser release polish are complete; P787/P788 failed pre-write, P789 diagnosed the evidence contract, and P790 recovers release-facing hygiene.
 
 Patch workflow
 - Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary/handoff is one sequential Python file under `fixes/`; filename starts directly with the patch number. Failed executed scripts consume numbers. Successful final line exactly `Everything PASS`.
@@ -52,3 +52,6 @@ Release evidence / remaining Chat 27
 - Remaining work: final public-alpha release-candidate durable handoff/documentation and only genuinely new release blockers before the planned Patch 793 boundary. Permanent purge stays separate from MCP; Notifications & Messaging remain post-v1.
 
 <!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_POLISH_MEMORY:V786 -->
+
+<!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_HYGIENE_MEMORY:V790 -->
+- Public-alpha release hygiene now documents HTTPS/proxy/no-auth/data/reset/backup safety and removes stale pre-MCP wording without changing live configuration. Licensing remains an explicit repository-owner decision before the final Chat 27 boundary.

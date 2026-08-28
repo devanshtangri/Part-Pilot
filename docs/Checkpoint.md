@@ -4625,3 +4625,26 @@ All Patch 779-785 browser feedback is approved. Remaining Chat 27 work is the fi
 public-alpha release-candidate documentation/handoff and fixes only for genuinely
 new release blockers. Permanent purge remains outside MCP; Notifications &
 Messaging remain post-v1.
+
+<!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_HYGIENE_RECOVERY:V790 -->
+## Public-alpha release hygiene recovery — Patch 790
+
+Patches 787 and 788 were consumed by pre-write evidence-contract failures and did
+not modify release-facing source. Patch 789 committed a diagnostic-only report that
+pinned the actual Patch 786 evidence, the misnamed Patch 788 log, and the safe
+recovery plan.
+
+Patch 790 applies the release-facing hygiene from the exact post-P789 checkpoint:
+- `.env.example` uses the informational `production` label and documents the public
+  base URL and Primary-Owner reset flag without changing the live `.env`;
+- README describes the completed MCP permission/write model instead of obsolete
+  implementation-era plans;
+- README adds deployment guidance for HTTPS, reverse proxies, trusted proxies, MCP
+  no-auth exposure, least privilege, data/instance-secret protection, reset safety,
+  and backups;
+- repository hygiene remains free of tracked database, `.env`, secret, key, PEM or
+  certificate artifacts.
+
+No application source, live database, deployment, credentials, settings, or MCP
+permission values are changed by this checkpoint. The repository still has no
+`LICENSE`; licensing remains an explicit repository-owner decision.

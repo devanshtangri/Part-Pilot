@@ -5,8 +5,9 @@ hobbyists, repair benches, and small technical labs.
 
 It combines configurable component templates with practical stock workflows,
 reusable catalogues, recoverable deletion, audit history, and a responsive
-dark interface. The long-term differentiator is MCP integration so approved AI
-assistants can understand and act on inventory safely.
+dark interface. A core differentiator is MCP integration: approved AI assistants
+such as Claude and ChatGPT can understand inventory and, when explicitly
+authorized, perform safeguarded writes through preview and confirmation.
 
 > **Project status:** public-alpha release-candidate hardening. Core V1 workflows,
 > automated release regression, and browser release polish are complete; the final
@@ -132,6 +133,36 @@ docker compose down
 
 Do not delete `./data` unless the database and application state are no longer
 needed.
+
+## Deployment security
+
+Part Pilot is designed to hold credentials and operational inventory data, so an
+internet-facing deployment should be treated as an authenticated application, not
+as a static website.
+
+- Put public deployments behind HTTPS. When MCP/OAuth is exposed through a reverse
+  proxy, set `PARTPILOT_PUBLIC_BASE_URL` to the canonical external HTTPS origin.
+- Trust only the immediate reverse-proxy networks in
+  `PARTPILOT_TRUSTED_PROXY_CIDRS`, and prevent untrusted clients from bypassing the
+  proxy directly to the published Part Pilot port.
+- Choose `PARTPILOT_BIND_ADDRESS` for the actual topology. `0.0.0.0` is useful for
+  LAN/container proxying but should not be treated as an internet-access control.
+- Keep MCP **No authentication** disabled unless intentionally providing read-only
+  inventory access to every device that can reach `/mcp`. It never grants write
+  tools, but it still exposes enabled read data.
+- Grant OAuth scopes, named direct-client permissions and MCP write tools using the
+  least privilege needed. MCP permanent purge/hard delete is intentionally absent.
+- Protect the entire `./data` directory. It contains the SQLite database and the
+  instance secret used to protect stored direct-client credentials. Never publish
+  either file or include them in source-control archives.
+- Database reset is a deliberate Primary-Owner-only destructive feature requiring
+  exact typed confirmation. Set `PARTPILOT_ENABLE_DEBUG_RESET=false` if the server-
+  side reset endpoint should be disabled entirely.
+- Download and test `.ppbackup` backups before major upgrades or restore work.
+
+The example environment uses `PARTPILOT_ENV=production`; that value is currently an
+informational environment label exposed by health/readiness responses, not a switch
+that substitutes for the deployment controls above.
 
 ## Local development
 
@@ -316,16 +347,17 @@ removed units.
 
 The Reservations page is the operational queue for committed inventory. Manual
 Reservation creation is intentionally absent from the frontend so users have one
-clear entry path: plan work in Projects, then reserve it. The backend
-Reservation-create API remains temporarily available for compatibility while
-future API and MCP behavior is defined.
+clear entry path: plan work in Projects, then reserve it. The backend Reservation-
+create API remains available for authenticated REST clients, while MCP clients use
+the separately safeguarded Project/Reservation lifecycle tools described below.
 
-### Planned administration control
+### MCP administration
 
-A future Settings update will add an authenticated control to enable or disable
-the MCP server. Default, restart behavior, transport/tool gating and auditing
-will be defined during the MCP implementation phase; the control is not
-implemented yet.
+Settings → MCP controls the server, read/write categories, individual tool
+permissions, OAuth registrations, named direct clients, and the typed-confirmed
+no-auth fallback. No-auth access is permanently read-only; safeguarded writes
+require the normal role, scope, server, global and client permission ceilings plus
+preview and confirmation.
 <!-- PARTPILOT:PROJECTS_AND_RESERVATIONS:END -->
 
 <!-- PARTPILOT:SYSTEM_HISTORY_README:V410:START -->
@@ -513,21 +545,14 @@ remain honestly reported as Unknown rather than being backfilled or guessed.
 
 
 <!-- PARTPILOT:CHAT22_MCP_PERMISSION_BOUNDARY:V660 -->
-### MCP permission browser-test batch
+### MCP permission model
 
-Chat 22 established the live `0016_mcp_tool_permissions` schema and pending
-administration/UI source for global individual-tool permissions plus OAuth and
-named-direct client deny overrides.
-
-The browser-test configuration currently has `search_parts` globally disabled.
-The other five read tools remain enabled and client deny lists are empty.
-Call-time authorization already enforces the effective policy.
-
-The remaining refinement in Chat 23 is to filter ineffective tools from the
-authenticated MCP `tools/list` catalogue, grey client overrides under global
-blocks, show the current absence of real write tools honestly, and align the
-Add-direct-client form styling. The complete permission batch remains
-uncommitted application source until browser approval.
+The current MCP catalogue uses server-level read/write gates, individual tool
+permissions, OAuth/direct-client authorization ceilings, and per-client deny
+overrides. Effective permissions are enforced both when tools are discovered and
+when they are called, so disabled or unauthorized tools are not merely cosmetic UI
+states. The canonical public-alpha catalogue contains six read tools and eight
+safeguarded writes; no permanent inventory purge/hard-delete tool is exposed.
 
 <!-- PARTPILOT:REGIONAL_DISPLAY_README:V684 -->
 ## Regional display preferences
@@ -543,7 +568,7 @@ Part Pilot provides workspace-level Currency and Display timezone preferences un
 
 Chat 23 completes MCP permission finalization and Settings modernization. Part Pilot now has principal-aware individual MCP tool permissions, a clearer Direct MCP access hierarchy, reversible Preferences autosave with independent targeted resets, and workspace-level Currency + Display timezone controls. Currency is display formatting only; timezone changes passive presentation only. Historical currency snapshots and stored timestamps remain authoritative.
 
-The next implementation milestone is authenticated server-driven invalidation/targeted refetch, followed by public-alpha API documentation hardening and whole-inventory metrics.
+Subsequent milestones completed authenticated server-driven live updates, public API documentation, whole-inventory metrics, role administration, safeguarded MCP writes, and the current public-alpha release-candidate hardening.
 
 
 <!-- PARTPILOT:INVENTORY_HISTORY_LIVE_SYNC_README:V699 -->
