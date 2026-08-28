@@ -2,7 +2,7 @@
 
 Project
 - Repo: https://github.com/devanshtangri/Part-Pilot.git; root `/projects/Part Pilot`; branch `main`. Docker Compose service/container `partpilot`, usual host port 7890. React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend; SQLite production DB `/projects/Part Pilot/data/partpilot.db` (`/data/partpilot.db` in container).
-- Chat 27 public-alpha release-candidate boundary: Patch 796 over Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six reads + eight safeguarded writes. P795 is the authoritative final-gate diagnostic; P796 rehearses the five mutable-fixture adapters, reruns all 44 release smokes, preserves the approved V785 runtime and closes Chat 27. Next patch 797 in Chat 28.
+- Chat 28 public-alpha publishing checkpoint: Patch 798 recovers the release notes and publishing checklist after Patch 797 failed pre-write on a command-log-vs-terminal success-evidence mismatch. Application/runtime state remains the approved V785 image at Alembic `0022_mcp_inventory_part_lifecycle`; MCP remains 14 tools = six reads + eight safeguarded writes. Release tag/title and licensing disposition remain explicit owner decisions.
 
 Patch workflow
 - Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary/handoff is one sequential Python file under `fixes/`; filename starts directly with the patch number. Failed executed scripts consume numbers. Successful final line exactly `Everything PASS`.
@@ -45,11 +45,11 @@ MCP/OAuth/direct access
 - Writes: `reserve_project`, `consume_reservation`, `cancel_reservation`, `adjust_part_quantity`, `create_part`, `update_part_metadata`, `soft_delete_part`, `restore_part`. Permanent purge/hard delete/recycle-bin emptying is deliberately absent from MCP.
 - `update_part_metadata` is complete explicit metadata replacement and cannot change stock. `soft_delete_part`/`restore_part` reuse recycle-bin services, preserve quantities/reservations/fields/movements/history and create no stock movement solely for lifecycle change. History shows connected MCP client identity while retaining backing user accountability.
 
-Release evidence / remaining Chat 27
+Release evidence / Chat 28 publishing
 - Primary Owner/User management is browser-approved and checkpointed. Patch 777 passed 44 current release smoke invocations on fresh copied-production DBs plus canonical build, restore, OpenAPI, SPA and MCP regression; restore-commit concern was harness env drift and passes with `PARTPILOT_RESTORE_SUPERVISOR_CONTRACT=compose-restart-v1`.
 - Real Claude OAuth verification exposed six reads + eight safeguarded writes, no hard-delete tool, and successfully exercised guarded metadata preview/confirmation. Hermes `MCP event loop is not running` is client/runtime-wrapper-side: the same public Part Pilot endpoint initialized and executed `search_parts` from inside the Hermes container, so Part Pilot should not add a workaround.
 - Patch 779-785 browser polish is approved: Dashboard cleanup, Projects/Reservations responsive registers, History Part deep-link, in-field credential Copy, MCP and all-Settings hierarchy, avatar tile sizing, semantic icons and Connections optical correction.
-- Remaining work: final public-alpha release-candidate durable handoff/documentation and only genuinely new release blockers before the planned Patch 793 boundary. Permanent purge stays separate from MCP; Notifications & Messaging remain post-v1.
+- Patch 796 is the completed release-candidate boundary. Patch 797 failed pre-write because it expected terminal-only `Everything PASS` text in the Patch 796 command log; Patch 798 recovers the tag-neutral release notes and publishing checklist using persisted commit/push/final-verification evidence. Next consequential decisions are release tag/title and licensing disposition; no tag, GitHub Release or license should be guessed. Permanent purge stays separate from MCP; Notifications & Messaging remain post-v1.
 
 <!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_POLISH_MEMORY:V786 -->
 
@@ -57,4 +57,7 @@ Release evidence / remaining Chat 27
 - Public-alpha release hygiene now documents HTTPS/proxy/no-auth/data/reset/backup safety and removes stale pre-MCP wording without changing live configuration. Licensing remains an explicit repository-owner decision before the final Chat 27 boundary.
 
 <!-- PARTPILOT:CHAT27_PUBLIC_ALPHA_BOUNDARY_MEMORY:V796 -->
-- Patch 796 closes Chat 27 after targeted rehearsal of all five diagnosed mutable MCP fixtures and all 44 release smokes pass. Fixture normalization is copy-only: four historical singleton smokes retain only legacy row 1; the named-direct smoke gets copied disabled defaults. Live direct clients/settings/permissions remain mutable and untouched. Approved image `sha256:fa265f69c32b784172f8fc46819ea484c0170dbd4df13b3c8fbd6bcd86711f37`, Alembic `0022_mcp_inventory_part_lifecycle`, browser-polished Settings/User UI and Claude external MCP evidence remain authoritative. Next patch 797. License decision remains explicit.
+- Patch 796 closes Chat 27 after targeted rehearsal of all five diagnosed mutable MCP fixtures and all 44 release smokes pass. Fixture normalization is copy-only: four historical singleton smokes retain only legacy row 1; the named-direct smoke gets copied disabled defaults. Live direct clients/settings/permissions remain mutable and untouched. Approved image `sha256:fa265f69c32b784172f8fc46819ea484c0170dbd4df13b3c8fbd6bcd86711f37`, Alembic `0022_mcp_inventory_part_lifecycle`, browser-polished Settings/User UI and Claude external MCP evidence remain authoritative. Patch 797 was consumed pre-write; Patch 798 is the publishing-package recovery. License decision remains explicit.
+
+<!-- PARTPILOT:PUBLIC_ALPHA_PUBLISHING_PACKAGE_MEMORY:V798 -->
+- Public-alpha publishing package is durable at Patch 798: `docs/Public_Alpha_Release_Notes.md` plus `docs/Public_Alpha_Publishing_Checklist.md`. Patch 797 is failed/consumed pre-write. Publishing docs are tag-neutral; release tag/title and license/no-license disposition require explicit owner choice before consequential release actions.

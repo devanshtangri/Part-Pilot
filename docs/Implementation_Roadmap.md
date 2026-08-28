@@ -3846,3 +3846,32 @@ at Patch 797 and owns patches 797-821, with planned boundary 821. Its first prio
 public-alpha publishing/release packaging and release notes. Repository licensing remains
 an explicit owner decision; do not add a license automatically. Notifications & Messaging
 remain post-v1 unless explicitly reprioritized.
+
+
+<!-- PARTPILOT:PUBLIC_ALPHA_PUBLISHING_PACKAGE_ROADMAP:V798 -->
+### Patch 798 — recover public-alpha publishing package
+
+Patch 797 was consumed by a pre-write evidence mismatch: it searched the Patch 796
+command log for terminal-only `Everything PASS` output. Patch 798 narrows recovery to
+that evidence contract and the already-intended documentation package.
+
+Completed in Chat 28:
+- [x] Validate persisted Patch 796 commit/push/final-verification evidence instead of
+  requiring terminal-only success text inside its command log.
+- [x] Validate the exact failed Patch 797 source/log fingerprint and prove it stopped
+  before candidate construction or repository writes.
+- [x] Create durable public-alpha release notes from the browser-approved and
+  automated P796 release-candidate evidence.
+- [x] Create a publishing checklist covering repository hygiene, deployment safety,
+  release/tag actions, license disposition and post-publication verification.
+- [x] Link the package from README and remove stale Chat 27 remaining-work wording
+  from repository memory.
+- [x] Preserve the exact P796 application/runtime/schema state while allowing legitimate
+  mutable production data and MCP configuration to remain mutable; this is docs-only.
+
+Next:
+1. Repository owner chooses the release tag/title and licensing disposition.
+2. Apply a license only if the repository owner explicitly selects exact terms.
+3. Create the public GitHub release/publishing checkpoint as a separate consequential
+   patch after those decisions; fix only genuine blockers.
+4. Keep Notifications & Messaging post-v1 unless explicitly reprioritized.

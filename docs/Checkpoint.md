@@ -4703,5 +4703,32 @@ Final Chat 27 evidence:
   running deployment remain untouched by the release gate and boundary documentation.
 
 Aggregate full-matrix smoke execution time recorded by Patch 796: 174.8s.
-Chat 27 is complete only after this patch commits/pushes successfully. The next patch
-is 797 in `Chat 28: Public Alpha Release and Post-v1 Planning`.
+Chat 27 is complete at the verified Patch 796 boundary. Patch 797 was consumed by a
+pre-write publishing-package evidence assertion; Chat 28 recovery continues at Patch 798.
+
+
+<!-- PARTPILOT:PUBLIC_ALPHA_PUBLISHING_PACKAGE:V798 -->
+## Public-alpha publishing package recovery — Patch 798
+
+Patch 798 recovers the intended Chat 28 publishing package from failed Patch 797.
+Patch 797 stopped in preflight before writes because it required `Everything PASS`
+inside the Patch 796 command log, while Patch 796 records that final success line only
+on terminal output. The immutable Patch 796 log instead persists the successful
+boundary commit/push and final verification. Patch 798 validates those persisted
+markers plus the exact Patch 797 source/log fingerprints before any write.
+
+The recovery adds release-facing documentation only. It does not change application
+source, the running image, production data, MCP settings/clients/permissions,
+credentials or Alembic state.
+
+The publishing package consists of:
+- `docs/Public_Alpha_Release_Notes.md`, a tag-neutral release-notes source describing
+  the current V1 public-alpha capabilities, MCP/AI safeguards, validation evidence,
+  deployment guidance and known alpha limitations;
+- `docs/Public_Alpha_Publishing_Checklist.md`, which separates already-proven release
+  evidence from repository-owner decisions and consequential publishing actions.
+
+No release tag, GitHub Release or software license is guessed by this checkpoint. The
+repository owner must explicitly choose the release tag/title and either choose exact
+licensing terms or intentionally keep the repository without a redistribution license.
+Until then, public documentation must not describe Part Pilot as open source.

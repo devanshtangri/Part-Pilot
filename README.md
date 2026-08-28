@@ -57,13 +57,16 @@ authorized, perform safeguarded writes through preview and confirmation.
 - Protected system-wide History with unified audit and stock-movement search, filters, pagination and responsive detail inspection.
 - Owner / Administrator / Operator / Viewer authorization with a permanent first-init Primary Owner and responsive Users & Roles administration.
 
-## Next release steps
+## Public-alpha release package
 
-The V1 public-alpha release candidate is complete. Next steps are:
+The V1 public-alpha release candidate is complete and the publishing package is ready:
 
-- Publish/package the verified public-alpha candidate and prepare release notes.
-- Choose repository licensing terms explicitly before adding a `LICENSE` file.
-- Fix only genuine release blockers; Notifications & Messaging remain post-v1.
+- [`docs/Public_Alpha_Release_Notes.md`](docs/Public_Alpha_Release_Notes.md) — release-facing feature, validation, deployment and known-limitations summary.
+- [`docs/Public_Alpha_Publishing_Checklist.md`](docs/Public_Alpha_Publishing_Checklist.md) — exact pre-publication, GitHub Release and post-publication checklist.
+
+The release tag/name and repository licensing terms remain explicit repository-owner
+decisions. No `LICENSE` file or Git tag is created by the publishing-documentation
+checkpoint. Fix only genuine release blockers; Notifications & Messaging remain post-v1.
 
 See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
 detailed build plan and [`docs/Checkpoint.md`](docs/Checkpoint.md) for durable
