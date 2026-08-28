@@ -9,9 +9,9 @@ dark interface. A core differentiator is MCP integration: approved AI assistants
 such as Claude and ChatGPT can understand inventory and, when explicitly
 authorized, perform safeguarded writes through preview and confirmation.
 
-> **Project status:** public-alpha release-candidate hardening. Core V1 workflows,
-> automated release regression, and browser release polish are complete; the final
-> durable release handoff/documentation remains.
+> **Project status:** public-alpha release candidate complete. Core V1 workflows,
+> the final automated regression matrix, browser release polish, external Claude MCP
+> verification, release-hygiene hardening, and the Chat 27 release boundary are complete.
 
 ## Current capabilities
 
@@ -57,12 +57,13 @@ authorized, perform safeguarded writes through preview and confirmation.
 - Protected system-wide History with unified audit and stock-movement search, filters, pagination and responsive detail inspection.
 - Owner / Administrator / Operator / Viewer authorization with a permanent first-init Primary Owner and responsive Users & Roles administration.
 
-## Planned V1 work
+## Next release steps
 
-Major remaining areas include:
+The V1 public-alpha release candidate is complete. Next steps are:
 
-- Complete the final public-alpha release-candidate durable handoff/documentation.
-- Resolve only genuinely new release-blocking findings before the Chat 27 boundary.
+- Publish/package the verified public-alpha candidate and prepare release notes.
+- Choose repository licensing terms explicitly before adding a `LICENSE` file.
+- Fix only genuine release blockers; Notifications & Messaging remain post-v1.
 
 See [`docs/Implementation_Roadmap.md`](docs/Implementation_Roadmap.md) for the
 detailed build plan and [`docs/Checkpoint.md`](docs/Checkpoint.md) for durable
@@ -805,3 +806,15 @@ verification also exposed the expected six read + eight safeguarded write tools,
 permanent-delete tool, and successfully exercised guarded metadata preview/confirm.
 A Hermes event-loop error was isolated to the Hermes client/runtime wrapper after
 the same public Part Pilot MCP endpoint worked from inside that container.
+
+
+<!-- PARTPILOT:CHAT27_PUBLIC_ALPHA_BOUNDARY_README:V796 -->
+### Public-alpha release candidate
+
+Patch 796 completes the recovered Chat 27 release-candidate boundary after separately
+rehearsing the five historical/mutable MCP fixture adapters and rerunning all
+44 current copied-production release smokes. The canonical build
+reproduces the approved runtime image at Alembic `0022_mcp_inventory_part_lifecycle` while production data,
+credentials and mutable settings remain untouched. Browser release polish and real
+Claude MCP verification are already approved. Repository licensing remains an explicit
+owner decision.

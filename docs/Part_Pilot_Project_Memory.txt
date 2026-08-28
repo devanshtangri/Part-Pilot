@@ -2,7 +2,7 @@
 
 Project
 - Repo: https://github.com/devanshtangri/Part-Pilot.git; root `/projects/Part Pilot`; branch `main`. Docker Compose service/container `partpilot`, usual host port 7890. React/Vite/TypeScript frontend; FastAPI/SQLAlchemy/Alembic backend; SQLite production DB `/projects/Part Pilot/data/partpilot.db` (`/data/partpilot.db` in container).
-- Current release-candidate checkpoint: Patch 790 over Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six read + eight safeguarded writes. Patch 777 automated public-alpha regression and Patch 779-785 browser release polish are complete; P787/P788 failed pre-write, P789 diagnosed the evidence contract, and P790 recovers release-facing hygiene.
+- Chat 27 public-alpha release-candidate boundary: Patch 796 over Alembic `0022_mcp_inventory_part_lifecycle`; 14 MCP tools = six reads + eight safeguarded writes. P795 is the authoritative final-gate diagnostic; P796 rehearses the five mutable-fixture adapters, reruns all 44 release smokes, preserves the approved V785 runtime and closes Chat 27. Next patch 797 in Chat 28.
 
 Patch workflow
 - Every implementation/fix/diagnostic/docs/checkpoint/commit/push/boundary/handoff is one sequential Python file under `fixes/`; filename starts directly with the patch number. Failed executed scripts consume numbers. Successful final line exactly `Everything PASS`.
@@ -15,8 +15,8 @@ Patch workflow
 - Patch delivery order: heading; file/path; SHA-256; scope/source-build-browser-commit status; exact run command; expected `Everything PASS`. For AI/MCP browser tests provide exact copy-paste prompts.
 
 Chat boundary
-- Chat 26 authoritative boundary is Patch 768 after Patch 767's pre-write origin-form failure.
-- Chat 27: `User Management UI and Public Alpha Release Candidate`, patch range 769-793, planned boundary 793.
+- Chat 27 authoritative boundary recovery is Patch 796 after the planned Patch 793 boundary failed and narrow diagnostic/recovery continued through P795/P796.
+- Chat 28: `Public Alpha Release and Post-v1 Planning`, patch range 797-821, planned boundary 821.
 
 Data safety
 - Preserve real inventory, users, sessions, Projects, Reservations, movements, audits, settings, API keys, OAuth/direct-client credentials, backups and restore evidence. Test only unique/manifest-owned fixtures; never broad-delete.
@@ -55,3 +55,6 @@ Release evidence / remaining Chat 27
 
 <!-- PARTPILOT:PUBLIC_ALPHA_RELEASE_HYGIENE_MEMORY:V790 -->
 - Public-alpha release hygiene now documents HTTPS/proxy/no-auth/data/reset/backup safety and removes stale pre-MCP wording without changing live configuration. Licensing remains an explicit repository-owner decision before the final Chat 27 boundary.
+
+<!-- PARTPILOT:CHAT27_PUBLIC_ALPHA_BOUNDARY_MEMORY:V796 -->
+- Patch 796 closes Chat 27 after targeted rehearsal of all five diagnosed mutable MCP fixtures and all 44 release smokes pass. Fixture normalization is copy-only: four historical singleton smokes retain only legacy row 1; the named-direct smoke gets copied disabled defaults. Live direct clients/settings/permissions remain mutable and untouched. Approved image `sha256:fa265f69c32b784172f8fc46819ea484c0170dbd4df13b3c8fbd6bcd86711f37`, Alembic `0022_mcp_inventory_part_lifecycle`, browser-polished Settings/User UI and Claude external MCP evidence remain authoritative. Next patch 797. License decision remains explicit.

@@ -3828,3 +3828,21 @@ Remaining before the Chat 27 boundary:
    repository source-available without one; do not auto-select licensing terms.
 2. Complete final release-candidate handoff/boundary documentation by Patch 793.
 3. Fix only genuinely new release blockers discovered before that boundary.
+
+
+<!-- PARTPILOT:CHAT27_PUBLIC_ALPHA_BOUNDARY_ROADMAP:V796 -->
+### Patch 796 — recover and complete Chat 27 public-alpha boundary
+
+Completed:
+- [x] Use the committed Patch 795 diagnostic as the authoritative recovery contract.
+- [x] Rehearse all five mutable-fixture adapters before the complete release matrix.
+- [x] Re-run all 44 release smoke invocations on independent copied-production databases.
+- [x] Preserve all live direct clients and mutable MCP settings while normalizing only historical test copies.
+- [x] Revalidate approved V785 image, Alembic `0022_mcp_inventory_part_lifecycle`, SQLite, Primary Owner/OpenAPI/SPA contracts and the fourteen-tool MCP policy shape.
+- [x] Close Chat 27 with durable checkpoint, README/memory updates and `Chat_27_to_Chat_28_Handoff.md`.
+
+Because recovery consumed patches beyond the planned 793 boundary, Chat 28 now starts
+at Patch 797 and owns patches 797-821, with planned boundary 821. Its first priority is
+public-alpha publishing/release packaging and release notes. Repository licensing remains
+an explicit owner decision; do not add a license automatically. Notifications & Messaging
+remain post-v1 unless explicitly reprioritized.

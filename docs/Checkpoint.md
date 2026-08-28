@@ -4648,3 +4648,60 @@ Patch 790 applies the release-facing hygiene from the exact post-P789 checkpoint
 No application source, live database, deployment, credentials, settings, or MCP
 permission values are changed by this checkpoint. The repository still has no
 `LICENSE`; licensing remains an explicit repository-owner decision.
+
+
+<!-- PARTPILOT:CHAT27_PUBLIC_ALPHA_BOUNDARY:V796 -->
+## Chat 27 public-alpha release-candidate boundary recovery — Patch 796
+
+Patch 796 is the authoritative Chat 27 boundary recovery. The planned Patch 793
+boundary did not complete, so Chat 27 remained active through narrow high-safety
+recovery patches 794-796. Patch 795 is the authoritative diagnostic checkpoint for
+the final release-gate fixture drift.
+
+Consumed release-gate/recovery history:
+- Patch 791 reached copied-production smoke 11/44 and exposed a migration-era
+  singleton assumption in the historical direct-Bearer fixture when the copied live
+  database legitimately contained additional named/revoked direct-client history.
+- Patch 792 failed pre-write because its evidence assertion searched a command log
+  for terminal-only exception text/phase wording that the logger does not persist.
+- Patch 793 normalized the three historical direct transport copies and reached
+  smoke 20/44, where the named-direct smoke froze the old disabled-default values of
+  mutable `mcp.direct_clients_enabled` / `mcp.direct_no_auth_enabled` settings.
+- Patch 794 was correctly diagnostic-only but itself failed pre-write by expecting
+  terminal exception text inside the P792 command log.
+- Patch 795 repaired that evidence model, committed only
+  `docs/diagonostic_patch_795_final_release_gate_mutable_fixture_drift.md`, and
+  identified the complete five-fixture adapter required for a safe recovery.
+
+Patch 796 implements only that diagnostic fixture adapter on isolated copied databases:
+- Bearer, custom-header, trusted-network transport, and trusted-network-management
+  historical smokes validate legacy row ID 1 then remove only `mcp_direct_auth`
+  rows with `id <> 1` from their private copies;
+- `mcp_named_direct_clients_smoke_test` starts from copied values
+  `mcp.direct_clients_enabled=false` and `mcp.direct_no_auth_enabled=false`, because
+  those are the migration/default values that smoke explicitly tests;
+- production direct clients, settings, credentials and permission values are never
+  normalized or restored to historical defaults.
+
+Before the full matrix, all five affected fixtures are separately rehearsed. Patch 796
+then runs all 44 current copied-production release smoke invocations,
+reproduces the exact approved image `sha256:fa265f69c32b784172f8fc46819ea484c0170dbd4df13b3c8fbd6bcd86711f37`, and keeps production at Alembic
+`0022_mcp_inventory_part_lifecycle` with SQLite integrity intact.
+
+Final Chat 27 evidence:
+- all 44 release smokes pass after comprehensive fixture-only normalization;
+- copied fixtures retain their normalized pre-smoke fourteen-key MCP permission
+  values and pass SQLite quick/foreign-key checks;
+- backup/restore, authentication/profile/sessions, permanent Primary Owner semantics,
+  Preferences, inventory/recycle, Projects/Reservations/History/live-sync, API keys,
+  OAuth/direct MCP transports, permissions and all eight safeguarded writes remain covered;
+- browser-approved Patch 779-785 release polish and real Claude OAuth MCP verification
+  remain the accepted manual/external evidence;
+- health, protected routes, SPA routes, OpenAPI role boundaries and repository
+  sensitive-file hygiene remain intact;
+- production data, credentials, mutable MCP settings, direct-client history and the
+  running deployment remain untouched by the release gate and boundary documentation.
+
+Aggregate full-matrix smoke execution time recorded by Patch 796: 174.8s.
+Chat 27 is complete only after this patch commits/pushes successfully. The next patch
+is 797 in `Chat 28: Public Alpha Release and Post-v1 Planning`.
