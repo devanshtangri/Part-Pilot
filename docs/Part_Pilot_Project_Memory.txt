@@ -72,3 +72,6 @@ Release evidence / Chat 28 publishing
 
 <!-- PARTPILOT:V1_GHCR_DISTRIBUTION_MEMORY:V815 -->
 - P815 prepares the stable no-build distribution without publishing: registry `ghcr.io/devanshtangri/part-pilot`, image-based `docker-compose.release.yml`, and repository-guarded tag-only multi-platform GHCR workflow (`linux/amd64`,`linux/arm64`, exact stable tag + `latest`, provenance, SBOM). Release Compose is locally rehearsed on fresh and copied-production data. No `v1.0.0` tag/LICENSE/GitHub Release is created. Next: dependency/license audit, then explicit license approval before tagging.
+
+<!-- PARTPILOT:V1_DEPENDENCY_LOCK_MEMORY:V817 -->
+- P816 diagnosed two pre-tag blockers: floating dependencies and third-party distribution compliance. P817 freezes the already-audited application graph rather than resolving newer packages: exact Python direct pins + a 44-package runtime lock, exact frontend P816 versions + recovered package-lock, Docker `npm ci`, and multi-arch Node/Python base indexes pinned by digest. Next: third-party notices/source-correspondence, then explicit custom LICENSE approval, then `v1.0.0`.

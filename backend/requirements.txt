@@ -1,19 +1,19 @@
-fastapi
-uvicorn[standard]
-SQLAlchemy
-alembic
-pydantic-settings
-python-dotenv
-python-multipart
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+SQLAlchemy==2.0.51
+alembic==1.19.0
+pydantic-settings==2.15.0
+python-dotenv==1.2.2
+python-multipart==0.0.32
 Pillow==11.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 
 # FastAPI/Starlette TestClient dependency
-httpx
+httpx==0.28.1
 
 # Stable MCP Streamable HTTP runtime
 mcp==1.27.2
 
 # MCP direct-key encryption at rest
-cryptography
+cryptography==50.0.0

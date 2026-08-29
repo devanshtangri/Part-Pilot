@@ -3944,3 +3944,15 @@ Required before public `v1.0.0` publication:
 - [ ] Create the consequential `v1.0.0` tag only after licensing is approved and all release blockers are clear.
 - [ ] Verify the tag-triggered GHCR workflow, make/confirm the package Public, test anonymous pull and perform a clean remote-image install/upgrade/backup/restore rehearsal.
 - [ ] Publish the final GitHub `Part Pilot v1.0.0` Release only after remote artifact verification.
+
+<!-- PARTPILOT:V1_DEPENDENCY_LOCK_ROADMAP:V817 -->
+### Patch 817 — lock the audited v1 dependency graph
+
+- [x] Pin all 13 direct Python requirements to versions from the approved runtime.
+- [x] Add a full 44-package Python runtime lock and use it for Docker installs.
+- [x] Replace frontend `latest` specifications with exact P816-audited versions.
+- [x] Recover and commit the exact P816 npm lock graph; use `npm ci`.
+- [x] Pin Node and Python multi-architecture base-image indexes by digest.
+- [ ] Generate durable third-party notices/source-correspondence material for the locked image.
+- [ ] Obtain explicit approval of the custom Part Pilot LICENSE.
+- [ ] Only after compliance is complete, create `v1.0.0` and verify GHCR publication.
