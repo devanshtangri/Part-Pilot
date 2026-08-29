@@ -3939,8 +3939,8 @@ Required before public `v1.0.0` publication:
 - [x] Add release image/data-directory overrides to `.env.example` without restoring host/container port environment variables.
 - [x] Document the exact post-publication image-based install/upgrade path while clearly keeping source-build installation authoritative until the image is actually public.
 - [x] Rehearse release Compose with both fresh data and copied production data using a local candidate image.
-- [ ] Audit dependency and bundled-asset license obligations before proposing the root Part Pilot license.
-- [ ] Obtain explicit approval of exact custom source-available Part Pilot licensing terms before adding LICENSE/notices.
+- [x] Audit dependency and bundled-asset license obligations before proposing the root Part Pilot license.
+- [x] Obtain explicit approval of exact custom source-available Part Pilot licensing terms before adding LICENSE/notices.
 - [ ] Create the consequential `v1.0.0` tag only after licensing is approved and all release blockers are clear.
 - [ ] Verify the tag-triggered GHCR workflow, make/confirm the package Public, test anonymous pull and perform a clean remote-image install/upgrade/backup/restore rehearsal.
 - [ ] Publish the final GitHub `Part Pilot v1.0.0` Release only after remote artifact verification.
@@ -3953,8 +3953,8 @@ Required before public `v1.0.0` publication:
 - [x] Replace frontend `latest` specifications with exact P816-audited versions.
 - [x] Recover and commit the exact P816 npm lock graph; use `npm ci`.
 - [x] Pin Node and Python multi-architecture base-image indexes by digest.
-- [ ] Generate durable third-party notices/source-correspondence material for the locked image.
-- [ ] Obtain explicit approval of the custom Part Pilot LICENSE.
+- [x] Generate durable third-party notices/source-correspondence material for the locked image.
+- [x] Obtain explicit approval of the custom Part Pilot LICENSE.
 - [ ] Only after compliance is complete, create `v1.0.0` and verify GHCR publication.
 
 <!-- PARTPILOT:THIRD_PARTY_COMPLIANCE_ROADMAP:V818 -->
@@ -3966,5 +3966,16 @@ Required before public `v1.0.0` publication:
 - [x] Pin 194 Debian source archives by URL, size and SHA-256 (~299 MiB total).
 - [x] Prepare a data-only companion `part-pilot-source:<version>` GHCR image containing those exact source archives.
 - [x] Embed notices/license material in the application image and document source retrieval.
-- [ ] Obtain explicit approval of the exact Part Pilot project-license text before adding `LICENSE`.
+- [x] Obtain explicit approval of the exact Part Pilot project-license text and add the approved root `LICENSE`.
 - [ ] Create `v1.0.0` only after project licensing is complete; then verify both GHCR packages are public, anonymous pulls work, source archives are retrievable, and clean install/upgrade/backup/restore passes before announcing the GitHub Release.
+
+
+<!-- PARTPILOT:V1_PROJECT_LICENSE_ROADMAP:V820 -->
+### Patch 820 — approved project license
+
+- [x] Add the exact owner-approved `Part Pilot Source-Available License Version 1.0`.
+- [x] Keep third-party licenses authoritative and outside the Part Pilot license.
+- [x] Copy the exact project `LICENSE` into the application image at `/app/LICENSE`.
+- [x] Reconcile README, release notes and publishing checklist with `v1.0.0` stable-release decisions.
+- [ ] Complete the Chat 28 release boundary/handoff without tagging or publishing.
+- [ ] In the next chat, create/push `v1.0.0`, verify both GHCR packages are public and anonymously retrievable, validate clean remote-image install/upgrade/backup/restore, then publish the GitHub Release.

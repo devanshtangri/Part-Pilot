@@ -4798,3 +4798,11 @@ Patch 818 packages the locked v1.0.0 third-party compliance material without cre
 The companion source artifact is intended to provide network-accessible corresponding source for redistributed GPL/LGPL base-image components. `certifi` MPL-2.0 source-form Python files remain present in the application image; locked frontend MPL build-tool license text is preserved even though the build-tool implementation is not copied into the browser bundle. Third-party licenses remain authoritative and are explicitly outside any later restrictive Part Pilot license.
 
 No `v1.0.0` tag, GHCR push, GitHub Release, LICENSE or COPYING file is created by this patch. Both GHCR packages must be confirmed public and retrievable before final release announcement.
+
+
+<!-- PARTPILOT:V1_PROJECT_LICENSE_CHECKPOINT:V820 -->
+## Patch 820 — approved Part Pilot project license checkpoint
+
+The repository owner explicitly approved the exact `Part Pilot Source-Available License Version 1.0`, copyright 2026 Devansh Tangri. The license applies only to Part Pilot's original code, documentation, UI assets and other owned materials. It permits free personal, educational and internal organizational use, self-hosting, necessary operational/backup/migration copies, configuration through supported mechanisms and building unmodified source. It prohibits redistribution/public mirroring, modification/derivative works, resale/product incorporation, and offering Part Pilot itself as third-party hosted/managed/SaaS without separate written permission. Part Pilot is source-available, not open source.
+
+Third-party components remain outside the Part Pilot license and retain their own licenses/notices from Patch 818/819. The application image carries the exact project license at `/app/LICENSE`; no single OCI `licenses` label is added because the distributed image contains components under multiple independent licenses. Release tag/title are fixed as `v1.0.0` / `Part Pilot v1.0.0`, stable rather than pre-release. P820 creates no Git tag, GHCR publication or GitHub Release. The next gate is final release-boundary/handoff preparation followed by remote publication and verification in the next chat.

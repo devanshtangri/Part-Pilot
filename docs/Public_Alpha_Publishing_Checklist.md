@@ -20,17 +20,16 @@ the publishing-documentation recovery checkpoint is Patch 798.
 - [x] README contains deployment-security guidance.
 - [x] Tag-neutral public-alpha release notes are prepared.
 
-## Repository-owner decisions — required before consequential publishing
+## Repository-owner decisions — completed before consequential publishing
 
-- [ ] Choose the Git tag/release identifier and GitHub Release title.
-- [ ] Choose licensing disposition:
-  - add a specific license selected by the repository owner; **or**
-  - intentionally publish without a redistribution license and describe the repository
-    accurately without calling it open source.
-- [ ] Decide whether the GitHub Release should be marked **pre-release**. Public alpha
-  normally fits pre-release semantics, but the repository owner should choose explicitly.
+- [x] Release tag/title selected: `v1.0.0` / `Part Pilot v1.0.0`.
+- [x] Licensing selected and explicitly approved: `Part Pilot Source-Available License
+  Version 1.0` for Part Pilot's original materials; third-party components retain their
+  own licenses.
+- [x] GitHub Release classification selected: stable/final release, **not** pre-release.
 
-Do not guess any of these values inside an automated patch.
+These owner decisions are now fixed release inputs; automated publication must not
+substitute different values.
 
 ## Pre-publication repository checks
 
@@ -42,8 +41,8 @@ Do not guess any of these values inside an automated patch.
   staged or included in release assets.
 - [ ] Review `README.md` and `docs/Public_Alpha_Release_Notes.md` for the exact release
   title/tag chosen by the owner, if the release should mention them.
-- [ ] If a license is selected, add only that exact license in its own reviewed patch and
-  update README wording consistently.
+- [x] Add only the explicitly approved project license in its own reviewed patch and
+  update README/release-note wording consistently.
 
 ## GitHub Release actions
 

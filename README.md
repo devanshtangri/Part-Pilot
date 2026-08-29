@@ -338,6 +338,16 @@ These documents are being reconciled to the final `v1.0.0` release before public
 
 ## License
 
-A project license has **not yet been selected**. Until a `LICENSE` file is added, do not
-assume that the repository grants general redistribution rights. The final licensing
-terms will be published separately after explicit review.
+Part Pilot's original code, documentation and owned assets are licensed under the
+[`Part Pilot Source-Available License Version 1.0`](LICENSE). It permits free personal,
+educational and internal organizational use, including self-hosting, operational backups,
+migration, configuration and building the **unmodified** source. It does not permit
+redistribution, public mirroring, source modification/derivative works, resale, product
+incorporation, or offering Part Pilot itself as a hosted/managed/SaaS product to third
+parties without separate written permission.
+
+Part Pilot is therefore **source-available, not open source**. Third-party components are
+not covered by the Part Pilot license; their own licenses and notices remain authoritative
+and are documented in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and
+`third_party/licenses/`. The application container also carries the exact project license
+at `/app/LICENSE` and third-party compliance material under `/app/third_party/`.

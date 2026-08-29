@@ -125,10 +125,11 @@ rewrite stored timestamps.
 - Notifications & Messaging are post-v1.
 - MCP does not expose permanent inventory purge/hard delete.
 - Currency selection is display/formatting semantics, not currency conversion.
-- Repository licensing has not yet been selected. Until the repository owner explicitly
-  chooses licensing terms, do not describe the repository as open source or assume
-  redistribution rights.
-- No public-alpha Git tag or GitHub Release title is assigned by these notes.
+- Part Pilot's original materials are covered by the custom `Part Pilot Source-Available
+  License Version 1.0`; the project is source-available, not open source, and third-party
+  components retain their own licenses/notices.
+- The intended stable release tag/title are `v1.0.0` / `Part Pilot v1.0.0`; the tag and
+  GitHub Release are still pending the final publication/remote-image verification gate.
 
 ## Upgrade and rollback
 

@@ -1,0 +1,147 @@
+Part Pilot Source-Available License
+Version 1.0
+
+Copyright (c) 2026 Devansh Tangri
+All rights reserved.
+
+1. Scope
+
+This license applies only to the original Part Pilot software, source code,
+documentation, user interface assets, and other materials owned by the
+copyright holder ("Part Pilot").
+
+Third-party software, libraries, dependencies, fonts, operating-system
+components, and other third-party materials distributed with, used by, or
+referenced by Part Pilot are not licensed under this license. They remain
+subject to their respective licenses and notices.
+
+2. Permission to Use
+
+Subject to the terms of this license, you are granted a limited,
+non-exclusive, non-transferable, non-sublicensable, royalty-free license to:
+
+a. download and obtain copies of Part Pilot;
+
+b. install and run Part Pilot on systems owned, controlled, or administered
+   by you or your organization;
+
+c. use Part Pilot for personal, educational, or internal organizational
+   purposes;
+
+d. create copies reasonably necessary for installation, execution, backup,
+   disaster recovery, migration, and other ordinary operational purposes;
+
+e. build or compile unmodified Part Pilot source code solely for a use
+   otherwise permitted by this license; and
+
+f. change configuration, environment variables, deployment settings, stored
+   application preferences, and other user-configurable values through
+   mechanisms provided for configuring or operating Part Pilot.
+
+No fee or royalty is owed for the uses expressly permitted above.
+
+3. No Redistribution
+
+You may not distribute, redistribute, republish, mirror, host for public
+download, sublicense, transfer, provide copies of, or otherwise make Part
+Pilot or any substantial portion of it available to another person or
+organization.
+
+This restriction does not prohibit operational copies made solely for your
+own permitted use on systems owned, controlled, or administered by you or
+your organization.
+
+4. No Modification or Derivative Works
+
+You may not modify, adapt, translate, alter, transform, create derivative
+works from, or distribute modified versions of Part Pilot.
+
+Changes made solely through ordinary configuration mechanisms described in
+Section 2(f) are not considered modifications for the purposes of this
+section.
+
+Where applicable law gives you rights that cannot lawfully be restricted by
+this section, this section applies only to the maximum extent permitted by
+that law.
+
+5. No Sale or Product Incorporation
+
+You may not:
+
+a. sell, rent, lease, license, sublicense, or otherwise commercially
+   distribute Part Pilot;
+
+b. include, bundle, embed, incorporate, or integrate Part Pilot or a
+   substantial portion of it into another software product, service,
+   appliance, commercial offering, or distribution intended for third
+   parties;
+
+c. offer Part Pilot itself as a hosted, managed, white-label, or
+   software-as-a-service product to third parties; or
+
+d. charge another party specifically for access to, copies of, licensing of,
+   or distribution of Part Pilot.
+
+This section does not prohibit the internal use of Part Pilot by a business
+or other organization for its own operations.
+
+6. Notices
+
+You must preserve copyright, attribution, license, and third-party notice
+files supplied with Part Pilot in all copies that you are permitted to make.
+
+You may not remove or obscure notices identifying the copyright holder or
+the applicable third-party licenses.
+
+7. No Trademark Rights
+
+This license does not grant permission to use the Part Pilot name, logos,
+branding, or trademarks except as reasonably necessary to identify the
+software when using it in accordance with this license.
+
+8. Ownership
+
+Part Pilot is licensed, not sold.
+
+Except for the limited permissions expressly granted by this license, all
+right, title, and interest in Part Pilot remain with the copyright holder.
+
+No rights are granted by implication, estoppel, or otherwise.
+
+9. Termination
+
+Your rights under this license terminate automatically if you materially
+violate its terms.
+
+Upon termination, you must stop using Part Pilot and delete all copies in
+your possession or control, except copies that applicable law requires you
+to retain.
+
+The copyright holder may separately grant additional or different rights in
+a written agreement.
+
+10. Disclaimer of Warranty
+
+PART PILOT IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+NON-INFRINGEMENT.
+
+YOU USE PART PILOT AT YOUR OWN RISK.
+
+11. Limitation of Liability
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER
+SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, CONSEQUENTIAL, OR OTHER DAMAGES, OR FOR ANY LOSS OF DATA,
+PROFITS, REVENUE, BUSINESS, OR USE, ARISING FROM OR RELATED TO PART PILOT
+OR THIS LICENSE, WHETHER IN CONTRACT, TORT, STRICT LIABILITY, OR OTHERWISE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+12. Entire License
+
+This license constitutes the terms under which the copyright holder grants
+the permissions stated above for Part Pilot.
+
+Any use of Part Pilot not expressly permitted by this license requires prior
+written permission from the copyright holder.
