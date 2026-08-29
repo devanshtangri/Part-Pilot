@@ -244,6 +244,34 @@ docker compose up -d
 Do not switch an existing deployment to a different image/tag without first preserving the
 current `./data` directory or a verified Part Pilot backup.
 
+## Third-party software and corresponding source
+
+Part Pilot's own license does not replace the licenses of third-party software included in
+or used to build the application. Exact notices and collected license/copyright texts for
+the locked `v1.0.0` dependency graph are provided in `THIRD_PARTY_NOTICES.md` and
+`third_party/licenses/`. The application image also contains those materials under
+`/app/third_party/`.
+
+The release workflow is prepared to publish a version-matched companion source image for
+Debian GPL/LGPL-covered base-image components:
+
+```text
+ghcr.io/devanshtangri/part-pilot-source:v1.0.0
+```
+
+After publication, the source archives can be copied out with Docker:
+
+```bash
+docker pull ghcr.io/devanshtangri/part-pilot-source:v1.0.0
+cid=$(docker create ghcr.io/devanshtangri/part-pilot-source:v1.0.0)
+docker cp "$cid:/sources" ./part-pilot-v1.0.0-third-party-sources
+docker rm "$cid"
+```
+
+The source image is prepared from `third_party/debian-source-files.tsv`, which pins every
+source archive by URL, byte size, and SHA-256. Both the application image and companion
+source image must be made publicly accessible before `v1.0.0` is announced.
+
 ## Security notes
 
 - Use HTTPS for internet-facing deployments.

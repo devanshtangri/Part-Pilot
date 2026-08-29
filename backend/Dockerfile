@@ -20,6 +20,10 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.lock.txt
 
 COPY backend /app/backend
 COPY --from=frontend-builder /frontend/dist /app/frontend_dist
+COPY THIRD_PARTY_NOTICES.md /app/third_party/THIRD_PARTY_NOTICES.md
+COPY third_party/licenses /app/third_party/licenses
+COPY third_party/debian-source-packages.txt /app/third_party/debian-source-packages.txt
+COPY third_party/debian-source-files.tsv /app/third_party/debian-source-files.tsv
 
 WORKDIR /app/backend
 

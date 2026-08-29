@@ -3956,3 +3956,15 @@ Required before public `v1.0.0` publication:
 - [ ] Generate durable third-party notices/source-correspondence material for the locked image.
 - [ ] Obtain explicit approval of the custom Part Pilot LICENSE.
 - [ ] Only after compliance is complete, create `v1.0.0` and verify GHCR publication.
+
+<!-- PARTPILOT:THIRD_PARTY_COMPLIANCE_ROADMAP:V818 -->
+### Patch 818 — third-party distribution compliance package
+
+- [x] Preserve the exact P817 dependency locks and pinned multi-architecture base images.
+- [x] Collect the exact locked frontend, Python and Debian license/copyright corpus.
+- [x] Map both AMD64 and ARM64 runtime bases to the same 61 Debian source package/version pairs.
+- [x] Pin 194 Debian source archives by URL, size and SHA-256 (~299 MiB total).
+- [x] Prepare a data-only companion `part-pilot-source:<version>` GHCR image containing those exact source archives.
+- [x] Embed notices/license material in the application image and document source retrieval.
+- [ ] Obtain explicit approval of the exact Part Pilot project-license text before adding `LICENSE`.
+- [ ] Create `v1.0.0` only after project licensing is complete; then verify both GHCR packages are public, anonymous pulls work, source archives are retrievable, and clean install/upgrade/backup/restore passes before announcing the GitHub Release.

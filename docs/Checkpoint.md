@@ -4789,3 +4789,12 @@ P815 validates the release Compose using a locally built image on an isolated fr
 ## Patch 817 — reproducible v1 dependency lock checkpoint
 
 Patch 816 identified floating application dependencies and floating Docker base tags as a pre-`v1.0.0` blocker. Patch 817 freezes the dependency graph already audited and validated before the tag: Python direct requirements are exact-pinned, `backend/requirements.lock.txt` captures the full approved 44-package non-pip runtime graph, frontend top-level dependencies use the exact P816 versions, the recovered P816 `package-lock.json` freezes the complete npm graph, Docker uses `npm ci`, and both Node/Python base images are pinned by multi-architecture OCI index digest. No product behavior, database schema, license, release tag or GHCR publication is introduced by this checkpoint.
+
+<!-- PARTPILOT:THIRD_PARTY_COMPLIANCE_PACKAGE:V818 -->
+## Patch 818 — third-party notices and corresponding-source package
+
+Patch 818 packages the locked v1.0.0 third-party compliance material without creating the Part Pilot project LICENSE or release tag. The exact application image carries `THIRD_PARTY_NOTICES.md`, collected frontend/Python/Debian license text, and the Debian source manifests under `/app/third_party/`. The tag workflow is extended to publish `ghcr.io/devanshtangri/part-pilot-source:<version>` before the application image; that data-only scratch image contains the exact Debian source archives identified by 61 source package/version pairs and 194 URL/size/SHA-256 records (~299 MiB before registry compression). AMD64 and ARM64 were verified to use the same source package/version set.
+
+The companion source artifact is intended to provide network-accessible corresponding source for redistributed GPL/LGPL base-image components. `certifi` MPL-2.0 source-form Python files remain present in the application image; locked frontend MPL build-tool license text is preserved even though the build-tool implementation is not copied into the browser bundle. Third-party licenses remain authoritative and are explicitly outside any later restrictive Part Pilot license.
+
+No `v1.0.0` tag, GHCR push, GitHub Release, LICENSE or COPYING file is created by this patch. Both GHCR packages must be confirmed public and retrievable before final release announcement.

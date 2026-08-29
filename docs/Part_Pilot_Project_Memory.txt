@@ -75,3 +75,6 @@ Release evidence / Chat 28 publishing
 
 <!-- PARTPILOT:V1_DEPENDENCY_LOCK_MEMORY:V817 -->
 - P816 diagnosed two pre-tag blockers: floating dependencies and third-party distribution compliance. P817 freezes the already-audited application graph rather than resolving newer packages: exact Python direct pins + a 44-package runtime lock, exact frontend P816 versions + recovered package-lock, Docker `npm ci`, and multi-arch Node/Python base indexes pinned by digest. Next: third-party notices/source-correspondence, then explicit custom LICENSE approval, then `v1.0.0`.
+
+<!-- PARTPILOT:THIRD_PARTY_COMPLIANCE_MEMORY:V818 -->
+- P818 prepares third-party distribution compliance for the locked v1.0.0 graph: `THIRD_PARTY_NOTICES.md`; combined frontend/Python/Debian license corpus; 61 Debian source package/version pairs; 194 exact source-file URL/size/SHA-256 records (~299 MiB); and a tag-triggered companion `ghcr.io/devanshtangri/part-pilot-source:<version>` scratch image containing those sources. AMD64/ARM64 base source sets match. The app image copies notices/licenses to `/app/third_party/`. No Part Pilot LICENSE/tag/GHCR push/release yet; next step is an exact custom-license proposal for owner approval.

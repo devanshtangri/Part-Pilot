@@ -1,0 +1,12 @@
+# syntax=docker/dockerfile:1
+FROM --platform=$BUILDPLATFORM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS fetcher
+WORKDIR /bundle
+COPY third_party/debian-source-files.tsv /bundle/debian-source-files.tsv
+COPY third_party/fetch_debian_sources.py /bundle/fetch_debian_sources.py
+RUN python /bundle/fetch_debian_sources.py --manifest /bundle/debian-source-files.tsv --output /bundle/sources
+
+FROM scratch
+COPY --from=fetcher /bundle/sources /sources
+COPY third_party/debian-source-files.tsv /debian-source-files.tsv
+COPY third_party/debian-source-packages.txt /debian-source-packages.txt
+COPY THIRD_PARTY_NOTICES.md /THIRD_PARTY_NOTICES.md
