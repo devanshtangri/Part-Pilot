@@ -69,3 +69,6 @@ Release evidence / Chat 28 publishing
 
 <!-- PARTPILOT:APPROVED_RELEASE_BOOTSTRAP_FAVICON_MEMORY:V814 -->
 - P812 passed automated release-bootstrap/fixed-port validation; P813 changed only `frontend/public/favicon.svg` to match the existing Part Pilot dark/mint `P` brand mark and was browser-approved. P814 checkpoints those exact approved app/config/frontend bytes. Fresh SQLite migrates+seeds, initialized managed DBs migrate without reseeding, non-empty unversioned SQLite fails closed, internal HTTP stays fixed at 8000 with default Compose `7890:8000`. No LICENSE/tag/GHCR/GitHub Release is created; next release work is registry/distribution packaging followed by license-obligation audit and explicit license approval.
+
+<!-- PARTPILOT:V1_GHCR_DISTRIBUTION_MEMORY:V815 -->
+- P815 prepares the stable no-build distribution without publishing: registry `ghcr.io/devanshtangri/part-pilot`, image-based `docker-compose.release.yml`, and repository-guarded tag-only multi-platform GHCR workflow (`linux/amd64`,`linux/arm64`, exact stable tag + `latest`, provenance, SBOM). Release Compose is locally rehearsed on fresh and copied-production data. No `v1.0.0` tag/LICENSE/GitHub Release is created. Next: dependency/license audit, then explicit license approval before tagging.

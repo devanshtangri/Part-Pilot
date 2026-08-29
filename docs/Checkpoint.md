@@ -4775,3 +4775,12 @@ Patch 812 completed the guarded container-database bootstrap, fixed internal por
 Patch 814 checkpoints those exact application/config/frontend bytes without further product changes. Fresh file-backed SQLite starts by migrating to Alembic head and idempotently initializing built-in/default data; initialized managed databases migrate without seed replay; ambiguous non-empty unversioned SQLite fails closed. Production remains Alembic `0022_mcp_inventory_part_lifecycle`, the fixed container port is `8000`, and the approved favicon is served as `/favicon.svg`.
 
 The checkpoint creates no LICENSE/COPYING file, `v1.0.0` tag, GHCR publication or GitHub Release. Those remain separate consequential release steps.
+
+<!-- PARTPILOT:V1_GHCR_DISTRIBUTION_PACKAGE:V815 -->
+## v1.0.0 GHCR distribution package prepared — Patch 815
+
+Patch 815 prepares, validates and checkpoints the stable image-distribution path without publishing it. The registry target is `ghcr.io/devanshtangri/part-pilot`. `docker-compose.release.yml` pulls `v1.0.0`, uses fixed container port `8000`, defaults to host `7890`, mounts configurable persistent host data into `/data`, preserves the readiness healthcheck and intentionally omits `container_name`.
+
+`.github/workflows/publish-container.yml` runs only for tag pushes matching `v*.*.*`, refuses anything except an exact stable `vMAJOR.MINOR.PATCH` tag before registry login/build, is repository-guarded to `devanshtangri/Part-Pilot`, and publishes `linux/amd64` + `linux/arm64` images to GHCR with the exact tag plus `latest`, provenance and SBOM. No license OCI label is added before licensing terms are approved.
+
+P815 validates the release Compose using a locally built image on an isolated fresh data directory and a copied-production data directory; the latter must log seed skip and remain logically unchanged. The workflow is YAML-parsed and structurally checked. P815 creates no `v1.0.0` tag and therefore cannot trigger publication; it creates no LICENSE/COPYING file and no GitHub Release. The next gate is dependency/license-obligation analysis followed by explicit approval of exact Part Pilot licensing terms.

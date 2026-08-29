@@ -1,0 +1,29 @@
+services:
+  partpilot:
+    image: "${PARTPILOT_IMAGE:-ghcr.io/devanshtangri/part-pilot:v1.0.0}"
+    env_file:
+      - .env
+    environment:
+      PARTPILOT_DATABASE_URL: sqlite:////data/partpilot.db
+      PARTPILOT_ENABLE_DEBUG_RESET: "${PARTPILOT_ENABLE_DEBUG_RESET:-true}"
+      PARTPILOT_RESTORE_SUPERVISOR_CONTRACT: "compose-restart-v1"
+    ports:
+      # Part Pilot listens on fixed container port 8000. Change only host-side 7890 if desired.
+      - "${PARTPILOT_BIND_ADDRESS:-0.0.0.0}:7890:8000"
+    volumes:
+      - "${PARTPILOT_DATA_DIR:-./data}:/data"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen(
+          'http://127.0.0.1:8000/api/ready',
+          timeout=3).read()
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    restart: unless-stopped

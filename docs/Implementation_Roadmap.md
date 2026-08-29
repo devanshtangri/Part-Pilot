@@ -3929,3 +3929,18 @@ Required before public `v1.0.0` publication:
 - [ ] Audit dependency/license obligations before proposing exact project LICENSE text.
 - [ ] Add LICENSE only after explicit approval of its exact terms.
 - [ ] Validate public anonymous image pull plus clean remote-image install/upgrade/backup/restore before creating the `v1.0.0` tag and GitHub Release.
+
+<!-- PARTPILOT:V1_GHCR_DISTRIBUTION_ROADMAP:V815 -->
+### Patch 815 — prepare stable GHCR and release-Compose distribution
+
+- [x] Fix the stable registry target at `ghcr.io/devanshtangri/part-pilot`.
+- [x] Add image-based `docker-compose.release.yml` with persistent `/data`, readiness healthcheck and fixed container port `8000`.
+- [x] Add a tag-only, repository-guarded GHCR workflow for `linux/amd64` and `linux/arm64`, exact stable tag + `latest`, provenance and SBOM.
+- [x] Add release image/data-directory overrides to `.env.example` without restoring host/container port environment variables.
+- [x] Document the exact post-publication image-based install/upgrade path while clearly keeping source-build installation authoritative until the image is actually public.
+- [x] Rehearse release Compose with both fresh data and copied production data using a local candidate image.
+- [ ] Audit dependency and bundled-asset license obligations before proposing the root Part Pilot license.
+- [ ] Obtain explicit approval of exact custom source-available Part Pilot licensing terms before adding LICENSE/notices.
+- [ ] Create the consequential `v1.0.0` tag only after licensing is approved and all release blockers are clear.
+- [ ] Verify the tag-triggered GHCR workflow, make/confirm the package Public, test anonymous pull and perform a clean remote-image install/upgrade/backup/restore rehearsal.
+- [ ] Publish the final GitHub `Part Pilot v1.0.0` Release only after remote artifact verification.

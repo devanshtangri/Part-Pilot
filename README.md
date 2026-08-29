@@ -112,6 +112,8 @@ Common settings in `.env`:
 | `PARTPILOT_PUBLIC_BASE_URL` | empty | Canonical external HTTPS URL when using OAuth/MCP behind a reverse proxy. |
 | `PARTPILOT_TRUSTED_PROXY_CIDRS` | empty | Immediate trusted reverse-proxy networks allowed to supply forwarded client/origin data. |
 | `PARTPILOT_ENABLE_DEBUG_RESET` | `true` | Enables the server-side Primary-Owner database-reset endpoint. Set `false` to disable it. |
+| `PARTPILOT_IMAGE` | `ghcr.io/devanshtangri/part-pilot:v1.0.0` | Image used by `docker-compose.release.yml`; override only when intentionally testing another image/tag. |
+| `PARTPILOT_DATA_DIR` | `./data` | Host data directory mounted by `docker-compose.release.yml`. |
 
 After changing `.env`, recreate the service:
 
@@ -205,17 +207,42 @@ edit the SQLite schema.
 
 ## Published Docker image
 
-The release target for `v1.0.0` is a prebuilt image hosted in a container registry plus
-a ready-made Compose file that references that image directly. The intended customer
-installation will therefore be equivalent to:
+The stable `v1.0.0` distribution is prepared for GitHub Container Registry at:
+
+```text
+ghcr.io/devanshtangri/part-pilot:v1.0.0
+```
+
+The repository also includes `docker-compose.release.yml`, which pulls that image instead
+of building locally. **Until the `v1.0.0` tag has actually been published and the GHCR
+package is confirmed public, continue using the source-build Quick start above.**
+
+Once `v1.0.0` is published, a clean image-based installation is:
+
+```bash
+mkdir part-pilot
+cd part-pilot
+curl -fsSLo docker-compose.yml https://raw.githubusercontent.com/devanshtangri/Part-Pilot/v1.0.0/docker-compose.release.yml
+curl -fsSLo .env.example https://raw.githubusercontent.com/devanshtangri/Part-Pilot/v1.0.0/.env.example
+cp .env.example .env
+docker compose pull
+docker compose up -d
+```
+
+The release Compose file keeps Part Pilot on fixed container port `8000`, defaults to host
+port `7890`, and stores persistent application data in `./data`. Change only the left side
+of the port mapping if another host port is required.
+
+For an image-based upgrade after publication, create a fresh Part Pilot backup first, then
+run:
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The exact registry/image name will be documented when that publishing step is completed.
-Until then, use the source-build Quick start above rather than assuming an image name.
+Do not switch an existing deployment to a different image/tag without first preserving the
+current `./data` directory or a verified Part Pilot backup.
 
 ## Security notes
 
