@@ -4806,3 +4806,36 @@ No `v1.0.0` tag, GHCR push, GitHub Release, LICENSE or COPYING file is created b
 The repository owner explicitly approved the exact `Part Pilot Source-Available License Version 1.0`, copyright 2026 Devansh Tangri. The license applies only to Part Pilot's original code, documentation, UI assets and other owned materials. It permits free personal, educational and internal organizational use, self-hosting, necessary operational/backup/migration copies, configuration through supported mechanisms and building unmodified source. It prohibits redistribution/public mirroring, modification/derivative works, resale/product incorporation, and offering Part Pilot itself as third-party hosted/managed/SaaS without separate written permission. Part Pilot is source-available, not open source.
 
 Third-party components remain outside the Part Pilot license and retain their own licenses/notices from Patch 818/819. The application image carries the exact project license at `/app/LICENSE`; no single OCI `licenses` label is added because the distributed image contains components under multiple independent licenses. Release tag/title are fixed as `v1.0.0` / `Part Pilot v1.0.0`, stable rather than pre-release. P820 creates no Git tag, GHCR publication or GitHub Release. The next gate is final release-boundary/handoff preparation followed by remote publication and verification in the next chat.
+
+
+<!-- PARTPILOT:CHAT28_RELEASE_BOUNDARY:V821 -->
+## Chat 28 licensed v1.0.0 release-candidate boundary — Patch 821
+
+Chat 28 closes after preparing the complete stable-release publication path without
+performing the consequential publication itself. Patch 814 checkpointed the
+browser-approved startup bootstrap, fixed internal port `8000`, direct `7890:8000`
+Compose mapping and final favicon. Patch 815 prepared `docker-compose.release.yml` and
+the repository-guarded, tag-only multi-platform GHCR workflow. Patch 817 froze the exact
+audited Python/npm dependency graphs and multi-architecture base-image indexes. Patch
+819 recovered the Patch 818 validator false negative and checkpointed third-party notices,
+license corpora and the 61-package/194-file Debian corresponding-source package. Patch
+820 added the exact owner-approved `Part Pilot Source-Available License Version 1.0` and
+copies it into the application image at `/app/LICENSE`.
+
+At the pre-boundary P820 checkpoint, local `main` and `origin/main` are synchronized at
+`9b88e6b062cc1482a5622cd6d7624e8cb481179d`, production is healthy on Alembic
+`0022_mcp_inventory_part_lifecycle`, and the approved project `LICENSE` SHA-256 is
+`2c429a3b110b87bce60b90b9ef2068909ea60f3269a5d821f27a07b883d16ac7`. The live
+application image is license-bearing and also carries Patch 819 third-party compliance
+material. The successful Patch 821 boundary commit hash is intentionally not pre-guessed;
+read exact local/remote/runtime state after P821 succeeds.
+
+No `v1.0.0` Git tag, GHCR package publication or GitHub Release is created in Chat 28.
+Chat 29 owns publication and verification. Its required order is: create/push the exact
+`v1.0.0` tag from the clean boundary commit; verify the tag-triggered application and
+corresponding-source images for both `linux/amd64` and `linux/arm64`; make/confirm both
+GHCR packages public; prove anonymous pull and source-archive retrieval; run clean
+remote-image fresh-install plus copied-production upgrade/backup/restore verification;
+and only then publish the stable GitHub Release titled `Part Pilot v1.0.0`. Production
+data, credentials, Primary Owner semantics and mutable MCP settings remain protected
+throughout.

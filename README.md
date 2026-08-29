@@ -5,10 +5,10 @@ for makers, repair benches, engineering teams, classrooms, and small technical l
 It keeps parts, stock, projects, reservations, history, users, backups, and AI-assisted
 inventory workflows in one place while keeping the data under your control.
 
-> **Release status:** `v1.0.0` release candidate. The current repository installs by
-> building the Docker image locally from source. A registry-published image and a
-> ready-made image-based Docker Compose deployment are planned before the public
-> `v1.0.0` release so a normal installation will not require building the application.
+> **Release status:** the licensed `v1.0.0` release candidate is complete. The
+> image-based Docker Compose package and tag-triggered GHCR workflow are prepared, but
+> `v1.0.0` has not been tagged or published yet. Until the GHCR images are verified
+> public, the source-build installation below remains the authoritative install path.
 
 ## Highlights
 

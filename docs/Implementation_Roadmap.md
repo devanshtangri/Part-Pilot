@@ -3977,5 +3977,35 @@ Required before public `v1.0.0` publication:
 - [x] Keep third-party licenses authoritative and outside the Part Pilot license.
 - [x] Copy the exact project `LICENSE` into the application image at `/app/LICENSE`.
 - [x] Reconcile README, release notes and publishing checklist with `v1.0.0` stable-release decisions.
-- [ ] Complete the Chat 28 release boundary/handoff without tagging or publishing.
+- [x] Complete the Chat 28 release boundary/handoff without tagging or publishing.
 - [ ] In the next chat, create/push `v1.0.0`, verify both GHCR packages are public and anonymously retrievable, validate clean remote-image install/upgrade/backup/restore, then publish the GitHub Release.
+
+
+<!-- PARTPILOT:CHAT28_TO_CHAT29_RELEASE_ROADMAP:V821 -->
+## Chat 28 complete — Chat 29 publication and remote verification next
+
+Chat 28 patch range `797-821` is closed at Patch 821. Chat 29 owns `822-846`; planned
+boundary is Patch 846.
+
+Completed before publication:
+- [x] Browser-approved v1 startup/bootstrap/port/favicon candidate checkpointed.
+- [x] Image-based release Compose and multi-platform GHCR workflow prepared.
+- [x] Python/npm dependency graph and multi-arch base-image indexes frozen.
+- [x] Third-party notices/license corpus and corresponding-source image package prepared.
+- [x] Exact custom Part Pilot project license explicitly approved and checkpointed.
+- [x] Stable identity fixed as `v1.0.0` / `Part Pilot v1.0.0`, not pre-release.
+
+Chat 29 order:
+1. [ ] Re-read the Chat 28→29 handoff and exact local Git/runtime/Alembic/SQLite state.
+2. [ ] Create and push `v1.0.0` only from the exact clean licensed boundary commit.
+3. [ ] Verify the GitHub Actions tag workflow publishes both application and source
+   packages for `linux/amd64` + `linux/arm64`; confirm both packages are public.
+4. [ ] Prove anonymous pulls, application `/app/LICENSE` + `/app/third_party/`, and the
+   full 194-file SHA-pinned corresponding-source archive set.
+5. [ ] Validate no-build release Compose on a fresh data directory.
+6. [ ] Validate a copied-production remote-image upgrade plus backup/restore while
+   preserving logical data, credentials and mutable administrator state.
+7. [ ] Reconcile final release notes/checklist with observed remote artifact digests.
+8. [ ] Publish the stable GitHub Release `Part Pilot v1.0.0` only after all remote
+   verification passes.
+9. [ ] Fix only genuine publication blockers; keep Notifications & Messaging post-v1.
