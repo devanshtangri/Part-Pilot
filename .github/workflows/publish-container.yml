@@ -1,36 +1,71 @@
-name: Publish container image
+name: Publish Part Pilot
+run-name: Publish Part Pilot ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
 
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag"
+        required: true
+        default: "v1.0.0"
+        type: string
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: publish-container-${{ github.ref }}
+  group: publish-part-pilot-${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
+env:
+  REGISTRY_IMAGE: ghcr.io/devanshtangri/part-pilot
+  SOURCE_IMAGE: ghcr.io/devanshtangri/part-pilot-source
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+
 jobs:
-  publish:
+  validate:
     if: github.repository == 'devanshtangri/Part-Pilot'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    outputs:
+      release_sha: ${{ steps.release.outputs.release_sha }}
     steps:
-      - name: Validate stable release tag
+      - name: Validate release tag
+        id: release
         shell: bash
         run: |
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Refusing non-stable release tag: ${GITHUB_REF_NAME}" >&2
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Refusing non-stable release tag: ${RELEASE_TAG}" >&2
             exit 1
           fi
+          release_sha="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/${RELEASE_TAG}" | awk 'NR == 1 {print $1}')"
+          if [[ ! "${release_sha}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Release tag does not resolve to one commit: ${RELEASE_TAG}" >&2
+            exit 1
+          fi
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_SHA}" != "${release_sha}" ]]; then
+            echo "Tag push SHA does not match the remote release tag" >&2
+            exit 1
+          fi
+          echo "release_sha=${release_sha}" >> "${GITHUB_OUTPUT}"
 
-      - name: Check out release tag
+  publish-source:
+    if: github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out release source
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Verify release source
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ needs.validate.outputs.release_sha }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -42,34 +77,161 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate application image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/devanshtangri/part-pilot
-          tags: |
-            type=ref,event=tag
-            type=raw,value=latest
-
-      - name: Build and publish corresponding-source image
+      - name: Publish corresponding source
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./third_party/Dockerfile.sources
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/devanshtangri/part-pilot-source:${{ github.ref_name }}
+          tags: ${{ env.SOURCE_IMAGE }}:${{ env.RELEASE_TAG }}
           provenance: mode=max
           sbom: true
 
-      - name: Build and publish multi-platform application image
+  build-application:
+    name: Build application (${{ matrix.arch }})
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Verify release source
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ needs.validate.outputs.release_sha }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=raw,value=latest
+
+      - name: Build application image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./backend/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           provenance: mode=max
           sbom: true
+
+      - name: Export image digest
+        shell: bash
+        run: |
+          digest="${{ steps.build.outputs.digest }}"
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Build did not return a valid image digest" >&2
+            exit 1
+          fi
+          mkdir -p /tmp/application-digests
+          touch "/tmp/application-digests/${digest#sha256:}"
+
+      - name: Upload image digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-digest-${{ matrix.arch }}
+          path: /tmp/application-digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-application:
+    name: Publish application manifest
+    needs:
+      - validate
+      - publish-source
+      - build-application
+    if: >-
+      always() &&
+      needs.validate.result == 'success' &&
+      needs.build-application.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' || needs.publish-source.result == 'success')
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download image digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: application-digest-*
+          path: /tmp/application-digests
+          merge-multiple: true
+
+      - name: Validate image digests
+        shell: bash
+        run: |
+          count="$(find /tmp/application-digests -maxdepth 1 -type f | wc -l | tr -d ' ')"
+          if [[ "${count}" != "2" ]]; then
+            echo "Expected exactly two platform image digests, found ${count}" >&2
+            exit 1
+          fi
+          while IFS= read -r file; do
+            digest="$(basename "${file}")"
+            if [[ ! "${digest}" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Invalid digest artifact: ${digest}" >&2
+              exit 1
+            fi
+          done < <(find /tmp/application-digests -maxdepth 1 -type f | sort)
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish multi-platform application image
+        shell: bash
+        run: |
+          sources=()
+          while IFS= read -r file; do
+            digest="$(basename "${file}")"
+            sources+=("${REGISTRY_IMAGE}@sha256:${digest}")
+          done < <(find /tmp/application-digests -maxdepth 1 -type f | sort)
+          docker buildx imagetools create \
+            --tag "${REGISTRY_IMAGE}:${RELEASE_TAG}" \
+            --tag "${REGISTRY_IMAGE}:latest" \
+            "${sources[@]}"
+
+      - name: Verify published manifests
+        shell: bash
+        run: |
+          release_info="$(docker buildx imagetools inspect "${REGISTRY_IMAGE}:${RELEASE_TAG}")"
+          latest_info="$(docker buildx imagetools inspect "${REGISTRY_IMAGE}:latest")"
+          for info in "${release_info}" "${latest_info}"; do
+            grep -q 'Platform:[[:space:]]*linux/amd64' <<< "${info}"
+            grep -q 'Platform:[[:space:]]*linux/arm64' <<< "${info}"
+          done
+          release_digest="$(awk '/^Digest:/ {print $2; exit}' <<< "${release_info}")"
+          latest_digest="$(awk '/^Digest:/ {print $2; exit}' <<< "${latest_info}")"
+          test -n "${release_digest}"
+          test "${release_digest}" = "${latest_digest}"
